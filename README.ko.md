@@ -29,23 +29,23 @@
 
 ## 시연 영상
 
-소리 없는 짧은 화면 녹화예요(화면 글자는 영어).
+소리 없는 짧은 화면 녹화를 2배속으로 보여 줘요(화면 글자는 영어).
 
 **영상에서 장면 고르기.** 영상을 멈추고 장면 고르기를 열면, 멈춘 곳 앞뒤 장면 중에서 고를 수 있어요.
 
-https://github.com/user-attachments/assets/3ef12b47-e819-42f3-a328-c3fda99286fd
+https://github.com/user-attachments/assets/8062ea6b-4074-4629-b5c3-40448b63d897
 
 **9:16 표지 자르기.** 고정된 틀 안에서 끌고 확대해 저장해요. 그러면 바둑판 칸에 표지가 보이고, 눌렀을 때는 원본이 열려요.
 
-https://github.com/user-attachments/assets/e780c699-5338-428e-bd3c-67cad28b12fa
+https://github.com/user-attachments/assets/b6188598-f0c0-4f4b-8300-5d6a39153c72
 
 **움직이는 표지 만들기.** 장면 띠의 손잡이 두 개로 구간을 고르고, 속도와 반복 방식을 정해 만들어요. 만드는 동안 다른 일을 해도 돼요.
 
-https://github.com/user-attachments/assets/2577e701-2b87-4e67-977b-e8a5d7b57f22
+https://github.com/user-attachments/assets/4d9ad38a-1210-4226-9102-0c960992b47f
 
 **창 두 개 나란히 쓰기.** 새 창에 다른 폴더를 열고, 파일 여러 개를 골라 끌어 옮겨요. Ctrl+Z로 되돌릴 수 있어요.
 
-https://github.com/user-attachments/assets/03df192e-03a9-4ae5-9d8c-d3a24edc894e
+https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
 ## 화면
 

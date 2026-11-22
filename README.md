@@ -29,23 +29,23 @@ Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv
 
 ## Demo
 
-Short screen recordings (no sound, English UI).
+Short screen recordings at 2× speed (no sound, English UI).
 
 **Pick a frame from a video.** Pause the video, open the frame picker, and choose from the frames around that point.
 
-https://github.com/user-attachments/assets/3ef12b47-e819-42f3-a328-c3fda99286fd
+https://github.com/user-attachments/assets/8062ea6b-4074-4629-b5c3-40448b63d897
 
 **Crop a 9:16 cover.** Drag and zoom inside the fixed frame and save. The grid tile then shows the cover; clicking it still opens the original.
 
-https://github.com/user-attachments/assets/e780c699-5338-428e-bd3c-67cad28b12fa
+https://github.com/user-attachments/assets/b6188598-f0c0-4f4b-8300-5d6a39153c72
 
 **Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background.
 
-https://github.com/user-attachments/assets/2577e701-2b87-4e67-977b-e8a5d7b57f22
+https://github.com/user-attachments/assets/4d9ad38a-1210-4226-9102-0c960992b47f
 
 **Two windows side by side.** Open a second folder in a new window, select several files, and drag them across to move them. Ctrl+Z puts them back.
 
-https://github.com/user-attachments/assets/03df192e-03a9-4ae5-9d8c-d3a24edc894e
+https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
 ## Screenshots
 
