@@ -2,49 +2,69 @@
 
 <img src="docs/images/icon.png" width="64" align="right" alt="">
 
-A Windows desktop app for browsing large, unsorted folders of photos, GIFs and videos as one big grid, and for marking items with **9:16 cover crops** so they are easy to recognize later.
+A Windows app for going through huge, unsorted folders of photos, GIFs and videos. It works like File Explorer, shows everything as large tiles, and lets you keep the moment you care about as a **9:16 cover**.
 
-[한국어](README.ko.md) · [User guide](GUIDE.md) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/LoveMyShelf/LoveMyShelf/releases)
+**[Download for Windows](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)** · [한국어](README.ko.md) · [User guide](GUIDE.md) · [Changelog](CHANGELOG.md) · [All releases](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 
 ## Why
 
-A downloads or meme folder with thousands of mixed files is hard to scan in File Explorer: the thumbnails are small, videos show an arbitrary first frame, and you end up opening files one by one. Love My Shelf shows the folder as a large grid. For any photo, or any moment in a video, you can save a vertical crop (a "cover"); the tile then shows that crop instead of the default thumbnail.
+A downloads or meme folder with thousands of mixed files is hard to scan. Thumbnails are small, videos show whatever their first frame happens to be, and you end up opening files one by one.
 
-Originals are never modified. A cover is always written as a separate file.
+Love My Shelf keeps the folder navigation you already know and replaces the file list with a large grid. Pick any photo or any moment in a video, save it as a cover, and that file is shown by its cover from then on.
 
-## Features
-
-- **Grid browser** for photos, animated GIF/WebP and video, with name search, sorting, and a filter for items with or without covers. Tiles without a cover use the Windows shell thumbnail, so large folders open without decoding every file.
-- **File Explorer-style navigation**: a folder tree (Quick access, OneDrive, This PC, network), an address bar with breadcrumbs, back/forward/up, subfolders in eight Explorer views, drag-to-select, Ctrl+C/X/V, and the Windows right-click menu for files, folders and blank space.
-- **Cover editor**: a fixed 9:16 frame over the image; zoom with the wheel, drag to position, save as JPG. Several covers per original are supported. Crop coordinates are stored relative to the upright original (EXIF orientation is applied).
-- **Frame picker for video**: pause, open the editor, and pick from a grid of the frames around that point. The step between frames is configurable (default 0.2 s).
-- **Animated covers**: export a short clip with the same 9:16 framing as GIF, WebP or MP4. Range is chosen with two handles on a frame strip; speed (0.5–2×) and loop mode (loop, ping-pong, reverse) are adjustable, and the preview plays the actual output file.
-- **Cover collection**: all covers across folders in one view.
-- **AI upscale (4×)** of a cover with Swin2SR through ONNX Runtime, run in a separate low-priority process; the result is compared side by side before you keep it.
-- **File operations**: rename (F2), send to Recycle Bin (Delete), move to another folder. Covers and records follow the original. Originals that were moved or renamed outside the app can be found again by Windows file ID or a content signature.
-- **Playback** through libmpv (hardware decoding) with keyboard seeking, frame stepping, speed and brightness keys, and seek-bar thumbnails.
-- **Copy / Share / drag-out** of covers or originals to other apps. The app only hands files to Windows; it does not upload anything.
-- Light and dark themes, Korean and English UI.
-
-Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv can read (MP4, MOV, MKV, WEBM, AVI, …).
+Originals are never modified. A cover is always a separate file.
 
 ## Demo
 
-**Make a cover from a video.** Pause, pick the exact frame from the frame grid, drag and zoom the fixed 9:16 frame, and save. The grid tile then shows the cover; clicking it still opens the original.
+**One video, three covers.** Pick exact frames from a video and save two JPG covers and one animated GIF cover. Point at the GIF cover in the grid and it plays.
 
-https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
+https://github.com/user-attachments/assets/48bfd53c-b0b8-4434-aef3-d07efc0ed110
 
-**Covers stay with their video.** Make several covers from one video, then move the video to another folder and all its covers go with it. Covers you no longer want go to the Recycle Bin with one click; the original video stays untouched.
+**Covers follow their file.** Drag a video to another folder and all of its covers go with it, including the animated one.
 
-https://github.com/user-attachments/assets/080da44d-49cb-423e-b5c4-aaaef3ea5723
+https://github.com/user-attachments/assets/8207c877-b828-43a1-bcfd-435b6c3d31c7
 
-**Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background. Point at the cover in the grid and it plays.
+**Works like File Explorer.** Folder tree, address bar, Explorer's folder views, drag to select, copy and paste.
 
-https://github.com/user-attachments/assets/dd3a9104-e4df-4069-b19e-a975ee2fa7ce
+https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 
-**Two windows side by side.** Open a second folder in a new window, select several files, and drag them across to move them. Ctrl+Z puts them back. A moved video keeps its animated cover in the new folder.
+## Features
 
-https://github.com/user-attachments/assets/e10b8489-304c-4249-9db4-c6d26a9cdd7e
+**Browse like File Explorer**
+
+- Folder tree with your Love My Shelf folders, Quick access, OneDrive, This PC and network locations.
+- Address bar with clickable path, typed paths and suggestions; back, forward, up and refresh.
+- Subfolders in their own area, above or below the photos, in Explorer's eight views.
+- Drag to select, Ctrl+C / X / V, and drag and drop between folders and windows.
+- The Windows right-click menu for files, folders and blank space.
+- Two windows side by side stay usable at half-screen width.
+
+**Large grid**
+
+- Photos, animated GIF/WebP and video in one grid, with name search, sorting and a cover filter.
+- Tiles without a cover use the Windows shell thumbnail, so large folders open without decoding every file.
+- A cover collection shows the covers from all your folders in one place.
+
+**Covers**
+
+- Fixed 9:16 frame: zoom with the wheel, drag to position, save as JPG. One file can have several covers.
+- For video, pause and choose from a grid of nearby frames. The step between frames is configurable (default 0.2 s).
+- Animated covers as GIF, WebP or MP4: choose the range on a frame strip, set speed (0.5–2×) and loop style. The preview plays the actual output file.
+- Optional 4× AI upscale (Swin2SR through ONNX Runtime) in a separate low-priority process, compared side by side before you keep it.
+
+**Files stay organized**
+
+- Rename (F2), send to Recycle Bin (Delete), move or copy. Covers and records follow the original, and Ctrl+Z undoes a move.
+- Originals moved or renamed outside the app can be found again by Windows file ID or a content signature.
+- Copy, share or drag covers and originals into other apps. The app only hands files to Windows; it uploads nothing.
+
+**Playback**
+
+- libmpv with hardware decoding, seek-bar thumbnails, frame stepping, and keys for seeking, speed, brightness and volume.
+
+Light and dark themes. Korean and English interface.
+
+Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv can read (MP4, MOV, MKV, WEBM, AVI, …).
 
 ## Requirements
 
