@@ -581,6 +581,8 @@ namespace LoveMyShelf {
         void Select(Album album) {
             if(active==null || active.Folder!=album.Folder){shuffledOrder=null;searchTimer.Stop();search.Text="";}
             active=album; tabs.Children.Clear();scrollToTop=true;
+            // The folder name leads the title, so side-by-side windows, the taskbar and Alt+Tab tell folders apart.
+            Title=album.Name+" — Love My Shelf";
             UI.Use(allCropsButton,Control.ForegroundProperty,ShowingAllCrops?"Accent":"Text");
             UI.Use(allCropsButton,Control.BorderBrushProperty,ShowingAllCrops?"Accent":"Line");
             UI.Use(unfinishedButton,Control.ForegroundProperty,ShowingUnfinished?"Accent":"Text");
