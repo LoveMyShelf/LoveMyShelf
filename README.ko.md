@@ -92,7 +92,7 @@ https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
 ## 상태와 의견
 
-버전 1.0.0. Windows 11에서만 개발·시험했습니다. 버그, 질문, 제안은 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues)에 남겨 주세요. 연락처: lovemyshelf.app@outlook.com
+버전 1.0.1. Windows 11에서만 개발·시험했습니다. 버그, 질문, 제안은 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues)에 남겨 주세요. 연락처: lovemyshelf.app@outlook.com
 
 ## 라이선스
 

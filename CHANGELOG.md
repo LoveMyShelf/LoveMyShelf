@@ -7,6 +7,18 @@ Download new versions from Releases. Extract the new ZIP over your Love My Shelf
 
 ---
 
+## 1.0.1 · 2026-11-22
+
+- **창 제목에 폴더 이름:** 창 맨 위에 "폴더 이름 — Love My Shelf"가 보여요. 창 두 개를 나란히 놓거나, 작업 표시줄·Alt+Tab에서도 어느 창이 어느 폴더인지 바로 알 수 있어요.
+- **더 커진 아이콘:** 그림은 그대로 두고 빈 테두리만 줄여서, 작업 표시줄에서 다른 아이콘만큼 크게 보여요. 작업 표시줄에 고정해 둔 아이콘은 고정을 풀고 다시 고정하면 바로 바뀌어요.
+
+---
+
+- The window title now shows the folder name ("folder — Love My Shelf"), so side-by-side windows, the taskbar and Alt+Tab tell folders apart.
+- The app icon fills its frame, so it no longer looks small on the taskbar. If it is pinned, unpin and pin it again to refresh.
+
+---
+
 ## 1.0.0 · 2026-11-22
 
 Love My Shelf의 첫 버전이에요.
