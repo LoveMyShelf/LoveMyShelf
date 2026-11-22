@@ -29,8 +29,6 @@ Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv
 
 ## Demo
 
-Short screen recordings, trimmed and at 2× speed (no sound, English UI).
-
 **Make a cover from a video.** Pause, pick the exact frame from the frame grid, drag and zoom the fixed 9:16 frame, and save. The grid tile then shows the cover; clicking it still opens the original.
 
 https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
