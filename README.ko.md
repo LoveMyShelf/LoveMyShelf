@@ -47,14 +47,6 @@ https://github.com/user-attachments/assets/4d9ad38a-1210-4226-9102-0c960992b47f
 
 https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
-## 화면
-
-<img src="docs/images/video-frames.jpg" width="760" alt="장면 고르기: 영상을 멈춘 곳 앞뒤 장면이 시간과 함께 바둑판으로 보임">
-
-<img src="docs/images/gif-window.jpg" width="620" alt="움직이는 표지 창: 위에는 미리보기, 아래에는 표지 구도로 잘린 장면 띠와 구간 손잡이 두 개">
-
-<img src="docs/images/gif-compare.webp" width="620" alt="가로 영상과, 그 영상으로 만든 세로 움직이는 표지">
-
 ## 필요한 환경
 
 - Windows 10 또는 11, 64비트
@@ -106,4 +98,4 @@ https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
 Love My Shelf는 [GPL-3.0](LICENSE)입니다. 함께 배포하는 부품(libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard)은 각자의 라이선스를 따릅니다. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)를 보세요.
 
-화면과 시연 영상의 강아지 영상은 Pexels([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/), [Nothing Ahead](https://www.pexels.com/video/11622180/))의 것으로, [Pexels 라이선스](https://www.pexels.com/license/)에 따라 사용했습니다.
+시연 영상의 강아지 영상은 Pexels([Nothing Ahead](https://www.pexels.com/video/11622180/))의 것으로, [Pexels 라이선스](https://www.pexels.com/license/)에 따라 사용했습니다.

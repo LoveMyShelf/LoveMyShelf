@@ -38,8 +38,8 @@ Love My Shelf itself is licensed under the GNU General Public License v3.0 (see 
 - Copyright (c) 2021, Kil Hyung-jin, with Reserved Font Name 'Pretendard'. Includes glyphs from Source Han Sans (Adobe), Inter (The Inter Project Authors), and M PLUS 1 (The M+ FONTS Project Authors).
 - License: SIL Open Font License 1.1. Full text: `fonts/OFL.txt`.
 
-## Screenshots in `docs/images/`
+## README images and demo videos
 
-- What they are: screenshots of Love My Shelf's windows used in the README. They are not part of the Windows download.
-- The dog videos shown in them are free stock media from Pexels, <https://www.pexels.com>, used under the Pexels License, <https://www.pexels.com/license/>. They are not covered by GPL-3.0. Creators are credited at the end of `README.md`.
 - `docs/images/icon.png` is Love My Shelf's own icon (the 256 px image from `gallery.ico`).
+- The demo videos in the README are screen recordings of Love My Shelf, hosted as GitHub attachments. They are not part of the Windows download.
+- The dog video shown in them is free stock media from Pexels, <https://www.pexels.com>, used under the Pexels License, <https://www.pexels.com/license/>. It is not covered by GPL-3.0. The creator is credited at the end of `README.md`.

@@ -47,16 +47,6 @@ https://github.com/user-attachments/assets/4d9ad38a-1210-4226-9102-0c960992b47f
 
 https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
-## Screenshots
-
-The UI is shown in Korean.
-
-<img src="docs/images/video-frames.jpg" width="760" alt="Frame picker: frames around the paused point of a video, shown in a grid with timestamps">
-
-<img src="docs/images/gif-window.jpg" width="620" alt="Animated cover window: preview on top, a frame strip cropped to the cover framing with two range handles below">
-
-<img src="docs/images/gif-compare.webp" width="620" alt="A landscape video next to the vertical animated cover made from it">
-
 ## Requirements
 
 - Windows 10 or 11, 64-bit.
@@ -124,4 +114,4 @@ Version 1.0.0. Developed and tested on Windows 11 only. Bug reports, questions a
 
 Love My Shelf is licensed under [GPL-3.0](LICENSE). Bundled components (libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard) keep their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-The dog videos in the screenshots and demos are from Pexels ([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/), [Nothing Ahead](https://www.pexels.com/video/11622180/)), used under the [Pexels License](https://www.pexels.com/license/).
+The dog video in the demos is from Pexels ([Nothing Ahead](https://www.pexels.com/video/11622180/)), used under the [Pexels License](https://www.pexels.com/license/).
