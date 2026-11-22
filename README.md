@@ -27,6 +27,26 @@ Originals are never modified. A cover is always written as a separate file.
 
 Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv can read (MP4, MOV, MKV, WEBM, AVI, …).
 
+## Demo
+
+Short screen recordings (no sound, English UI).
+
+**Pick a frame from a video.** Pause the video, open the frame picker, and choose from the frames around that point.
+
+https://github.com/user-attachments/assets/3ef12b47-e819-42f3-a328-c3fda99286fd
+
+**Crop a 9:16 cover.** Drag and zoom inside the fixed frame and save. The grid tile then shows the cover; clicking it still opens the original.
+
+https://github.com/user-attachments/assets/e780c699-5338-428e-bd3c-67cad28b12fa
+
+**Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background.
+
+https://github.com/user-attachments/assets/2577e701-2b87-4e67-977b-e8a5d7b57f22
+
+**Two windows side by side.** Open a second folder in a new window, select several files, and drag them across to move them. Ctrl+Z puts them back.
+
+https://github.com/user-attachments/assets/03df192e-03a9-4ae5-9d8c-d3a24edc894e
+
 ## Screenshots
 
 The UI is shown in Korean.
@@ -104,4 +124,4 @@ Version 1.0.0. Developed and tested on Windows 11 only. Bug reports, questions a
 
 Love My Shelf is licensed under [GPL-3.0](LICENSE). Bundled components (libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard) keep their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-The dog videos in the screenshots are from Pexels ([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/)), used under the [Pexels License](https://www.pexels.com/license/).
+The dog videos in the screenshots and demos are from Pexels ([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/), [Nothing Ahead](https://www.pexels.com/video/11622180/)), used under the [Pexels License](https://www.pexels.com/license/).

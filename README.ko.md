@@ -27,6 +27,26 @@
 
 열 수 있는 파일: JPG, PNG, BMP, TIFF, GIF, WebP, 그리고 FFmpeg·mpv가 읽는 영상(MP4, MOV, MKV, WEBM, AVI 등).
 
+## 시연 영상
+
+소리 없는 짧은 화면 녹화예요(화면 글자는 영어).
+
+**영상에서 장면 고르기.** 영상을 멈추고 장면 고르기를 열면, 멈춘 곳 앞뒤 장면 중에서 고를 수 있어요.
+
+https://github.com/user-attachments/assets/3ef12b47-e819-42f3-a328-c3fda99286fd
+
+**9:16 표지 자르기.** 고정된 틀 안에서 끌고 확대해 저장해요. 그러면 바둑판 칸에 표지가 보이고, 눌렀을 때는 원본이 열려요.
+
+https://github.com/user-attachments/assets/e780c699-5338-428e-bd3c-67cad28b12fa
+
+**움직이는 표지 만들기.** 장면 띠의 손잡이 두 개로 구간을 고르고, 속도와 반복 방식을 정해 만들어요. 만드는 동안 다른 일을 해도 돼요.
+
+https://github.com/user-attachments/assets/2577e701-2b87-4e67-977b-e8a5d7b57f22
+
+**창 두 개 나란히 쓰기.** 새 창에 다른 폴더를 열고, 파일 여러 개를 골라 끌어 옮겨요. Ctrl+Z로 되돌릴 수 있어요.
+
+https://github.com/user-attachments/assets/03df192e-03a9-4ae5-9d8c-d3a24edc894e
+
 ## 화면
 
 <img src="docs/images/video-frames.jpg" width="760" alt="장면 고르기: 영상을 멈춘 곳 앞뒤 장면이 시간과 함께 바둑판으로 보임">
@@ -86,4 +106,4 @@
 
 Love My Shelf는 [GPL-3.0](LICENSE)입니다. 함께 배포하는 부품(libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard)은 각자의 라이선스를 따릅니다. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)를 보세요.
 
-화면의 강아지 영상은 Pexels([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/))의 것으로, [Pexels 라이선스](https://www.pexels.com/license/)에 따라 사용했습니다.
+화면과 시연 영상의 강아지 영상은 Pexels([KATRIN BOLOVTSOVA](https://www.pexels.com/video/5263066/), [G media](https://www.pexels.com/video/7603588/), [Nothing Ahead](https://www.pexels.com/video/11622180/))의 것으로, [Pexels 라이선스](https://www.pexels.com/license/)에 따라 사용했습니다.
