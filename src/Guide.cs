@@ -542,8 +542,8 @@ namespace LoveMyShelf {
             browse.Items.Add(new Card {Title=T("Tiles stay where they are","칸은 저절로 움직이지 않아요"),
                 Lines=new[]{T("Making, hiding or deleting covers leaves every other tile in its place, so you don't lose where you were. A deleted tile leaves an empty slot. Press {{F5}} or choose a sort to tidy up.",
                     "표지를 만들거나 숨기거나 지워도 다른 칸은 그 자리 그대로예요. 그래서 보던 곳을 잃어버리지 않아요. 지운 칸은 빈칸으로 남아요. 정리하고 싶으면 {{F5}}를 누르거나 정렬을 다시 골라요."),
-                    T("Drag a folder tab sideways to change the order of the tabs, or right-click it for [[Move left]], [[Move right]] and [[Hide folder tab]]. The two buttons on the far left always stay there.",
-                      "위쪽 폴더 이름표는 옆으로 끌어서 순서를 바꿀 수 있어요. 오른쪽 클릭하면 [[왼쪽으로 옮기기]], [[오른쪽으로 옮기기]], [[위쪽에서 이 폴더 숨기기]]도 있어요. 맨 왼쪽의 두 버튼은 늘 그 자리에 있어요.")}});
+                    T("Drag a folder tab sideways to change the order of the tabs. Right-click it for [[Open in new window]] and [[Hide folder tab]]. The two buttons on the far left always stay there; right-click them to open them in a new window.",
+                      "위쪽 폴더 이름표는 옆으로 끌어서 순서를 바꿀 수 있어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[위쪽에서 이 폴더 숨기기]]가 있어요. 맨 왼쪽의 두 버튼은 늘 그 자리에 있고, 오른쪽 클릭하면 새 창에서 열 수 있어요.")}});
             browse.Items.Add(new Setting {Id="sort",SectionId="browse",Title=T("In what order should the tiles line up?","칸을 어떤 차례로 늘어놓을까요?"),
                 Lines=new[]{T("The [[Sort]] button at the bottom right does the same thing, like the Sort menu in File Explorer. Choosing one reads the folder again and lines the tiles up anew, closing empty slots.",
                     "아래 오른쪽 [[정렬]] 버튼을 눌러도 똑같이 바꿀 수 있어요. 파일 탐색기의 정렬과 같아요. 하나를 고르면 폴더를 다시 읽으면서 새 차례로 늘어서고, 빈칸도 정리돼요.")},

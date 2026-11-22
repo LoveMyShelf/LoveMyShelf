@@ -152,6 +152,8 @@ namespace LoveMyShelf {
         internal bool SavedToFallback;
         // An optional GIF (or WebP/MP4) made from this cover with Make GIF.
         internal string MotionFile;
+        // The part and choices the GIF was made with (null for one made before these were saved).
+        internal MotionRequest MotionSettings;
         internal bool HasMotion {get {return MotionFile!=null && File.Exists(MotionFile);}}
         // An upscaled copy of the cover file. Choice: "pending" (not chosen yet), "upscaled", or "original".
         internal string UpscaleFile,UpscaleChoice;
@@ -293,7 +295,7 @@ namespace LoveMyShelf {
                 Thumb=Path.Combine(folder,Path.GetFileName((string)n.Attribute("thumb"))),
                 CoverFile=(string)n.Attribute("coverFile"),CoverFileTicks=(long?)n.Attribute("coverFileTicks")??0,
                 UpscaleFile=(string)n.Attribute("upscaleFile"),UpscaleChoice=(string)n.Attribute("upscaleChoice"),
-                MotionFile=(string)n.Attribute("motionFile") };
+                MotionFile=(string)n.Attribute("motionFile"),MotionSettings=MotionRequest.Parse((string)n.Attribute("motionSettings")) };
         }
         // Publishes a finished upscale beside the cover file and marks it as waiting for a choice.
         // Returns null when the cover was remade meanwhile; the temporary file is then left for the caller to remove.
@@ -317,7 +319,7 @@ namespace LoveMyShelf {
             return Read(photo.Folder,photo.Linked?photo.Original:null);
         }
         // Links a finished GIF/WebP/MP4 to the cover. Returns null (and leaves the file) when the cover was remade meanwhile.
-        internal static Photo AttachMotion(Photo photo,string motionFile) {
+        internal static Photo AttachMotion(Photo photo,string motionFile,MotionRequest settings=null) {
             string metadata=Path.Combine(photo.Folder,"photo.xml");
             string part=Path.Combine(photo.Folder,"meta-"+Guid.NewGuid().ToString("N")+".tmp");
             try {
@@ -325,6 +327,7 @@ namespace LoveMyShelf {
                     var xml=XElement.Load(metadata);
                     if((string)xml.Attribute("thumb")!=Path.GetFileName(photo.Thumb))return null;
                     xml.SetAttributeValue("motionFile",motionFile);
+                    xml.SetAttributeValue("motionSettings",settings==null?null:settings.ToText());
                     xml.Save(part);
                     File.Replace(part,metadata,null);
                 }

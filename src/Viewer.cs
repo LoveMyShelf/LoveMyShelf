@@ -57,6 +57,10 @@ namespace LoveMyShelf {
         readonly bool forCrop;
         readonly bool? openCover;
         public Photo CurrentPhoto {get{return items[index];}}
+        // The folder window this large view was opened from (it is not the owner once the view is open).
+        readonly GalleryWindow home;
+        internal GalleryWindow Home {get{return home;}}
+        internal bool ForCrop {get{return forCrop;}}
         bool WantsCrop {get{return forCrop || !CurrentPhoto.HasCrop;}}
         string CropLabel {get{return CurrentPhoto.HasCrop?L.T("Make another cover"):L.T("Make cover");}}
         int index,shown=-1;
@@ -139,9 +143,14 @@ namespace LoveMyShelf {
         public Viewer(Window owner,IList<Photo> photos,int index,bool forCrop=false)
             :this(owner,photos,index,forCrop,null) {}
         internal Viewer(Window owner,IList<Photo> photos,int index,bool forCrop,bool? openCover) {
-            UI.WindowSetup(this,L.T("Large view"));Owner=owner;ShowInTaskbar=false;items=photos;this.index=index;this.forCrop=forCrop;
+            UI.WindowSetup(this,L.T("Large view"));Owner=owner;items=photos;this.index=index;this.forCrop=forCrop;
             this.openCover=openCover;
-            var gallery=owner as GalleryWindow;
+            var gallery=owner as GalleryWindow;home=gallery;
+            // Like a video player opened from File Explorer: each large view is a window of its own, with its own
+            // taskbar button, and the folder window stays usable behind it. The owner is only kept while it opens,
+            // so it opens over the folder window; choosing a cover's frame (forCrop) stays a dialog of its owner.
+            ShowInTaskbar=!forCrop;
+            if(!forCrop)Loaded+=delegate {Owner=null;};
             skipSeconds=gallery==null?5:gallery.Settings.SkipSeconds;
             Background=Brushes.Black;
             var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(owner).Handle);
@@ -246,9 +255,9 @@ namespace LoveMyShelf {
             if(!forCrop)controls.Children.Add(editCover);
             upscale=UI.Btn(L.T("Upscale"),UpscaleCover);upscale.Visibility=Visibility.Collapsed;
             // Make GIF from the saved cover, shown on the cover screen of videos, GIFs and WebPs.
-            makeGif=UI.Btn(L.T("Make GIF cover"),()=>{var g=Owner as GalleryWindow;if(g!=null)g.ShowMakeGif(this,CurrentPhoto);});
+            makeGif=UI.Btn(L.T("Make GIF cover"),()=>{if(home!=null)home.ShowMakeGif(this,CurrentPhoto);});
             makeGif.Visibility=Visibility.Collapsed;
-            if(!forCrop && Owner is GalleryWindow)controls.Children.Add(makeGif);
+            if(!forCrop && home!=null)controls.Children.Add(makeGif);
             if(!forCrop && gallery!=null) {
                 controls.Children.Add(upscale);
                 Action<string> stageChanged=folder=>{if(String.Equals(folder,CurrentPhoto.Folder,StringComparison.OrdinalIgnoreCase))UpdateUpscale();};
@@ -590,7 +599,7 @@ namespace LoveMyShelf {
             ChooseFrames();
         }
         async void EditCover(){
-            var gallery=Owner as GalleryWindow;
+            var gallery=home;
             if(gallery==null || !editCover.IsEnabled)return;
             var photo=CurrentPhoto;
             editCover.IsEnabled=false;
@@ -601,7 +610,7 @@ namespace LoveMyShelf {
         }
         // Shown only for a saved cover. Starts a background upscale, or reopens the comparison once one exists.
         void UpdateUpscale() {
-            var gallery=Owner as GalleryWindow;
+            var gallery=home;
             var photo=CurrentPhoto;
             int percent=0;
             var stage=gallery==null?UpscaleStage.None:gallery.Upscales.Stage(photo.Folder,out percent);
@@ -621,7 +630,7 @@ namespace LoveMyShelf {
                 L.T("Enlarge 4× with AI");
         }
         async void UpscaleCover() {
-            var gallery=Owner as GalleryWindow;
+            var gallery=home;
             if(gallery==null || !upscale.IsEnabled)return;
             var photo=CurrentPhoto;
             if(photo.HasUpscale) {
@@ -634,7 +643,7 @@ namespace LoveMyShelf {
             UpdateUpscale();
         }
         void ChooseFrames() {
-            var gallery=Owner as GalleryWindow;
+            var gallery=home;
             if(gallery==null)return;
             seekPreview.Hide();
             bool resume=motion && !paused;
@@ -657,7 +666,8 @@ namespace LoveMyShelf {
             if(loading!=null)loading.Cancel();ClearTransport();
             var current=new CancellationTokenSource();loading=current;var token=current.Token;
             Photo photo=items[index];
-            var gallery=Owner as GalleryWindow;
+            if(!forCrop)Title=photo.Name+" — Love My Shelf";
+            var gallery=home;
             bool selected=!WantsCrop && (showCover??(gallery==null || gallery.Settings.ShowCover(photo.Original)));
             full=null;cropped=null;original=!selected;cachedCover=false;SetPicture(null);
             status.Text=L.T("Loading…");status.VerticalAlignment=VerticalAlignment.Center;
@@ -676,7 +686,7 @@ namespace LoveMyShelf {
                         status.Text=L.T("Looking for the original…");status.VerticalAlignment=VerticalAlignment.Top;
                         try{SetPicture(Pictures.SavedPreview(photo));}catch(Exception){}
                     }
-                    var store=((GalleryWindow)Owner).Store;
+                    var store=home.Store;
                     string path=await Task.Run(()=>OriginalLocator.Resolve(store,photo,token),token);
                     token.ThrowIfCancellationRequested();photo.Original=path;
                     SetPicture(null);
@@ -720,7 +730,7 @@ namespace LoveMyShelf {
         const long PrepareLimit=60L*1024*1024;
         // What LoadCurrent would read for this file when reached with K/L: a key, and the work. Null when nothing is worth preparing.
         bool OpensAsCover(Photo photo) {
-            var gallery=Owner as GalleryWindow;
+            var gallery=home;
             return !forCrop && photo.HasCrop && (gallery==null || gallery.Settings.ShowCover(photo.Original));
         }
         string PrepareKey(Photo photo,bool cover,out Func<Tuple<BitmapSource,int>> work) {
@@ -801,7 +811,11 @@ namespace LoveMyShelf {
             toggle.Content=L.T(AnimationFrames.Supports(photo.Original)?"Play original":"View original");
             toggle.IsEnabled=true;status.Text="";
             UpdateUpscale();
-            if(!forCrop && photo.HasCrop && MotionMaker.Supports(photo.Original))makeGif.Visibility=Visibility.Visible;
+            if(!forCrop && photo.HasCrop && MotionMaker.Supports(photo.Original)) {
+                // A cover that has a GIF already: edit that GIF (same part and choices) instead of making a new one.
+                makeGif.Content=L.T(photo.HasMotion?"Edit GIF cover":"Make GIF cover");
+                makeGif.Visibility=Visibility.Visible;
+            }
             if(photo.HasMotion && !forCrop) {
                 motionToggle.Visibility=Visibility.Visible;UpdateMotionToggle();
                 if(showMotion)PlayMotion(photo);
@@ -833,7 +847,7 @@ namespace LoveMyShelf {
                 if(!IsVisible || items[index]!=photo)return;
                 if(matches){
                     photo.Original=path;
-                    var gallery=Owner as GalleryWindow;
+                    var gallery=home;
                     if(gallery!=null)await gallery.MigrateLocatedCover(photo);
                     if(IsVisible && items[index]==photo)LoadCurrent(!original);
                 }
@@ -884,7 +898,7 @@ namespace LoveMyShelf {
                 token.ThrowIfCancellationRequested();
                 if(!orientation.NeedsNormalizedCopy && await PlaySource(path,token,orientation))return;
                 token.ThrowIfCancellationRequested();ClearTransport();toggle.IsEnabled=false;SetPicture(null);status.Text=L.T("Preparing a temporary file for playback…");
-                var gallery=Owner as GalleryWindow;
+                var gallery=home;
                 string directory=gallery==null?System.IO.Path.GetTempPath():gallery.PlaybackDirectory;
                 copy=await Task.Run(()=>VideoFrames.PlayableCopy(path,directory,token),token);
                 token.ThrowIfCancellationRequested();

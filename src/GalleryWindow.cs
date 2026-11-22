@@ -328,6 +328,15 @@ namespace LoveMyShelf {
             allCropsButton.Margin=new Thickness(0,0,4,0);DockPanel.SetDock(allCropsButton,Dock.Left);nav.Children.Add(allCropsButton);
             unfinishedButton=UI.Btn(unfinished.Name,()=>Select(unfinished));
             unfinishedButton.Margin=new Thickness(0,0,4,0);nav.Children.Add(unfinishedButton);
+            // The two collections can't be hidden, so their right-click menu only opens them in a new window.
+            foreach(var pair in new[]{Tuple.Create(allCropsButton,CollectionKey),Tuple.Create(unfinishedButton,UnfinishedKey)}) {
+                string key=pair.Item2;
+                var openNew=new MenuItem();
+                openNew.Click+=delegate {OpenAnotherWindow(key);};
+                var menu=new ContextMenu();menu.Items.Add(openNew);
+                menu.Opened+=delegate {openNew.Header=L.T("Open in new window");};
+                pair.Item1.ContextMenu=menu;
+            }
             // One button for the guide and every setting: read how something works, then choose it right there.
             var guide=UI.Btn("",()=>ShowGuide("start"));UI.Right(nav,guide);
             var open=UI.Btn("",PickFolder,true);UI.Right(nav,open);
@@ -421,10 +430,11 @@ namespace LoveMyShelf {
             Closed+=delegate {
                 resizeTimer.Stop();refreshVersion++;lifetime.Cancel();Upscales.Stop();
                 FilesChanged-=ReloadAfterFileMove;
+                // Large views are windows of their own now; they close with the folder window they came from.
+                foreach(var view in Application.Current.Windows.OfType<Viewer>().Where(v=>v.Home==this).ToList())view.Close();
             };
             FilesChanged+=ReloadAfterFileMove;
             Activated+=delegate {TakeOverSettings();};
-            StateChanged+=delegate {FramePlayer.Paused=WindowState==WindowState.Minimized;};
             localize=delegate {
                 open.Content=emptyAction.Content=L.T("Add folder");
                 newWindow.Content=L.T("New window");newWindow.ToolTip=L.T("Open another Love My Shelf window to drag files between two folders")+" (Ctrl+N)";
@@ -473,7 +483,11 @@ namespace LoveMyShelf {
                 allCrops);
             // On cold start the constructor runs before WPF installs its UI synchronization context.
             Loaded+=delegate {
-                if(active==null) Select(initial);
+                if(active!=null)return;
+                // A window opened with "Open in new window" starts on that folder.
+                Album start=startFolder==null?null:startFolder==CollectionKey?allCrops:startFolder==UnfinishedKey?unfinished:
+                    store.VisibleAlbums().FirstOrDefault(a=>String.Equals(a.Folder,startFolder,StringComparison.OrdinalIgnoreCase));
+                Select(start??initial);
             };
             ContentRendered+=delegate {
                 if(coverSetupShown || another)return; // the first window already did this
@@ -622,12 +636,11 @@ namespace LoveMyShelf {
                         }
                         catch(Exception ex){UI.Error(this,ex);}
                     };
-                    var left=new MenuItem {Header=L.T("Move left"),IsEnabled=place>0};
-                    left.Click+=delegate {MoveTab(item,place-1);};
-                    var right=new MenuItem {Header=L.T("Move right"),IsEnabled=place<albums.Count-1};
-                    right.Click+=delegate {MoveTab(item,place+1);};
+                    // The order is changed by dragging the tab sideways, so the menu has no move items.
+                    var openNew=new MenuItem {Header=L.T("Open in new window")};
+                    openNew.Click+=delegate {OpenAnotherWindow(item.Folder);};
                     button.ContextMenu=new ContextMenu();
-                    button.ContextMenu.Items.Add(left);button.ContextMenu.Items.Add(right);
+                    button.ContextMenu.Items.Add(openNew);
                     button.ContextMenu.Items.Add(new Separator());button.ContextMenu.Items.Add(hide);
                     AttachTabDrag(button,item);
                 }
@@ -1048,12 +1061,15 @@ namespace LoveMyShelf {
                 var source=new MotionSource {Path=original,Moment=MotionSource.MomentOf(original,photo.FrameTime,photo.FrameIndex),
                     Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness};
                 try {if(photo.CoverFile!=null && File.Exists(photo.CoverFile))source.Still=Pictures.Load(photo.CoverFile,960);} catch(Exception) {}
-                var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false);
+                // A cover that already has a GIF: Edit GIF cover, starting from the part and choices it was made with.
+                var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false,photo.HasMotion,photo.HasMotion?photo.MotionSettings:null);
                 if(dialog.ShowDialog()==true)MakeMotion(photo,dialog.Value);
             } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
         }
         // Makes the GIF (or WebP/MP4) in the background and links it to the cover when done.
         internal async void MakeMotion(Photo photo,MotionRequest request) {
+            // An edited GIF cover replaces the old file: it goes to the Recycle Bin and the new one takes its name.
+            string old=photo.HasMotion?photo.MotionFile:null;
             var working=Notify(L.T("Making the GIF cover"),photo.Name+Environment.NewLine+
                 L.T("It runs in the background, so you can keep using Love My Shelf. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
             try {
@@ -1069,18 +1085,18 @@ namespace LoveMyShelf {
                             ex is FileNotFoundException)throw;
                         made=MotionMaker.Make(photo,original,request,coverDirectory,false,lifetime.Token);
                     }
-                    var linked=GalleryStore.AttachMotion(photo,made.File);
+                    var linked=GalleryStore.AttachMotion(photo,made.File,request);
                     return Tuple.Create(made,linked);
                 },lifetime.Token);
                 if(lifetime.IsCancellationRequested)return;
                 working.Dismiss();
-                if(result.Item2!=null)ReplaceShown(result.Item2);
-                string file=result.Item1.File;
+                var ready=result.Item2;
+                if(ready!=null && old!=null)ready=ReplaceOldMotion(ready,old,result.Item1.File,request)??ready;
+                if(ready!=null)ReplaceShown(ready);
                 // Tell the person when the original ran out before or after the cover's moment.
                 string shorter="";
                 if(result.Item1.Before<request.Before-0.05)shorter+=L.F("Only {0:0.#} s was available before the cover.",result.Item1.Before)+" ";
                 if(result.Item1.After<request.After-0.05)shorter+=L.F("Only {0:0.#} s was available after the cover.",result.Item1.After)+" ";
-                var ready=result.Item2;
                 Notify(L.T("The GIF cover is ready"),shorter+L.T("Click here to go to the GIF cover’s large view."),
                     ready==null?(Action)null:()=>OpenReadyCover(ready));
             } catch(OperationCanceledException) {}
@@ -1147,6 +1163,21 @@ namespace LoveMyShelf {
             }
             if(gone.Count>0)RemoveTiles(p=>gone.Contains(p.Folder),promoted);
             Notify(L.T("Moved the cover to the Recycle Bin"),L.T("The original is still in its folder. You can restore the cover file from the Recycle Bin."),null);
+        }
+        // After an edited GIF cover is made: the old file goes to the Recycle Bin and the new one takes its name
+        // (when it's the same kind of file in the same folder). If anything fails, both files simply stay.
+        Photo ReplaceOldMotion(Photo linked,string old,string made,MotionRequest request) {
+            try {
+                if(String.Equals(Path.GetFullPath(old),Path.GetFullPath(made),StringComparison.OrdinalIgnoreCase) || !File.Exists(old))return null;
+                moveToRecycleBin(old,new System.Windows.Interop.WindowInteropHelper(this).Handle);
+                bool sameKind=String.Equals(Path.GetDirectoryName(old),Path.GetDirectoryName(made),StringComparison.OrdinalIgnoreCase) &&
+                    String.Equals(Path.GetExtension(old),Path.GetExtension(made),StringComparison.OrdinalIgnoreCase);
+                if(!sameKind || File.Exists(old))return null;
+                File.Move(made,old);
+                var renamed=GalleryStore.AttachMotion(linked,old,request);
+                if(renamed==null){File.Move(old,made);return null;}
+                return renamed;
+            } catch(Exception) {return null;}
         }
         // Sends only the GIF cover file to the Recycle Bin. The JPG cover stays; the record keeps the GIF's path,
         // so restoring the file from the Recycle Bin brings the GIF cover back.
@@ -1323,9 +1354,13 @@ namespace LoveMyShelf {
         internal static bool AnotherWindowOpen {get {return Application.Current!=null && Application.Current.Windows.OfType<GalleryWindow>().Count(w=>w.IsVisible)>1;}}
 
         // Opens a second window beside this one. A full-screen or maximized window is first made smaller so both can be seen.
-        internal void OpenAnotherWindow() {
+        internal void OpenAnotherWindow() {OpenAnotherWindow(null);}
+        // folder: the tab the new window starts on (a folder, or the key of a collection); null starts where it usually would.
+        string startFolder;
+        internal void OpenAnotherWindow(string folder) {
             try {
                 var other=new GalleryWindow(store,moveToRecycleBin,pickCoverFolder,true);
+                other.startFolder=folder;
                 bool shared=FullScreen.IsFull(this) || WindowState==WindowState.Maximized;
                 if(FullScreen.IsFull(this))FullScreen.Leave(this);
                 if(WindowState!=WindowState.Normal)WindowState=WindowState.Normal;
@@ -1815,27 +1850,35 @@ namespace LoveMyShelf {
             if(cover==null && photo.UpscalePending){ShowPendingChoice(photo);return;}
             var items=photos.Where(p=>p!=null).ToList();
             int index=items.IndexOf(photo);if(index<0)return;
-            var viewer=new Viewer(this,items,index,false,cover);
-            if(viewer.ShowDialog()==true)Edit(viewer.CurrentPhoto);
-            else ShowJustSaved();
+            OpenViewer(items,index,cover);
         }
-        // The "GIF cover is ready" notice: shows that cover large, playing its GIF. Skips it when the cover was
-        // removed or remade meanwhile, and when a large view is already open (it follows the new GIF by itself).
+        // Opens a large view as a window of its own, like a video player opened from File Explorer: any number
+        // can be open, and the folder window stays usable. A new one takes the place, size and full screen of
+        // the large view opened last. Make cover from it closes it and opens the editor here.
+        Viewer OpenViewer(IList<Photo> items,int index,bool? cover,Window placeLike=null) {
+            var viewer=new Viewer(this,items,index,false,cover);
+            var like=placeLike??LastViewer();
+            if(like!=null)viewer.PlaceLike(like);
+            viewer.EditLater=p=>Edit(p);
+            viewer.Closed+=delegate {ShowJustSaved();};
+            viewer.Show();
+            return viewer;
+        }
+        Viewer LastViewer() {
+            return Application.Current.Windows.OfType<Viewer>().LastOrDefault(v=>v.IsVisible && !v.ForCrop && v.WindowState!=WindowState.Minimized);
+        }
+        // The "GIF cover is ready" notice: shows that cover large, playing its GIF, in a new large view.
+        // Skips it when the cover was removed or remade meanwhile.
         void OpenReadyCover(Photo ready) {
             try {
                 if(lifetime.IsCancellationRequested || !IsVisible)return;
                 var current=GalleryStore.Read(ready.Folder,ready.Linked?ready.Original:null);
                 if(!current.HasMotion){Notify(L.T("The GIF cover is gone"),L.T("The GIF file was moved or deleted."),null,NoticeKind.Warning);return;}
-                // A large view is already open: show the GIF cover there.
-                var open=Application.Current.Windows.OfType<Viewer>().LastOrDefault(v=>v.IsVisible);
-                if(open!=null){if(!open.ShowCoverHere(current))open.Activate();return;}
                 var items=photos.Where(p=>p!=null).ToList();
                 int index=items.FindIndex(p=>String.Equals(p.Folder,current.Folder,StringComparison.OrdinalIgnoreCase));
                 if(index<0){items=new List<Photo>{current};index=0;}
                 else items[index]=current;
-                var viewer=new Viewer(this,items,index,false,true);
-                if(viewer.ShowDialog()==true)Edit(viewer.CurrentPhoto);
-                else ShowJustSaved();
+                OpenViewer(items,index,true);
             } catch(Exception ex){UI.Error(this,ex);}
         }
         // Opens the saved cover's large view on top of the still-open editor and waits for its first picture,
@@ -1872,9 +1915,7 @@ namespace LoveMyShelf {
             int index=items.FindIndex(p=>String.Equals(p.Folder,saved.Folder,StringComparison.OrdinalIgnoreCase));
             if(index<0){items=new List<Photo>{saved};index=0;}
             else items[index]=saved;
-            var viewer=new Viewer(this,items,index,false,true);
-            if(viewer.ShowDialog()==true)Edit(viewer.CurrentPhoto);
-            else ShowJustSaved();
+            OpenViewer(items,index,true);
         }
         internal async void OpenInDefaultPlayer(Photo photo) {
             try {

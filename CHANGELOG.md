@@ -7,6 +7,26 @@ Download new versions from Releases. Extract the new ZIP over your Love My Shelf
 
 ---
 
+## 1.0.2 · 2026-11-22
+
+- **GIF 표지 만들기가 더 부드러워요:** 창을 열면 처음 보이는 띠만큼 장면을 미리 읽어 두고, 띠 그림과 미리 보기가 같은 장면을 함께 써요. 손잡이를 끌 때 덜 끊겨요.
+- **GIF 표지 수정하기:** GIF 표지가 있는 표지를 크게 볼 때 [GIF 표지 수정하기] 버튼이 나와요. 처음 고른 범위와 설정 그대로 열려서 바로 고칠 수 있고, 다 만들면 예전 GIF를 새것으로 바꿔요. 이 버전 전에 만든 GIF는 범위를 기억하지 못해서 처음 만들 때처럼 표지 앞뒤로 시작해요.
+- **밝기가 그대로 이어져요:** 영상에서 맞춘 밝기가 표지 편집 화면에서도 그대로 유지돼요.
+- **크게 보기 창을 여러 개 띄울 수 있어요:** 크게 보기 창은 작업 표시줄에 따로 나오고, 최소화해도 뒤에 있는 메인 창을 그대로 쓸 수 있어요.
+- **폴더 탭 메뉴:** 위쪽 폴더 탭을 오른쪽 클릭하면 [새 창에서 열기]가 나와요. 순서는 탭을 끌어서 바꾸면 되니 [왼쪽으로 옮기기]·[오른쪽으로 옮기기]는 뺐어요.
+- **폴더 고르기 창:** 폴더를 추가할 때 파일 탐색기처럼 크고 익숙한 창이 떠요.
+
+---
+
+- Making a GIF cover is smoother: the strip you first see is read ahead, and the strip pictures and the preview share the same frames, so dragging the handles stutters less.
+- **Edit GIF cover:** when a cover with a GIF is open, [Edit GIF cover] reopens it with the part and settings you chose, and the finished GIF replaces the old one. GIFs made before this version start from the usual part around the cover.
+- Brightness set on a video now carries over to the cover editor.
+- You can open several large views at once. Each has its own taskbar button, and minimizing it leaves the main window usable.
+- Right-click a folder tab for [Open in new window]. [Move left] and [Move right] are gone; drag tabs to reorder them.
+- Adding a folder opens the larger File Explorer–style folder picker.
+
+---
+
 ## 1.0.1 · 2026-11-22
 
 - **창 제목에 폴더 이름:** 창 맨 위에 "폴더 이름 — Love My Shelf"가 보여요. 창 두 개를 나란히 놓거나, 작업 표시줄·Alt+Tab에서도 어느 창이 어느 폴더인지 바로 알 수 있어요.

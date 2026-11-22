@@ -31,9 +31,11 @@ namespace LoveMyShelf {
             wheelZoomFactor=1+wheelZoomPercent/100.0;
             RenderOptions.SetBitmapScalingMode(this,BitmapScalingMode.HighQuality);
             Reset();
+            // Brightness carries over even for a new cover (from the video's playback brightness);
+            // the turn and the framing only come from a saved cover.
+            Brightness=Math.Max(-100,Math.Min(100,brightness));
             if(saved.HasValue) {
                 Rotation=rotation;
-                Brightness=brightness;
                 ApplyFraction(saved.Value);
             }
             AutomationProperties.SetName(this,L.T("Cover frame")); ClipToBounds=true;

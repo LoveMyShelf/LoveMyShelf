@@ -94,7 +94,7 @@ Windows에 기본으로 들어 있는 .NET Framework 4.8 C# 컴파일러로 빌�
 
 ## 현재 상태와 문의
 
-현재 버전은 1.0.1입니다. Windows 11에서만 개발하고 테스트했습니다. 버그 제보, 질문, 제안은 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues)에 남겨 주세요. 메일: lovemyshelf.app@outlook.com
+현재 버전은 1.0.2입니다. Windows 11에서만 개발하고 테스트했습니다. 버그 제보, 질문, 제안은 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues)에 남겨 주세요. 메일: lovemyshelf.app@outlook.com
 
 ## 라이선스
 

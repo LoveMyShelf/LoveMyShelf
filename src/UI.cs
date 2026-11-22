@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -61,6 +62,10 @@ namespace LoveMyShelf {
         public static DockPanel Bar(Thickness margin) { return new DockPanel { Margin=margin,LastChildFill=true }; }
         public static void Right(DockPanel p, UIElement e) { DockPanel.SetDock(e,Dock.Right); p.Children.Add(e); }
         public static string PickFolder(Window owner,string description,string initial,bool allowCreate) {
+            // The Explorer-style folder window (address bar, Quick access, search). The old tree window is only a fallback.
+            IntPtr handle=new System.Windows.Interop.WindowInteropHelper(owner).Handle;
+            string chosen;
+            if(FolderDialog.TryPick(handle,description,initial,out chosen))return chosen;
             using(var picker=new System.Windows.Forms.FolderBrowserDialog {Description=description,ShowNewFolderButton=allowCreate}) {
                 if(Directory.Exists(initial))picker.SelectedPath=initial;
                 var native=new System.Windows.Forms.NativeWindow();
@@ -68,6 +73,74 @@ namespace LoveMyShelf {
                 try{return picker.ShowDialog(native)==System.Windows.Forms.DialogResult.OK?picker.SelectedPath:null;}
                 finally{native.ReleaseHandle();}
             }
+        }
+    }
+    // Windows' own Explorer-style "Select folder" window (IFileOpenDialog with FOS_PICKFOLDERS).
+    internal static class FolderDialog {
+        const uint PickFolders=0x20,ForceFileSystem=0x40,NoChangeDir=0x8,PathMustExist=0x800;
+        const int Cancelled=unchecked((int)0x800704C7);
+        const uint FileSystemPath=0x80058000;
+        // Returns false only when the window could not be shown at all; a cancel returns true with null.
+        public static bool TryPick(IntPtr owner,string title,string initial,out string chosen) {
+            chosen=null;
+            IFileDialog dialog=null;
+            try { dialog=(IFileDialog)new FileOpenDialogClass(); }
+            catch(Exception) { return false; }
+            try {
+                uint options;dialog.GetOptions(out options);
+                dialog.SetOptions(options|PickFolders|ForceFileSystem|NoChangeDir|PathMustExist);
+                if(!string.IsNullOrEmpty(title))dialog.SetTitle(title);
+                if(!string.IsNullOrEmpty(initial) && Directory.Exists(initial)) {
+                    IShellItem start;
+                    if(SHCreateItemFromParsingName(initial,IntPtr.Zero,typeof(IShellItem).GUID,out start)==0 && start!=null) {
+                        try{dialog.SetFolder(start);}finally{Marshal.ReleaseComObject(start);}
+                    }
+                }
+                int result=dialog.Show(owner);
+                if(result==Cancelled)return true;
+                if(result!=0)return false;
+                IShellItem item;dialog.GetResult(out item);
+                try {
+                    IntPtr text;item.GetDisplayName(FileSystemPath,out text);
+                    try{chosen=Marshal.PtrToStringUni(text);}finally{Marshal.FreeCoTaskMem(text);}
+                }
+                finally{Marshal.ReleaseComObject(item);}
+                return true;
+            }
+            catch(Exception) { chosen=null;return false; }
+            finally{Marshal.ReleaseComObject(dialog);}
+        }
+        [DllImport("shell32.dll",CharSet=CharSet.Unicode,PreserveSig=true)]
+        static extern int SHCreateItemFromParsingName(string path,IntPtr bindContext,[MarshalAs(UnmanagedType.LPStruct)] Guid riid,out IShellItem item);
+        [ComImport,Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")] class FileOpenDialogClass {}
+        [ComImport,Guid("42f85136-db7e-439c-85f1-e4075d135fc8"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IFileDialog {
+            [PreserveSig] int Show(IntPtr owner);
+            void SetFileTypes(uint count,IntPtr specs);
+            void SetFileTypeIndex(uint index);
+            void GetFileTypeIndex(out uint index);
+            void Advise(IntPtr events,out uint cookie);
+            void Unadvise(uint cookie);
+            void SetOptions(uint options);
+            void GetOptions(out uint options);
+            void SetDefaultFolder(IShellItem item);
+            void SetFolder(IShellItem item);
+            void GetFolder(out IShellItem item);
+            void GetCurrentSelection(out IShellItem item);
+            void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string name);
+            void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+            void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string title);
+            void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string text);
+            void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string label);
+            void GetResult(out IShellItem item);
+        }
+        [ComImport,Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IShellItem {
+            void BindToHandler(IntPtr bindContext,ref Guid handler,ref Guid riid,out IntPtr result);
+            void GetParent(out IShellItem parent);
+            void GetDisplayName(uint form,out IntPtr name);
+            void GetAttributes(uint mask,out uint attributes);
+            void Compare(IShellItem other,uint hint,out int order);
         }
     }
     internal static class Program {

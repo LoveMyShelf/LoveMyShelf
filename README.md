@@ -108,7 +108,7 @@ All source files are in `src/`.
 
 ## Status and feedback
 
-Version 1.0.1. Developed and tested on Windows 11 only. Bug reports, questions and suggestions are welcome in [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues). Contact: lovemyshelf.app@outlook.com
+Version 1.0.2. Developed and tested on Windows 11 only. Bug reports, questions and suggestions are welcome in [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues). Contact: lovemyshelf.app@outlook.com
 
 ## License
 

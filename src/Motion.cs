@@ -34,6 +34,30 @@ namespace LoveMyShelf {
         // Frames in the finished file and how long one round of it plays.
         internal int Frames {get {return Bounces?ForwardFrames*2-2:ForwardFrames;}}
         internal double PlaySeconds {get {return Frames/(double)Math.Max(1,Fps);}}
+        // Saved with the cover (photo.xml "motionSettings"), so Edit GIF cover opens with the same part and choices.
+        internal string ToText() {
+            var c=CultureInfo.InvariantCulture;
+            return String.Format(c,"before={0};after={1};fps={2};height={3};format={4};speed={5};loop={6};quality={7}",
+                Math.Round(Before,3),Math.Round(After,3),Fps,Height,Format,Speed,Loop,Quality);
+        }
+        internal static MotionRequest Parse(string text) {
+            if(String.IsNullOrEmpty(text))return null;
+            try {
+                var values=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                foreach(var part in text.Split(';')){int at=part.IndexOf('=');if(at>0)values[part.Substring(0,at).Trim()]=part.Substring(at+1).Trim();}
+                var c=CultureInfo.InvariantCulture;
+                var r=new MotionRequest {
+                    Before=Double.Parse(values["before"],c),After=Double.Parse(values["after"],c),
+                    Fps=Int32.Parse(values["fps"],c),Height=Int32.Parse(values["height"],c),Format=values["format"].ToLowerInvariant(),
+                    Speed=Double.Parse(values["speed"],c),Loop=values["loop"].ToLowerInvariant(),Quality=Int32.Parse(values["quality"],c)};
+                if(Double.IsNaN(r.Before) || Double.IsNaN(r.After) || r.Before<0 || r.After<0 || r.Before+r.After<=0)return null;
+                if(r.Format!="gif" && r.Format!="webp" && r.Format!="mp4")return null;
+                if(r.Loop!="forward" && r.Loop!="bounce" && r.Loop!="reverse")return null;
+                if(r.Speed<=0 || r.Fps<=0 || r.Height<=0)return null;
+                r.Quality=Math.Max(0,Math.Min(2,r.Quality));
+                return r;
+            } catch(Exception) {return null;}
+        }
     }
 
     // What the GIF is made from: the original, the cover's moment and the cover's look.
@@ -139,15 +163,27 @@ namespace LoveMyShelf {
         double coverPixels; // the cover's height in the original's pixels, so the guess uses the real output size
         int preparedFrames=-1;double preparedSeconds;
 
-        internal MotionWindow(Window owner,MotionSource source,bool fromEditor) {
+        // editing: the cover already has a GIF; saved: the choices it was made with (null for a GIF made before they were saved).
+        internal MotionWindow(Window owner,MotionSource source,bool fromEditor,bool editing=false,MotionRequest saved=null) {
             this.source=source;
-            UI.WindowSetup(this,L.T("Make GIF cover"));Owner=owner;ShowInTaskbar=false;
+            UI.WindowSetup(this,L.T(editing?"Edit GIF cover":"Make GIF cover"));Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var area=SystemParameters.WorkArea;
             Width=Math.Min(860,area.Width);Height=Math.Min(820,area.Height);MinWidth=Math.Min(600,area.Width);MinHeight=Math.Min(600,area.Height);
             span=Math.Max(2,StripSeconds)*1000.0;step=span/Thumbs;
             start=Math.Max(0,source.Moment-sideMs);end=source.Moment+sideMs;
             viewStart=Math.Max(0,source.Moment-span/2);
+            int speedPick=2,loopPick=0,fpsPick=lastFps,heightPick=lastHeight,qualityPick=lastQuality,formatPick=lastFormat;
+            if(saved!=null) {
+                // Opens on the part and the choices the GIF was made with; the strip widens to show all of it.
+                start=Math.Max(0,source.Moment-saved.Before*1000);end=source.Moment+saved.After*1000;
+                span=Math.Max(span,(end-start)*1.25);step=span/Thumbs;
+                viewStart=Math.Max(0,(start+end)/2-span/2);
+                for(int i=0;i<Speeds.Length;i++)if(Math.Abs(Speeds[i]-saved.Speed)<Math.Abs(Speeds[speedPick]-saved.Speed))speedPick=i;
+                loopPick=Math.Max(0,Array.IndexOf(Loops,saved.Loop));
+                fpsPick=Nearest(Rates,saved.Fps);heightPick=Nearest(Heights,saved.Height);
+                qualityPick=saved.Quality;formatPick=Math.Max(0,Array.IndexOf(Formats,saved.Format));
+            }
             player=new FramePlayer(preview);
             player.Shown+=ShowPlayMark;
             playMark.BorderBrush.Freeze();
@@ -157,9 +193,11 @@ namespace LoveMyShelf {
             // Bottom: the strip, start and end, how it plays, more choices, buttons.
             var bottom=new StackPanel();DockPanel.SetDock(bottom,Dock.Bottom);page.Children.Add(bottom);
             var stripBar=new DockPanel {Margin=new Thickness(0,8,0,4)};
-            var back=UI.Btn(L.T("Back to the cover"),()=>{viewStart=ClampView(source.Moment-span/2);Layout();});
+            var back=UI.Btn(L.T("Back to the cover"),()=>{viewStart=ClampView(source.Moment-span/2);Layout();ShowDraft(draftOwed);});
             DockPanel.SetDock(back,Dock.Right);stripBar.Children.Add(back);
-            help=UI.Text(NoticeLook.KeepWords(L.T("Drag the two handles to choose the part. Drag the pictures to see more.")),12,true);
+            help=UI.Text(NoticeLook.KeepWords(editing && saved==null?
+                L.T("This GIF was made before Love My Shelf remembered GIF choices, so it starts from the usual part around the cover."):
+                L.T("Drag the two handles to choose the part. Drag the pictures to see more.")),12,true);
             help.TextWrapping=TextWrapping.Wrap;help.VerticalAlignment=VerticalAlignment.Center;stripBar.Children.Add(help);
             bottom.Children.Add(stripBar);
             var stripFrame=new Border {Child=strip,CornerRadius=new CornerRadius(6),ClipToBounds=true};
@@ -179,9 +217,9 @@ namespace LoveMyShelf {
             // Speed and play style change the feel the most, so they're always in view.
             var styleRow=new WrapPanel {Margin=new Thickness(0,10,0,0)};
             styleRow.Children.Add(RowLabel(L.T("Speed"),0));
-            styleRow.Children.Add(Segment(Array.ConvertAll(Speeds,s=>L.F("{0}×",s.ToString("0.##",CultureInfo.CurrentCulture))),2,L.T("Speed"),Changed,out speedChoices));
+            styleRow.Children.Add(Segment(Array.ConvertAll(Speeds,s=>L.F("{0}×",s.ToString("0.##",CultureInfo.CurrentCulture))),speedPick,L.T("Speed"),Changed,out speedChoices));
             styleRow.Children.Add(RowLabel(L.T("Play style"),18));
-            styleRow.Children.Add(Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},0,L.T("Play style"),Changed,out loopChoices));
+            styleRow.Children.Add(Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},loopPick,L.T("Play style"),Changed,out loopChoices));
             bottom.Children.Add(styleRow);
 
             var more=new Expander {Header=L.T("More choices"),Margin=new Thickness(0,8,0,0),IsExpanded=false};
@@ -191,10 +229,10 @@ namespace LoveMyShelf {
             var grid=new Grid();choices.Children.Add(grid);
             grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(14)});grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.RowDefinitions.Add(new RowDefinition());grid.RowDefinitions.Add(new RowDefinition());
-            fps=Choice(Cell(grid,0,0),L.T("Smoothness (frames per second)"),Array.ConvertAll(Rates,r=>L.F("{0} a second",r)),lastFps);
-            height=Choice(Cell(grid,0,2),L.T("Height"),Array.ConvertAll(Heights,h=>L.F("{0} px",h)),lastHeight);
-            quality=Choice(Cell(grid,1,0),L.T("Picture quality"),new[]{L.T("High (bigger file)"),L.T("Normal"),L.T("Smaller file")},lastQuality);
-            format=Choice(Cell(grid,1,2),L.T("File type"),new[]{L.T("GIF · moves everywhere · big file"),L.T("WebP · smooth colors, small · not everywhere"),L.T("MP4 · smallest, sharpest · goes up as a video")},lastFormat);
+            fps=Choice(Cell(grid,0,0),L.T("Smoothness (frames per second)"),Array.ConvertAll(Rates,r=>L.F("{0} a second",r)),fpsPick);
+            height=Choice(Cell(grid,0,2),L.T("Height"),Array.ConvertAll(Heights,h=>L.F("{0} px",h)),heightPick);
+            quality=Choice(Cell(grid,1,0),L.T("Picture quality"),new[]{L.T("High (bigger file)"),L.T("Normal"),L.T("Smaller file")},qualityPick);
+            format=Choice(Cell(grid,1,2),L.T("File type"),new[]{L.T("GIF · moves everywhere · big file"),L.T("WebP · smooth colors, small · not everywhere"),L.T("MP4 · smallest, sharpest · goes up as a video")},formatPick);
             // What these mean, in plain words, and the place to choose what they start as.
             var explain=UI.Btn(L.T("What do these mean? (F1)"),()=>GuideWindow.Open(this,"gif"));
             explain.HorizontalAlignment=HorizontalAlignment.Left;explain.Margin=new Thickness(0,2,0,4);choices.Children.Add(explain);
@@ -234,7 +272,13 @@ namespace LoveMyShelf {
                 PlaceHandle(dragging,edge);
                 Layout();UpdateChips();UpdateSummary();
             };
-            prepareSoon.Tick+=delegate {prepareSoon.Stop();Prepare();};
+            prepareSoon.Tick+=delegate {
+                prepareSoon.Stop();
+                // The real file waits while a handle is held or the strip's scenes are still being read, so it
+                // never slows down what the person is doing right now.
+                if(dragging!=0 || draftFilling){prepareSoon.Start();return;}
+                Prepare();
+            };
             PreviewKeyDown+=(s,e)=>{
                 if(e.Key==Key.F1){GuideWindow.Open(this,"gif");e.Handled=true;return;}
                 if(e.OriginalSource is ComboBox || e.OriginalSource is ComboBoxItem)return;
@@ -295,6 +339,19 @@ namespace LoveMyShelf {
             strip.Children.Clear();
             if(strip.ActualWidth<=0)return;
             Regrid(false);
+            TakeDraftPictures();
+            strip.Children.Add(cells);
+            // The pictures are only rebuilt when they or the shown part change, so dragging a handle stays light.
+            string key=viewStart.ToString("R")+"|"+step.ToString("R")+"|"+strip.ActualWidth.ToString("R")+"|"+duration.ToString("R")+"|"+pictureVersion;
+            if(key!=cellsKey){cellsKey=key;BuildCells();}
+            PumpThumbs();
+            Overlay();
+        }
+        readonly Canvas cells=new Canvas();
+        string cellsKey;
+        int pictureVersion; // goes up whenever a strip picture is added or the grid changes
+        void BuildCells() {
+            cells.Children.Clear();
             double cell=step*PixelsPerMs;
             bool known=!Double.IsNaN(duration) && duration>0;
             for(int k=VisibleFirst;k<=VisibleLast;k++) {
@@ -306,12 +363,15 @@ namespace LoveMyShelf {
                 // A dark gray box stands in while a picture loads, so it never looks like the video ended.
                 var placeholder=new Border {Width=Math.Max(1,width),Height=StripHeight,Background=LoadingCell,ClipToBounds=true};
                 var image=new Image {Stretch=Stretch.UniformToFill,Width=Math.Max(1,cell-ThumbGap),Height=StripHeight,HorizontalAlignment=HorizontalAlignment.Left};
+                RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
                 BitmapSource picture;
                 if(thumbs.TryGetValue(k,out picture) || (picture=Earlier(k*step+step/2))!=null)image.Source=picture;
                 placeholder.Child=image;
-                Canvas.SetLeft(placeholder,X(at));strip.Children.Add(placeholder);
+                Canvas.SetLeft(placeholder,X(at));cells.Children.Add(placeholder);
             }
-            PumpThumbs();
+        }
+        // The dimmed outside, the chosen part, the cover mark, the play mark and both handles.
+        void Overlay() {
             double left=X(start),right=X(end);
             var dimLeft=new Border {Width=Math.Max(0,left),Height=StripHeight,Background=Dim,IsHitTestVisible=false};
             var dimRight=new Border {Width=Math.Max(0,strip.ActualWidth-right),Height=StripHeight,Background=Dim,IsHitTestVisible=false};
@@ -394,9 +454,9 @@ namespace LoveMyShelf {
                     int k=Pick(x=>!thumbs.ContainsKey(x) && !loading.Contains(x));
                     if(k>=0){loading.Add(k);readers++;Load(k,false);}
                 }
-                // Exact pictures wait while the preview file is being made, so the preview (decoding the same
-                // video) comes first; the quick keyframe pictures above still fill the strip at once.
-                if(exactReaders==0 && preparing<0) {
+                // Exact pictures wait while the preview file is made or the strip's scenes are read (those
+                // become the strip's pictures anyway); the quick keyframe pictures above still fill the strip at once.
+                if(exactReaders==0 && preparing<0 && !draftFilling) {
                     int k=Pick(x=>!exact.Contains(x) && !loadingExact.Contains(x));
                     if(k>=0){loadingExact.Add(k);exactReaders++;Load(k,true);}
                 }
@@ -417,12 +477,23 @@ namespace LoveMyShelf {
             if(!force && Math.Abs(next-step)<1e-6)return;
             if(earlier.Count>240)earlier.Clear();
             foreach(var pair in thumbs)earlier[pair.Key*step+step/2]=pair.Value;
-            step=next;thumbs.Clear();loading.Clear();failed.Clear();exact.Clear();loadingExact.Clear();generation++;
+            step=next;thumbs.Clear();loading.Clear();failed.Clear();exact.Clear();loadingExact.Clear();generation++;pictureVersion++;
         }
         BitmapSource Earlier(double at) {
             BitmapSource best=null;double bestGap=step;
             foreach(var pair in earlier){double gap=Math.Abs(pair.Key-at);if(gap<=bestGap){bestGap=gap;best=pair.Value;}}
             return best;
+        }
+        // The quick preview's scenes are already the cover's part in its 9:16 shape, so the strip uses them
+        // instead of reading the same video a second time.
+        void TakeDraftPictures() {
+            if(draft==null)return;
+            for(int k=VisibleFirst;k<=VisibleLast;k++) {
+                if(!Exists(k) || exact.Contains(k))continue;
+                var scene=draft.Near(k*step+step/2);
+                if(scene==null)continue;
+                thumbs[k]=scene;exact.Add(k);failed.Remove(k);pictureVersion++;
+            }
         }
         // How big each scene has to be read so the cover's part of it is still sharp on the strip. The cover is
         // 9:16 in pixels, so its share of the width and of the height tells how big the whole picture must be.
@@ -462,7 +533,7 @@ namespace LoveMyShelf {
             if(picture!=null)try {picture=CoverLook(picture);} catch(Exception) {}
             if(picture!=null) {
                 // A keyframe picture never replaces an exact one.
-                if(precise || !exact.Contains(k))thumbs[k]=picture;
+                if(precise || !exact.Contains(k)){thumbs[k]=picture;pictureVersion++;}
                 if(precise)exact.Add(k);
             } else if(!viaPlayer || precise)failed.Add(k);
             Layout();
@@ -507,9 +578,11 @@ namespace LoveMyShelf {
         internal void ReleaseStrip() {if(dragging!=0)FinishDrag();}
         void FinishDrag() {
             bool handle=dragging==1 || dragging==2;
+            bool pan=dragging==3;
             dragging=0;edgeScroll.Stop();strip.Cursor=Cursors.Hand;
             PlacePlayMark();
             if(handle){UpdateChips();UpdateSummary();SchedulePrepare();}
+            else if(pan)ShowDraft(draftOwed);
         }
         // Moves a handle by a small step (the ‹ › buttons and the ← → keys) and keeps it on screen.
         internal void Nudge(int which,double delta) {
@@ -660,26 +733,43 @@ namespace LoveMyShelf {
             ShowDraft();
         }
         // The quick preview: scenes already read are reused, only new ones are read, and it plays as soon as they are there.
-        async void ShowDraft() {
+        // Then every scene of the strip on screen is read too, so the next change inside it plays at once
+        // and the strip shows those same scenes. play=false only reads the strip (after panning).
+        bool draftFilling,draftOwed;
+        async void ShowDraft(bool play=true) {
             if(lifetime.IsCancellationRequested || !IsLoaded)return;
             if(draftWork!=null)draftWork.Cancel();
             var work=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);draftWork=work;
             double from=start,to=end;
             var request=Read();
+            draftFilling=true;
+            if(play)draftOwed=true;
             try {
                 if(draft==null)draft=new DraftScenes(source,PreviewStepMs,Dispatcher,PreviewSide());
                 var scenes=draft;
-                await Task.Run(()=>scenes.Fill(from,to,work.Token),work.Token);
+                if(play) {
+                    await Task.Run(()=>scenes.Fill(from,to,work.Token),work.Token);
+                    if(work.IsCancellationRequested)return;
+                    var list=scenes.Scenes(from,to);
+                    if(list.Count>0) {
+                        var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.Step/request.Speed)),request);
+                        timeline=Timeline(request,frames.Images.Length);
+                        player.Start(frames);player.Hold=held;
+                        draftOn=true;SetStatus();
+                    }
+                    draftOwed=false;
+                    Layout();
+                }
+                double a=Clamp(viewStart-RoomMs),b=Clamp(viewStart+span+RoomMs);
+                await Task.Run(()=>scenes.Fill(a,b,work.Token),work.Token);
                 if(work.IsCancellationRequested)return;
-                var list=scenes.Scenes(from,to);
-                if(list.Count==0)return;
-                var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.Step/request.Speed)),request);
-                timeline=Timeline(request,frames.Images.Length);
-                player.Start(frames);player.Hold=held;
-                draftOn=true;SetStatus();
+                Layout();
             } catch(OperationCanceledException) {
             } catch(Exception) {
                 // The real file still follows, so a failed quick preview is not shown as a problem.
+                if(draftWork==work)draftOwed=false;
+            } finally {
+                if(draftWork==work){draftFilling=false;PumpThumbs();}
             }
         }
         // Makes the real file in the background. Until it's done the last preview keeps playing (or, the first
@@ -845,10 +935,9 @@ namespace LoveMyShelf {
         }
     }
 
-    // Plays decoded frames into an Image on the UI thread. Pauses while Paused is set (window minimized)
-    // or Hold is set (the person paused it).
+    // Plays decoded frames into an Image on the UI thread. Pauses while its own window is minimized
+    // (each large view is a window of its own) or Hold is set (the person paused it).
     internal sealed class FramePlayer {
-        internal static bool Paused;
         internal bool Hold;
         internal event Action<int> Shown;
         readonly Image target;
@@ -860,9 +949,13 @@ namespace LoveMyShelf {
             this.target=target;
             timer.Tick+=delegate {
                 if(frames==null)return;
-                if(!Paused && !Hold)Show(next);
+                if(!Hold && !Minimized())Show(next);
                 else timer.Interval=TimeSpan.FromMilliseconds(250);
             };
+        }
+        bool Minimized() {
+            var window=Window.GetWindow(target);
+            return window!=null && window.WindowState==WindowState.Minimized;
         }
         void Show(int index) {
             target.Source=frames.Images[index];timer.Interval=TimeSpan.FromMilliseconds(frames.Delays[index]);
@@ -912,6 +1005,8 @@ namespace LoveMyShelf {
             for(long slot=first;slot<=last+1;slot++) {
                 bool missing=slot<=last && !Has(slot);
                 if(missing && run<0)run=slot;
+                // Long parts are read a few seconds at a time, so a change that stops the reading loses little.
+                if(missing && run>=0 && slot-run>=ChunkSlots){token.ThrowIfCancellationRequested();ReadRun(run,slot-1,token);run=slot;}
                 if(!missing && run>=0){token.ThrowIfCancellationRequested();ReadRun(run,slot-1,token);run=-1;}
             }
             Trim(first,last);
@@ -962,6 +1057,13 @@ namespace LoveMyShelf {
                 for(int i=0;i<slots.Count && scenes.Count>MaxScenes;i++)
                     if(slots[i]<first || slots[i]>last)scenes.Remove(slots[i]);
             }
+        }
+        long ChunkSlots {get {return Math.Max(4,3000/Step);}}
+        // The scene nearest a moment, if it has been read.
+        internal BitmapSource Near(double ms) {
+            long slot=(long)Math.Round(Math.Max(0,ms)/Step);
+            BitmapSource scene;
+            lock(gate)return scenes.TryGetValue(slot,out scene)?scene:null;
         }
         // The scenes of the part, in time order.
         internal List<BitmapSource> Scenes(double from,double to) {

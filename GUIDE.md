@@ -49,7 +49,7 @@ Click **Guide & Options** at the top right, or press **F1** on any screen (it op
 - **Cover collection** shows all your saved covers from every folder in one grid, including several covers of the same original.
 - The **Sort** button at the bottom right opens a menu upward, like File Explorer: **File name**, **Date modified**, **File size**, **File type** or **Cover work order**, then which end comes first (A → Z, newest first and so on). Picking one refreshes the grid in that order. **Shuffle**, at the very bottom, mixes the order until you pick a sort again.
 - **Cover size** cycles the grid through four tile sizes.
-- To rearrange the folder tabs, drag a tab left or right, or right-click it and choose **Move left** / **Move right**. **Cover collection** and **Unfinished cover collection** always stay on the left. The order is remembered.
+- To rearrange the folder tabs, drag a tab left or right. Right-click a tab and choose **Open in new window** to open that folder in a new window. **Cover collection** and **Unfinished cover collection** always stay on the left. The order is remembered.
 - **F5** refreshes the current view after you add or move files.
 - **Search names** at the top right shows only files whose names contain what you type. **Esc** in the box clears it.
 - Point at a tile to see its file name on a soft strip at the bottom, away from faces at the top.
