@@ -39,13 +39,13 @@ https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
 
 https://github.com/user-attachments/assets/080da44d-49cb-423e-b5c4-aaaef3ea5723
 
-**움직이는 표지 만들기**: 구간을 고르고 속도와 재생 방식을 정해서 저장합니다. 만드는 동안에도 다른 작업을 계속할 수 있습니다.
+**움직이는 표지 만들기**: 구간을 고르고 속도와 재생 방식을 정해서 저장합니다. 만드는 동안에도 다른 작업을 계속할 수 있습니다. 다 만든 뒤 목록에서 표지에 마우스를 올리면 표지가 움직입니다.
 
-https://github.com/user-attachments/assets/cee0954e-f889-47cc-a41b-63cf8dcde45b
+https://github.com/user-attachments/assets/dd3a9104-e4df-4069-b19e-a975ee2fa7ce
 
-**창 두 개로 파일 옮기기**: 새 창에 다른 폴더를 열고, 파일 여러 개를 골라 끌어다 놓으면 옮겨집니다. Ctrl+Z로 되돌릴 수 있습니다.
+**창 두 개로 파일 옮기기**: 새 창에 다른 폴더를 열고, 파일 여러 개를 골라 끌어다 놓으면 옮겨집니다. Ctrl+Z로 되돌릴 수 있습니다. 옮긴 영상의 움직이는 표지도 새 폴더에서 그대로 움직입니다.
 
-https://github.com/user-attachments/assets/c9d3386b-2012-4657-ad82-ad11f2bb0572
+https://github.com/user-attachments/assets/e10b8489-304c-4249-9db4-c6d26a9cdd7e
 
 ## 필요한 환경
 

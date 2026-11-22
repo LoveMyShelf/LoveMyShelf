@@ -37,13 +37,13 @@ https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
 
 https://github.com/user-attachments/assets/080da44d-49cb-423e-b5c4-aaaef3ea5723
 
-**Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background.
+**Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background. Point at the cover in the grid and it plays.
 
-https://github.com/user-attachments/assets/cee0954e-f889-47cc-a41b-63cf8dcde45b
+https://github.com/user-attachments/assets/dd3a9104-e4df-4069-b19e-a975ee2fa7ce
 
-**Two windows side by side.** Open a second folder in a new window, select several files, and drag them across to move them. Ctrl+Z puts them back.
+**Two windows side by side.** Open a second folder in a new window, select several files, and drag them across to move them. Ctrl+Z puts them back. A moved video keeps its animated cover in the new folder.
 
-https://github.com/user-attachments/assets/c9d3386b-2012-4657-ad82-ad11f2bb0572
+https://github.com/user-attachments/assets/e10b8489-304c-4249-9db4-c6d26a9cdd7e
 
 ## Requirements
 
