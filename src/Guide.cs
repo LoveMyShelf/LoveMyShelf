@@ -479,8 +479,8 @@ namespace LoveMyShelf {
                       "Love My Shelf는 사진을 인터넷 어디에도 올리지 않아요. 모든 일이 내 컴퓨터 안에서만 일어나요.")}});
             start.Items.Add(new Card {Title=T("Your first cover in 4 steps","4단계로 첫 표지 만들기"),
                 Steps=new[]{
-                    T("Click [[Add folder]] at the top right and choose a folder that has photos or videos in it. You can also drag a folder from File Explorer onto this window.",
-                      "오른쪽 위 [[폴더 추가]]를 누르고, 사진이나 영상이 들어 있는 폴더를 골라요. 파일 탐색기에서 폴더를 이 창 위로 끌어다 놓아도 돼요."),
+                    T("In the folder tree on the left, right-click a folder that has photos or videos and choose [[Add to Love My Shelf]] (like pinning a folder in File Explorer). You can also drag a folder onto Love My Shelf in the tree, or from File Explorer onto this window.",
+                      "왼쪽 폴더 나무에서 사진이나 영상이 들어 있는 폴더를 오른쪽 클릭하고 [[Love My Shelf에 추가]]를 골라요(파일 탐색기의 '즐겨찾기에 고정'과 같아요). 폴더를 나무의 Love My Shelf 위로 끌어다 놓거나, 파일 탐색기에서 이 창으로 끌어다 놓아도 돼요."),
                     T("Small pictures (tiles) appear in rows. Click the photo you like. For a video, play it and click [[Pause]] near the moment you like.",
                       "작은 그림(칸)들이 바둑판처럼 나타나요. 마음에 드는 사진을 한 번 눌러요. 영상이면 재생하다가 마음에 드는 장면 근처에서 [[일시정지]]를 눌러요."),
                     T("Click [[Make cover]]. Drag the picture with the mouse to move it, and roll the mouse wheel to make it bigger or smaller.",
@@ -505,15 +505,19 @@ namespace LoveMyShelf {
             var browse=add("browse",T("Browsing files","파일 둘러보기"));
             browse.Items.Add(new Card {Title=T("Open a folder and the tiles appear","폴더를 열면 칸들이 나와요"),
                 Lines=new[]{
-                    T("When you open a folder with [[Add folder]], its photos and videos line up as tiles. Each folder you open gets a name tab along the top; click a tab to switch folders.",
-                      "[[폴더 추가]]로 폴더를 열면 그 폴더의 사진과 영상이 칸으로 바둑판처럼 늘어서요. 연 폴더마다 위쪽에 이름표(탭)가 하나씩 생겨서, 이름표를 누르면 그 폴더로 옮겨 가요."),
+                    T("A folder's photos and videos line up as tiles. The top row works like File Explorer's: ← back, → forward, ↑ the folder above, ⟳ refresh, and the address bar showing where you are.",
+                      "폴더의 사진과 영상이 칸으로 바둑판처럼 늘어서요. 위쪽 줄은 파일 탐색기와 같아요: ← 뒤로, → 앞으로, ↑ 위 폴더, ⟳ 새로 고침, 그리고 지금 위치를 보여 주는 주소창."),
+                    T("In the address bar, click a part to go there, or the › after it to see the folders inside. Click the empty end (or press {{Ctrl}} + {{L}}) to type or paste a path; suggestions appear as you type. {{Enter}} goes, {{Esc}} stops.",
+                      "주소창에서 이름을 누르면 그곳으로 가고, 그 뒤의 ›를 누르면 안의 폴더 목록이 나와요. 빈 끝을 누르면(또는 {{Ctrl}} + {{L}}) 경로를 직접 입력하거나 붙여 넣을 수 있고, 입력하는 동안 폴더 이름이 제안돼요. {{Enter}}로 이동, {{Esc}}로 취소."),
                     T("Point the mouse at a tile and its full file name appears right below it (above it on the bottom row), without covering the tile.",
                       "칸에 마우스를 올리면 그 칸 바로 아래(맨 아래 줄이면 위)에 파일 이름 전체가 나와요. 마우스를 올린 칸은 가리지 않아요."),
                     T("A photo that already has a cover shows the cover in its tile.","이미 표지를 만든 사진은 칸에 표지가 보여요."),
                     T("At the bottom left, [[All]] shows everything, [[Finished]] shows only tiles with a cover, and [[Unfinished]] shows only tiles without a cover.",
                       "아래 왼쪽의 [[전체]]는 모두, [[표지 O]]는 표지가 있는 칸만, [[표지 X]]는 아직 표지가 없는 칸만 보여 줘요. X는 오류가 아니라 '아직 표지가 없다'는 뜻이에요."),
-                    T("[[Cover collection]] at the top left gathers every cover from every folder. [[Unfinished cover collection]] gathers what still has no cover from the folders shown on top.",
-                      "왼쪽 위 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆 [[표지 X 모음]]은 위쪽 폴더들에서 아직 표지가 없는 것(X)만 모아 보여 줘요."),
+                    T("[[Cover collection]] at the bottom middle gathers every cover from every folder. [[Unfinished cover collection]] next to it gathers what still has no cover from the folders shown on top.",
+                      "아래 가운데 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆 [[표지 X 모음]]은 위쪽 폴더들에서 아직 표지가 없는 것(X)만 모아 보여 줘요."),
+                    T("When the window is narrow, for example two windows side by side, the buttons at the bottom get shorter names or small pictures, like [[O set]] or [[O]], and [[New window]] and [[Guide & Options]] at the top become small pictures (⧉ ?). Point the mouse at one to see its full name.",
+                      "창이 좁으면(예: 창 두 개를 나란히 띄웠을 때) 아래쪽 버튼 이름이 [[O 모음]], [[O]]처럼 짧아지거나 작은 그림으로 바뀌어요. 위쪽 [[새 창]]·[[설명서 겸 옵션]]도 그림(⧉ ?)으로 바뀌어요. 마우스를 올리면 원래 이름이 나와요."),
                     T("[[Cover size]] at the bottom right makes the tiles bigger or smaller in four steps.","아래 오른쪽 [[표지 크기]]를 누를 때마다 칸이 네 단계로 커지거나 작아져요.")}});
             browse.Items.Add(new Card {Title=T("Move around with the keyboard, like File Explorer","파일 탐색기처럼 키보드로 움직여요"),
                 Lines=new[]{T("Click a tile once to choose it, and double-click it to open it big, like in File Explorer. (If you'd rather open with one click, change it in [[Large view]] under Options.) The arrow keys move between tiles without opening anything.",
@@ -535,15 +539,45 @@ namespace LoveMyShelf {
             browse.Items.Add(new Card {Title=T("Rename, delete, find","이름 바꾸기, 지우기, 찾기"),
                 Keys=new[]{K(T("Rename the chosen file. Its JPG and GIF covers get the same new name too.","고른 파일의 이름 바꾸기. 그 파일로 만든 JPG 표지와 GIF 표지 이름도 함께 바뀌어요."),"F2"),
                     K(T("Move to the Recycle Bin. You can bring it back from the Recycle Bin.","휴지통으로 보내기. 휴지통에서 다시 되살릴 수 있어요."),"Delete")},
-                Lines=new[]{T("Type in the search box at the top right and only files whose names contain those letters stay on screen. Press {{Esc}} to clear it.",
-                    "오른쪽 위 검색 칸에 글자를 넣으면 이름에 그 글자가 들어간 파일만 남아요. {{Esc}}를 누르면 다시 모두 보여요."),
+                Lines=new[]{T("Click the magnifier at the top right (or press {{Ctrl}} + {{F}}) and a search box opens. Type in it and only files whose names contain those letters stay on screen. Press {{Esc}} to clear it and close the box.",
+                    "오른쪽 위 돋보기를 누르면(또는 {{Ctrl}} + {{F}}) 검색 칸이 열려요. 글자를 넣으면 이름에 그 글자가 들어간 파일만 남아요. {{Esc}}를 누르면 다시 모두 보이고 칸이 닫혀요."),
                     T("Right-click a tile for more: [[Open file location]] (shows it in File Explorer), [[Open with default app]] (opens it in the program Windows usually uses) and [[Details]] (size, date and so on).",
                       "칸을 오른쪽 클릭하면 더 있어요. [[파일 위치 열기]]는 파일 탐색기에서 그 파일을 보여 주고, [[기본 앱으로 열기]]는 Windows가 평소에 쓰는 프로그램으로 열고, [[정보 보기]]는 크기·날짜 같은 정보를 보여 줘요.")}});
             browse.Items.Add(new Card {Title=T("Tiles stay where they are","칸은 저절로 움직이지 않아요"),
                 Lines=new[]{T("Making, hiding or deleting covers leaves every other tile in its place, so you don't lose where you were. A deleted tile leaves an empty slot. Press {{F5}} or choose a sort to tidy up.",
                     "표지를 만들거나 숨기거나 지워도 다른 칸은 그 자리 그대로예요. 그래서 보던 곳을 잃어버리지 않아요. 지운 칸은 빈칸으로 남아요. 정리하고 싶으면 {{F5}}를 누르거나 정렬을 다시 골라요."),
-                    T("Drag a folder tab sideways to change the order of the tabs. Right-click it for [[Open in new window]] and [[Hide folder tab]]. The two buttons on the far left always stay there; right-click them to open them in a new window.",
-                      "위쪽 폴더 이름표는 옆으로 끌어서 순서를 바꿀 수 있어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[위쪽에서 이 폴더 숨기기]]가 있어요. 맨 왼쪽의 두 버튼은 늘 그 자리에 있고, 오른쪽 클릭하면 새 창에서 열 수 있어요.")}});
+                    T("Your Love My Shelf folders are in the folder tree on the left. Drag one onto another there to change their order. Right-click for [[Open in new window]] and [[Remove from Love My Shelf]]. The two collection buttons at the bottom middle always stay there.",
+                      "Love My Shelf에 추가한 폴더는 왼쪽 폴더 나무에 있어요. 나무 안에서 다른 폴더 위로 끌어다 놓으면 순서가 바뀌어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[Love My Shelf에서 빼기]]가 있어요. 아래 가운데의 두 모음 버튼은 늘 그 자리에 있어요.")}});
+            browse.Items.Add(new Card {Title=T("Choose many at once: hold the right button and drag","여러 개 한 번에 고르기: 오른쪽 버튼을 누른 채 긋기"),
+                Lines=new[]{T("Hold the right mouse button down and drag over the tiles: a rectangle appears and every tile it touches is chosen. You can start right on a tile, because the tiles sit close together. (This is Love My Shelf's own way; in File Explorer you'd use the left button on empty space, which works here too.)",
+                    "마우스 오른쪽 버튼을 누른 채 칸 위를 그어 보세요. 사각형이 생기고 닿은 칸이 모두 골라져요. 칸끼리 붙어 있어서 칸 위에서 바로 시작해도 돼요. (Love My Shelf만의 방법이에요. 파일 탐색기처럼 빈 곳에서 왼쪽 버튼으로 그어도 돼요.)"),
+                    T("Hold {{Ctrl}} while drawing to add to what's already chosen (tiles already chosen get unchosen). Drag to the top or bottom edge to scroll. {{Esc}} cancels. A right click without moving still opens the menu. The folders area works the same way.",
+                      "{{Ctrl}}을 누른 채 그으면 이미 고른 것에 더해져요(이미 고른 칸은 풀려요). 위나 아래 끝으로 끌면 화면이 따라 움직여요. {{Esc}}를 누르면 취소돼요. 움직이지 않고 오른쪽을 누르면 지금처럼 메뉴가 떠요. 폴더 자리에서도 똑같이 돼요.")}});
+            browse.Items.Add(new Card {Title=T("Copy, cut and paste files","파일 복사·잘라내기·붙여넣기"),
+                Lines=new[]{T("{{Ctrl}} + {{C}} copies the chosen files, {{Ctrl}} + {{X}} cuts them (they fade until pasted) and {{Ctrl}} + {{V}} pastes into the folder on screen — the same as File Explorer, so files go back and forth with File Explorer and other windows. Covers go along when files move, and {{Ctrl}} + {{Z}} puts a move back.",
+                    "{{Ctrl}} + {{C}}는 고른 파일 복사, {{Ctrl}} + {{X}}는 잘라내기(붙여 넣을 때까지 흐리게 보여요), {{Ctrl}} + {{V}}는 지금 보는 폴더에 붙여넣기예요. 파일 탐색기와 같아서 탐색기나 다른 창과 파일을 주고받을 수 있어요. 옮길 때는 표지도 따라가고, {{Ctrl}} + {{Z}}로 되돌릴 수 있어요.")}});
+            browse.Items.Add(new Card {Title=T("The right-click menu","오른쪽 클릭 메뉴"),
+                Lines=new[]{T("Right-click a file or folder: Love My Shelf's own items come first, then, below a line, the same menu File Explorer shows (Open with, Share, Compress, Properties and so on — the full one that Windows 11 keeps under \"Show more options\"). Delete, Rename, Cut, Copy and Paste there are done by Love My Shelf, so covers stay with their files. Right-click blank space for the folder's own menu, as in File Explorer: View, Sort by, Refresh, Paste, Undo move, then New, Open in Terminal, Properties and so on.",
+                    "파일이나 폴더를 오른쪽 클릭하면 Love My Shelf 메뉴가 먼저, 줄 아래에 파일 탐색기와 같은 메뉴가 나와요(연결 프로그램, 공유, 압축, 속성 등 — Windows 11에서 '더 많은 옵션 표시'를 눌러야 보이는 전체 메뉴예요). 그 안의 삭제·이름 바꾸기·잘라내기·복사·붙여넣기는 Love My Shelf가 대신 해서 표지가 파일을 따라가요. 빈 곳을 오른쪽 클릭하면 파일 탐색기처럼 그 폴더의 메뉴가 나와요: 보기, 정렬 기준, 새로 고침, 붙여넣기, 이동 취소, 그 아래 새로 만들기·터미널에서 열기·속성 등.")}});
+            browse.Items.Add(new Card {Title=T("The folder tree on the left, like File Explorer","파일 탐색기처럼 왼쪽 폴더 나무"),
+                Lines=new[]{T("Click the button at the top left (or press {{Ctrl}} + {{T}}) to show or hide the folder tree. Love My Shelf comes first (the two collections and your folder tabs), then the same places as File Explorer: your pinned folders, This PC with its drives, and the network.",
+                    "위쪽 맨 왼쪽 버튼을 누르면(또는 {{Ctrl}} + {{T}}) 폴더 나무가 열리고 닫혀요. 맨 위는 Love My Shelf(두 모음과 위쪽 폴더들), 그 아래는 파일 탐색기와 같은 곳들이에요: 즐겨찾기에 고정한 폴더, 내 PC와 드라이브, 네트워크."),
+                    T("Click a folder to see it; ▸ (or a double-click) unfolds the folders inside. Any folder can be opened this way, even one that isn't a tab. Drag files onto a folder in the tree to move them there.",
+                      "폴더를 누르면 그 폴더가 보이고, ▸(또는 두 번 누르기)로 안의 폴더가 펼쳐져요. 위쪽에 추가하지 않은 폴더도 이렇게 바로 열 수 있어요. 파일을 나무의 폴더 위로 끌어다 놓으면 그 폴더로 옮겨져요."),
+                    T("Drag the tree's right edge to make it wider or narrower. Love My Shelf remembers whether it is open, its width and which groups you folded.",
+                      "나무 오른쪽 경계를 끌면 폭이 바뀌어요. 열려 있는지, 폭, 접어 둔 칸은 다음에도 그대로예요.")}});
+            browse.Items.Add(new Setting {Id="foldersPlace",SectionId="browse",Title=T("Where should the folders go?","폴더는 어디에 둘까요?"),
+                Lines=new[]{T("The folders inside a folder have their own area with a line across, apart from the photos. [[View]] on that line changes how they look, like File Explorer. In a place with folders but no photos or videos, the folders open by themselves even if you folded them.",
+                    "폴더 안의 폴더는 사진과 따로, 가로줄이 그어진 자기 자리에 모여요. 그 줄의 [[보기]]로 파일 탐색기처럼 모양을 바꿀 수 있어요. 사진이나 영상 없이 폴더만 있는 곳에서는 접어 뒀어도 폴더가 저절로 펼쳐져요.")},
+                Choices=new[]{new Choice(T("Above the photos","사진 위"),T("Folders first, like File Explorer.","파일 탐색기처럼 폴더가 먼저예요.")),
+                    new Choice(T("Below the photos","사진 아래"),T("Photos first; the folders wait at the bottom.","사진이 먼저, 폴더는 아래에 있어요."))},
+                Default=0,Columns=2,Get=p=>p.FoldersBelow?1:0,Set=(p,i)=>p.FoldersBelow=i==1});
+            browse.Items.Add(new Setting {Id="folderView",SectionId="browse",Title=T("How should the folders look?","폴더를 어떤 모양으로 보여 줄까요?"),
+                Lines=new[]{T("The same views as File Explorer's View menu.","파일 탐색기의 [보기] 메뉴와 같은 모양들이에요.")},
+                Choices=new[]{new Choice(T("Extra large icons","아주 큰 아이콘"),""),new Choice(T("Large icons","큰 아이콘"),""),new Choice(T("Medium icons","보통 아이콘"),""),
+                    new Choice(T("Small icons","작은 아이콘"),""),new Choice(T("List","목록"),""),new Choice(T("Details","자세히"),T("Name, date modified and type in columns.","이름, 수정한 날짜, 유형이 칸으로 나뉘어요.")),
+                    new Choice(T("Tiles","타일"),""),new Choice(T("Content","내용"),"")},
+                Default=1,Columns=2,Get=p=>Math.Max(0,Math.Min(7,p.FolderView)),Set=(p,i)=>p.FolderView=i});
             browse.Items.Add(new Setting {Id="sort",SectionId="browse",Title=T("In what order should the tiles line up?","칸을 어떤 차례로 늘어놓을까요?"),
                 Lines=new[]{T("The [[Sort]] button at the bottom right does the same thing, like the Sort menu in File Explorer. Choosing one reads the folder again and lines the tiles up anew, closing empty slots.",
                     "아래 오른쪽 [[정렬]] 버튼을 눌러도 똑같이 바꿀 수 있어요. 파일 탐색기의 정렬과 같아요. 하나를 고르면 폴더를 다시 읽으면서 새 차례로 늘어서고, 빈칸도 정리돼요.")},
@@ -585,8 +619,8 @@ namespace LoveMyShelf {
                     T("Move the [[Brightness]] bar to make the picture lighter or darker. [[Reset]] puts both back the way they were.",
                       "[[밝기]] 막대를 움직이면 사진이 밝아지거나 어두워져요. [[처음대로]]를 누르면 둘 다 처음으로 돌아가요.")}});
             make.Items.Add(new Card {Title=T("Several covers from one original","원본 하나로 표지 여러 장"),
-                Lines=new[]{T("[[Add cover]] in the large view (or [[Make another cover]] when you right-click a tile) keeps the covers you already made and adds one more. While a video with a cover plays, the buttons are [[Pause]] · [[Add cover]] · [[View cover]] · [[Close]], so you can watch, add a cover and keep watching. [[Edit cover]] changes the cover you are looking at.",
-                    "크게 보기의 [[표지 추가]](칸을 오른쪽 클릭하면 [[표지 추가로 만들기]])는 먼저 만든 표지를 그대로 두고 한 장을 더 만들어요. 표지가 있는 영상을 재생할 때는 버튼이 [[일시정지]] · [[표지 추가]] · [[표지 보기]] · [[닫기]] 순서라서, 보다가 표지를 더하고 이어서 볼 수 있어요. [[표지 수정하기]]는 지금 보고 있는 표지를 고쳐요."),
+                Lines=new[]{T("[[Add cover]] in the large view (or [[Make another cover]] when you right-click a tile) keeps the covers you already made and adds one more. While a video with a cover plays, the buttons are [[Pause]] · [[Add cover]] · [[View cover]] · [[Close]], so you can watch, add a cover and keep watching. [[Edit cover]] changes the cover you are looking at. If the cover has a GIF, you see only the button for the cover on screen: [[Edit GIF cover]] while the GIF cover plays, [[Edit JPG cover]] after [[View JPG cover]].",
+                    "크게 보기의 [[표지 추가]](칸을 오른쪽 클릭하면 [[표지 추가로 만들기]])는 먼저 만든 표지를 그대로 두고 한 장을 더 만들어요. 표지가 있는 영상을 재생할 때는 버튼이 [[일시정지]] · [[표지 추가]] · [[표지 보기]] · [[닫기]] 순서라서, 보다가 표지를 더하고 이어서 볼 수 있어요. [[표지 수정하기]]는 지금 보고 있는 표지를 고쳐요. GIF가 있는 표지는 지금 보이는 표지의 버튼만 나와요. GIF 표지가 움직일 때는 [[GIF 표지 수정하기]], [[JPG 표지 보기]]를 누르면 [[JPG 표지 수정하기]]예요."),
                     T("In a folder, an original with two or more covers shows one tile for each cover, side by side, right after the original's first tile. They all belong to the same original, so Delete, Rename and moving to another folder work on the original once. [[Cover collection]] shows every cover as its own tile too.","폴더 화면에서는 표지가 두 장 이상인 원본의 칸이 표지 수만큼 나란히 늘어서요. 처음 만든 표지 바로 뒤에 새 표지가 붙어요. 이 칸들은 모두 같은 원본에서 만든 것이라, 지우기·이름 바꾸기·다른 폴더로 옮기기는 원본 하나에 한 번만 적용돼요. [[표지 O 모음]]에도 표지마다 칸이 하나씩 보여요.")}});
             make.Items.Add(new Setting {Id="snap",SectionId="editor",Title=T("Should the frame stick to the picture's edges?","테두리를 사진 가장자리에 붙일까요?"),
                 Lines=new[]{T("While you drag, when an edge of the picture comes close to the frame, it can stick like a magnet so the edge lines up exactly. That stops thin uneven gaps. Keep dragging and it comes loose again.",
@@ -642,8 +676,8 @@ namespace LoveMyShelf {
                 Get=p=>0,Set=(p,i)=>{},Extra=g=>g.CoverFolderPicker(),
                 Tips=new[]{T("Covers already made stay where they are when you pick another folder.","다른 폴더로 바꿔도 이미 만든 표지는 옮겨지지 않아요.")}});
             save.Items.Add(new Card {Title=T("The Open cover folder button","표지 폴더 열기 버튼"),
-                Lines=new[]{T("[[Open cover folder]] at the bottom middle opens the folder with your covers in File Explorer. With ② or ③, it opens the folder you're looking at (or the “Love My Shelf 표지” folder inside it).",
-                    "아래 가운데 [[표지 폴더 열기]]를 누르면 표지가 들어 있는 폴더가 파일 탐색기로 열려요. ②나 ③을 골랐다면 지금 보고 있는 폴더(또는 그 안의 ‘Love My Shelf 표지’ 폴더)가 열려요.")}});
+                Lines=new[]{T("[[Open cover folder]] at the bottom right, next to [[Sort]], opens the folder with your covers in File Explorer. With ② or ③, it opens the folder you're looking at (or the “Love My Shelf 표지” folder inside it).",
+                    "아래 오른쪽 [[정렬]] 옆 [[표지 폴더 열기]]를 누르면 표지가 들어 있는 폴더가 파일 탐색기로 열려요. ②나 ③을 골랐다면 지금 보고 있는 폴더(또는 그 안의 ‘Love My Shelf 표지’ 폴더)가 열려요.")}});
 
             // ----- Scenes from videos -----
             var video=add("video",T("Scenes from videos","영상에서 장면 고르기"));
@@ -773,7 +807,9 @@ namespace LoveMyShelf {
                 Lines=new[]{T("Double-click a tile (or choose it and press Enter) and it opens big. Photos, videos, GIFs and WebPs all open here.","칸을 두 번 누르면(또는 칸을 고르고 Enter) 크게 열려요. 사진도, 영상도, GIF와 WebP도 여기서 열려요."),
                     T("Point at the playback bar of a video and a picture of that moment appears above it, with the time written on it. Click to jump there.",
                       "영상의 재생 막대에 마우스를 올리면, 그 위치의 장면이 시간과 함께 작은 그림으로 떠요. 누르면 그 위치로 가요."),
-                    T("When you change the speed or brightness with keys, a small note shows the new value at the top left.","키로 재생 속도나 밝기를 바꾸면 화면 왼쪽 위에 바뀐 값이 작게 나와요.")},
+                    T("When you change the speed, brightness or volume with keys, a small note shows the new value at the top left.","키로 재생 속도, 밝기, 음량을 바꾸면 화면 왼쪽 위에 바뀐 값이 작게 나와요."),
+                    T("The volume is remembered: the next video starts at the volume you left. {{↑}} {{↓}} change it by 5, and {{M}} turns the sound off and on.",
+                      "음량은 기억돼요. 다음 영상도 마지막에 둔 음량으로 시작해요. {{↑}} {{↓}}로 5씩 바꾸고, {{M}}으로 소리를 껐다 켜요.")},
                 Keys=new[]{K(T("Previous / next file","이전 파일 / 다음 파일"),"K","L"),K(T("Play or pause","재생 / 일시정지"),"Space"),
                     K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
                     K(T("Brighter / darker / back to normal","밝게 / 어둡게 / 원래대로"),"E","W","Q"),
@@ -852,10 +888,10 @@ namespace LoveMyShelf {
             keys.Items.Add(new Card {Title=T("Anywhere","어디서나"),Keys=new[]{K(T("Open this guide","설명서 겸 옵션 열기"),"F1"),K(T("Full screen","전체화면"),"F11")}});
             keys.Items.Add(new Card {Title=T("Browsing files","파일 둘러보기"),Keys=new[]{
                 K(T("Move","이동"),"←","→","↑","↓"),K(T("Open big","크게 보기"),"Enter"),K(T("Rename","이름 바꾸기"),"F2"),K(T("Recycle Bin","휴지통으로 보내기"),"Delete"),
-                K(T("Choose all","모두 고르기"),"Ctrl+","A"),K(T("Undo the choosing","고른 것 풀기"),"Esc"),K(T("Add a folder","폴더 추가"),"Ctrl+","O"),K(T("Refresh","새로 고침"),"F5")}});
+                K(T("Choose all","모두 고르기"),"Ctrl+","A"),K(T("Copy / cut / paste files","파일 복사 / 잘라내기 / 붙여넣기"),"Ctrl+","C","X","V"),K(T("Undo the choosing","고른 것 풀기"),"Esc"),K(T("Choose a folder to add","추가할 폴더 고르기"),"Ctrl+","O"),K(T("Search names","이름 검색"),"Ctrl+","F"),K(T("Back / forward","뒤로 / 앞으로"),"Alt+","←","→"),K(T("Up to the folder above","위 폴더로"),"Alt+","↑"),K(T("Type a path in the address bar","주소창에 경로 입력"),"Ctrl+","L"),K(T("Folder tree","폴더 나무"),"Ctrl+","T"),K(T("Refresh","새로 고침"),"F5")}});
             keys.Items.Add(new Card {Title=T("Large view","크게 보기"),Keys=new[]{
                 K(T("Previous / next file","이전 / 다음 파일"),"K","L"),K(T("Play / pause","재생 / 일시정지"),"Space"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
-                K(T("One scene","한 장면씩"),"D","F"),K(T("Brightness","밝기"),"E","W","Q"),K(T("Speed","재생 속도"),"C","X","Z"),K(T("Close","닫기"),"Esc")}});
+                K(T("One scene","한 장면씩"),"D","F"),K(T("Brightness","밝기"),"E","W","Q"),K(T("Speed","재생 속도"),"C","X","Z"),K(T("Volume","음량"),"↑","↓"),K(T("Sound off / on","소리 끄기 / 켜기"),"M"),K(T("Close","닫기"),"Esc")}});
             keys.Items.Add(new Card {Title=T("Making a cover","표지 만들기"),Keys=new[]{
                 K(T("Bigger / smaller","크게 / 작게"),"+","−"),K(T("Previous / next scene","이전 / 다음 장면"),"D","F"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
                 K(T("Brightness","밝기"),"E","W","Q"),K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});

@@ -7,6 +7,30 @@ Download new versions from Releases. Extract the new ZIP over your Love My Shelf
 
 ---
 
+## 1.0.3 · 2026-11-23
+
+- **파일 탐색기처럼 바뀌었어요:** 왼쪽에 폴더 나무가 생겼어요. Love My Shelf에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요. 위쪽 폴더 이름표는 이 나무로 옮겨졌고, 맨 왼쪽 버튼이나 Ctrl+T로 열고 닫아요.
+- **주소창과 뒤로·앞으로·위로:** 탐색기처럼 경로를 눌러 이동하거나 직접 입력할 수 있어요. Backspace, Alt+←, Alt+→, Alt+↑도 같아요.
+- **폴더 안의 폴더가 보여요:** 사진과 따로 모여서 보이고, 아이콘·목록·자세히·타일·내용 등 8가지 모양으로 볼 수 있어요. 사진 위나 아래에 둘 수 있고, 파일을 끌어다 놓으면 그 폴더로 옮겨져요. 사진이나 영상 없이 폴더만 있는 곳에서는 저절로 펼쳐져요.
+- **범위 선택과 복사·붙여넣기:** 마우스로 끌어서 여러 개를 고르고, Ctrl+C·X·V로 복사하고 옮길 수 있어요.
+- **Windows 오른쪽 클릭 메뉴:** 파일, 폴더, 빈 곳을 오른쪽 클릭하면 탐색기와 같은 메뉴가 나와요. 폴더 메뉴에서 바로 삭제할 수도 있어요.
+- **동영상 음량 키:** ↑↓로 음량을 바꾸고 M으로 소리를 끄고 켜요. 음량은 다음 영상에도 그대로 이어져요.
+- **크게 보기 잘림 고침:** 창이 세로로 길어도 영상과 사진이 잘리지 않고 전체가 보여요.
+- **표지 수정 버튼 정리:** 지금 보고 있는 표지에 맞는 [JPG 표지 수정하기] 또는 [GIF 표지 수정하기]만 보여요.
+
+---
+
+- **File Explorer-style browsing:** a folder tree on the left holds your Love My Shelf folders, Quick access, OneDrive, This PC and network locations. It replaces the folder tabs; the leftmost button or Ctrl+T opens and closes it.
+- **Address bar with back, forward and up:** click or type a path. Backspace, Alt+Left, Alt+Right and Alt+Up work as in File Explorer.
+- **Subfolders** appear in their own area, above or below the photos, in eight Explorer views. Drop files on one to move them there. Where there are only folders, the area opens by itself.
+- **Drag to select** several items, and use Ctrl+C, Ctrl+X and Ctrl+V.
+- **The Windows right-click menu** for files, folders and blank space, with Delete near the top for folders.
+- **Video volume keys:** Up and Down change the volume, M mutes, and the volume carries over to the next video.
+- The large view no longer crops wide videos and pictures in tall windows.
+- The large view shows only the edit button for the cover on screen: [Edit JPG cover] or [Edit GIF cover].
+
+---
+
 ## 1.0.2 · 2026-11-22
 
 - **GIF 표지 만들기가 더 부드러워요:** 창을 열면 처음 보이는 띠만큼 장면을 미리 읽어 두고, 띠 그림과 미리 보기가 같은 장면을 함께 써요. 손잡이를 끌 때 덜 끊겨요.

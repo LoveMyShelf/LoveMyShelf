@@ -251,6 +251,55 @@ namespace LoveMyShelf {
             File.Delete(Path.Combine(folder,HiddenTabFile));
             return new Album(folder,dir.Name,path);
         }
+        // A folder opened from a folder tile or the folder tree: it gets its own records like any folder, but a new one doesn't become a tab.
+        internal Album OpenSubfolder(string source) {
+            var dir=new DirectoryInfo(source);
+            if(!dir.Exists) throw new DirectoryNotFoundException(L.T("The source folder could not be found."));
+            string folder=AlbumFolderOf(dir.FullName);
+            if(File.Exists(Path.Combine(folder,"album.txt"))) // already known (a tab or visited before): keep whether it is a tab
+                return new Album(folder,dir.Name,File.ReadAllText(Path.Combine(folder,"source.txt")));
+            var album=OpenFolder(dir.FullName);
+            File.WriteAllText(Path.Combine(folder,HiddenTabFile),"");
+            return album;
+        }
+        // The folders right inside a folder, for folder tiles, as File Explorer shows them (see ShownFolder; OneDrive
+        // folders stay, though Windows marks them as links). Count = photos and videos right inside.
+        internal static List<Tuple<string,int>> Subfolders(string source,PhotoSort sort,bool descending) {
+            var list=new List<Tuple<DirectoryInfo,int>>();
+            foreach(var dir in new DirectoryInfo(source).EnumerateDirectories()) {
+                try {
+                    if(!ShownFolder(dir))continue;
+                    if(String.Equals(dir.Name,Preferences.SubfolderName,StringComparison.OrdinalIgnoreCase))continue;
+                    int count=0;
+                    try {
+                        foreach(string path in Directory.EnumerateFiles(dir.FullName))
+                            if((ImageExtensions.Contains(Path.GetExtension(path)) || VideoFrames.Supports(path)) && !SharedCoverFiles.IsBesideCover(path))count++;
+                    } catch(UnauthorizedAccessException) {count=-1;} catch(IOException) {count=-1;}
+                    list.Add(Tuple.Create(dir,count));
+                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+            }
+            // Folders follow the date sort like File Explorer; every other sort orders them by name.
+            IEnumerable<Tuple<DirectoryInfo,int>> ordered=sort==PhotoSort.Modified?
+                list.OrderBy(t=>t.Item1.LastWriteTimeUtc):list.OrderBy(t=>t.Item1.Name,Comparer<string>.Create((a,b)=>StrCmpLogicalW(a,b)));
+            if(descending)ordered=ordered.Reverse();
+            return ordered.Select(t=>Tuple.Create(t.Item1.FullName,t.Item2)).ToList();
+        }
+        // Folders a person would see in File Explorer: not hidden or system ones (those also cover the old
+        // "Application Data" style links), and never the "Love My Shelf 표지" cover folder.
+        internal static bool ShownFolder(DirectoryInfo dir) {
+            if((dir.Attributes&(FileAttributes.Hidden|FileAttributes.System))!=0)return false;
+            return !String.Equals(dir.Name,Preferences.SubfolderName,StringComparison.OrdinalIgnoreCase);
+        }
+        // The folders right inside a folder, by name like File Explorer (for the folder tree).
+        internal static List<string> ChildFolders(string path) {
+            var list=new List<string>();
+            try {
+                foreach(var dir in new DirectoryInfo(path).EnumerateDirectories())
+                    try {if(ShownFolder(dir))list.Add(dir.FullName);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+            } catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Security.SecurityException) {}
+            list.Sort((a,b)=>StrCmpLogicalW(Path.GetFileName(a),Path.GetFileName(b)));
+            return list;
+        }
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
             int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness) {

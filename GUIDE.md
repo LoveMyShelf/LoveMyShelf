@@ -42,16 +42,21 @@ Click **Guide & Options** at the top right, or press **F1** on any screen (it op
 
 ### The main window
 
-- **Add folder** (or **Ctrl+O**) adds a folder. You can also drag a folder from File Explorer onto the window. Each folder appears as a tab at the top.
-- Right-click a folder tab and choose **Hide folder tab** to remove it from the top bar. Your files are not touched.
+- To add a folder, right-click it in the folder tree and choose **Add to Love My Shelf** (like pinning in File Explorer), or drag it onto Love My Shelf in the tree or from File Explorer onto the window. **Ctrl+O** opens a folder picker too. Each folder appears under Love My Shelf in the tree.
+- Right-click it in the tree and choose **Remove from Love My Shelf** to take it off. Your files are not touched.
 - The **All / Unfinished / Finished** switch filters a folder: everything, only items without a cover, or only items that already have one.
 - **Unfinished cover collection** gathers items without a cover from every visible folder tab, so you can work through them in one place.
 - **Cover collection** shows all your saved covers from every folder in one grid, including several covers of the same original.
 - The **Sort** button at the bottom right opens a menu upward, like File Explorer: **File name**, **Date modified**, **File size**, **File type** or **Cover work order**, then which end comes first (A → Z, newest first and so on). Picking one refreshes the grid in that order. **Shuffle**, at the very bottom, mixes the order until you pick a sort again.
 - **Cover size** cycles the grid through four tile sizes.
-- To rearrange the folder tabs, drag a tab left or right. Right-click a tab and choose **Open in new window** to open that folder in a new window. **Cover collection** and **Unfinished cover collection** always stay on the left. The order is remembered.
+- The top row works like File Explorer: **←** back (**Backspace**, **Alt+←**, the mouse's back button), **→** forward (**Alt+→**), **↑** the folder above (**Alt+↑**), **⟳** refresh, and the **address bar**: click a part to go there, the **›** after it lists the folders inside, and the empty end (or **Ctrl+L**) lets you type or paste a path with suggestions. To reorder your Love My Shelf folders, drag one onto another in the tree. **Cover collection** and **Unfinished cover collection** are in the middle of the bottom bar.
+- The button at the top left (or **Ctrl+T**) shows the **folder tree** on the left, like File Explorer: Love My Shelf first (the collections and your folder tabs), then your pinned folders, This PC and the network. Click a folder to see it, **▸** unfolds it, and files dragged onto a folder there move into it.
+- **Choose many:** hold the right mouse button and drag over the tiles — a rectangle chooses every tile it touches (Ctrl adds, Esc cancels; from empty space the left button works too).
+- **Ctrl+C / Ctrl+X / Ctrl+V** copy, cut and paste files, the same as File Explorer. Moving keeps covers with their files; Ctrl+Z puts a move back.
+- Right-click a file or folder: Love My Shelf's items first, then File Explorer's own full menu below a line. Right-click blank space for the folder's menu (View, Sort by, Refresh, Paste, Undo move, then New, Open in Terminal, Properties…).
+- The folders inside a folder always show, in their own area above (or below) the photos, with a line across and a **View** menu like File Explorer (icons, list, details, tiles, content); double-click one to go in; **←** or **Backspace** comes back. Drag files onto a folder to move them into it. In a place with folders but no photos or videos, the folders open by themselves even if you folded them.
 - **F5** refreshes the current view after you add or move files.
-- **Search names** at the top right shows only files whose names contain what you type. **Esc** in the box clears it.
+- The **magnifier** at the top right (or **Ctrl+F**) opens **Search names**: only files whose names contain what you type stay on screen. **Esc** clears it and closes the box.
 - Point at a tile to see its file name on a soft strip at the bottom, away from faces at the top.
 
 ### Browse like File Explorer
@@ -74,7 +79,7 @@ Click **Guide & Options** at the top right, or press **F1** on any screen (it op
 - **Move files to another folder:** press **Ctrl+N** (or click **New window**) to open a second window beside the first, open the destination folder's tab there, then drag the chosen tiles onto it. The window's edge lights up and says how many files will move. The covers go along with each file, so they still open the right original. Hold **Ctrl** while you let go to copy instead. If the destination already has a file with that name, Love My Shelf asks: **Replace** (the old file goes to the Recycle Bin), **Skip** or **Keep both** (the moved file gets a number after its name). **Ctrl+Z** puts the last move back.
 - **Rename** keeps the extension and gives the same new name to the file's covers, upscaled copies and GIFs. A name that's already taken is refused.
 - Tiles never move on their own. Saving a cover, hiding one, sending one to the Recycle Bin or hiding a folder tab leaves every other tile where it was (a removed tile leaves an empty slot). **F5**, **Shuffle**, or reopening the view tidies up.
-- **Open cover folder** (bottom center) opens the folder of saved JPGs in File Explorer. If you save covers next to the originals, it opens the folder you are looking at.
+- **Open cover folder** (bottom right, next to Sort) opens the folder of saved JPGs in File Explorer. If you save covers next to the originals, it opens the folder you are looking at.
 - The counter at the bottom shows how many items are in the view and how many are finished.
 
 ### Make a cover from a photo
@@ -140,11 +145,13 @@ The JPG cover and the GIF cover are both saved. In the grid the JPG cover shows 
 | **E** / **W** | Make playback 1% brighter / darker |
 | **Q** | Reset playback brightness |
 | **C** / **X** / **Z** | Faster / slower by 0.1× / normal speed |
+| **↑** / **↓** | Volume up / down by 5 (remembered for the next video) |
+| **M** | Sound off or on |
 | **F11** | Full screen on or off |
 | **Esc** | Close the large view |
 
 - The bottom bar has a timeline and **Volume**. **C** / **X** change the speed by 0.1× (0.2× to 4×), **Z** goes back to 1×.
-- Changing the speed or brightness with keys shows a small note at the top left, like PotPlayer.
+- Changing the speed, brightness or volume with keys shows a small note at the top left, like PotPlayer.
 - Point at the timeline and a large picture of that moment appears, with no frame around it and the time written inside it at the bottom.
 - In a window the bar always stays below the video, like PotPlayer, and never covers it. In full screen it floats over the video with a clear background when you point at the bottom.
 - In full screen, move the pointer to the top edge to show the title bar, or to the bottom edge to show the timeline and buttons.

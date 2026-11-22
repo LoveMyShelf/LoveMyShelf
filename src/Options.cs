@@ -17,6 +17,22 @@ namespace LoveMyShelf {
         public bool Korean, Descending;
         // False until the person picks a language on the first launch.
         public bool LanguageChosen, UsageNoticeShown;
+        // Shown once, the first time the folder tabs don't all fit: how to see the hidden ones.
+        public bool TabScrollTipShown;
+        // Subfolders show as folder tiles before the files (like File Explorer); off keeps only the files.
+        public bool ShowSubfolders;
+        // The folder tree on the left (like File Explorer's navigation pane): shown or not, its width, and the
+        // top-level groups the person folded ("lms", "onedrive", "pc", "network").
+        public bool TreeOpen;
+        // The folders area (Show the folders inside a folder): File Explorer's view (see FolderView) and whether it sits below the photos.
+        public int FolderView=1;
+        public bool FoldersBelow,FoldersFolded;
+        // Right-button range selection: how many times it was used (the hint stays until 3) and whether its notice was shown.
+        public int MarqueeUses;
+        public bool MarqueeTipShown;
+        public bool TreeIntroShown;
+        public int TreeWidth=220;
+        public string TreeFolded="pc network";
         public string CoverDirectory="";
         public CoverPlace CoverPlace;
         public ThemeMode Theme;
@@ -37,6 +53,7 @@ namespace LoveMyShelf {
         internal static string SuggestedCoverParent {get {return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);}}
         public PhotoSort Sort;
         public int SkipSeconds=5;
+        public int Volume=100;
         public bool SnapEdges=true;
         public int WheelZoomPercent=7;
         public bool PinTopOnWheel=true;
@@ -61,6 +78,17 @@ namespace LoveMyShelf {
                     Korean=(string)xml.Attribute("language")=="ko",
                     LanguageChosen=xml.Attribute("language")!=null,
                     UsageNoticeShown=(string)xml.Attribute("usageNotice")=="shown",
+                    TabScrollTipShown=(string)xml.Attribute("tabScrollTip")=="shown",
+                    ShowSubfolders=(string)xml.Attribute("subfolders")=="show",
+                    TreeOpen=(string)xml.Attribute("tree")=="open",
+                    FolderView=ReadNumber(xml,"folderView",0,7,1),
+                    FoldersBelow=(string)xml.Attribute("folders")=="below",
+                    FoldersFolded=(string)xml.Attribute("foldersFolded")=="true",
+                    MarqueeUses=ReadNumber(xml,"marqueeUses",0,1000,0),
+                    MarqueeTipShown=(string)xml.Attribute("marqueeTip")=="shown",
+                    TreeIntroShown=(string)xml.Attribute("treeIntro")=="shown",
+                    TreeWidth=ReadNumber(xml,"treeWidth",160,400,220),
+                    TreeFolded=(string)xml.Attribute("treeFolded")??"pc network",
                     CoverDirectory=(string)xml.Attribute("coverDirectory")??"",
                     CoverPlace=place=="beside"?CoverPlace.BesideOriginal:place=="subfolder"?CoverPlace.Subfolder:CoverPlace.CoverFolder,
                     CheckUpdates=(string)xml.Attribute("checkUpdates")!="false",
@@ -82,6 +110,7 @@ namespace LoveMyShelf {
                     Sort=sort=="date"?PhotoSort.Modified:sort=="cover"?PhotoSort.CoverOrder:sort=="size"?PhotoSort.Size:sort=="type"?PhotoSort.Type:PhotoSort.Name,
                     Descending=direction==null?sort=="date":direction=="desc",
                     SkipSeconds=ReadNumber(xml,"skipSeconds",1,300,5),
+                    Volume=ReadNumber(xml,"volume",0,100,100),
                     SnapEdges=(string)editor.Attribute("snapEdges")!="false",
                     WheelZoomPercent=ReadNumber(editor,"wheelZoomPercent",1,50,7),
                     PinTopOnWheel=(string)editor.Attribute("pinTop")!="false"
@@ -110,6 +139,10 @@ namespace LoveMyShelf {
             {
                 return new XElement("options",LanguageChosen || Korean?new XAttribute("language",Korean?"ko":"en"):null,
                     UsageNoticeShown?new XAttribute("usageNotice","shown"):null,
+                    TabScrollTipShown?new XAttribute("tabScrollTip","shown"):null,
+                    ShowSubfolders?new XAttribute("subfolders","show"):null,
+                    TreeOpen?new XAttribute("tree","open"):null,new XAttribute("folderView",FolderView),FoldersBelow?new XAttribute("folders","below"):null,
+                    FoldersFolded?new XAttribute("foldersFolded","true"):null,new XAttribute("marqueeUses",MarqueeUses),MarqueeTipShown?new XAttribute("marqueeTip","shown"):null,TreeIntroShown?new XAttribute("treeIntro","shown"):null,new XAttribute("treeWidth",TreeWidth),new XAttribute("treeFolded",TreeFolded??""),
                     new XAttribute("coverDirectory",CoverDirectory),
                     new XAttribute("coverPlace",CoverPlace==CoverPlace.BesideOriginal?"beside":CoverPlace==CoverPlace.Subfolder?"subfolder":"folder"),
                     new XAttribute("checkUpdates",CheckUpdates?"true":"false"),
@@ -124,7 +157,7 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("volume",Volume),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }

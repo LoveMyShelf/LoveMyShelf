@@ -14,7 +14,8 @@ Originals are never modified. A cover is always written as a separate file.
 
 ## Features
 
-- **Grid browser** for photos, animated GIF/WebP and video, with folder tabs, name search, sorting, and a filter for items with or without covers. Tiles without a cover use the Windows shell thumbnail, so large folders open without decoding every file.
+- **Grid browser** for photos, animated GIF/WebP and video, with name search, sorting, and a filter for items with or without covers. Tiles without a cover use the Windows shell thumbnail, so large folders open without decoding every file.
+- **File Explorer-style navigation**: a folder tree (Quick access, OneDrive, This PC, network), an address bar with breadcrumbs, back/forward/up, subfolders in eight Explorer views, drag-to-select, Ctrl+C/X/V, and the Windows right-click menu for files, folders and blank space.
 - **Cover editor**: a fixed 9:16 frame over the image; zoom with the wheel, drag to position, save as JPG. Several covers per original are supported. Crop coordinates are stored relative to the upright original (EXIF orientation is applied).
 - **Frame picker for video**: pause, open the editor, and pick from a grid of the frames around that point. The step between frames is configurable (default 0.2 s).
 - **Animated covers**: export a short clip with the same 9:16 framing as GIF, WebP or MP4. Range is chosen with two handles on a frame strip; speed (0.5–2×) and loop mode (loop, ping-pong, reverse) are adjustable, and the preview plays the actual output file.
@@ -84,7 +85,8 @@ All source files are in `src/`.
 
 | File | Contents |
 | --- | --- |
-| `GalleryWindow.cs` | main window, folder tabs, virtualized tile grid |
+| `GalleryWindow.cs` | main window, virtualized tile grid |
+| `FolderTree.cs`, `AddressBar.cs`, `FolderPane.cs`, `ShellMenu.cs` | folder tree, address bar, subfolder views, Windows right-click menu |
 | `TileImages.cs` | tile pictures (shell thumbnails, cover images) |
 | `Viewer.cs`, `MpvPlayer.cs`, `SeekPreview.cs` | large view, libmpv playback in a child window, seek-bar thumbnails |
 | `Crop.cs`, `CoverImages.cs` | cover editor surface, rendering a crop from the original |
@@ -102,13 +104,13 @@ All source files are in `src/`.
 
 ## Data and network
 
-- Records (folder tabs, crop coordinates, settings) are plain text and XML files under `%LOCALAPPDATA%\LoveMyShelf`.
+- Records (saved folders, crop coordinates, settings) are plain text and XML files under `%LOCALAPPDATA%\LoveMyShelf`.
 - Cover files are saved as JPG to a cover folder chosen on first run (or next to the originals, depending on settings).
 - The only network access is an optional update check: one request to the GitHub Releases API for the latest tag. It can be turned off in Guide & Options. No telemetry.
 
 ## Status and feedback
 
-Version 1.0.2. Developed and tested on Windows 11 only. Bug reports, questions and suggestions are welcome in [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues). Contact: lovemyshelf.app@outlook.com
+Version 1.0.3. Developed and tested on Windows 11 only. Bug reports, questions and suggestions are welcome in [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues). Contact: lovemyshelf.app@outlook.com
 
 ## License
 

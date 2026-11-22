@@ -98,11 +98,15 @@ namespace LoveMyShelf {
                     ? (double)video.NaturalVideoHeight/video.NaturalVideoWidth
                     : (double)video.NaturalVideoWidth/video.NaturalVideoHeight;
             }
-            static Rect Frame(UIElement child,Size viewport) {
-                double aspect=Aspect(child);
-                double width=aspect>0?viewport.Height*aspect:viewport.Width;
-                return new Rect((viewport.Width-width)/2,0,width,viewport.Height);
+            // The whole picture always fits inside, like PotPlayer: black bars at the sides in a wide window,
+            // above and below in a tall one (two windows side by side). Nothing is ever cut off.
+            internal static Rect Fit(double aspect,Size viewport) {
+                if(aspect<=0)return new Rect(0,0,viewport.Width,viewport.Height);
+                double width=viewport.Height*aspect,height=viewport.Height;
+                if(width>viewport.Width){width=viewport.Width;height=width/aspect;}
+                return new Rect((viewport.Width-width)/2,(viewport.Height-height)/2,width,height);
             }
+            static Rect Frame(UIElement child,Size viewport) {return Fit(Aspect(child),viewport);}
             protected override Size MeasureOverride(Size available) {
                 var size=new Size(Double.IsInfinity(available.Width)?0:available.Width,
                     Double.IsInfinity(available.Height)?0:available.Height);
@@ -206,7 +210,8 @@ namespace LoveMyShelf {
             volume=new DragSlider {Minimum=0,Maximum=100,Value=100,Width=82,SmallChange=5,LargeChange=10,
                 IsMoveToPointEnabled=true,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(4,0,8,0)};
             LabelControl(volume,L.T("Volume"));
-            volume.ValueChanged+=delegate {ApplyAudio();};
+            if(gallery!=null)volume.Value=gallery.Settings.Volume; // the volume used last time
+            volume.ValueChanged+=delegate {muted=false;ApplyAudio();}; // moving the bar turns the sound back on
             playbackButtons.Children.Add(volume);
             // Speed has no box: C / X / Z like PotPlayer (see the key handler).
             root.SizeChanged+=delegate {ApplyPlaybackBrightness();};
@@ -274,7 +279,7 @@ namespace LoveMyShelf {
             motionToggle=UI.Btn(L.T("View JPG cover"),()=>{
                 showMotion=!showMotion;
                 if(showMotion)PlayMotion(items[index]);else StopMotion();
-                UpdateMotionToggle();
+                UpdateMotionToggle();UpdateCoverButtons();
             });
             motionToggle.Visibility=Visibility.Collapsed;
             if(!forCrop)controls.Children.Add(motionToggle);
@@ -317,6 +322,18 @@ namespace LoveMyShelf {
                         SetRate(Math.Max(0.2,Math.Min(4,newRate)));
                         ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
                         break;
+                    case Key.Up:case Key.Down:
+                        // Like PotPlayer and YouTube: ↑ ↓ change the volume by 5; held down, it keeps going.
+                        if(!motion || !volume.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None)return;
+                        muted=false;
+                        volume.Value=Math.Max(0,Math.Min(100,Math.Round(volume.Value/5)*5+(key==Key.Up?5:-5)));
+                        ApplyAudio();
+                        ShowCornerNote(L.F("Volume {0}%",(int)volume.Value));break;
+                    case Key.M:
+                        // M turns the sound off and on again, like PotPlayer; the volume itself stays as it was.
+                        if(!motion || !volume.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        muted=!muted;ApplyAudio();
+                        ShowCornerNote(muted?L.T("Sound off"):L.F("Volume {0}%",(int)volume.Value));break;
                     case Key.Tab:if(!fullscreen)SetHidden(false);return;default:return;
                 } e.Handled=true;
             };
@@ -324,6 +341,7 @@ namespace LoveMyShelf {
             Closed+=delegate {
                 if(loading!=null)loading.Cancel();
                 ClearTransport();picture.Source=null;
+                if(home!=null)home.SaveVolume((int)Math.Round(volume.Value));
             };
             ContentRendered+=delegate {Focus();};
         }
@@ -334,10 +352,14 @@ namespace LoveMyShelf {
         static void LabelControl(Control control,string label) {
             AutomationProperties.SetName(control,label);control.ToolTip=label;
         }
+        bool muted;
         void ApplyAudio() {
-            if(mpv!=null)mpv.Volume=volume.Value;
+            double level=muted?0:volume.Value;
+            // A muted volume bar looks faded, so it is clear why there is no sound.
+            volume.Opacity=muted?0.45:1;
+            if(mpv!=null)mpv.Volume=level;
             if(media==null)return;
-            media.Volume=volume.Value/100;
+            media.Volume=level/100;
         }
         readonly TaskCompletionSource<bool> firstPicture=new TaskCompletionSource<bool>();
         // Completes when the first picture is on screen.
@@ -358,8 +380,8 @@ namespace LoveMyShelf {
                 brightnessLayer.Visibility=Visibility.Collapsed;return;
             }
             double room=Math.Max(0,root.ActualHeight-viewport.Margin.Bottom);
-            brightnessLayer.Width=Math.Min(root.ActualWidth,room*aspect);
-            brightnessLayer.Height=room;
+            var fit=MediaViewport.Fit(aspect,new Size(root.ActualWidth,room));
+            brightnessLayer.Width=fit.Width;brightnessLayer.Height=fit.Height;
             brightnessLayer.Background=level>0?Brushes.White:Brushes.Black;
             brightnessLayer.Opacity=Math.Abs(level)/100.0;brightnessLayer.Visibility=Visibility.Visible;
         }
@@ -666,7 +688,7 @@ namespace LoveMyShelf {
             if(loading!=null)loading.Cancel();ClearTransport();
             var current=new CancellationTokenSource();loading=current;var token=current.Token;
             Photo photo=items[index];
-            if(!forCrop)Title=photo.Name+" — Love My Shelf";
+            if(!forCrop)Title=photo.Name; // only the file name, like the folder windows
             var gallery=home;
             bool selected=!WantsCrop && (showCover??(gallery==null || gallery.Settings.ShowCover(photo.Original)));
             full=null;cropped=null;original=!selected;cachedCover=false;SetPicture(null);
@@ -816,10 +838,21 @@ namespace LoveMyShelf {
                 makeGif.Content=L.T(photo.HasMotion?"Edit GIF cover":"Make GIF cover");
                 makeGif.Visibility=Visibility.Visible;
             }
+            UpdateCoverButtons();
             if(photo.HasMotion && !forCrop) {
                 motionToggle.Visibility=Visibility.Visible;UpdateMotionToggle();
                 if(showMotion)PlayMotion(photo);
             }
+        }
+        // A cover with a GIF shows only the edit button for the cover on screen:
+        // GIF cover → Edit GIF cover, JPG cover → Edit JPG cover.
+        void UpdateCoverButtons() {
+            var photo=items[index];
+            bool hasGif=!forCrop && home!=null && photo.HasMotion && photo.HasCrop && MotionMaker.Supports(photo.Original);
+            if(!hasGif){editCover.Content=L.T("Edit cover");return;}
+            editCover.Content=L.T("Edit JPG cover");
+            editCover.Visibility=showMotion?Visibility.Collapsed:Visibility.Visible;
+            makeGif.Visibility=showMotion?Visibility.Visible:Visibility.Collapsed;
         }
         void UpdateMotionToggle() {
             string ext=System.IO.Path.GetExtension(items[index].MotionFile??"").TrimStart('.').ToUpperInvariant();

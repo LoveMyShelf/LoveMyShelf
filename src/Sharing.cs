@@ -104,15 +104,20 @@ namespace LoveMyShelf {
                 tile.ReleaseMouseCapture();
                 e.Handled=true;
                 var data=new DataObject(DataFormats.FileDrop,files.ToArray());
-                // Other LoveMyShelf windows also get the originals, to move them into the folder they show.
-                // Only when a second window is open is "move" offered, so chat apps and File Explorer still just copy.
+                // Love My Shelf itself (the folder tree, folder tiles, another window) also gets the originals, to move them
+                // into a folder. Its "move" is the Link effect, which File Explorer and chat apps don't pick on their own
+                // (they still copy), so it is always offered when there are originals.
                 var originals=targets.Where(t=>t.Linked && File.Exists(t.Original)).Select(t=>t.Original).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var allowed=DragDropEffects.Copy;
-                if(originals.Count>0 &&GalleryWindow.AnotherWindowOpen) {
+                if(originals.Count>0) {
                     data.SetData(GalleryWindow.MoveFormat,String.Join("\n",originals));
                     allowed|=DragDropEffects.Link;
                 }
-                try {DragDrop.DoDragDrop(tile,data,allowed);} catch(COMException) {}
+                try {
+                    var done=DragDrop.DoDragDrop(tile,data,allowed);
+                    // Let go where nothing took it (over its own window): maybe a range was meant — say how.
+                    if(done==DragDropEffects.None && owner.IsMouseOver)owner.NoteDragWithoutDrop();
+                } catch(COMException) {}
             };
         }
     }

@@ -23,6 +23,8 @@ using System.Windows.Threading;
 namespace LoveMyShelf {
     public class PhotoRow {
         public GalleryWindow Owner; public List<Photo> Photos; public int Columns,Number; public double Height;
+        // Set on the rows of folder tiles (full path, photos and videos inside); those rows have no Photos.
+        internal List<Tuple<string,int>> Folders;
         public event Action<int> Changed;
         public void Replace(int index,Photo photo) {
             Photos[index]=photo;
@@ -72,6 +74,18 @@ namespace LoveMyShelf {
             Children.Clear(); if(row==null) return;
             pending=new CancellationTokenSource();
             Columns=row.Columns; Height=row.Height;
+            if(row.Folders!=null) {
+                // Each cell holds three folder cards, one above another; a last cell with fewer keeps them at the top.
+                for(int at=0;at<row.Folders.Count;at+=GalleryWindow.FoldersPerCell) {
+                    var cell=new Grid {Margin=new Thickness(3,3,3,3)};
+                    for(int k=0;k<GalleryWindow.FoldersPerCell;k++)cell.RowDefinitions.Add(new RowDefinition());
+                    for(int k=0;k<GalleryWindow.FoldersPerCell && at+k<row.Folders.Count;k++) {
+                        var card=MakeFolderTile(row,row.Folders[at+k]);Grid.SetRow(card,k);cell.Children.Add(card);
+                    }
+                    Children.Add(cell);
+                }
+                return;
+            }
             for(int column=0;column<row.Photos.Count;column++) Children.Add(MakeTile(row,row.Photos[column],column));
             row.Changed+=UpdateCell;
         }
@@ -172,7 +186,12 @@ namespace LoveMyShelf {
                 tile.ContextMenu=MenuStandIn;
                 ContextMenu single=null;
                 // With several tiles selected, right-clicking one of them acts on all of them.
-                tile.ContextMenuOpening+=(s,e)=>{if(single==null)single=buildMenu();tile.ContextMenu=row.Owner.MenuFor(photo,single);};
+                // Love My Shelf's items, a line, then File Explorer's own menu for the file (see ShellMenu).
+                tile.ContextMenuOpening+=(s,e)=>{
+                    if(single==null)single=buildMenu();
+                    e.Handled=true;
+                    row.Owner.ShowFileMenu(photo,row.Owner.MenuFor(photo,single),tile,e);
+                };
                 Action loaded=null;
                 var mode=row.Owner.Settings.GridGif;
                 if(photo.HasMotion && mode!=GifPlayback.Never)loaded=AttachMotion(tile,image,photo,mode,row.Height,pending.Token);
@@ -183,6 +202,64 @@ namespace LoveMyShelf {
                 else LoadTile(tile,image,photo,row,pending.Token,loaded);
                 if(reflow!=null)reflow.Animate(tile,photo,row,column);
                 return tile;
+        }
+        // A folder inside the folder: a quiet card in the button colors with a line-drawn folder, its name and how many
+        // photos and videos are right inside. Double-click (or one click, per Options) goes in; files dropped on it move in.
+        static FrameworkElement MakeFolderTile(PhotoRow row,Tuple<string,int> folder) {
+            string path=folder.Item1,name=System.IO.Path.GetFileName(path);
+            var owner=row.Owner;
+            // A card on its side: the folder drawing on the left, the name (two lines at most) and the count on the right.
+            var icon=new System.Windows.Shapes.Path {Data=Geometry.Parse("M 1.5,4 L 1.5,17.5 L 22.5,17.5 L 22.5,6.5 L 11.5,6.5 L 9,4 Z"),Width=24,Height=20,
+                StrokeThickness=1.4,StrokeLineJoin=PenLineJoin.Round,Stretch=Stretch.None,VerticalAlignment=VerticalAlignment.Center,
+                Margin=new Thickness(10,0,8,0),SnapsToDevicePixels=true};
+            icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"Subtle");
+            var title=new TextBlock {Text=name,FontSize=12.5,TextWrapping=TextWrapping.WrapWithOverflow,TextTrimming=TextTrimming.CharacterEllipsis,
+                LineStackingStrategy=LineStackingStrategy.BlockLineHeight,LineHeight=16,MaxHeight=32}; // two lines at most, then "…"
+            title.SetResourceReference(TextBlock.ForegroundProperty,"Text");
+            var words=new StackPanel {VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,4,8,4)};
+            words.Children.Add(title);
+            if(folder.Item2>=0) {
+                var number=new TextBlock {Text=L.F("{0:N0} items",folder.Item2),FontSize=11,Margin=new Thickness(0,2,0,0)};
+                number.SetResourceReference(TextBlock.ForegroundProperty,"Subtle");
+                words.Children.Add(number);
+            }
+            var stack=new DockPanel {LastChildFill=true,ClipToBounds=true};
+            DockPanel.SetDock(icon,Dock.Left);stack.Children.Add(icon);stack.Children.Add(words);
+            var tile=new Button {Content=stack,Margin=new Thickness(1,3,1,3),Padding=new Thickness(0),Tag=new FolderTarget(path),
+                HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Center,ToolTip=path};
+            tile.Template=FolderTemplate();
+            tile.SetResourceReference(Control.BackgroundProperty,"Panel");tile.SetResourceReference(Control.BorderBrushProperty,"Line");
+            AutomationProperties.SetName(tile,name);
+            tile.Click+=delegate {if(!owner.Settings.OpenByDoubleClick)owner.EnterFolder(path);};
+            tile.PreviewMouseLeftButtonDown+=(s,e)=>{if(e.ClickCount==2 && owner.Settings.OpenByDoubleClick){e.Handled=true;owner.EnterFolder(path);}};
+            var menu=new ContextMenu();
+            var open=new MenuItem();open.Click+=delegate {owner.EnterFolder(path);};
+            var openNew=new MenuItem();openNew.Click+=delegate {owner.OpenFolderInNewWindow(path);};
+            var explorer=new MenuItem();explorer.Click+=delegate {
+                try {System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) {UseShellExecute=true});} catch(Exception ex) {UI.Error(owner,ex);}
+            };
+            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(explorer);
+            menu.Opened+=delegate {open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");};
+            tile.ContextMenu=menu;
+            return tile;
+        }
+        static ControlTemplate folderTemplate;
+        static ControlTemplate FolderTemplate() {
+            if(folderTemplate!=null)return folderTemplate;
+            var box=new FrameworkElementFactory(typeof(Border),"Box");
+            box.SetValue(Border.CornerRadiusProperty,new CornerRadius(8));
+            box.SetValue(Border.BorderThicknessProperty,new Thickness(1));
+            box.SetValue(Border.BackgroundProperty,new TemplateBindingExtension(Control.BackgroundProperty));
+            box.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));
+            box.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+            folderTemplate=new ControlTemplate(typeof(Button)) {VisualTree=box};
+            var hover=new Trigger {Property=UIElement.IsMouseOverProperty,Value=true};
+            hover.Setters.Add(new Setter(Border.BorderBrushProperty,new DynamicResourceExtension("Accent"),"Box"));
+            folderTemplate.Triggers.Add(hover);
+            var pressed=new Trigger {Property=ButtonBase.IsPressedProperty,Value=true};
+            pressed.Setters.Add(new Setter(UIElement.OpacityProperty,0.8,"Box"));
+            folderTemplate.Triggers.Add(pressed);
+            return folderTemplate;
         }
         // Moves GIF covers in the grid: on hover, or always while the tile is on screen.
         // Returns what to run once the still has loaded.
@@ -223,6 +300,11 @@ namespace LoveMyShelf {
             tileTemplate=new ControlTemplate(typeof(Button)) { VisualTree=root };
             return tileTemplate;
         }
+    }
+    // Marks a folder tile, so a drop can tell it moves files into that folder.
+    internal sealed class FolderTarget {
+        internal readonly string Path;internal readonly bool Plain; // Plain: a folder in the folders area (no card look)
+        internal FolderTarget(string path,bool plain=false){Path=path;Plain=plain;}
     }
     // Where the tiles were before the list changed (a file was deleted, moved or a cover was added), so the tiles
     // that stay can slide from their old place to the new one instead of jumping, and keep their pictures.
@@ -274,7 +356,7 @@ namespace LoveMyShelf {
         readonly CancellationTokenSource lifetime=new CancellationTokenSource();
         internal string PlaybackDirectory { get { return Path.Combine(store.Root,"Playback"); } }
         readonly ListBox grid=new ListBox();
-        readonly TextBlock count=UI.Text("",11,true), emptyTitle=UI.Text("",20);
+        readonly TextBlock count=UI.Text("",11,true), emptyTitle=UI.Text("",20), marqueeHint=UI.Text("",11.5,true);
         readonly TextBlock emptyHelp=UI.Text("",14,true);
         readonly Button allCropsButton,unfinishedButton,emptyAction,sortButton;
         bool canShuffle;
@@ -286,6 +368,8 @@ namespace LoveMyShelf {
         readonly Dictionary<string,int> folderFilters=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
         readonly Action localize;
         readonly Action updateFooter;
+        readonly Action updateTopBar;
+        readonly Button folderList;
         Preferences settings;
         readonly Func<Window,string> pickCoverFolder;
         bool coverSetupShown,migratingCovers,migrationRequested;
@@ -297,6 +381,18 @@ namespace LoveMyShelf {
         public bool ShowingAllCrops { get { return active==allCrops; } }
         bool ShowingUnfinished { get { return active==unfinished; } }
         internal Preferences Settings { get { return settings; } }
+        // The large view's volume, kept for the next video (like PotPlayer). Every window learns it, so another
+        // window's later save doesn't put the old volume back.
+        internal void SaveVolume(int value) {
+            value=Math.Max(0,Math.Min(100,value));
+            var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+            if(settings.Volume==value)return;
+            foreach(var w in windows)w.settings.Volume=value;
+            var updated=settings.Copy();
+            try {updated.Save(store.Root);} catch(Exception) {}
+        }
+        internal Album AllCropsAlbum {get {return allCrops;}}
+        internal Album UnfinishedAlbum {get {return unfinished;}}
         int folderFilter;
         bool ShowingPending { get { return ShowingUnfinished || (active!=null && active.Source!=null && folderFilter==1); } }
         int refreshVersion, skippedCount;
@@ -324,10 +420,13 @@ namespace LoveMyShelf {
             Width=Math.Min(1120,SystemParameters.WorkArea.Width);Height=Math.Min(800,SystemParameters.WorkArea.Height); MinWidth=440; MinHeight=340;
             var root=new DockPanel(); Content=root;
             var nav=UI.Bar(new Thickness(5,2,5,2));
+            // The two collections sit in the middle of the bottom bar, so the folder tabs get the whole top bar
+            // (two windows side by side on one monitor is the usual way to sort files).
             allCropsButton=UI.Btn(allCrops.Name,()=>Select(allCrops));
-            allCropsButton.Margin=new Thickness(0,0,4,0);DockPanel.SetDock(allCropsButton,Dock.Left);nav.Children.Add(allCropsButton);
             unfinishedButton=UI.Btn(unfinished.Name,()=>Select(unfinished));
-            unfinishedButton.Margin=new Thickness(0,0,4,0);nav.Children.Add(unfinishedButton);
+            unfinishedButton.Margin=new Thickness(4,0,0,0);
+            var collections=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+            collections.Children.Add(allCropsButton);collections.Children.Add(unfinishedButton);
             // The two collections can't be hidden, so their right-click menu only opens them in a new window.
             foreach(var pair in new[]{Tuple.Create(allCropsButton,CollectionKey),Tuple.Create(unfinishedButton,UnfinishedKey)}) {
                 string key=pair.Item2;
@@ -338,13 +437,113 @@ namespace LoveMyShelf {
                 pair.Item1.ContextMenu=menu;
             }
             // One button for the guide and every setting: read how something works, then choose it right there.
-            var guide=UI.Btn("",()=>ShowGuide("start"));UI.Right(nav,guide);
-            var open=UI.Btn("",PickFolder,true);UI.Right(nav,open);
+            var guide=UI.Btn("",()=>ShowGuide("start"));guide.Margin=new Thickness(4,0,0,0);UI.Right(nav,guide);
+            // Folders are added from the folder tree now (right-click → Add to Love My Shelf, like pinning in File Explorer);
+            // the old Add folder button stays only as Ctrl+O and the link on the empty screen.
+            var open=UI.Btn("",PickFolder,true);open.Visibility=Visibility.Collapsed;UI.Right(nav,open);
             var newWindow=UI.Btn("",OpenAnotherWindow);newWindow.Margin=new Thickness(0,0,6,0);UI.Right(nav,newWindow);
-            var searchHost=SearchBox();searchHost.Margin=new Thickness(0,0,6,0);UI.Right(nav,searchHost);
-            var scroller=new ScrollViewer { Content=tabs,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto };
-            nav.Children.Add(scroller);DockPanel.SetDock(nav,Dock.Top);root.Children.Add(nav);
+            var searchHost=SearchBox();searchHost.Margin=new Thickness(6,0,6,0);UI.Right(nav,searchHost);
+            // Every folder in one list, like a browser's tab list; it shows only when some tabs don't fit.
+            folderList=UI.Btn("▾",()=>OpenFolderList());folderList.Padding=new Thickness(10,4,10,4);folderList.Margin=new Thickness(5,0,0,0);
+            folderList.Visibility=Visibility.Collapsed;UI.Right(nav,folderList);
+            var scroller=new ScrollViewer { Content=tabs,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Hidden };
+            // No scroll bar, like a browser's tab strip: the mouse wheel, dragging, the ▾ list and the tab of the folder
+            // on screen scrolling into view do the job. A soft fade at an edge says more tabs are hidden there.
+            scroller.PreviewMouseWheel+=(s,e)=>{
+                if(scroller.ScrollableWidth<=0)return;
+                scroller.ScrollToHorizontalOffset(scroller.HorizontalOffset-e.Delta*0.6);e.Handled=true;
+            };
+            // A sliver of a tab (when the search box is open in a very narrow window) looks broken, so it hides instead.
+            // When the window gets narrower, the tab of the folder on screen stays in view.
+            scroller.SizeChanged+=delegate {
+                scroller.Visibility=scroller.ActualWidth<60?Visibility.Hidden:Visibility.Visible;
+                var current=tabs.Children.OfType<Button>().FirstOrDefault(b=>trail.Count>0 && b.Tag is Album && ((Album)b.Tag).Folder==trail[0].Folder);
+                if(current!=null)Dispatcher.BeginInvoke(new Action(()=>current.BringIntoView()),DispatcherPriority.Loaded);
+            };
+            // The list button appears when the tabs overflow and leaves once they all fit again (counting its own room).
+            scroller.ScrollChanged+=(s,e)=>{
+                double viewport=scroller.ViewportWidth,offset=scroller.HorizontalOffset,end=scroller.ScrollableWidth;
+                if(viewport<=0 || end<=0.5)scroller.OpacityMask=null;
+                else {
+                    double f=Math.Min(0.3,28/viewport);
+                    var mask=new LinearGradientBrush {StartPoint=new Point(0,0.5),EndPoint=new Point(1,0.5)};
+                    mask.GradientStops.Add(new GradientStop(offset>0.5?Colors.Transparent:Colors.Black,0));
+                    mask.GradientStops.Add(new GradientStop(Colors.Black,offset>0.5?f:0));
+                    mask.GradientStops.Add(new GradientStop(Colors.Black,offset<end-0.5?1-f:1));
+                    mask.GradientStops.Add(new GradientStop(offset<end-0.5?Colors.Transparent:Colors.Black,1));
+                    scroller.OpacityMask=mask;
+                }
+                if(e.ExtentWidthChange==0 && e.ViewportWidthChange==0)return;
+                bool shown=folderList.Visibility==Visibility.Visible;
+                double room=scroller.ViewportWidth+(shown?folderList.ActualWidth+folderList.Margin.Left:0);
+                folderList.Visibility=scroller.ExtentWidth>room+0.5?Visibility.Visible:Visibility.Collapsed;
+                // The first time ever that tabs are hidden, say once how to reach them (the wheel can't be seen).
+                if(folderList.Visibility==Visibility.Visible && !settings.TabScrollTipShown && IsLoaded) {
+                    var updated=settings.Copy();updated.TabScrollTipShown=true;
+                    try {updated.Save(store.Root);settings=updated;} catch(Exception) {return;}
+                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("Some folder tabs don’t fit"),
+                        L.T("Roll the mouse wheel over the tabs to move them sideways, or click ▾ to see every folder at once."),
+                        ()=>OpenFolderList(),NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
+                }
+            };
+            // The faded edge is a button too: a click there slides the tabs that way.
+            scroller.PreviewMouseLeftButtonDown+=(s,e)=>{
+                double x=e.GetPosition(scroller).X,viewport=scroller.ViewportWidth,edge=Math.Min(0.3*viewport,28);
+                if(scroller.ScrollableWidth<=0.5)return;
+                if(x>viewport-edge && scroller.HorizontalOffset<scroller.ScrollableWidth-0.5){SlideTabs(scroller,viewport*0.6);e.Handled=true;}
+                else if(x<edge && scroller.HorizontalOffset>0.5){SlideTabs(scroller,-viewport*0.6);e.Handled=true;}
+            };
+            // The folder tree button sits first, where File Explorer's navigation pane begins.
+            treeButton=UI.Btn("",ToggleTree);treeButton.Content=LineIcon("M 2.5,3.5 L 15.5,3.5 L 15.5,14.5 L 2.5,14.5 Z M 7,3.5 L 7,14.5");
+            treeButton.Padding=new Thickness(7,4,7,4);treeButton.VerticalAlignment=VerticalAlignment.Center;treeButton.Margin=new Thickness(0,0,6,0);
+            DockPanel.SetDock(treeButton,Dock.Left);nav.Children.Add(treeButton);
+            // Like File Explorer's top row: ← → ↑ ⟳ and the address bar. The folder tabs are gone (the tree's
+            // Love My Shelf group does their job); the tab strip is kept only out of sight.
+            folderList.Visibility=Visibility.Collapsed;
+            foreach(var made in new[]{
+                Tuple.Create("M 15,9 L 3.5,9 M 8,4 L 3,9 L 8,14","Back","Alt+←",(Action)(()=>GoBack())),
+                Tuple.Create("M 3,9 L 14.5,9 M 10,4 L 15,9 L 10,14","Forward","Alt+→",(Action)(()=>GoForward())),
+                Tuple.Create("M 9,15 L 9,3.5 M 4,8 L 9,3 L 14,8","Up to the folder above","Alt+↑",(Action)(()=>GoUpFolder())),
+                Tuple.Create("M 14.5,9 A 5.5,5.5 0 1 1 12.8,5 M 13,1.8 L 13,5.3 L 9.5,5.3","Refresh","F5",(Action)(()=>{Refresh();StartCoverMigration();}))}) {
+                var action=made.Item4;var button=UI.Btn("",()=>action());button.Content=LineIcon(made.Item1);
+                button.Padding=new Thickness(7,4,7,4);button.VerticalAlignment=VerticalAlignment.Center;button.Margin=new Thickness(0,0,4,0);
+                button.BorderThickness=new Thickness(0);button.Background=Brushes.Transparent;
+                button.Tag=made.Item2+"|"+made.Item3;
+                DockPanel.SetDock(button,Dock.Left);nav.Children.Add(button);navButtons.Add(button);
+            }
+            address=new AddressBar(this);address.Margin=new Thickness(4,0,0,0);
+            nav.Children.Add(address);DockPanel.SetDock(nav,Dock.Top);root.Children.Add(nav);
+            // Narrow window: New window, Add folder and Guide & Options become small pictures (their names on hover),
+            // so the folder tabs keep at least about 400 px or all of their own width.
+            var newWindowIcon=LineIcon("M 6,2.5 L 15.5,2.5 L 15.5,11 L 6,11 Z M 2.5,6 L 2.5,15.5 L 11.5,15.5 L 11.5,13");
+            var addIcon=LineIcon("M 9,3 L 9,15 M 3,9 L 15,9");
+            var guideIcon=new TextBlock {Text="?",FontSize=14,FontWeight=FontWeights.SemiBold,IsHitTestVisible=false,
+                Width=18,TextAlignment=TextAlignment.Center,LineHeight=18,LineStackingStrategy=LineStackingStrategy.BlockLineHeight};
+            // The top bar buttons keep the height of a folder tab instead of stretching with the bar,
+            // and the picture versions are small squares.
+            foreach(var button in new[]{guide,open,newWindow,folderList,searchButton})button.VerticalAlignment=VerticalAlignment.Center;
+            searchHost.VerticalAlignment=VerticalAlignment.Center;
+            Action<Button,bool> square=(button,on)=>{if(on)button.Padding=new Thickness(7,4,7,4);else button.ClearValue(Control.PaddingProperty);};
+            updateTopBar=delegate {
+                double width=nav.ActualWidth;if(width<=0)return;
+                var infinite=new Size(double.PositiveInfinity,double.PositiveInfinity);
+                newWindow.Content=L.T("New window");open.Content=L.T("Add folder");guide.Content=L.T("Guide & Options");
+                foreach(var button in new[]{newWindow,open,guide})square(button,false);
+                double right=0;
+                foreach(FrameworkElement part in new FrameworkElement[]{newWindow,open,guide,searchHost,folderList}) {
+                    if(part.Visibility==Visibility.Collapsed)continue;
+                    InvalidateTree(part);part.Measure(infinite);right+=part.DesiredSize.Width;
+                }
+                if(width-right>=520)return; // the address bar keeps about 360 px
+                newWindow.Content=newWindowIcon;open.Content=addIcon;guide.Content=guideIcon;
+                foreach(var button in new[]{newWindow,open,guide})square(button,true);
+            };
+            nav.SizeChanged+=delegate {updateTopBar();};
             var line=UI.Use(new Border { Height=1 },Border.BackgroundProperty,"Line"); DockPanel.SetDock(line,Dock.Top);root.Children.Add(line);
+            // Inside a folder opened from a folder tile: [↑] and the way down from the tab, each part clickable.
+            pathRow.Margin=new Thickness(5,3,5,3);
+            DockPanel.SetDock(pathRow,Dock.Top);root.Children.Add(pathRow);
+            pathRow.SizeChanged+=(s,e)=>{if(e.WidthChanged)LayoutPath();};
             var modeFile=Path.Combine(store.Root,"windowed");
             // Explorer keys run before the fullscreen keys so Esc first clears a selection.
             PreviewKeyDown+=ExplorerKeys;
@@ -357,7 +556,8 @@ namespace LoveMyShelf {
             var sizing=UI.Btn("",()=>{density=density==120?88:(density==88?220:(density==220?164:120)); LayoutRows();});
             // Sort works like File Explorer: one button, the choices open upward, Shuffle is the last one.
             sortButton=UI.Btn("",OpenSortMenu);
-            foreach(var button in new[]{sortButton,sizing}) {
+            var openCoverFolder=UI.Btn("",OpenCoverFolder);
+            foreach(var button in new[]{openCoverFolder,sortButton,sizing}) {
                 button.Margin=new Thickness(3,0,0,0);footerControls.Children.Add(button);
             }
             footerStatus.Children.Add(filter);
@@ -368,28 +568,87 @@ namespace LoveMyShelf {
                 button.Checked+=delegate {ChangeFolderFilter(choice);};
                 filterButtons[i]=button;filter.Children.Add(button);
             }
-            count.TextTrimming=TextTrimming.CharacterEllipsis;footerStatus.Children.Add(count);
+            count.TextTrimming=TextTrimming.CharacterEllipsis;
+            footerStatus.Children.Add(count);
             var footer=new Grid {Margin=new Thickness(5,1,5,2)};
             footer.ColumnDefinitions.Add(new ColumnDefinition());
             footer.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
             footer.ColumnDefinitions.Add(new ColumnDefinition());
             footer.Children.Add(footerStatus);
-            var openCoverFolder=UI.Btn("",OpenCoverFolder);
-            openCoverFolder.HorizontalAlignment=HorizontalAlignment.Center;
-            openCoverFolder.VerticalAlignment=VerticalAlignment.Center;
-            Grid.SetColumn(openCoverFolder,1);footer.Children.Add(openCoverFolder);
+            collections.Margin=new Thickness(8,0,8,0);
+            Grid.SetColumn(collections,1);footer.Children.Add(collections);
             Grid.SetColumn(footerControls,2);footer.Children.Add(footerControls);
             DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+            var coverFolderIcon=LineIcon("M 1.5,3.5 L 1.5,13.5 L 16.5,13.5 L 16.5,5.5 L 8.5,5.5 L 6.8,3.5 Z");
+            // Labels shrink step by step only as far as the window needs, so nothing in the bottom bar overlaps:
+            // 1 Sort and Cover size become symbols, 2 the collections and filters drop the word "cover", 3 Open cover folder becomes an icon.
             updateFooter=delegate {
-                double width=ActualWidth>0?ActualWidth:Width;
-                bool compact=width<710;
+                double width=footer.ActualWidth>0?footer.ActualWidth:(ActualWidth>0?ActualWidth:Width)-10;
                 string sortLabel=shuffledOrder!=null?L.T("Sort: shuffled"):L.F("Sort: {0}",SortName(settings.Sort));
-                sortButton.Content=(compact?"⇅":sortLabel)+"  ▴";
+                var infinite=new Size(double.PositiveInfinity,double.PositiveInfinity);
+                double filterWidth=0,side=0;bool fits=false;
+                for(int level=0;level<=3 && !fits;level++) {
+                    sortButton.Content=(level>=1?"⇅":sortLabel)+"  ▴";
+                    FooterLabel(sizing,"Cover size","▦",level>=1);
+                    allCropsButton.Content=L.T(level>=2?"O set":"Cover collection");
+                    unfinishedButton.Content=L.T(level>=2?"X set":"Unfinished cover collection");
+                    filterButtons[1].Content=level>=2?"X":L.T("Unfinished");
+                    filterButtons[2].Content=level>=2?"O":L.T("Finished");
+                    filterButtons[1].MinWidth=filterButtons[2].MinWidth=level>=2?38:58;
+                    if(level>=3)openCoverFolder.Content=coverFolderIcon;else openCoverFolder.Content=L.T("Open cover folder");
+                    filterWidth=filter.Visibility==Visibility.Visible?RowWidth(filter):0;
+                    side=Math.Max(filterWidth+(level<2?70:0),RowWidth(footerControls)); // room for a short count while labels are long
+                    fits=RowWidth(collections)+2*side<=width;
+                }
+                // Narrower than even the shortest labels allow: both sides take what they need and the collections
+                // stay centered in the space between them instead of sliding under the filters.
+                var star=new GridLength(1,GridUnitType.Star);
+                footer.ColumnDefinitions[0].Width=fits?star:GridLength.Auto;
+                footer.ColumnDefinitions[1].Width=fits?GridLength.Auto:star;
+                footer.ColumnDefinitions[2].Width=fits?star:GridLength.Auto;
+                // The count shows only when it fits whole (a long message may still trim); a lone "…" says nothing.
+                count.Visibility=Visibility.Visible;count.InvalidateMeasure();count.Measure(infinite);
+                double room=(fits?(width-RowWidth(collections))/2:0)-filterWidth;
+                count.Visibility=room>=count.DesiredSize.Width || room>=160?Visibility.Visible:Visibility.Collapsed;
+                ShowRangeHint();
                 sortButton.ToolTip=L.T("Sort");AutomationProperties.SetName(sortButton,L.T("Sort"));
-                FooterLabel(sizing,"Cover size","▦",compact);
+                allCropsButton.ToolTip=L.T("Cover collection");AutomationProperties.SetName(allCropsButton,L.T("Cover collection"));
+                unfinishedButton.ToolTip=L.T("Unfinished cover collection");AutomationProperties.SetName(unfinishedButton,L.T("Unfinished cover collection"));
+                openCoverFolder.ToolTip=L.T("Open cover folder");AutomationProperties.SetName(openCoverFolder,L.T("Open cover folder"));
             };
-            SizeChanged+=delegate {updateFooter();};
-            var host=new Grid();root.Children.Add(host);
+            footer.SizeChanged+=delegate {updateFooter();};
+            // The folder tree on the left, with an edge that can be dragged to make it wider or narrower.
+            tree=new FolderTree(this);
+            var treeEdge=new System.Windows.Controls.Primitives.Thumb {Width=5,Cursor=Cursors.SizeWE,Opacity=0};
+            var edgeLook=new FrameworkElementFactory(typeof(Border));edgeLook.SetValue(Border.BackgroundProperty,Brushes.Transparent);
+            treeEdge.Template=new ControlTemplate(typeof(System.Windows.Controls.Primitives.Thumb)) {VisualTree=edgeLook};
+            treeEdge.DragDelta+=(s,e)=>{treePanel.Width=Math.Max(160,Math.Min(400,treePanel.Width+e.HorizontalChange));};
+            treeEdge.DragCompleted+=delegate {SaveTree(null,(int)Math.Round(treePanel.Width),null);};
+            var treeLine=UI.Use(new Border {Width=1,HorizontalAlignment=HorizontalAlignment.Right},Border.BackgroundProperty,"Line");
+            var treeGrid=new Grid();treeGrid.Children.Add(tree);treeGrid.Children.Add(treeLine);
+            treeEdge.HorizontalAlignment=HorizontalAlignment.Right;treeEdge.Margin=new Thickness(0,0,-2,0);treeGrid.Children.Add(treeEdge);
+            treePanel.Child=treeGrid;treePanel.Width=settings.TreeWidth;
+            DockPanel.SetDock(treePanel,Dock.Left);root.Children.Add(treePanel);
+            // The folder tabs moved into the tree: the first start after that opens the tree once (it was closed by default),
+            // so the folders are not suddenly nowhere to be seen. After that it stays as the user leaves it.
+            bool treeIntro=!settings.TreeIntroShown;
+            if(treeIntro) {
+                var updated=settings.Copy();updated.TreeIntroShown=true;updated.TreeOpen=true;
+                try {updated.Save(store.Root);settings=updated;} catch(Exception) {treeIntro=false;}
+            }
+            ShowTree(settings.TreeOpen || treeIntro,false);
+            if(treeIntro && !another)
+                ContentRendered+=delegate {
+                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The folder list moved to the tree on the left"),
+                        L.T("Your Love My Shelf folders, This PC and Quick access are all there, like File Explorer. The leftmost button at the top (Ctrl+T) opens and closes it."),
+                        null,NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
+                };
+            // The folders area and the photos share the rest, one above the other (which one is on top is an option).
+            var area=new DockPanel {LastChildFill=true};root.Children.Add(area);folderArea=area;
+            folderPane=new FolderPane(this);area.Children.Add(folderPane);
+            area.SizeChanged+=delegate {PlaceFolderPane();};
+            PlaceFolderPane();
+            var host=new Grid();area.Children.Add(host);
             grid.BorderThickness=new Thickness(0);grid.Padding=new Thickness(0);grid.Margin=new Thickness(2,0,1,0);UI.Use(grid,Control.BackgroundProperty,"Paper");
             var style=new Style(typeof(ListBoxItem));
             style.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(0)));
@@ -402,12 +661,30 @@ namespace LoveMyShelf {
             ScrollViewer.SetVerticalScrollBarVisibility(grid,ScrollBarVisibility.Visible);
             // Pressing on empty space clears the selection, like File Explorer.
             grid.PreviewMouseLeftButtonDown+=(s,e)=>{
-                if((Keyboard.Modifiers&(ModifierKeys.Control|ModifierKeys.Shift))!=0 || selected.Count==0)return;
                 var node=e.OriginalSource as DependencyObject;
                 while(node!=null && !(node is ButtonBase) && !(node is ScrollBar)) {
                     node=(node is Visual || node is System.Windows.Media.Media3D.Visual3D)?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
                 }
-                if(node==null)ClearSelection();
+                if(node!=null)return;
+                // Empty space: a left-button drag draws the range rectangle there, like File Explorer.
+                MarqueeArm(e,MouseButton.Left);
+                if((Keyboard.Modifiers&(ModifierKeys.Control|ModifierKeys.Shift))==0 && selected.Count>0)ClearSelection();
+            };
+            // The right button held down and dragged draws the range rectangle anywhere, even starting on a tile
+            // (the tiles touch, so there is little empty space); a right click that doesn't move still opens the menu.
+            grid.PreviewMouseRightButtonDown+=(s,e)=>{
+                var node=e.OriginalSource as DependencyObject;
+                while(node!=null && !(node is ScrollBar))node=(node is Visual || node is System.Windows.Media.Media3D.Visual3D)?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
+                if(node==null)MarqueeArm(e,MouseButton.Right);
+            };
+            grid.PreviewMouseMove+=(s,e)=>MarqueeMove(e);
+            grid.PreviewMouseLeftButtonUp+=(s,e)=>MarqueeUp(e,MouseButton.Left);
+            grid.PreviewMouseRightButtonUp+=(s,e)=>MarqueeUp(e,MouseButton.Right);
+            grid.LostMouseCapture+=delegate {if(marqueeActive)MarqueeEnd(false);};
+            // A right click on empty space (not a tile, nothing drawn): File Explorer's blank-space menu.
+            grid.PreviewMouseRightButtonUp+=(s,e)=>{
+                if(e.Handled || IsOnTileOrBar(e.OriginalSource))return;
+                e.Handled=true;ShowBackgroundMenu(grid,null);
             };
             VirtualizingPanel.SetIsVirtualizing(grid,true);
             VirtualizingPanel.SetVirtualizationMode(grid,VirtualizationMode.Recycling);
@@ -417,11 +694,12 @@ namespace LoveMyShelf {
                 if(rowHeight>0)centerRow=(int)((e.VerticalOffset+e.ViewportHeight/2)/rowHeight);
             }));
             host.Children.Add(grid);
+            SetupMarquee(host);
             SetupNameCard(host);
             SetupDropHint(host);
             emptyTitle.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyTitle);
             emptyHelp.Margin=new Thickness(0,8,0,22);empty.Children.Add(emptyHelp);
-            emptyAction=UI.Btn("",PickFolder,true);emptyAction.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyAction);host.Children.Add(empty);
+            emptyAction=UI.Btn("",()=>{if(FoldersFoldedAway)folderPane.Unfold();else PickFolder();});emptyAction.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyAction);host.Children.Add(empty);
             resizeTimer.Tick+=delegate {resizeTimer.Stop();LayoutRows();};
             reflowTimer.Tick+=delegate {reflowTimer.Stop();CurrentReflow=null;};
             grid.SizeChanged+=delegate {resizeTimer.Stop();resizeTimer.Start();};
@@ -436,11 +714,17 @@ namespace LoveMyShelf {
             FilesChanged+=ReloadAfterFileMove;
             Activated+=delegate {TakeOverSettings();};
             localize=delegate {
-                open.Content=emptyAction.Content=L.T("Add folder");
+                open.Content=L.T("Add folder");emptyAction.Content=L.T("Choose a folder…");
                 newWindow.Content=L.T("New window");newWindow.ToolTip=L.T("Open another Love My Shelf window to drag files between two folders")+" (Ctrl+N)";
                 AutomationProperties.SetName(newWindow,L.T("New window"));
                 guide.Content=L.T("Guide & Options");guide.ToolTip=L.T("Guide & Options")+" (F1)";
+                AutomationProperties.SetName(guide,L.T("Guide & Options"));AutomationProperties.SetName(open,L.T("Add folder"));
+                open.ToolTip=L.T("Add folder")+" (Ctrl+O)";
+                folderList.ToolTip=L.T("All folders · roll the mouse wheel over the tabs to move them sideways");AutomationProperties.SetName(folderList,L.T("All folders"));
+                updateTopBar();
                 searchHint.Text=L.T("Search names");AutomationProperties.SetName(search,L.T("Search names"));
+                treeButton.ToolTip=L.T("Folder tree")+" (Ctrl+T)";AutomationProperties.SetName(treeButton,L.T("Folder tree"));
+                searchButton.ToolTip=L.T("Search names")+" (Ctrl+F)";AutomationProperties.SetName(searchButton,L.T("Search names"));
                 openCoverFolder.Content=L.T("Open cover folder");
                 allCropsButton.Content=L.T("Cover collection");unfinishedButton.Content=L.T("Unfinished cover collection");
                 var labels=new[]{"All","Unfinished","Finished"};
@@ -460,22 +744,58 @@ namespace LoveMyShelf {
                 if(e.Data.GetDataPresent(TabDragFormat))return; // a folder tab being rearranged
                 if(e.Data.GetDataPresent(MoveFormat)){MoveDragOver(e);return;}
                 var paths=e.Data.GetData(DataFormats.FileDrop) as string[];
-                e.Effects=paths!=null && paths.Length==1 && Directory.Exists(paths[0])?DragDropEffects.Link:DragDropEffects.None;
+                bool folder=paths!=null && paths.Length==1 && Directory.Exists(paths[0]);
+                e.Effects=folder?DragDropEffects.Link:DragDropEffects.None;
+                if(folder && FolderTree.IsShelfRow(e.OriginalSource)) {
+                    var over=FolderTree.EntryAt(e.OriginalSource);
+                    if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ShowDropHint(L.T("Let go to put it here in the list."));
+                    else ShowDropHint(L.F("Let go to add “{0}” to Love My Shelf.",Path.GetFileName(paths[0].TrimEnd('\\'))));
+                }
                 e.Handled=true;
             };
             Drop+=(s,e)=>{
                 if(e.Data.GetDataPresent(MoveFormat)){MoveDrop(e);return;}
                 var paths=e.Data.GetData(DataFormats.FileDrop) as string[];
-                if(paths!=null && paths.Length==1 && Directory.Exists(paths[0]))OpenFolder(paths[0]);
+                if(paths!=null && paths.Length==1 && Directory.Exists(paths[0])) {
+                    if(FolderTree.IsShelfRow(e.OriginalSource)) {
+                        HideDropHint();
+                        // A Love My Shelf folder dropped on another one moves there in the list (like Quick access in File Explorer).
+                        var over=FolderTree.EntryAt(e.OriginalSource);
+                        if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ReorderShelf(paths[0],over.Album);
+                        else AddToShelf(paths[0]);
+                    }
+                    else OpenFolder(paths[0]);
+                }
             };
             PreviewKeyDown+=(s,e)=>{
                 if(e.Key==Key.F5) {Refresh();StartCoverMigration();e.Handled=true;}
                 else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.O) {
                     PickFolder(); e.Handled=true;
                 }
+                // Back up out of a folder opened from a folder tile, like File Explorer.
+                // File Explorer's keys: Backspace or Alt+← back, Alt+→ forward, Alt+↑ up, Ctrl+L / Alt+D / F4 the address bar.
+                else if(((e.Key==Key.Back && Keyboard.Modifiers==ModifierKeys.None) || (e.SystemKey==Key.Left && Keyboard.Modifiers==ModifierKeys.Alt))
+                    && !search.IsKeyboardFocusWithin && !address.Editing) {
+                    GoBack(); e.Handled=true;
+                }
+                else if(e.SystemKey==Key.Right && Keyboard.Modifiers==ModifierKeys.Alt && !address.Editing){GoForward();e.Handled=true;}
+                else if(e.SystemKey==Key.Up && Keyboard.Modifiers==ModifierKeys.Alt && !address.Editing){GoUpFolder();e.Handled=true;}
+                else if((Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.L) || (Keyboard.Modifiers==ModifierKeys.Alt && e.SystemKey==Key.D) ||
+                    (e.Key==Key.F4 && Keyboard.Modifiers==ModifierKeys.None)) {address.BeginEdit();e.Handled=true;}
+                else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.T) {
+                    ToggleTree(); e.Handled=true;
+                }
+                else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.F) {
+                    OpenSearch(); e.Handled=true;
+                }
                 else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.N && !search.IsKeyboardFocusWithin) {
                     OpenAnotherWindow(); e.Handled=true;
                 }
+            };
+            // The mouse's back button goes up too.
+            PreviewMouseDown+=(s,e)=>{
+                if(e.ChangedButton==MouseButton.XButton1){GoBack();e.Handled=true;}
+                else if(e.ChangedButton==MouseButton.XButton2){GoForward();e.Handled=true;}
             };
             var albums=store.VisibleAlbums(); string lastFile=Path.Combine(store.Root,"last.txt");
             string last=File.Exists(lastFile)?File.ReadAllText(lastFile):"";
@@ -486,12 +806,19 @@ namespace LoveMyShelf {
                 if(active!=null)return;
                 // A window opened with "Open in new window" starts on that folder.
                 Album start=startFolder==null?null:startFolder==CollectionKey?allCrops:startFolder==UnfinishedKey?unfinished:
-                    store.VisibleAlbums().FirstOrDefault(a=>String.Equals(a.Folder,startFolder,StringComparison.OrdinalIgnoreCase));
+                    store.Albums().FirstOrDefault(a=>a.Source!=null && String.Equals(a.Folder,startFolder,StringComparison.OrdinalIgnoreCase));
                 Select(start??initial);
             };
             ContentRendered+=delegate {
                 if(coverSetupShown || another)return; // the first window already did this
                 coverSetupShown=true;
+                // The first start with range selection: tell about it once, a little after the window appears.
+                if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
+                    var updated=settings.Copy();updated.MarqueeTipShown=true;
+                    try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
+                    var later=new DispatcherTimer {Interval=TimeSpan.FromSeconds(treeIntro?9:3)}; // after the tree notice
+                    later.Tick+=delegate {later.Stop();MarqueeTip();};later.Start();
+                }
                 if(String.IsNullOrWhiteSpace(settings.CoverDirectory))EnsureCoverFolder(this);
                 else StartCoverMigration();
                 if(settings.CheckUpdates)CheckForUpdate();
@@ -511,6 +838,21 @@ namespace LoveMyShelf {
             if(active==null || active.Source==null || folderFilter==choice)return;
             folderFilters[active.Folder]=folderFilter=choice;
             shuffledOrder=null;Refresh();
+        }
+        // The width a row of buttons needs right now. Each child is measured on its own: a panel keeps its old
+        // size until the next layout pass, even after a button's label changed.
+        static double RowWidth(StackPanel row) {
+            double width=row.Margin.Left+row.Margin.Right;
+            foreach(UIElement child in row.Children) {
+                if(child.Visibility==Visibility.Collapsed)continue;
+                InvalidateTree(child);
+                child.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));width+=child.DesiredSize.Width;
+            }
+            return width;
+        }
+        static void InvalidateTree(DependencyObject node) {
+            var element=node as UIElement;if(element!=null)element.InvalidateMeasure();
+            for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);i++)InvalidateTree(VisualTreeHelper.GetChild(node,i));
         }
         static void FooterLabel(Button button,string label,string compactLabel,bool compact) {
             string localized=L.T(label);
@@ -594,21 +936,291 @@ namespace LoveMyShelf {
         }
         void Select(Album album) {
             if(active==null || active.Folder!=album.Folder){shuffledOrder=null;searchTimer.Stop();search.Text="";}
+            // The way down from the tab to the folder on screen: going back up keeps the part above it,
+            // anything else (a tab, a collection) starts over from that folder.
+            // Back / Forward remember each place, like File Explorer (a refresh of the same place doesn't count).
+            if(active!=null && !historyMove && LocationKey(active)!=LocationKey(album)){backStack.Add(LocationKey(active));forwardStack.Clear();}
+            int inTrail=trail.FindIndex(a=>a.Folder==album.Folder);
+            if(inTrail>=0)trail.RemoveRange(inTrail+1,trail.Count-inTrail-1);else{trail.Clear();trail.Add(album);trailFromPc=false;}
+            // A folder reached from the tree or the path row gets its records the first time it is opened.
+            if(album.Source!=null && !Directory.Exists(album.Folder)) {
+                try {album=store.OpenSubfolder(album.Source);trail[trail.Count-1]=album;}
+                catch(Exception ex) {UI.Error(this,ex);return;}
+            }
             active=album; tabs.Children.Clear();scrollToTop=true;
-            // The folder name leads the title, so side-by-side windows, the taskbar and Alt+Tab tell folders apart.
-            Title=album.Name+" — Love My Shelf";
+            // Only the folder name, like File Explorer: side-by-side windows, the taskbar and Alt+Tab tell folders apart.
+            Title=album.Name;
+            BuildPath();
+            TreeSyncSoon();
             UI.Use(allCropsButton,Control.ForegroundProperty,ShowingAllCrops?"Accent":"Text");
             UI.Use(allCropsButton,Control.BorderBrushProperty,ShowingAllCrops?"Accent":"Line");
             UI.Use(unfinishedButton,Control.ForegroundProperty,ShowingUnfinished?"Accent":"Text");
             UI.Use(unfinishedButton,Control.BorderBrushProperty,ShowingUnfinished?"Accent":"Line");
             filter.Visibility=active.Source==null?Visibility.Collapsed:Visibility.Visible;
+            if(updateFooter!=null)updateFooter();
             int view;
             folderFilter=folderFilters.TryGetValue(active.Folder,out view)?view:0;
             filterButtons[folderFilter].IsChecked=true;
             BuildTabs();
-            try { File.WriteAllText(Path.Combine(store.Root,"last.txt"),Path.GetFileName(album.Folder)); } catch(IOException) { }
+            try { File.WriteAllText(Path.Combine(store.Root,"last.txt"),Path.GetFileName(trail[0].Folder)); } catch(IOException) { }
             Refresh();
             if(grid.Items.Count>0) grid.ScrollIntoView(grid.Items[0]);
+        }
+        // ----- Folders inside a folder (Options: Show the folders inside a folder) -----
+        readonly List<Album> trail=new List<Album>();
+        readonly StackPanel pathRow=new StackPanel {Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,ClipToBounds=true};
+        // The folder tiles on screen: full path and how many photos and videos are right inside (-1: can't be read).
+        List<Tuple<string,int>> subfolders=new List<Tuple<string,int>>();
+        int folderRows;
+        internal bool InsideSubfolder {get {return trail.Count>1;}}
+        internal const int FoldersPerCell=3;
+        internal IList<Tuple<string,int>> FolderTiles {get {return subfolders;}}
+        internal void EnterFolder(string path) {
+            Album album;
+            try {album=store.OpenSubfolder(path);} catch(Exception ex) {UI.Error(this,ex);return;}
+            if(!trail.Any(a=>a.Folder==album.Folder))trail.Add(album);
+            Select(album);
+        }
+        internal bool GoUp() {return GoUpFolder();}
+        // ----- Back, Forward, Up and the address bar (File Explorer's top row) -----
+        AddressBar address;
+        readonly List<Button> navButtons=new List<Button>();
+        readonly List<string> backStack=new List<string>(),forwardStack=new List<string>();
+        bool historyMove;
+        static string LocationKey(Album album) {return album.Source??("@"+album.Folder);}
+        void GoToLocation(string key) {
+            historyMove=true;
+            try {
+                if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
+                else if(Directory.Exists(key))NavigateTo(key);
+            } finally {historyMove=false;}
+        }
+        internal void GoBack() {
+            if(backStack.Count==0 || active==null)return;
+            string key=backStack[backStack.Count-1];backStack.RemoveAt(backStack.Count-1);
+            forwardStack.Add(LocationKey(active));GoToLocation(key);
+        }
+        internal void GoForward() {
+            if(forwardStack.Count==0 || active==null)return;
+            string key=forwardStack[forwardStack.Count-1];forwardStack.RemoveAt(forwardStack.Count-1);
+            backStack.Add(LocationKey(active));GoToLocation(key);
+        }
+        // Up goes to the real folder above, even above a Love My Shelf folder (like File Explorer).
+        internal bool GoUpFolder() {
+            if(active==null || active.Source==null)return false;
+            string parent=Path.GetDirectoryName(active.Source.TrimEnd('\\'));
+            if(String.IsNullOrEmpty(parent) || ShellPlaces.Same(parent,active.Source))return false;
+            NavigateTo(parent);return true;
+        }
+        void UpdateNavButtons() {
+            foreach(var button in navButtons) {
+                var words=((string)button.Tag).Split('|');
+                button.ToolTip=L.T(words[0])+" ("+words[1]+")";AutomationProperties.SetName(button,L.T(words[0]));
+                bool can=words[0]=="Back"?backStack.Count>0:words[0]=="Forward"?forwardStack.Count>0:
+                    words[0]=="Up to the folder above"?(active!=null && active.Source!=null && !String.IsNullOrEmpty(Path.GetDirectoryName(active.Source.TrimEnd('\\')))):true;
+                button.IsEnabled=can;
+            }
+        }
+        internal void ShowAlbum(Album album) {Select(album);}
+        internal void FocusTiles() {grid.Focus();Keyboard.Focus(grid);}
+        // A path typed or pasted into the address bar.
+        internal void GoToTyped(string text) {
+            string path=Environment.ExpandEnvironmentVariables((text??"").Trim().Trim('"'));
+            if(path.Length==0)return;
+            if(path.StartsWith("Love My Shelf",StringComparison.OrdinalIgnoreCase)) {
+                string rest=path.Substring("Love My Shelf".Length).Trim('\\');
+                if(rest.Length==0 || String.Equals(rest,allCrops.Name,StringComparison.OrdinalIgnoreCase)){Select(allCrops);return;}
+                if(String.Equals(rest,unfinished.Name,StringComparison.OrdinalIgnoreCase)){Select(unfinished);return;}
+            }
+            try {
+                if(Directory.Exists(path)){NavigateTo(path);return;}
+                if(File.Exists(path)){NavigateTo(Path.GetDirectoryName(path));return;}
+            } catch(Exception) {}
+            Notify(L.T("Can’t find that place"),L.F("Windows can’t find “{0}”. Check the spelling and try again.",text.Trim()),null,NoticeKind.Warning);
+        }
+        // ----- The folder tree (File Explorer's navigation pane) -----
+        readonly Border treePanel=new Border();
+        FolderTree tree;
+        readonly Button treeButton;
+        // True when the folder on screen was opened from This PC in the tree: the path row then shows the whole way from the drive.
+        bool trailFromPc;
+        internal IEnumerable<string> PathWords() {
+            return pathRow.Children.OfType<FrameworkElement>().Select(e=>e is TextBlock?((TextBlock)e).Text:e is Button && ((Button)e).Content is string?(string)((Button)e).Content:"[↑]");
+        }
+        internal void ToggleTree() {ShowTree(treePanel.Visibility!=Visibility.Visible,true);}
+        void ShowTree(bool open,bool remember) {
+            treePanel.Visibility=open?Visibility.Visible:Visibility.Collapsed;
+            UI.Use(treeButton,Control.BorderBrushProperty,open?"Accent":"Line");
+            if(open){tree.Build();TreeSyncSoon();}
+            if(remember)SaveTree(open,null,null);
+        }
+        internal void SaveTree(bool? open,int? width,string folded) {
+            var updated=settings.Copy();
+            if(open.HasValue)updated.TreeOpen=open.Value;
+            if(width.HasValue)updated.TreeWidth=width.Value;
+            if(folded!=null)updated.TreeFolded=folded;
+            try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
+        }
+        // Like pinning a folder to Quick access in File Explorer: the folder gets a tab and a row under Love My Shelf.
+        internal void AddToShelf(string path) {
+            try {store.OpenFolder(path);} catch(Exception ex) {UI.Error(this,ex);return;}
+            BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+            foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
+            if(photos.Count==0 && active!=null && active.Source==null)ShowPhotos();
+        }
+        internal void RemoveFromShelf(string path) {
+            var album=store.VisibleAlbums().FirstOrDefault(a=>ShellPlaces.Same(a.Source,path));if(album==null)return;
+            try {store.HideFolder(album);} catch(Exception ex) {UI.Error(this,ex);return;}
+            if(trail.Count>0 && trail[0].Folder==album.Folder)Select(allCrops);else BuildTabs();
+            if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+            foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
+        }
+        void ReorderShelf(string path,Album place) {
+            var albums=store.VisibleAlbums();
+            var moving=albums.FirstOrDefault(a=>ShellPlaces.Same(a.Source,path));if(moving==null || place==null)return;
+            int position=albums.FindIndex(a=>a.Folder==place.Folder);if(position<0)return;
+            try {store.MoveTab(moving,position);} catch(Exception ex) {UI.Error(this,ex);return;}
+            FoldersChanged();
+            foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
+        }
+        internal bool OnShelf(string path) {return store.VisibleAlbums().Any(a=>ShellPlaces.Same(a.Source,path));}
+        void FoldersChanged() {BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}}
+        FolderPane folderPane;
+        DockPanel folderArea;
+        internal void PlaceFolderPane() {
+            // With no photos to share the space, the folders start at the top and may use the whole height.
+            bool fills=folderPane.FillsArea,below=settings.FoldersBelow && !fills;
+            DockPanel.SetDock(folderPane,below?Dock.Bottom:Dock.Top);
+            // A thin line between the photos and the folders when the folders are below (the header line is on top of them).
+            folderPane.Margin=new Thickness(0,below?2:0,0,below?0:2);
+            if(folderArea.ActualHeight>0)folderPane.MaxHeight=Math.Max(90,folderArea.ActualHeight*(fills?1:0.45));
+        }
+        // The View menu of the folders area and Options both come here.
+        internal void SaveFolderView(int? view,bool? below) {
+            var updated=settings.Copy();
+            if(view.HasValue)updated.FolderView=view.Value;
+            if(below.HasValue)updated.FoldersBelow=below.Value;
+            try {updated.Save(store.Root);settings=updated;} catch(Exception ex) {UI.Error(this,ex);return;}
+            PlaceFolderPane();folderPane.Fill();SettingsChanged();
+        }
+        internal void SaveFoldersFolded(bool folded) {
+            var updated=settings.Copy();updated.FoldersFolded=folded;
+            try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
+        }
+        internal void TreeSyncSoon() {
+            if(tree==null || treePanel.Visibility!=Visibility.Visible)return;
+            Dispatcher.BeginInvoke(new Action(()=>tree.ShowCurrent(active,trail,trailFromPc)),DispatcherPriority.Background);
+        }
+        internal void OpenFromTree(TreeEntry entry) {
+            if(entry.Album!=null && (entry.Album.Source==null || entry.Kind=="tab")) {Select(entry.Album);return;}
+            if(entry.Path!=null)NavigateTo(entry.Path);
+        }
+        // Opens any folder, as from File Explorer's tree: inside a folder tab the way starts at that tab, otherwise at the drive.
+        internal void NavigateTo(string path) {
+            string full;
+            try {full=Path.GetFullPath(path);} catch(Exception ex) {UI.Error(this,ex);return;}
+            if(full.Length>Path.GetPathRoot(full).Length)full=full.TrimEnd(Path.DirectorySeparatorChar);
+            if(!Directory.Exists(full)){UI.Error(this,new DirectoryNotFoundException(L.T("The source folder could not be found.")));return;}
+            Album tab=null;
+            foreach(var album in store.VisibleAlbums())
+                if(album.Source!=null && (ShellPlaces.Same(full,album.Source) || full.StartsWith(album.Source.TrimEnd('\\')+"\\",StringComparison.OrdinalIgnoreCase))
+                    && (tab==null || album.Source.Length>tab.Source.Length))tab=album;
+            var chain=new List<string>();
+            for(string at=full;at!=null;at=Path.GetDirectoryName(at)) {
+                chain.Insert(0,at);
+                if(tab!=null && ShellPlaces.Same(at,tab.Source))break;
+            }
+            trail.Clear();
+            foreach(string at in chain)
+                trail.Add(tab!=null && ShellPlaces.Same(at,tab.Source)?tab:new Album(store.AlbumFolderOf(at),FolderName(at),at));
+            trailFromPc=tab==null;
+            Select(trail[trail.Count-1]);
+        }
+        static string FolderName(string path) {
+            string name=Path.GetFileName(path.TrimEnd('\\'));
+            return String.IsNullOrEmpty(name)?path.TrimEnd('\\'):name; // a drive is shown as "C:"
+        }
+        // Slides the folder tabs sideways over about a sixth of a second.
+        DispatcherTimer tabSlide;
+        void SlideTabs(ScrollViewer scroller,double by) {
+            if(tabSlide!=null)tabSlide.Stop();
+            double from=scroller.HorizontalOffset,to=Math.Max(0,Math.Min(scroller.ScrollableWidth,from+by));
+            var started=DateTime.UtcNow;
+            tabSlide=new DispatcherTimer(DispatcherPriority.Render) {Interval=TimeSpan.FromMilliseconds(15)};
+            tabSlide.Tick+=delegate {
+                double t=Math.Min(1,(DateTime.UtcNow-started).TotalMilliseconds/170),eased=1-Math.Pow(1-t,3);
+                scroller.ScrollToHorizontalOffset(from+(to-from)*eased);
+                if(t>=1)tabSlide.Stop();
+            };
+            tabSlide.Start();
+        }
+        // The way from the tab (or from This PC) to the folder on screen, like File Explorer's address bar: when it is
+        // too long for the window, the parts at the front fold into « (a click lists them), and the folder itself always shows.
+        readonly List<Tuple<string,Album>> pathParts=new List<Tuple<string,Album>>();
+        void BuildPath() {
+            // The way is shown in the address bar now, like File Explorer; the old path row stays hidden.
+            pathParts.Clear();pathRow.Visibility=Visibility.Collapsed;
+            if(address!=null)address.Show(active);
+            UpdateNavButtons();
+            return;
+            bool show=trail.Count>1 || trailFromPc;
+            pathRow.Visibility=show?Visibility.Visible:Visibility.Collapsed;
+            if(!show){pathRow.Children.Clear();return;}
+            if(trailFromPc)pathParts.Add(Tuple.Create(L.T("This PC"),(Album)null));
+            foreach(var album in trail)pathParts.Add(Tuple.Create(album.Name,album));
+            LayoutPath();
+        }
+        FrameworkElement PathPart(Tuple<string,Album> part,bool last) {
+            var button=new Button {Content=part.Item1,Padding=new Thickness(6,2,6,2),MinHeight=24,BorderThickness=new Thickness(0),
+                Background=Brushes.Transparent,VerticalAlignment=VerticalAlignment.Center,FontSize=12.5};
+            if(part.Item2!=null)button.ToolTip=part.Item2.Source;
+            UI.Use(button,Control.ForegroundProperty,last?"Text":"Subtle");
+            if(last)button.FontWeight=FontWeights.SemiBold;
+            else if(part.Item2!=null){var target=part.Item2;button.Click+=delegate {Select(target);};}
+            else button.IsHitTestVisible=false; // "This PC" itself is not a folder to open
+            return button;
+        }
+        static FrameworkElement PathArrow() {
+            var arrow=UI.Text("›",13,true);arrow.Margin=new Thickness(2,0,2,0);arrow.VerticalAlignment=VerticalAlignment.Center;
+            return arrow;
+        }
+        void LayoutPath() {
+            pathRow.Children.Clear();
+            if(pathParts.Count==0)return;
+            var up=UI.Btn("",()=>GoUp());up.Content=LineIcon("M 9,15 L 9,3.5 M 4,8 L 9,3 L 14,8");
+            up.Padding=new Thickness(5,2,5,2);up.MinHeight=24;up.Margin=new Thickness(0,0,8,0);up.VerticalAlignment=VerticalAlignment.Center;
+            up.ToolTip=L.T("Up one folder")+" (Backspace)";AutomationProperties.SetName(up,L.T("Up one folder"));
+            up.IsEnabled=trail.Count>1;
+            var infinite=new Size(double.PositiveInfinity,double.PositiveInfinity);
+            var parts=pathParts.Select((p,i)=>PathPart(p,i==pathParts.Count-1)).ToList();
+            var arrows=pathParts.Select(p=>PathArrow()).ToList();
+            up.Measure(infinite);foreach(var e in parts.Concat(arrows))e.Measure(infinite);
+            double room=pathRow.ActualWidth>0?pathRow.ActualWidth-4:double.PositiveInfinity;
+            var more=new Button {Content="«",Padding=new Thickness(6,2,6,2),MinHeight=24,BorderThickness=new Thickness(0),
+                Background=Brushes.Transparent,VerticalAlignment=VerticalAlignment.Center,FontSize=13,ToolTip=L.T("Show the folders above")};
+            UI.Use(more,Control.ForegroundProperty,"Subtle");more.Measure(infinite);
+            int hidden=0;
+            for(;hidden<pathParts.Count-1;hidden++) {
+                double width=up.DesiredSize.Width+(hidden>0?more.DesiredSize.Width+arrows[0].DesiredSize.Width:0);
+                for(int i=hidden;i<parts.Count;i++)width+=parts[i].DesiredSize.Width+(i>hidden?arrows[i].DesiredSize.Width:0);
+                if(width<=room)break;
+            }
+            pathRow.Children.Add(up);
+            if(hidden>0) {
+                // The folded parts, nearest first, like File Explorer's « list.
+                var menu=new ContextMenu {PlacementTarget=more,Placement=PlacementMode.Bottom};
+                for(int i=hidden-1;i>=0;i--) {
+                    var part=pathParts[i];var item=new MenuItem {Header=part.Item1,IsEnabled=part.Item2!=null};
+                    if(part.Item2!=null){var target=part.Item2;item.Click+=delegate {Select(target);};}
+                    menu.Items.Add(item);
+                }
+                more.Click+=delegate {menu.IsOpen=true;};
+                pathRow.Children.Add(more);pathRow.Children.Add(arrows[0]);
+            }
+            for(int i=hidden;i<parts.Count;i++) {
+                if(i>hidden)pathRow.Children.Add(arrows[i]);
+                pathRow.Children.Add(parts[i]);
+            }
         }
         const string TabDragFormat="LoveMyShelf.FolderTab";
         // Folder tabs, in the order the person arranged. Rebuilding them never touches the grid.
@@ -617,16 +1229,16 @@ namespace LoveMyShelf {
             var albums=store.VisibleAlbums();
             for(int position=0;position<albums.Count;position++) {
                 Album item=albums[position];int place=position;
-                bool selected=active.Folder==item.Folder;
+                bool selected=trail.Count>0 && trail[0].Folder==item.Folder;
                 var button=UI.Btn(item.Name,()=>Select(item)); button.Margin=new Thickness(0,0,5,0);
                 button.Tag=item;
                 if(item.Source!=null) {
                     button.ToolTip=item.Source;
-                    var hide=new MenuItem {Header=L.T("Hide folder tab")};
+                    var hide=new MenuItem {Header=L.T("Remove from Love My Shelf")};
                     hide.Click+=delegate {
                         try{
                             store.HideFolder(item);
-                            if(active.Folder==item.Folder)Select(allCrops);
+                            if(trail.Count>0 && trail[0].Folder==item.Folder)Select(allCrops);
                             else {
                                 tabs.Children.Remove(button);
                                 // That folder's tiles leave the list and the others slide forward.
@@ -647,6 +1259,21 @@ namespace LoveMyShelf {
                 if(selected){UI.Use(button,Control.ForegroundProperty,"Accent");UI.Use(button,Control.BorderBrushProperty,"Accent");}
                 tabs.Children.Add(button); if(selected) Dispatcher.BeginInvoke(new Action(()=>button.BringIntoView()));
             }
+            if(updateTopBar!=null)updateTopBar();
+        }
+        // The ▾ button's list: both collections, then every folder tab, with the one on screen ticked.
+        internal ContextMenu OpenFolderList() {
+            var menu=new ContextMenu {PlacementTarget=folderList,Placement=PlacementMode.Bottom};
+            Action<Album> add=album=>{
+                var item=new MenuItem {Header=album.Name,IsCheckable=false,IsChecked=active!=null && active.Folder==album.Folder};
+                if(album.Source!=null)item.ToolTip=album.Source;
+                item.Click+=delegate {Select(album);};
+                menu.Items.Add(item);
+            };
+            add(allCrops);add(unfinished);menu.Items.Add(new Separator());
+            foreach(var album in store.VisibleAlbums())add(album);
+            menu.IsOpen=true;
+            return menu;
         }
         internal void MoveTab(Album album,int position) {
             try {store.MoveTab(album,position);BuildTabs();}
@@ -711,6 +1338,7 @@ namespace LoveMyShelf {
             bool changedTheme=settings.Theme!=updated.Theme;
             bool changedStorage=settings.CoverDirectory!=updated.CoverDirectory;
             bool changedGrid=settings.GridGif!=updated.GridGif;
+            bool changedFolders=settings.ShowSubfolders!=updated.ShowSubfolders;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
             settings=updated;MotionWindow.UseDefaults(settings);
@@ -724,6 +1352,8 @@ namespace LoveMyShelf {
             }
             if(changedSort)shuffledOrder=null;
             if(changedSort || changedLanguage)Select(active);
+            else if(changedFolders)Refresh();
+            if(folderPane!=null){PlaceFolderPane();folderPane.Fill();}
             else if(changedGrid)LayoutRows();
             if(changedStorage) {
                 if(String.IsNullOrWhiteSpace(settings.CoverDirectory))EnsureCoverFolder(this);
@@ -737,10 +1367,11 @@ namespace LoveMyShelf {
         async void Refresh() {
             int version=++refreshVersion;
             int skipped=0; folderUnavailable=false;
+            var folders=new List<Tuple<string,int>>();
             try {
                 if(ShowingAllCrops || ShowingUnfinished) {
                     bool pending=ShowingUnfinished;
-                    photos=new List<Photo>(); LayoutRows();
+                    photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
                     canShuffle=false;
                     emptyTitle.Text=L.T("Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
                     count.Text="";count.ToolTip=null;
@@ -753,21 +1384,25 @@ namespace LoveMyShelf {
                 } else {
                     // A folder with thousands of files is read off the UI thread so the window never freezes.
                     var album=active;var sort=settings.Sort;bool descending=settings.Descending;int filterNow=folderFilter;
+                    bool withFolders=true; // the folders inside always show, like File Explorer (their area can be folded or put below the photos)
                     var reading=Task.Run(()=>{
                         int unreadable;
                         var list=store.Photos(album,out unreadable,sort,descending);
                         if(filterNow>0)list=list.Where(p=>p.HasCrop==(filterNow==2)).ToList();
-                        return Tuple.Create(list,unreadable);
+                        var inside=new List<Tuple<string,int>>();
+                        if(withFolders && album.Source!=null)
+                            try {inside=GalleryStore.Subfolders(album.Source,sort,descending);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                        return Tuple.Create(list,unreadable,inside);
                     });
                     // Opening another folder clears the old tiles if reading takes a moment; F5 and search keep them until the new list is ready.
                     if(await Task.WhenAny(reading,Task.Delay(150))!=reading && version==refreshVersion && shownAlbum!=album.Folder) {
-                        photos=new List<Photo>();LayoutRows();
+                        photos=new List<Photo>();subfolders=new List<Tuple<string,int>>();LayoutRows();
                         emptyTitle.Text=L.T("Loading…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
                         count.Text="";count.ToolTip=null;
                     }
                     var read=await reading;
                     if(version!=refreshVersion) return;
-                    photos=read.Item1;skipped=read.Item2;
+                    photos=read.Item1;skipped=read.Item2;folders=read.Item3;
                 }
                 shownAlbum=active.Folder;
             }
@@ -775,6 +1410,8 @@ namespace LoveMyShelf {
             catch(UnauthorizedAccessException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             string query=search.Text.Trim();
             if(query.Length>0)photos=photos.Where(p=>p!=null && p.Name.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
+            if(query.Length>0)folders=folders.Where(f=>Path.GetFileName(f.Item1).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
+            subfolders=folders;
             ClearSelection();
             // Extra covers keep following their original's main tile (the sort is stable).
             if(shuffledOrder!=null) photos=photos.OrderBy(p=>{
@@ -786,16 +1423,39 @@ namespace LoveMyShelf {
         }
         void ShowPhotos(Reflow reflow=null) {
             SetCount(skippedCount);
-            bool pending=ShowingPending;
+            // No filter and no search, and still nothing: this folder really has no photos or videos.
+            bool noFiles=photos.Count==0 && !folderUnavailable && active.Source!=null && folderFilter==0 && search.Text.Trim().Length==0;
+            folderPane.Show(subfolders,noFiles,active.Folder);
+            ShowEmptyNote();
+            if(reflow!=null)ApplyReflow(reflow);else LayoutRows();
+        }
+        // Nothing on screen because the folders here are folded: say so, so it never looks frozen.
+        bool FoldersFoldedAway {get {return photos.Count==0 && subfolders.Count>0 && folderPane.IsFolded;}}
+        internal void ShowEmptyNote() {
+            bool pending=ShowingPending,searching=search.Text.Trim().Length>0,foldedAway=FoldersFoldedAway;
             bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
             emptyTitle.Text=folderUnavailable?L.T("This folder could not be opened"):
-                L.T(pending?"No unfinished covers here":coversOnly?"No covers yet":"No photos or videos in this folder");
+                L.T(searching?"No names match your search":pending?"No unfinished covers here":coversOnly?"No covers yet":"No photos or videos in this folder");
             emptyHelp.Text=folderUnavailable?L.T("Check the folder location and permissions, then press F5."):
-                L.T(ShowingUnfinished?"Unfinished items from visible folder tabs appear here.":
+                L.T(searching?"Try another name, or clear the search.":
+                    ShowingUnfinished?"Unfinished items from visible folder tabs appear here.":
                     pending?"Change the folder filter to see all items.":
                     coversOnly?"Open a local folder and make a cover to see it here.":"Choose another folder or add files and press F5.");
-            empty.Visibility=photos.Count==0?Visibility.Visible:Visibility.Collapsed;
-            if(reflow!=null)ApplyReflow(reflow);else LayoutRows();
+            // Nothing added yet: point to the folder tree, where folders are added (and open it).
+            bool noFolders=store.VisibleAlbums().Count==0;
+            if(foldedAway) {
+                emptyHelp.Text=L.F("Folders inside: {0:N0}. They are folded away right now.",subfolders.Count);
+                emptyAction.Content=L.F("Show folders ({0:N0})",subfolders.Count);
+            } else {
+                emptyAction.Content=L.T("Choose a folder…");
+                if(noFolders && !folderUnavailable) {
+                    emptyTitle.Text=L.T("Add a folder to Love My Shelf");
+                    emptyHelp.Text=L.T("In the folder tree on the left, right-click a folder and choose Add to Love My Shelf. You can also drag a folder from File Explorer onto this window.");
+                    if(treePanel.Visibility!=Visibility.Visible)ShowTree(true,false);
+                }
+            }
+            emptyAction.Visibility=noFolders||foldedAway?Visibility.Visible:Visibility.Collapsed;
+            empty.Visibility=photos.Count==0 && (subfolders.Count==0||foldedAway)?Visibility.Visible:Visibility.Collapsed;
         }
         void SetCount(int skipped) {
             // Counts are of originals: an original's extra cover tiles are not counted again.
@@ -808,6 +1468,7 @@ namespace LoveMyShelf {
             else if(folderFilter==2)count.Text=L.F("{0:N0} finished",covers);
             else count.Text=L.F("{1:N0} of {0:N0} finished",total,covers);
             if(skipped>0)count.Text+="   ·   "+L.F("{0:N0} unreadable",skipped);
+            updateFooter();
         }
         // Set before a layout that should start at the top (a different view, Shuffle).
         bool scrollToTop=true;
@@ -825,17 +1486,26 @@ namespace LoveMyShelf {
             var scroller=FindScroller(grid);
             int firstTile=-1;
             if(!scrollToTop && scroller!=null && rowHeight>0 && columns>0 && scroller.VerticalOffset>0)
-                firstTile=(int)Math.Floor(scroller.VerticalOffset/rowHeight)*columns;
+                firstTile=Math.Max(0,(int)Math.Floor(scroller.VerticalOffset/rowHeight)-folderRows)*columns;
             scrollToTop=false;
             double width=Math.Max(200,grid.ActualWidth-SystemParameters.VerticalScrollBarWidth-2);
             columns=Math.Max(2,(int)Math.Floor(width/density));
             double height=(width/columns-1)*16/9+1;
             rowHeight=height;cellWidth=width/columns;
             rows=new List<PhotoRow>();
+            // Folder tiles come first, in rows of their own; the file rows follow (their numbers count the folder rows).
+            // Three folder cards are stacked in each cell, so a row holds three times as many folders as tiles.
+            // Folders now have their own area (FolderPane) above or below the photos; the photo grid has none.
+            var gridFolders=new List<Tuple<string,int>>();
+            int perRow=columns*FoldersPerCell;
+            folderRows=(gridFolders.Count+perRow-1)/perRow;
+            for(int i=0;i<gridFolders.Count;i+=perRow)
+                rows.Add(new PhotoRow {Owner=this,Columns=columns,Height=height,Number=i/perRow,Photos=new List<Photo>(),
+                    Folders=gridFolders.GetRange(i,Math.Min(gridFolders.Count-i,perRow))});
             for(int i=0;i<photos.Count;i+=columns) rows.Add(MakeRow(i,height));
             if(reflow!=null && scroller!=null) {
                 // Keep the same tile in view (to the pixel), build the rows at once, then let the tiles slide.
-                double target=firstTileOverride>=0?Math.Floor(firstTileOverride/(double)columns)*height+reflow.Fraction:0;
+                double target=firstTileOverride>=0?(Math.Floor(firstTileOverride/(double)columns)+folderRows)*height+reflow.Fraction:0;
                 reflow.Cell=cellWidth;reflow.Viewport=scroller.ViewportHeight;
                 reflow.NewOffset=Math.Max(0,Math.Min(target,Math.Max(0,rows.Count*height-scroller.ViewportHeight)));
                 CurrentReflow=reflow;
@@ -846,7 +1516,7 @@ namespace LoveMyShelf {
             }
             grid.ItemsSource=rows;
             if(firstTile>0 && scroller!=null) {
-                double offset=Math.Floor(firstTile/(double)columns)*height;
+                double offset=(Math.Floor(firstTile/(double)columns)+folderRows)*height;
                 Dispatcher.BeginInvoke(new Action(()=>scroller.ScrollToVerticalOffset(offset)),DispatcherPriority.Loaded);
             }
         }
@@ -929,7 +1599,7 @@ namespace LoveMyShelf {
         internal event Action SettingsChangedEvent;
         void SettingsChanged() {updateFooter();var handler=SettingsChangedEvent;if(handler!=null)handler();}
         PhotoRow MakeRow(int start,double height) {
-            return new PhotoRow { Owner=this,Columns=columns,Height=height,Number=start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
+            return new PhotoRow { Owner=this,Columns=columns,Height=height,Number=folderRows+start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
         }
         internal bool EditFrames(Viewer playback) {
             if(!EnsureCoverFolder(playback))return false;
@@ -1258,7 +1928,7 @@ namespace LoveMyShelf {
                 reflow.Old[pair.Key]=point;
                 if(!reflow.Calibrated) {
                     reflow.OriginX=point.X-(at%columns)*cellWidth;
-                    reflow.OriginY=point.Y-((at/columns)*rowHeight-offset);
+                    reflow.OriginY=point.Y-((folderRows+at/columns)*rowHeight-offset);
                     reflow.Calibrated=true;
                 }
                 var image=tile.Content as Image;
@@ -1338,7 +2008,7 @@ namespace LoveMyShelf {
             if(photo!=null && photo.LeadFolder==null && photos[index]!=null && photos[index].LeadFolder!=null && photo.Folder==photos[index].Folder)
                 photo.LeadFolder=photos[index].LeadFolder;
             photos[index]=photo;
-            rows[index/columns].Replace(index%columns,photo);
+            rows[folderRows+index/columns].Replace(index%columns,photo);
             SetCount(skippedCount);
         }
         public void OpenPhoto(Photo photo) {
@@ -1357,6 +2027,10 @@ namespace LoveMyShelf {
         internal void OpenAnotherWindow() {OpenAnotherWindow(null);}
         // folder: the tab the new window starts on (a folder, or the key of a collection); null starts where it usually would.
         string startFolder;
+        // A folder tile's "Open in new window": that folder becomes the new window's starting place.
+        internal void OpenFolderInNewWindow(string path) {
+            try {OpenAnotherWindow(store.OpenSubfolder(path).Folder);} catch(Exception ex) {UI.Error(this,ex);}
+        }
         internal void OpenAnotherWindow(string folder) {
             try {
                 var other=new GalleryWindow(store,moveToRecycleBin,pickCoverFolder,true);
@@ -1424,32 +2098,96 @@ namespace LoveMyShelf {
             dropHintText.Text=NoticeLook.KeepWords(text);dropHint.Visibility=Visibility.Visible;
             dropHintTimer.Stop();dropHintTimer.Start(); // DragOver keeps coming while the pointer is here
         }
-        void HideDropHint() {dropHintTimer.Stop();dropHint.Visibility=Visibility.Collapsed;}
+        void HideDropHint() {dropHintTimer.Stop();dropHint.Visibility=Visibility.Collapsed;MarkDropFolder(null);}
 
         string[] DraggedOriginals(IDataObject data) {
             var text=data.GetData(MoveFormat) as string;
             return String.IsNullOrEmpty(text)?new string[0]:text.Split(new[]{'\n'},StringSplitOptions.RemoveEmptyEntries);
         }
         // The folder tab being shown is where dropped files go; the cover collections have no folder to drop into.
-        bool CanDropMoves(string[] originals) {
-            return originals.Length>0 && active!=null && active.Source!=null && Directory.Exists(active.Source)
-                && originals.Any(p=>!Mover.SameFolder(Path.GetDirectoryName(p),active.Source));
+        bool CanDropMoves(string[] originals,string target) {
+            return originals.Length>0 && target!=null && Directory.Exists(target)
+                && originals.Any(p=>!Mover.SameFolder(Path.GetDirectoryName(p),target));
+        }
+        // A folder tile under the pointer takes the files into that folder; anywhere else they go to the folder on screen.
+        // A folder tile or a folder row of the tree under the pointer, or null.
+        static Control FolderTileAt(DragEventArgs e) {
+            var row=FolderTree.FolderRowAt(e.OriginalSource);
+            if(row!=null)return row;
+            var node=e.OriginalSource as DependencyObject;
+            while(node!=null) {
+                var button=node as Button;
+                if(button!=null && button.Tag is FolderTarget)return button;
+                node=(node is Visual || node is System.Windows.Media.Media3D.Visual3D)?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
+            }
+            return null;
+        }
+        static string DropPath(Control target) {
+            if(target==null)return null;
+            var tile=target.Tag as FolderTarget;if(tile!=null)return tile.Path;
+            var entry=target.Tag as TreeEntry;return entry==null?null:entry.Path;
+        }
+        Control dropFolderTile;
+        void MarkDropFolder(Control tile) {
+            if(dropFolderTile==tile)return;
+            if(dropFolderTile is TreeViewItem)dropFolderTile.ClearValue(Control.BackgroundProperty);
+            else if(dropFolderTile!=null && ((FolderTarget)dropFolderTile.Tag).Plain){dropFolderTile.ClearValue(Control.BorderBrushProperty);dropFolderTile.ClearValue(Control.BackgroundProperty);}
+            else if(dropFolderTile!=null){dropFolderTile.SetResourceReference(Control.BorderBrushProperty,"Line");dropFolderTile.SetResourceReference(Control.BackgroundProperty,"Panel");}
+            dropFolderTile=tile;
+            if(tile is TreeViewItem)tile.SetResourceReference(Control.BackgroundProperty,"Raised");
+            else if(tile!=null){tile.SetResourceReference(Control.BorderBrushProperty,"Accent");tile.SetResourceReference(Control.BackgroundProperty,"Raised");}
+        }
+        // Like File Explorer: files move within the same drive and are copied to another drive;
+        // Ctrl always copies and Shift always moves.
+        static bool CopiesOnDrop(DragEventArgs e,string[] originals,string target) {
+            if((e.KeyStates&DragDropKeyStates.ControlKey)!=0)return true;
+            if((e.KeyStates&DragDropKeyStates.ShiftKey)!=0)return false;
+            try {
+                string root=Path.GetPathRoot(Path.GetFullPath(target));
+                return originals.Any(p=>!String.Equals(Path.GetPathRoot(Path.GetFullPath(p)),root,StringComparison.OrdinalIgnoreCase));
+            } catch(Exception) {return false;}
+        }
+        // Like File Explorer, holding dragged files over a folded folder in the tree for a moment unfolds it,
+        // and holding them near the tree's top or bottom edge scrolls it.
+        TreeViewItem hoverRow;DateTime hoverSince;
+        void HoverUnfold(TreeViewItem row) {
+            if(row!=hoverRow){hoverRow=row;hoverSince=DateTime.UtcNow;return;}
+            if(!row.IsExpanded && row.HasItems && (DateTime.UtcNow-hoverSince).TotalMilliseconds>800)row.IsExpanded=true;
+        }
+        void ScrollTreeNearEdge(DragEventArgs e) {
+            if(tree==null || treePanel.Visibility!=Visibility.Visible)return;
+            var scroller=FindScroller(tree);if(scroller==null)return;
+            double y=e.GetPosition(scroller).Y,x=e.GetPosition(scroller).X;
+            if(x<0 || x>scroller.ActualWidth)return;
+            if(y>=0 && y<28)scroller.ScrollToVerticalOffset(scroller.VerticalOffset-8);
+            else if(y>scroller.ActualHeight-28 && y<=scroller.ActualHeight)scroller.ScrollToVerticalOffset(scroller.VerticalOffset+8);
         }
         void MoveDragOver(DragEventArgs e) {
             var originals=DraggedOriginals(e.Data);
             e.Handled=true;
-            if(!CanDropMoves(originals)){e.Effects=DragDropEffects.None;HideDropHint();return;}
-            bool copy=(e.KeyStates&DragDropKeyStates.ControlKey)!=0;
+            var tile=FolderTileAt(e);
+            string target=tile!=null?DropPath(tile):active==null?null:active.Source;
+            if(!CanDropMoves(originals,target)){e.Effects=DragDropEffects.None;HideDropHint();MarkDropFolder(null);return;}
+            bool copy=CopiesOnDrop(e,originals,target);
             e.Effects=copy?DragDropEffects.Copy:DragDropEffects.Link; // Link is this app's own "move" (the allowed effects keep other programs from moving the files)
-            ShowDropHint(L.F(copy?"Let go to copy {0:N0} to “{1}”.":"Let go to move {0:N0} to “{1}”. Hold Ctrl to copy instead.",originals.Length,active.Name));
+            MarkDropFolder(tile);
+            if(tile is TreeViewItem)HoverUnfold((TreeViewItem)tile);
+            ScrollTreeNearEdge(e);
+            if(tile!=null)ShowDropHint(L.F(copy?"Let go to copy {0:N0} into “{1}”.":"Let go to move {0:N0} into “{1}”.",originals.Length,Path.GetFileName(target)));
+            else ShowDropHint(L.F(copy?"Let go to copy {0:N0} to “{1}”.":"Let go to move {0:N0} to “{1}”. Hold Ctrl to copy instead.",originals.Length,active.Name));
+            if(!(tile is TreeViewItem))hoverRow=null;
         }
         void MoveDrop(DragEventArgs e) {
-            e.Handled=true;HideDropHint();
+            e.Handled=true;HideDropHint();MarkDropFolder(null);
             var originals=DraggedOriginals(e.Data);
-            if(!CanDropMoves(originals))return;
-            bool copy=(e.KeyStates&DragDropKeyStates.ControlKey)!=0;
+            var tile=FolderTileAt(e);
+            string targetPath=tile!=null?DropPath(tile):active==null?null:active.Source;
+            if(!CanDropMoves(originals,targetPath))return;
+            bool copy=CopiesOnDrop(e,originals,targetPath);
             e.Effects=copy?DragDropEffects.Copy:DragDropEffects.Link;
-            var target=active;
+            Album target;
+            if(tile==null)target=active;
+            else try {target=store.OpenSubfolder(targetPath);} catch(Exception ex) {UI.Error(this,ex);return;}
             // Start after the drag ends, so a question or notice doesn't open in the middle of the drag.
             Dispatcher.BeginInvoke(new Action(()=>MoveOriginals(originals,copy,target)),DispatcherPriority.ApplicationIdle);
         }
@@ -1516,6 +2254,262 @@ namespace LoveMyShelf {
             return new List<Photo>{photo};
         }
 
+        // ---------- The right-click menu: ours, then File Explorer's ----------
+        internal static Point MenuPoint(FrameworkElement at,ContextMenuEventArgs e) {
+            if(e!=null && e.CursorLeft>=0){var p=System.Windows.Forms.Cursor.Position;return new Point(p.X,p.Y);}
+            return at.PointToScreen(new Point(at.ActualWidth/2,at.ActualHeight/2)); // opened from the keyboard
+        }
+        internal string RangeHint {get {return L.T("Choose many: hold the right button and drag");}}
+        internal void ShowFileMenu(Photo photo,ContextMenu own,FrameworkElement at,ContextMenuEventArgs e) {
+            var targets=Targets(photo);
+            var take=new ShellMenu.Takeovers {
+                Delete=()=>{
+                    if(targets.Count>1){DeleteSelected();return;}
+                    if(ShowingAllCrops)RecycleCover(photo);else RecycleOriginal(photo);
+                },
+                Rename=()=>{if(targets.Count==1 && photo.Linked)RenameOriginal(photo);},
+                Cut=()=>CopyToClipboard(true,targets),Copy=()=>CopyToClipboard(false,targets),Paste=()=>PasteFromClipboard(null)
+            };
+            ShellMenu.Show(this,own,ClipboardFiles(targets),MenuPoint(at,e),take,RefreshSoon,RangeHint);
+        }
+        // For a folder (in the folders area or the tree): Windows does what it does to folders, except Rename
+        // (it needs File Explorer's own view) and Paste, which Love My Shelf does so covers follow.
+        internal void ShowFolderMenu(ContextMenu own,IList<string> folders,FrameworkElement at,ContextMenuEventArgs e) {
+            var take=new ShellMenu.Takeovers {HideRename=true,LiftDelete=true,Paste=folders.Count==1?(Action)(()=>PasteFromClipboard(folders[0])):null};
+            ShellMenu.Show(this,own,folders,MenuPoint(at,e),take,()=>{
+                // The folder on screen was just deleted: go to the nearest folder still there, like File Explorer.
+                if(active!=null && active.Source!=null && !Directory.Exists(active.Source)) {
+                    string up=Path.GetDirectoryName(active.Source.TrimEnd(Path.DirectorySeparatorChar));
+                    while(up!=null && !Directory.Exists(up))up=Path.GetDirectoryName(up);
+                    if(up!=null)NavigateTo(up);
+                }
+                RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+            });
+        }
+        DispatcherTimer refreshSoon;
+        // After Windows ran something from its menu (it may have changed files), read the folder again shortly.
+        internal void RefreshSoon() {
+            if(refreshSoon==null){refreshSoon=new DispatcherTimer {Interval=TimeSpan.FromSeconds(1.2)};refreshSoon.Tick+=delegate {refreshSoon.Stop();Refresh();};}
+            refreshSoon.Stop();refreshSoon.Start();
+        }
+
+        static bool IsOnTileOrBar(object source) {
+            for(var node=source as DependencyObject;node!=null;node=(node is Visual || node is System.Windows.Media.Media3D.Visual3D)?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node))
+                if(node is ButtonBase || node is ScrollBar)return true;
+            return false;
+        }
+        // Love My Shelf's part of the blank-space menu: View (tile size, the folders' view and place), Sort by, Refresh;
+        // then Windows' own part for the folder on screen (New, Paste, Properties, ...). Paste is done by Love My Shelf.
+        internal void ShowBackgroundMenu(FrameworkElement at,ContextMenuEventArgs e) {
+            var own=new ContextMenu();
+            var view=new MenuItem {Header=L.T("View")};
+            foreach(var size in new[]{Tuple.Create(88,"Small tiles"),Tuple.Create(120,"Medium tiles"),Tuple.Create(164,"Large tiles"),Tuple.Create(220,"Extra large tiles")}) {
+                int value=size.Item1;var item=new MenuItem {Header=L.T(size.Item2),IsChecked=density==value};
+                item.Click+=delegate {density=value;LayoutRows();};view.Items.Add(item);
+            }
+            view.Items.Add(new Separator());
+            var folders=new MenuItem {Header=L.T("Folders")};
+            var names=new[]{"Extra large icons","Large icons","Medium icons","Small icons","List","Details view","Tiles","Content"};
+            for(int i=0;i<names.Length;i++){int choice=i;var item=new MenuItem {Header=L.T(names[i]),IsChecked=settings.FolderView==i};item.Click+=delegate {SaveFolderView(choice,null);};folders.Items.Add(item);}
+            folders.Items.Add(new Separator());
+            foreach(bool below in new[]{false,true}){bool value=below;var item=new MenuItem {Header=L.T(below?"Folders below the photos":"Folders above the photos"),IsChecked=settings.FoldersBelow==below};item.Click+=delegate {SaveFolderView(null,value);};folders.Items.Add(item);}
+            view.Items.Add(folders);
+            own.Items.Add(view);
+            var sortBy=new MenuItem {Header=L.T("Sort by")};
+            var sortMenu=SortMenu();
+            foreach(var item in sortMenu.Items.Cast<object>().ToList()){sortMenu.Items.Remove(item);sortBy.Items.Add(item);}
+            own.Items.Add(sortBy);
+            var refresh=new MenuItem {Header=L.T("Refresh"),InputGestureText="F5"};refresh.Click+=delegate {Refresh();StartCoverMigration();};
+            own.Items.Add(refresh);
+            // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
+            own.Items.Add(new Separator());
+            bool canPaste=false;try {canPaste=active!=null && active.Source!=null && Clipboard.ContainsFileDropList();} catch(Exception) {}
+            var paste=new MenuItem {Header=L.T("Paste"),InputGestureText="Ctrl+V",IsEnabled=canPaste};paste.Click+=delegate {PasteFromClipboard(null);};
+            own.Items.Add(paste);
+            bool canUndo;lock(moveHistory)canUndo=moveHistory.Count>0;
+            var undo=new MenuItem {Header=L.T("Undo move"),InputGestureText="Ctrl+Z",IsEnabled=canUndo};undo.Click+=delegate {UndoMove();};
+            own.Items.Add(undo);
+            string folder=active!=null?active.Source:null;
+            if(folder==null){ShellMenu.Show(this,own,new string[0],MenuPoint(at,e),null,null);return;}
+            var take=new ShellMenu.Takeovers {Paste=()=>PasteFromClipboard(null)};
+            ShellMenu.ShowBackground(this,own,folder,MenuPoint(at,e),take,()=>{RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}});
+        }
+
+        // ---------- Copy, cut and paste (Ctrl+C, Ctrl+X, Ctrl+V), shared with File Explorer and other programs ----------
+        // Shared by all windows: cutting in one and pasting in another clears the faded look everywhere, like File Explorer.
+        static readonly HashSet<string> cutFolders=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        static void ShowCutLookEverywhere() {foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.ShowCutLook();}
+        // The files of these tiles: originals in a folder, the cover files in Cover collection.
+        List<string> ClipboardFiles(IList<Photo> targets) {
+            var files=ShowingAllCrops?targets.Select(p=>p.ActiveCoverFile):targets.Where(p=>p.Linked).Select(p=>p.Original);
+            return files.Where(f=>f!=null && File.Exists(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        internal void CopyToClipboard(bool cut,IList<Photo> targets=null) {
+            targets=targets??Targets(FocusedOrOnly());
+            var files=ClipboardFiles(targets);if(files.Count==0)return;
+            if(ShowingAllCrops)cut=false; // a cover file is copied; covers leave only with their original
+            var list=new System.Collections.Specialized.StringCollection();list.AddRange(files.ToArray());
+            var data=new DataObject();data.SetFileDropList(list);
+            // The same mark File Explorer reads: 2 = move (cut), 5 = copy.
+            data.SetData("Preferred DropEffect",new MemoryStream(BitConverter.GetBytes(cut?2:5)));
+            for(int tries=0;;tries++) {
+                try {Clipboard.SetDataObject(data,true);break;}
+                catch(System.Runtime.InteropServices.COMException) {if(tries>=4)return;Thread.Sleep(60);}
+            }
+            cutFolders.Clear();
+            if(cut)foreach(var p in targets){cutFolders.Add(p.Folder);if(p.LeadFolder!=null)cutFolders.Add(p.LeadFolder);}
+            ShowCutLookEverywhere();
+        }
+        // Cut tiles look faded until they are pasted, like File Explorer.
+        void ShowCutLook() {foreach(var pair in shownTiles)pair.Value.Opacity=cutFolders.Contains(pair.Key)?0.45:1;}
+        // Pastes the files on the clipboard into this folder (or into the given folder).
+        internal void PasteFromClipboard(string folder) {
+            Album target;
+            if(folder!=null){try {target=store.OpenSubfolder(folder);} catch(Exception ex) {UI.Error(this,ex);return;}}
+            else target=active;
+            if(target==null || target.Source==null) {
+                Notify(L.T("Nothing can be pasted here"),L.T("Open a folder first. The cover collections aren't folders."),null,NoticeKind.Info);return;
+            }
+            System.Collections.Specialized.StringCollection list;int effect=5;
+            try {
+                if(!Clipboard.ContainsFileDropList())return;
+                list=Clipboard.GetFileDropList();
+                var mark=Clipboard.GetData("Preferred DropEffect") as MemoryStream;
+                if(mark!=null && mark.Length>=4){var bytes=new byte[4];mark.Position=0;mark.Read(bytes,0,4);effect=BitConverter.ToInt32(bytes,0);}
+            } catch(Exception) {return;}
+            bool move=(effect&2)!=0 && (effect&1)==0;
+            var all=list.Cast<string>().ToList();
+            var files=all.Where(File.Exists).ToArray();
+            int folders=all.Count(Directory.Exists);
+            if(folders>0)Notify(L.T("Folders aren’t pasted"),L.F("{0:N0} folders were left out. Love My Shelf pastes files only.",folders),null,NoticeKind.Info);
+            if(files.Length==0)return;
+            MoveOriginals(files,!move,target);
+            if(move){try {Clipboard.Clear();} catch(Exception) {}cutFolders.Clear();ShowCutLookEverywhere();}
+        }
+
+        // ---------- Range selection (a rectangle drawn with the right button, or the left one from empty space) ----------
+        readonly Canvas marqueeLayer=new Canvas {IsHitTestVisible=false,ClipToBounds=true};
+        readonly Grid marqueeBox=new Grid {Visibility=Visibility.Collapsed};
+        readonly TextBlock marqueeCount=new TextBlock {FontSize=12,FontWeight=FontWeights.SemiBold,Padding=new Thickness(6,2,6,2)};
+        readonly Border marqueeLabel=new Border {CornerRadius=new CornerRadius(4),Visibility=Visibility.Collapsed};
+        readonly DispatcherTimer marqueeScroll=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(30)};
+        bool marqueePending,marqueeActive;MouseButton marqueeButton;Point marqueeStart;HashSet<string> marqueeBase=new HashSet<string>();
+        void SetupMarquee(Grid host) {
+            var fill=new Border {Opacity=0.16};fill.SetResourceReference(Border.BackgroundProperty,"Accent");
+            var edge=new Border {BorderThickness=new Thickness(1)};edge.SetResourceReference(Border.BorderBrushProperty,"Accent");
+            marqueeBox.Children.Add(fill);marqueeBox.Children.Add(edge);marqueeLayer.Children.Add(marqueeBox);
+            marqueeLabel.SetResourceReference(Border.BackgroundProperty,"CardBack");marqueeCount.SetResourceReference(TextBlock.ForegroundProperty,"Text");
+            marqueeLabel.Child=marqueeCount;marqueeLayer.Children.Add(marqueeLabel);
+            Panel.SetZIndex(marqueeLayer,5);host.Children.Add(marqueeLayer);
+            // Until range selection has been used a few times, a small note in the corner of the photos keeps reminding
+            // of it (it fits even in half a screen). × hides it until the next start.
+            var close=new Button {Content="×",Padding=new Thickness(6,0,2,0),BorderThickness=new Thickness(0),Background=Brushes.Transparent,
+                FontSize=13,MinHeight=0,VerticalAlignment=VerticalAlignment.Center,Cursor=Cursors.Hand};
+            close.SetResourceReference(Control.ForegroundProperty,"Subtle");
+            close.Click+=delegate {rangeHintClosed=true;ShowRangeHint();};
+            var line=new StackPanel {Orientation=Orientation.Horizontal};
+            marqueeHint.VerticalAlignment=VerticalAlignment.Center;line.Children.Add(marqueeHint);line.Children.Add(close);
+            rangeHint.Child=line;rangeHint.SetResourceReference(Border.BackgroundProperty,"CardBack");rangeHint.SetResourceReference(Border.BorderBrushProperty,"Line");
+            Panel.SetZIndex(rangeHint,4);host.Children.Add(rangeHint);
+            marqueeScroll.Tick+=delegate {
+                var scroller=FindScroller(grid);if(scroller==null || !marqueeActive)return;
+                var at=Mouse.GetPosition(scroller);
+                if(at.Y<24)scroller.ScrollToVerticalOffset(scroller.VerticalOffset-Math.Max(6,24-at.Y));
+                else if(at.Y>scroller.ViewportHeight-24)scroller.ScrollToVerticalOffset(scroller.VerticalOffset+Math.Max(6,at.Y-scroller.ViewportHeight+24));
+                else return;
+                MarqueeDraw(at);
+            };
+        }
+        // Where a point is on the whole (scrolled) list of tiles.
+        static Point MarqueeContent(Point onScroller,ScrollViewer scroller) {return new Point(onScroller.X,onScroller.Y+scroller.VerticalOffset);}
+        void MarqueeArm(MouseButtonEventArgs e,MouseButton button) {
+            var scroller=FindScroller(grid);if(scroller==null || rows==null || columns<=0)return;
+            var at=e.GetPosition(scroller);
+            if(at.X<0 || at.Y<0 || at.X>scroller.ViewportWidth || at.Y>scroller.ViewportHeight)return;
+            marqueePending=true;marqueeButton=button;marqueeStart=MarqueeContent(at,scroller);
+        }
+        void MarqueeMove(MouseEventArgs e) {
+            if(!marqueePending && !marqueeActive)return;
+            var pressed=marqueeButton==MouseButton.Right?e.RightButton:e.LeftButton;
+            if(pressed!=MouseButtonState.Pressed){marqueePending=false;if(marqueeActive)MarqueeEnd(false);return;}
+            var scroller=FindScroller(grid);if(scroller==null)return;
+            var at=e.GetPosition(scroller);
+            if(!marqueeActive) {
+                var now=MarqueeContent(at,scroller);
+                if(Math.Abs(now.X-marqueeStart.X)<4 && Math.Abs(now.Y-marqueeStart.Y)<4)return;
+                marqueeActive=true;marqueePending=false;
+                marqueeBase=(Keyboard.Modifiers&ModifierKeys.Control)!=0?new HashSet<string>(selected,StringComparer.OrdinalIgnoreCase):new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                grid.CaptureMouse();marqueeScroll.Start();HideName();
+            }
+            MarqueeDraw(at);e.Handled=true;
+        }
+        void MarqueeDraw(Point at) {
+            var scroller=FindScroller(grid);if(scroller==null || columns<=0 || rowHeight<=0)return;
+            var now=MarqueeContent(at,scroller);
+            double left=Math.Min(marqueeStart.X,now.X),right=Math.Max(marqueeStart.X,now.X),top=Math.Min(marqueeStart.Y,now.Y),bottom=Math.Max(marqueeStart.Y,now.Y);
+            left=Math.Max(0,left);right=Math.Min(scroller.ViewportWidth,right);top=Math.Max(0,top);
+            // Tiles touched by the rectangle, worked out from their places (tiles off screen count too).
+            double cell=scroller.ViewportWidth/columns;
+            var hits=new HashSet<string>(StringComparer.OrdinalIgnoreCase);int lastHit=-1;
+            int firstRow=(int)Math.Floor(top/rowHeight),lastRow=(int)Math.Floor(Math.Max(top,bottom-0.01)/rowHeight);
+            int firstColumn=Math.Max(0,(int)Math.Floor(left/cell)),lastColumn=Math.Min(columns-1,(int)Math.Floor(Math.Max(left,right-0.01)/cell));
+            for(int r=Math.Max(folderRows,firstRow);r<=lastRow;r++)
+                for(int c=firstColumn;c<=lastColumn;c++) {
+                    int index=(r-folderRows)*columns+c;
+                    if(index<0 || index>=photos.Count || photos[index]==null)continue;
+                    hits.Add(photos[index].Folder);lastHit=index;
+                }
+            selected.Clear();
+            foreach(var f in marqueeBase)if(!hits.Contains(f))selected.Add(f);
+            foreach(var f in hits)if(!marqueeBase.Contains(f))selected.Add(f);
+            if(lastHit>=0){focusIndex=lastHit;anchorIndex=lastHit;}
+            RefreshSelection();
+            // The rectangle on screen (in the layer over the tiles).
+            var a=scroller.TranslatePoint(new Point(left,top-scroller.VerticalOffset),marqueeLayer);
+            var b=scroller.TranslatePoint(new Point(right,bottom-scroller.VerticalOffset),marqueeLayer);
+            Canvas.SetLeft(marqueeBox,a.X);Canvas.SetTop(marqueeBox,a.Y);
+            marqueeBox.Width=Math.Max(1,b.X-a.X);marqueeBox.Height=Math.Max(1,b.Y-a.Y);marqueeBox.Visibility=Visibility.Visible;
+            marqueeCount.Text=L.F("{0:N0} selected",selected.Count);marqueeLabel.Visibility=Visibility.Visible;
+            var pointer=scroller.TranslatePoint(at,marqueeLayer);
+            Canvas.SetLeft(marqueeLabel,pointer.X+14);Canvas.SetTop(marqueeLabel,pointer.Y+16);
+        }
+        void MarqueeUp(MouseButtonEventArgs e,MouseButton button) {
+            if(button!=marqueeButton)return;
+            marqueePending=false;
+            if(!marqueeActive)return;
+            MarqueeEnd(false);e.Handled=true; // the right button's menu doesn't open after drawing
+        }
+        void MarqueeEnd(bool cancel) {
+            if(!marqueeActive)return;
+            marqueeActive=false;marqueeScroll.Stop();
+            if(grid.IsMouseCaptured)grid.ReleaseMouseCapture();
+            marqueeBox.Visibility=marqueeLabel.Visibility=Visibility.Collapsed;
+            if(cancel){selected.Clear();foreach(var f in marqueeBase)selected.Add(f);RefreshSelection();return;}
+            if(marqueeButton==MouseButton.Right && settings.MarqueeUses<1000) {
+                var updated=settings.Copy();updated.MarqueeUses++;
+                try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
+                updateFooter();
+            }
+        }
+        // ----- Telling people about it, often enough (it isn't the usual way) -----
+        bool marqueeTipThisRun,rangeHintClosed;DateTime lastDragTip=DateTime.MinValue;
+        readonly Border rangeHint=new Border {CornerRadius=new CornerRadius(12),Padding=new Thickness(12,5,6,5),BorderThickness=new Thickness(1),
+            HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(12,12,24,12),Visibility=Visibility.Collapsed};
+        void ShowRangeHint() {
+            marqueeHint.Text=L.T("Hold the right button and drag to choose many");
+            rangeHint.Visibility=settings.MarqueeUses<3 && !rangeHintClosed && photos.Count>1?Visibility.Visible:Visibility.Collapsed;
+        }
+        void MarqueeTip() {
+            if(settings.MarqueeUses>=3)return;
+            Notify(L.T("Choosing many at once"),L.T("Hold the right mouse button and drag over the tiles. Every tile the rectangle touches is chosen. (Starting on empty space, the left button works too.)"),null,NoticeKind.Info);
+        }
+        // A tile was dragged with the left button and let go where nothing takes it: probably meant to choose a range.
+        internal void NoteDragWithoutDrop() {
+            if(settings.MarqueeUses>=3 || (DateTime.UtcNow-lastDragTip).TotalSeconds<60)return;
+            lastDragTip=DateTime.UtcNow;
+            Notify(L.T("To choose a range, use the right button"),L.T("Hold the right mouse button and drag over the tiles. The left button moves files instead."),null,NoticeKind.Info);
+        }
+
         // ---------- Explorer state: selection, keys, search, rename, details ----------
         readonly HashSet<string> selected=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int focusIndex=-1,anchorIndex=-1;
@@ -1524,24 +2518,67 @@ namespace LoveMyShelf {
         readonly TextBlock searchHint=UI.Text("",12,true);
         readonly DispatcherTimer searchTimer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(250)};
         internal IEnumerable<Photo> SelectedPhotos {get {return photos.Where(p=>p!=null && selected.Contains(p.Folder));}}
+        readonly Button searchButton=new Button {MinHeight=27,Padding=new Thickness(7,4,7,4)};
+        readonly Grid searchField=new Grid {VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed};
+        internal bool SearchOpen {get {return searchField.Visibility==Visibility.Visible;}}
+        // Name search is a magnifier button; it opens into a box only while it is being used, so the folder tabs keep the room.
         FrameworkElement SearchBox() {
-            var host=new Grid {VerticalAlignment=VerticalAlignment.Center};
-            search.SetResourceReference(Control.BorderBrushProperty,"Line");
-            searchHint.IsHitTestVisible=false;searchHint.Margin=new Thickness(10,0,0,0);
-            host.Children.Add(search);host.Children.Add(searchHint);
+            var host=new Grid {VerticalAlignment=VerticalAlignment.Stretch};
+            searchButton.Content=LineIcon("M 7.5,2 A 5.5,5.5 0 1 1 7.49,2 Z M 11.4,11.4 L 16,16");
+            searchButton.Click+=delegate {OpenSearch();};
+            // Rounded like the buttons around it; the edge lights up while typing.
+            search.BorderThickness=new Thickness(0);search.Background=Brushes.Transparent;
+            searchHint.IsHitTestVisible=false;searchHint.Margin=new Thickness(10,0,0,0);searchHint.VerticalAlignment=VerticalAlignment.Center;
+            var frame=new Border {CornerRadius=new CornerRadius(8),BorderThickness=new Thickness(1),MinHeight=27,Padding=new Thickness(0,1,2,1)};
+            frame.SetResourceReference(Border.BackgroundProperty,"Panel");frame.SetResourceReference(Border.BorderBrushProperty,"Line");
+            search.IsKeyboardFocusWithinChanged+=delegate {frame.SetResourceReference(Border.BorderBrushProperty,search.IsKeyboardFocusWithin?"Accent":"Line");};
+            searchField.VerticalAlignment=VerticalAlignment.Stretch;
+            frame.Child=search;searchField.Children.Add(frame);searchField.Children.Add(searchHint);
+            host.Children.Add(searchButton);host.Children.Add(searchField);
             search.TextChanged+=delegate {
                 searchHint.Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
                 searchTimer.Stop();searchTimer.Start();
+                // A search typed in stays open, so a hidden word never quietly empties the list.
+                if(search.Text.Length>0 && !SearchOpen)ShowSearchField(true);
+                else if(search.Text.Length==0 && !search.IsKeyboardFocusWithin)ShowSearchField(false);
             };
             searchTimer.Tick+=delegate {searchTimer.Stop();Refresh();};
             search.PreviewKeyDown+=(s,e)=>{
-                if(e.Key==Key.Escape && search.Text.Length>0){search.Text="";e.Handled=true;}
+                if(e.Key==Key.Escape){search.Text="";ShowSearchField(false);grid.Focus();e.Handled=true;}
                 else if(e.Key==Key.Enter || e.Key==Key.Down){grid.Focus();if(focusIndex<0)MoveFocus(0,false);e.Handled=true;}
+            };
+            search.LostKeyboardFocus+=(s,e)=>{
+                if(e.NewFocus is MenuItem || e.NewFocus is ContextMenu)return; // right-click menu of the box (Paste)
+                if(search.Text.Length==0)ShowSearchField(false);
+            };
+            // Clicking anywhere else while the box is still empty folds it back, like the focus moving away.
+            PreviewMouseDown+=(s,e)=>{
+                if(!SearchOpen || search.Text.Length>0)return;
+                var node=e.OriginalSource as DependencyObject;
+                while(node!=null && node!=host)node=(node is Visual || node is System.Windows.Media.Media3D.Visual3D)?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
+                if(node==null)ShowSearchField(false);
             };
             return host;
         }
+        void ShowSearchField(bool open) {
+            searchField.Visibility=open?Visibility.Visible:Visibility.Collapsed;
+            searchButton.Visibility=open?Visibility.Collapsed:Visibility.Visible;
+        }
+        internal void OpenSearch() {
+            ShowSearchField(true);
+            Dispatcher.BeginInvoke(new Action(()=>{search.Focus();Keyboard.Focus(search);search.SelectAll();}),DispatcherPriority.Input);
+        }
+        // A small line drawing in the text color (works in both themes).
+        static System.Windows.Shapes.Path LineIcon(string drawing) {
+            var path=new System.Windows.Shapes.Path {Data=Geometry.Parse(drawing),Width=18,Height=18,StrokeThickness=1.6,
+                StrokeLineJoin=PenLineJoin.Round,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,
+                Stretch=Stretch.None,IsHitTestVisible=false,SnapsToDevicePixels=true};
+            path.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"Text");
+            return path;
+        }
         internal void TrackTile(Button tile,Photo photo) {
             shownTiles[photo.Folder]=tile;
+            if(cutFolders.Contains(photo.Folder))tile.Opacity=0.45;
             tile.MouseEnter+=delegate {ShowNameSoon(tile,photo.Name);};
             tile.MouseLeave+=delegate {if(nameTile==tile)HideName();};
             tile.ContextMenuOpening+=delegate {HideName();};
@@ -1616,8 +2653,10 @@ namespace LoveMyShelf {
                 int index=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,pair.Key,StringComparison.OrdinalIgnoreCase));
                 ShowSelected(pair.Value,selected.Contains(pair.Key),index>=0 && index==focusIndex);
             }
-            if(selected.Count>1)count.Text=L.F("{0:N0} selected",selected.Count);
+            if(selected.Count>1){count.Text=L.F("{0:N0} selected",selected.Count);updateFooter();}
             else SetCount(skippedCount);
+            // Choosing several tiles one by one: say once per run that the right button can draw a range.
+            if(selected.Count>=2 && !marqueeActive && !marqueeTipThisRun && settings.MarqueeUses<3){marqueeTipThisRun=true;MarqueeTip();}
         }
         internal void ClearSelection() {
             selected.Clear();focusIndex=-1;anchorIndex=-1;
@@ -1662,15 +2701,17 @@ namespace LoveMyShelf {
             focusIndex=target;
             if(extend && anchorIndex>=0)SelectRange(anchorIndex,target);
             else {selected.Clear();selected.Add(photos[target].Folder);anchorIndex=target;}
-            if(rows!=null && columns>0)grid.ScrollIntoView(rows[target/columns]);
+            if(rows!=null && columns>0)grid.ScrollIntoView(rows[folderRows+target/columns]);
             RefreshSelection();
         }
         void ExplorerKeys(object sender,KeyEventArgs e) {
-            if(e.Handled || search.IsKeyboardFocusWithin || !IsActiveWindowForKeys)return;
+            // Typing in a text box (search, the address bar, renaming): its keys stay there, never on the tiles.
+            if(e.Handled || search.IsKeyboardFocusWithin || Keyboard.FocusedElement is TextBox || (address!=null && address.Editing) || !IsActiveWindowForKeys)return;
             var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
             bool shift=(Keyboard.Modifiers&ModifierKeys.Shift)!=0,control=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
             switch(key) {
                 case Key.Escape:
+                    if(marqueeActive){MarqueeEnd(true);break;}
                     if(selected.Count==0)return; // nothing selected: Esc keeps its usual job (leaving full screen)
                     ClearSelection();break;
                 case Key.Right:MoveFocus(focusIndex<0?0:focusIndex+1,shift);break;
@@ -1689,6 +2730,16 @@ namespace LoveMyShelf {
                 case Key.Z:
                     if(!control)return;
                     UndoMove();break;
+                // Copy, cut and paste files through the Windows clipboard, like File Explorer.
+                case Key.C:
+                    if(!control)return;
+                    CopyToClipboard(false);break;
+                case Key.X:
+                    if(!control)return;
+                    CopyToClipboard(true);break;
+                case Key.V:
+                    if(!control)return;
+                    PasteFromClipboard(null);break;
                 case Key.F2:
                     var one=FocusedOrOnly();if(one==null || !one.Linked)return;
                     RenameOriginal(one);break;

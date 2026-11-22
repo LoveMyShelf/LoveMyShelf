@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace LoveMyShelf {
     internal static class AppInfo {
         // Keep in step with the GitHub release tag (v1.2.0 and so on).
-        internal const string Version="1.0.2";
+        internal const string Version="1.0.3";
         internal const string ReleasesPage="https://github.com/LoveMyShelf/LoveMyShelf/releases/latest";
         const string LatestApi="https://api.github.com/repos/LoveMyShelf/LoveMyShelf/releases/latest";
 
