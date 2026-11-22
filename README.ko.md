@@ -66,7 +66,7 @@ https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 .\build.ps1
 ```
 
-폴더의 모든 `*.cs`를 `LoveMyShelf.exe`(WPF)로 컴파일합니다. 프로그램이 실행 중이면 옛 실행 파일을 옆으로 치우고, 다음에 켤 때 새 것이 적용됩니다.
+`src/` 폴더의 모든 `*.cs`를 `build.ps1` 옆의 `LoveMyShelf.exe`(WPF)로 컴파일합니다. 프로그램이 실행 중이면 옛 실행 파일을 옆으로 치우고, 다음에 켤 때 새 것이 적용됩니다.
 
 저장소에는 소스만 있습니다. 모든 기능을 쓰려면 아래 파일을 `LoveMyShelf.exe` 옆에 두세요(릴리스 ZIP에서 복사하는 것이 가장 간단합니다).
 
@@ -82,7 +82,7 @@ https://github.com/user-attachments/assets/677f1454-a1ee-4dc6-81ae-2af13ce44b3b
 
 ## 코드 구성
 
-파일별 설명은 [영어 README의 Code layout](README.md#code-layout)을 참고하세요.
+소스 파일은 모두 `src/` 폴더에 있습니다. 파일별 설명은 [영어 README의 Code layout](README.md#code-layout)을 참고하세요.
 
 ## 데이터와 네트워크
 

@@ -3,11 +3,8 @@
 !/.gitignore
 !/*.md
 /AGENTS.md
-!/*.cs
-!/*.xaml
+!/src/
 !/*.ps1
-!/*.manifest
-!/*.ico
 !/LICENSE
 !/fonts/
 !/docs/

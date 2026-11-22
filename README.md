@@ -66,7 +66,7 @@ The project builds with the C# compiler that ships with .NET Framework 4.8. No V
 .\build.ps1
 ```
 
-This compiles every `*.cs` file in the folder into `LoveMyShelf.exe` (WPF, `/target:winexe`). If the app is running, the old executable is moved aside and the new one takes effect on the next start.
+This compiles every `*.cs` file in `src/` into `LoveMyShelf.exe` next to `build.ps1` (WPF, `/target:winexe`). If the app is running, the old executable is moved aside and the new one takes effect on the next start.
 
 The repository contains only the source. To run a build with all features, place these next to `LoveMyShelf.exe` (the simplest way is to copy them from a release ZIP):
 
@@ -81,6 +81,8 @@ The repository contains only the source. To run a build with all features, place
 Without them the app still starts; the features that need them are unavailable. Exact versions are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Code layout
+
+All source files are in `src/`.
 
 | File | Contents |
 | --- | --- |
