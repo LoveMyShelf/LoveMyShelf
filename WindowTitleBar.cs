@@ -1,0 +1,76 @@
+using System;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Shell;
+
+namespace LoveMyShelf {
+    internal sealed class WindowTitleBar : DockPanel {
+        readonly Window window;
+        readonly Button minimize,maximize,fullscreen,close;
+        readonly WindowChrome chrome=new WindowChrome {
+            CaptionHeight=25,ResizeBorderThickness=new Thickness(5),
+            GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(0)
+        };
+
+        public WindowTitleBar(Window window,Action toggleFullscreen=null) {
+            this.window=window;
+            Height=30;SetResourceReference(BackgroundProperty,"Paper");
+            UseLayoutRounding=true;
+            SetDock(this,Dock.Top);
+            close=AddButton(()=>window.Close());
+            if(toggleFullscreen!=null)fullscreen=AddButton(toggleFullscreen);
+            maximize=AddButton(()=>{
+                if(window.WindowState==WindowState.Maximized)SystemCommands.RestoreWindow(window);
+                else SystemCommands.MaximizeWindow(window);
+            });
+            minimize=AddButton(()=>SystemCommands.MinimizeWindow(window));
+
+            var title=UI.Text("",12);
+            title.Margin=new Thickness(12,0,8,0);
+            title.TextTrimming=TextTrimming.CharacterEllipsis;
+            title.SetBinding(TextBlock.TextProperty,new Binding("Title"){Source=window});
+            Children.Add(title);
+            WindowChrome.SetWindowChrome(window,chrome);
+            window.StateChanged+=delegate {Update();};
+            Update();
+        }
+
+        Button AddButton(Action action) {
+            var button=UI.Btn("",action);
+            button.Style=(Style)Application.Current.Resources["TitleBarButton"];
+            WindowChrome.SetIsHitTestVisibleInChrome(button,true);
+            UI.Right(this,button);
+            return button;
+        }
+        static void Label(Button button,string label,string drawing,string hint=null) {
+            if(button==null)return;
+            var glyph=new Path {
+                Data=Geometry.Parse(drawing),Width=13,Height=13,StrokeThickness=1,IsHitTestVisible=false
+            };
+            glyph.SetResourceReference(Shape.StrokeProperty,"Text");
+            button.Content=glyph;
+            AutomationProperties.SetName(button,L.T(label));
+            button.ToolTip=L.T(hint??label);
+        }
+        internal void UseWindowChrome(bool enabled) {
+            WindowChrome.SetWindowChrome(window,enabled?chrome:null);
+        }
+        internal void Update() {
+            bool full=FullScreen.IsFull(window),max=window.WindowState==WindowState.Maximized;
+            Label(close,"Close","M 2,2 L 11,11 M 11,2 L 2,11");
+            Label(minimize,"Minimize","M 1,8 L 12,8");
+            Label(maximize,max?"Restore window":"Maximize",max
+                ?"M 4,4 V 1.5 H 11.5 V 9 H 9 M 1.5,4 H 9 V 11.5 H 1.5 Z"
+                :"M 2,2 H 11 V 11 H 2 Z");
+            Label(fullscreen,full?"Windowed":"Full screen",full
+                ?"M 1,4 H 4 V 1 M 9,1 V 4 H 12 M 1,9 H 4 V 12 M 9,12 V 9 H 12"
+                :"M 1,5 V 1 H 5 M 8,1 H 12 V 5 M 12,8 V 12 H 8 M 5,12 H 1 V 8",
+                "Toggle full screen (F11)");
+            maximize.IsEnabled=minimize.IsEnabled=!full;
+        }
+    }
+}

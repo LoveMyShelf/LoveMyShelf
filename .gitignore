@@ -1,0 +1,13 @@
+# Track only project files. Gallery data, builds (.exe), and libmpv-2.dll stay local.
+/*
+!/.gitignore
+!/*.md
+/AGENTS.md
+!/*.cs
+!/*.xaml
+!/*.ps1
+!/*.manifest
+!/*.ico
+!/LICENSE
+!/fonts/
+!/docs/
