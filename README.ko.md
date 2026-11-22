@@ -35,6 +35,10 @@ Love My Shelf는 폴더 전체를 큰 썸네일로 보여 줍니다. 사진이�
 
 https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
 
+**표지 여러 개 만들고 마음에 드는 것만 남기기**: 영상을 보다가 마음에 드는 장면마다 표지를 만들 수 있습니다. 다 만든 뒤 목록에서 나란히 비교하고, 덜 마음에 드는 표지는 휴지통으로 보냅니다. 원본 영상은 그대로 남습니다.
+
+https://github.com/user-attachments/assets/f925e5a1-bc6a-4d63-8b14-7ddd9d9fc25c
+
 **움직이는 표지 만들기**: 구간을 고르고 속도와 재생 방식을 정해서 저장합니다. 만드는 동안에도 다른 작업을 계속할 수 있습니다.
 
 https://github.com/user-attachments/assets/cee0954e-f889-47cc-a41b-63cf8dcde45b

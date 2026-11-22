@@ -33,6 +33,10 @@ Supported files: JPG, PNG, BMP, TIFF, GIF, WebP, and video containers FFmpeg/mpv
 
 https://github.com/user-attachments/assets/c3bf3a02-9c82-4898-a5b9-30a3c739b787
 
+**Make several covers, keep your favorite.** While watching a video, make a cover from every scene you like. When you are done, compare them side by side in the grid and send the ones you like less to the Recycle Bin. The original video stays untouched.
+
+https://github.com/user-attachments/assets/f925e5a1-bc6a-4d63-8b14-7ddd9d9fc25c
+
 **Make an animated cover.** Choose a range with the two handles on the frame strip, set speed and loop mode, and export. It is made in the background.
 
 https://github.com/user-attachments/assets/cee0954e-f889-47cc-a41b-63cf8dcde45b
