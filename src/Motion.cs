@@ -95,7 +95,7 @@ namespace LoveMyShelf {
         static double sideMs=1500;
         // From Guide & Options: how far apart the scenes of the quick preview are, in milliseconds.
         // This is the GIF window's own setting, apart from the scene step (Scenes.StepMs).
-        internal static int PreviewStepMs=200;
+        internal static int PreviewStepMs=100;
         internal static void UseDefaults(Preferences settings) {
             StripSeconds=settings.GifStripSeconds;PreviewStepMs=settings.GifPreviewStepMs;Scenes.StepMs=settings.SceneStepMs;
             lastFps=Math.Max(0,Array.IndexOf(Rates,settings.GifFps));if(Rates[lastFps]!=settings.GifFps)lastFps=Nearest(Rates,settings.GifFps);
@@ -253,7 +253,11 @@ namespace LoveMyShelf {
             previewFrame.MouseLeftButtonUp+=delegate {TogglePause();};
             AutomationProperties.SetName(previewFrame,L.T("Preview"));
             previewBox.Children.Add(previewFrame);
-            if(source.Still!=null)preview.Source=source.Still;
+            if(source.Still!=null) {
+                double stillTop,stillBottom;
+                preview.Source=CoverImages.VisibleRows(source.Crop,source.Rotation,out stillTop,out stillBottom)?
+                    CoverImages.WithoutBars(source.Still,stillTop,stillBottom):source.Still;
+            }
             var pillBack=new SolidColorBrush(Color.FromArgb(0xB8,0x10,0x12,0x14));pillBack.Freeze();
             statusPill=new Border {Child=status,Background=pillBack,CornerRadius=new CornerRadius(8),Padding=new Thickness(10,4,10,5),
                 HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,0,12),
@@ -748,11 +752,14 @@ namespace LoveMyShelf {
                 if(draft==null)draft=new DraftScenes(source,PreviewStepMs,Dispatcher,PreviewSide());
                 var scenes=draft;
                 if(play) {
-                    await Task.Run(()=>scenes.Fill(from,to,work.Token),work.Token);
+                    await Task.Run(()=>scenes.Fill(from,to,work.Token,true),work.Token);
                     if(work.IsCancellationRequested)return;
                     var list=scenes.Scenes(from,to);
+                    double rowsTop,rowsBottom;
+                    if(CoverImages.VisibleRows(source.Crop,source.Rotation,out rowsTop,out rowsBottom))
+                        list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom));
                     if(list.Count>0) {
-                        var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.Step/request.Speed)),request);
+                        var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.PartStep(from,to)/request.Speed)),request);
                         timeline=Timeline(request,frames.Images.Length);
                         player.Start(frames);player.Hold=held;
                         draftOn=true;SetStatus();
@@ -898,6 +905,17 @@ namespace LoveMyShelf {
         internal static Task<MotionFrames> LoadAsync(string path,int maxSide,CancellationToken token) {
             return Task.Run(()=>Load(path,maxSide,token),token);
         }
+        // A saved GIF cover as it should look: one made before covers were trimmed shows without its empty rows.
+        // The file itself is not changed.
+        internal static Task<MotionFrames> LoadCoverAsync(Photo photo,int maxSide,CancellationToken token) {
+            string path=photo.MotionFile;Rect crop=photo.Crop;double rotation=photo.Rotation;
+            return Task.Run(()=>{
+                var frames=Load(path,maxSide,token);
+                double top,bottom;
+                if(!CoverImages.VisibleRows(crop,rotation,out top,out bottom))return frames;
+                return new MotionFrames {Images=Array.ConvertAll(frames.Images,image=>CoverImages.WithoutBars(image,top,bottom)),Delays=frames.Delays};
+            },token);
+        }
         static MotionFrames Load(string path,int maxSide,CancellationToken token) {
             var info=new FileInfo(path);
             string key=path+"|"+info.Length+"|"+info.LastWriteTimeUtc.Ticks+"|"+maxSide;
@@ -974,7 +992,7 @@ namespace LoveMyShelf {
         }
     }
 
-    // The quick preview of Make GIF cover. It reads scenes at a fixed step (0.2 s by default), already in the cover's
+    // The quick preview of Make GIF cover. It reads scenes at a fixed step (0.1 s by default), already in the cover's
     // look and small (smaller still for big videos), and keeps them. Moving a handle only reads the scenes that are
     // new; shortening the part reads nothing. Speed matters more here than exact frames or quality.
     internal sealed class DraftScenes {
@@ -996,20 +1014,31 @@ namespace LoveMyShelf {
         bool Has(long slot) {lock(gate)return scenes.ContainsKey(slot);}
         long First(double from) {return (long)Math.Ceiling(Math.Max(0,from)/Step-0.001);}
         long Last(double to) {return (long)Math.Floor(Math.Max(0,to)/Step+0.001);}
+        // A long part reads every 2nd, 3rd... scene so that it never needs more than MaxScenes pictures.
+        static long Stride(long first,long last) {return (last-first)/MaxScenes+1;}
+        static long Align(long slot,long stride) {return (slot+stride-1)/stride*stride;}
+        long keepFirst=0,keepLast=-1; // the part now playing: its pictures are not trimmed for the strip
 
+        // The real time between the scenes of this part.
+        internal long PartStep(double from,double to) {
+            long first=First(from);
+            return Step*Stride(first,Math.Max(first,Last(to)));
+        }
         // Reads whatever scenes of the part are not kept yet.
-        internal void Fill(double from,double to,CancellationToken token) {
+        internal void Fill(double from,double to,CancellationToken token,bool playing=false) {
             if(VideoFrames.Supports(source.Path))MeasureVideo(token);
             long first=First(from),last=Math.Max(first,Last(to));
+            long stride=Stride(first,last);
+            if(playing)lock(gate){keepFirst=first;keepLast=last;}
             long run=-1;
-            for(long slot=first;slot<=last+1;slot++) {
+            for(long slot=Align(first,stride);slot<=last+stride;slot+=stride) {
                 bool missing=slot<=last && !Has(slot);
                 if(missing && run<0)run=slot;
                 // Long parts are read a few seconds at a time, so a change that stops the reading loses little.
-                if(missing && run>=0 && slot-run>=ChunkSlots){token.ThrowIfCancellationRequested();ReadRun(run,slot-1,token);run=slot;}
-                if(!missing && run>=0){token.ThrowIfCancellationRequested();ReadRun(run,slot-1,token);run=-1;}
+                if(missing && run>=0 && (slot-run)/stride>=ChunkSlots(stride)){token.ThrowIfCancellationRequested();ReadRun(run,slot-stride,stride,token);run=slot;}
+                if(!missing && run>=0){token.ThrowIfCancellationRequested();ReadRun(run,slot-stride,stride,token);run=-1;}
             }
-            Trim(first,last);
+            Trim(first,last,stride);
         }
         void MeasureVideo(CancellationToken token) {
             if(sized)return;
@@ -1023,20 +1052,21 @@ namespace LoveMyShelf {
             if(gap>Step)Step=(long)Math.Ceiling(gap);
             sized=true;
         }
-        void ReadRun(long a,long b,CancellationToken token) {
+        void ReadRun(long a,long b,long stride,CancellationToken token) {
             if(VideoFrames.Supports(source.Path)) {
                 MeasureVideo(token);
                 var request=new MotionRequest {Height=drawSide,Fps=15,Speed=1,Format="gif",Loop="forward"};
                 int outW,outH;
-                string chain=MotionMaker.Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH);
-                string rate=(1000.0/Step).ToString("0.######",CultureInfo.InvariantCulture);
-                string before="-ss "+VideoFrames.Seconds(a*Step)+" -t "+((b-a+1)*Step/1000.0).ToString("0.######",CultureInfo.InvariantCulture)+" ";
+                string chain=MotionMaker.Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH,false);
+                long gap=Step*stride;
+                string rate=(1000.0/gap).ToString("0.######",CultureInfo.InvariantCulture);
+                string before="-ss "+VideoFrames.Seconds(a*Step)+" -t "+(((b-a)/stride+1)*gap/1000.0).ToString("0.######",CultureInfo.InvariantCulture)+" ";
                 var pictures=VideoFrames.Pictures(before,source.Path,"-vf "+VideoFrames.Quote("fps="+rate+","+chain),token);
-                lock(gate)for(int i=0;i<pictures.Count && a+i<=b;i++)scenes[a+i]=pictures[i];
+                lock(gate)for(int i=0;i<pictures.Count && a+i*stride<=b;i++)scenes[a+i*stride]=pictures[i];
                 return;
             }
             using(var file=new AnimationFrames(source.Path,token)) {
-                for(long slot=a;slot<=b;slot++) {
+                for(long slot=a;slot<=b;slot+=stride) {
                     token.ThrowIfCancellationRequested();
                     var raw=file.Read(Math.Min(file.Count-1,file.Times.At(slot*(double)Step)),0);
                     double scale=Math.Min(1,(double)Math.Min(previewSide,400)/Math.Max(1,source.Crop.Height*raw.PixelHeight));
@@ -1048,17 +1078,20 @@ namespace LoveMyShelf {
             }
         }
         // Keeps the memory small: the scenes farthest from the part go first.
-        void Trim(long first,long last) {
+        void Trim(long first,long last,long stride) {
             lock(gate) {
                 if(scenes.Count<=MaxScenes)return;
                 var slots=new List<long>(scenes.Keys);
                 double middle=(first+last)/2.0;
                 slots.Sort((x,y)=>Math.Abs(y-middle).CompareTo(Math.Abs(x-middle)));
                 for(int i=0;i<slots.Count && scenes.Count>MaxScenes;i++)
-                    if(slots[i]<first || slots[i]>last)scenes.Remove(slots[i]);
+                    if((slots[i]<first || slots[i]>last) && !(slots[i]>=keepFirst && slots[i]<=keepLast))scenes.Remove(slots[i]);
+                // Closer scenes left from a shorter part go next.
+                for(int i=0;i<slots.Count && scenes.Count>MaxScenes;i++)
+                    if(slots[i]%stride!=0 && !(slots[i]>=keepFirst && slots[i]<=keepLast))scenes.Remove(slots[i]);
             }
         }
-        long ChunkSlots {get {return Math.Max(4,3000/Step);}}
+        long ChunkSlots(long stride) {return Math.Max(4,3000/(Step*stride));}
         // The scene nearest a moment, if it has been read.
         internal BitmapSource Near(double ms) {
             long slot=(long)Math.Round(Math.Max(0,ms)/Step);
@@ -1067,9 +1100,9 @@ namespace LoveMyShelf {
         }
         // The scenes of the part, in time order.
         internal List<BitmapSource> Scenes(double from,double to) {
-            long first=First(from),last=Math.Max(first,Last(to));
+            long first=First(from),last=Math.Max(first,Last(to)),stride=Stride(first,last);
             var list=new List<BitmapSource>();
-            lock(gate)for(long slot=first;slot<=last;slot++){BitmapSource scene;if(scenes.TryGetValue(slot,out scene))list.Add(scene);}
+            lock(gate)for(long slot=Align(first,stride);slot<=last;slot+=stride){BitmapSource scene;if(scenes.TryGetValue(slot,out scene))list.Add(scene);}
             return list;
         }
     }
@@ -1128,7 +1161,7 @@ namespace LoveMyShelf {
             return String.Join("|",new[]{(s.Path??"").ToLowerInvariant(),Math.Round(s.Moment).ToString(c),
                 Math.Round(s.Crop.X,4).ToString(c),Math.Round(s.Crop.Y,4).ToString(c),Math.Round(s.Crop.Width,4).ToString(c),Math.Round(s.Crop.Height,4).ToString(c),
                 Math.Round(s.Rotation,2).ToString(c),s.Brightness.ToString(c),Math.Round(r.Before*1000).ToString(c),Math.Round(r.After*1000).ToString(c),
-                r.Fps.ToString(c),r.Height.ToString(c),r.Format,r.Speed.ToString(c),r.Loop,r.Quality.ToString(c)});
+                r.Fps.ToString(c),r.Height.ToString(c),r.Format,r.Speed.ToString(c),r.Loop,r.Quality.ToString(c),"trimmed"});
         }
         static string PreviewFolder {get {return Path.Combine(Path.GetTempPath(),"LoveMyShelf","GIF preview");}}
         internal static string PreviewFile(string extension) {
@@ -1159,7 +1192,9 @@ namespace LoveMyShelf {
         // FFmpeg filters that repeat what the cover editor draws. The part around the cover is cut out and
         // shrunk first, so the color steps, brightness and rotation only touch a small picture (a 4K video
         // is several times faster this way). Brightness is applied before the black border, so the border stays black.
-        internal static string Filters(Rect f,double rotation,int brightness,int width,int height,MotionRequest request,bool resample,out int outW,out int outH) {
+        // trim: leave out the empty rows above and below the picture, like the JPG cover. The quick preview keeps the
+        // full 9:16 because the strip shows the same pictures, and takes the rows off when it plays them.
+        internal static string Filters(Rect f,double rotation,int brightness,int width,int height,MotionRequest request,bool resample,out int outW,out int outH,bool trim=true) {
             double cx=(f.X+f.Width/2)*width,cy=(f.Y+f.Height/2)*height;
             double cw=Math.Max(2,f.Width*width),ch=Math.Max(2,f.Height*height);
             outH=Even(Math.Min(request.Height,ch));outW=Even(outH*9/16.0);
@@ -1193,6 +1228,13 @@ namespace LoveMyShelf {
             if(turned)steps.Add("rotate="+N(rotation*Math.PI/180)+":ow=iw:oh=ih:c=black");
             int cropW=Math.Max(2,Math.Min(bw,(int)Math.Round(cw*s))),cropH=Math.Max(2,Math.Min(bh,(int)Math.Round(ch*s)));
             steps.Add("crop="+cropW+":"+cropH+":(iw-ow)/2:(ih-oh)/2");
+            double top,bottom;
+            if(trim && CoverImages.VisibleRows(width,height,f,rotation,out top,out bottom)) {
+                int first=Math.Min(cropH-2,(int)Math.Ceiling(top*cropH-1e-6));
+                int last=Math.Max(first+2,(int)Math.Floor(bottom*cropH+1e-6));
+                steps.Add("crop="+cropW+":"+(last-first)+":0:"+first+":exact=1");
+                outH=Even(outH*(last-first)/(double)cropH);
+            }
             steps.Add("scale="+outW+":"+outH+":flags=lanczos");
             steps.Add("setsar=1");
             return String.Join(",",steps);

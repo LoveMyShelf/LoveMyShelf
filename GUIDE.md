@@ -45,7 +45,7 @@ Click **Guide & Options** at the top right, or press **F1** on any screen (it op
 - To add a folder, right-click it in the folder tree and choose **Add to Love My Shelf** (like pinning in File Explorer), or drag it onto Love My Shelf in the tree or from File Explorer onto the window. **Ctrl+O** opens a folder picker too. Each folder appears under Love My Shelf in the tree.
 - Right-click it in the tree and choose **Remove from Love My Shelf** to take it off. Your files are not touched.
 - The **All / Unfinished / Finished** switch filters a folder: everything, only items without a cover, or only items that already have one.
-- **Unfinished cover collection** gathers items without a cover from every visible folder tab, so you can work through them in one place.
+- **Unfinished cover collection** gathers items without a cover from your Love My Shelf folders and every folder inside them (a whole drive leaves out the Windows system folders), so you can work through them in one place.
 - **Cover collection** shows all your saved covers from every folder in one grid, including several covers of the same original.
 - The **Sort** button at the bottom right opens a menu upward, like File Explorer: **File name**, **Date modified**, **File size**, **File type** or **Cover work order**, then which end comes first (A → Z, newest first and so on). Picking one refreshes the grid in that order. **Shuffle**, at the very bottom, mixes the order until you pick a sort again.
 - **Cover size** cycles the grid through four tile sizes.
@@ -129,7 +129,7 @@ From a video, GIF or WebP cover you can make a short moving cover with the same 
 2. Drag the two blue **handles** to the start and the end. **‹** / **›** next to **Start** and **End** under the strip, or **←** / **→** (for the last one you picked), move them one scene. One scene is the **scene step** in Guide & Options → Scenes from videos (0.2 s to start). Dragging a handle also lands on whole scenes.
 3. Drag the pictures sideways to see other parts of the video. If you drag a handle to the strip's edge, the strip follows. **Back to the cover** jumps back to the cover's moment. There's no limit on the length.
 4. Pick the **speed** (0.5× to 2×) and the **play style**: **Loop**, **Back and forth**, or **Backward**.
-5. The **preview** at the top is the real file, so it's exactly what you'll get. While it's being made it shows its progress, and a thin line on the strip shows where it is playing. Click the preview or press **Space** to pause and play. Under the strip you see the length, the number of frames, the real size in pixels and the file size (in orange when very large).
+5. The **preview** at the top is the real file, so it's exactly what you'll get. While it's being made it shows its progress, and a thin line on the strip shows where it is playing. Click the preview or press **Space** to pause and play. Under the strip you see the length, the number of frames, the real size in pixels and the file size (in orange when very large). While you move the handles, a **quick preview** comes first. It starts at one picture every 0.1 seconds, and you can go down to 0.03 seconds in **Guide & Options → GIF covers**. If a long part would need more than 400 pictures, that preview reads them a little further apart.
 6. **More choices** has smoothness (frames per second), height, picture quality (High, Normal, Smaller file) and file type (GIF, WebP or MP4). What these start as each time is set in **Guide & Options → GIF covers**, which also explains the differences between GIF, WebP and MP4. Click **Make** (or **Save JPG cover and make GIF cover** in the editor); the file made for the preview is saved right away.
 
 The JPG cover and the GIF cover are both saved. In the grid the JPG cover shows first and the GIF cover plays when you point at it (you can change this in **Guide & Options → GIF covers**). In the large view it plays automatically; **View JPG cover** switches to the JPG cover and **View GIF cover** back.
@@ -142,11 +142,12 @@ The JPG cover and the GIF cover are both saved. In the grid the JPG cover shows 
 | **Space** | Play or pause |
 | **←** / **→** | Skip back / forward (5 s by default; change it in Guide & Options) |
 | **D** / **F** | Pause and go one frame back / forward |
-| **E** / **W** | Make playback 1% brighter / darker |
+| **E** / **W** | Make playback brighter / darker (by 3, change it in **Guide & Options → Scenes from videos**) |
 | **Q** | Reset playback brightness |
 | **C** / **X** / **Z** | Faster / slower by 0.1× / normal speed |
 | **↑** / **↓** | Volume up / down by 5 (remembered for the next video) |
 | **M** | Sound off or on |
+| **V** | Clear voice on or off (remembered for the next video; the ▾ next to the button picks Gentle, Normal or Strong) |
 | **F11** | Full screen on or off |
 | **Esc** | Close the large view |
 
@@ -180,8 +181,10 @@ Both JPGs stay in the cover folder. The upscaled file ends with `-upscaled.jpg`.
 
 ### Organize
 
+- **Several covers of one original:** when one original has several covers, each cover shows a small number like **2/5**. The covers always stay together, even when you sort or shuffle, with number 1 on the left. A video's covers line up by where their scene is in the video, whichever you made first. Point at a cover and every cover of the same original gets a colored outline. A new cover also takes its place by scene. In the large view, the other covers appear small in the empty space on the right when the screen has room; click one to see it. In full screen they rest when the mouse stops and come back when it moves.
 - **Hide this cover in Love My Shelf** keeps the file but stops showing the cover: it leaves **Cover collection**, and the folder tile shows the original instead (an extra cover's own tile simply disappears from the folder). **Show this cover again** brings it back. If other covers of the same original are hidden, the folder tile's menu offers **Show hidden covers again**.
 - **Move this cover file to the Recycle Bin** sends the cover JPG (and its upscaled copy and GIF, if any) to the Windows Recycle Bin and forgets that cover. The original stays where it is. When the cover also has a GIF cover, the menu says **Move the JPG and GIF cover files to the Recycle Bin** and adds **Move only the GIF cover file to the Recycle Bin**, which keeps the JPG cover (restore the GIF from the Recycle Bin and it comes back). The hide and show items then read **…the JPG and GIF covers…**, because they act on both.
+- **Deleted a cover by mistake?** A notice shows at the bottom right for 3 seconds after a cover goes to the Recycle Bin. Click it to bring the cover back. Pointing at the notice holds the time.
 - **Move original to Recycle Bin** deletes the original photo or video to the Windows Recycle Bin, so you can restore it from there.
 - If you moved or renamed an original, the tile shows the saved preview. Use **Locate original** to point Love My Shelf to the new location.
 
@@ -214,9 +217,9 @@ Values typed into an older version (such as 12 s) are kept and shown as they are
 - **Covers:** ordinary JPG files (and GIF, WebP or MP4 if you made one) in the place chosen in Guide & Options.
 - **App records** (folder list, cover framing, settings): `%LOCALAPPDATA%\LoveMyShelf\Folders`. Paste that into the File Explorer address bar to open it.
 - **Originals:** left exactly where they were. Love My Shelf only reads them.
-- The only network connection is the optional new-version check, which asks GitHub for the latest release number. No photos or personal information are sent.
+- The only network use is the optional new-version check, which asks GitHub for the latest release, and the update files when you choose to update. No photos or personal information are sent.
 
-Upgrading: extract the new ZIP over the old folder and replace the old files. Your covers and records are kept.
+Upgrading: when a new version is out, click the notice at the bottom right, then click **restart** when it's ready. Your covers and records are kept. Coming from version 1.0.3 or earlier, close Love My Shelf and extract the new ZIP over the old folder one last time.
 
 ### FFmpeg for video covers
 

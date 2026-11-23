@@ -227,6 +227,7 @@ namespace LoveMyShelf {
             };
             return button;
         }
+        internal string OnlyChosen {get {return chosen.Count==1?chosen.First():null;}}
         IEnumerable<Button> Items() {
             var panel=scroller.Content as Panel;
             return panel==null?Enumerable.Empty<Button>():panel.Children.OfType<Button>();
@@ -247,13 +248,11 @@ namespace LoveMyShelf {
             box.Children.Add(fill);box.Children.Add(edge);layer.Children.Add(box);holder.Children.Add(layer);
             scroller.PreviewMouseRightButtonDown+=(s,e)=>Arm(e,MouseButton.Right);
             scroller.PreviewMouseLeftButtonDown+=(s,e)=>{
-                System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"lms-dbg.txt"),"DBG pane ldown "+e.OriginalSource+" item="+(ItemAt(e.OriginalSource)!=null)+"\n");
                 if(ItemAt(e.OriginalSource)!=null)return;
                 if((Keyboard.Modifiers&ModifierKeys.Control)==0){chosen.Clear();Paint();}
                 Arm(e,MouseButton.Left);
             };
             scroller.PreviewMouseMove+=(s,e)=>{
-                if(armed || drawing)System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"lms-dbg.txt"),"DBG pane move armed="+armed+" drawing="+drawing+" L="+e.LeftButton+" at="+e.GetPosition(layer)+"\n");
                 if(!armed && !drawing)return;
                 var pressed=drawButton==MouseButton.Right?e.RightButton:e.LeftButton;
                 if(pressed!=MouseButtonState.Pressed){armed=false;if(drawing)Finish();return;}

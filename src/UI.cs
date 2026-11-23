@@ -145,6 +145,11 @@ namespace LoveMyShelf {
     }
     internal static class Program {
         [STAThread] public static void Main(string[] args) {
+            // The update helper: a copy of this program that swaps the files after the app has closed.
+            if(args.Length==3 && args[0]==AppUpdater.ApplySwitch) {
+                Environment.Exit(AppUpdater.RunApply(args[1],args[2]));
+                return;
+            }
             string data=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string root=Path.Combine(data,"LoveMyShelf","Folders");
             L.Korean=Preferences.Load(root).Korean;
@@ -154,7 +159,7 @@ namespace LoveMyShelf {
                 return;
             }
             bool first;
-            using(var guard=new Mutex(true,@"Local\LoveMyShelf.Personal.v1",out first)) {
+            using(var guard=new Mutex(true,AppUpdater.AppMutex,out first)) {
                 if(!first) { MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return; }
                 try {
                     var app=new Application();

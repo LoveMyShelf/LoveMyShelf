@@ -17,6 +17,14 @@ namespace LoveMyShelf {
         static readonly Regex BesideName=new Regex(@"_cover_[0-9a-f]{16}(-upscaled)?( \(\d+\))?\.(jpg|gif|webp|mp4)$",
             RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
         internal static bool IsBesideCover(string path) {return BesideName.IsMatch(Path.GetFileName(path));}
+        // Cover files in the cover folder: "photo-cover-0123456789abcdef.jpg". The grid still shows these when
+        // that folder is opened, but they are finished covers, so the unfinished collection leaves them out.
+        static readonly Regex CoverFolderName=new Regex(@"-cover-[0-9a-f]{16}(-upscaled)?( \(\d+\))?\.(jpg|gif|webp|mp4)$",
+            RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
+        internal static bool IsCoverFile(string path) {
+            string name=Path.GetFileName(path);
+            return BesideName.IsMatch(name) || CoverFolderName.IsMatch(name);
+        }
 
         // The folder a new cover goes to for the chosen place. Falls back to the cover folder
         // for older imported items, which have no original folder of their own.

@@ -120,6 +120,114 @@ namespace LoveMyShelf {
             }
             return to;
         }
+        // ----- Folders -----
+        internal static bool IsAt(string path,string folder) {
+            if(String.IsNullOrEmpty(path) || String.IsNullOrEmpty(folder))return false;
+            string p=path.TrimEnd('\\'),f=folder.TrimEnd('\\');
+            return String.Equals(p,f,StringComparison.OrdinalIgnoreCase) || p.StartsWith(f+"\\",StringComparison.OrdinalIgnoreCase);
+        }
+        internal static string Moved(string path,string from,string to) {
+            return to.TrimEnd('\\')+path.Substring(Math.Min(path.Length,from.TrimEnd('\\').Length));
+        }
+        // A drive or a network share can't be renamed as a folder.
+        internal static bool CanRenameFolder(string path) {
+            try {
+                string full=Path.GetFullPath(path).TrimEnd('\\'),root=Path.GetPathRoot(full).TrimEnd('\\');
+                return !String.Equals(full,root,StringComparison.OrdinalIgnoreCase) && Directory.Exists(full);
+            } catch(Exception) {return false;}
+        }
+        static void WriteBack(string file,List<Tuple<string,byte[]>> saved,Action<string> write) {
+            saved.Add(Tuple.Create(file,File.ReadAllBytes(file)));
+            string part=Path.Combine(Path.GetDirectoryName(file),Guid.NewGuid().ToString("N")+".tmp");
+            try {write(part);File.Replace(part,file,null);}
+            finally {if(File.Exists(part))File.Delete(part);}
+        }
+        static XElement LoadOrNull(string file) {
+            if(!File.Exists(file))return null;
+            try {return XElement.Load(file);} catch(System.Xml.XmlException) {return null;} // a damaged record never blocks the rename
+        }
+        static void Repoint(string file,string[] attributes,string from,string to,List<Tuple<string,byte[]>> saved) {
+            var xml=LoadOrNull(file);if(xml==null)return;
+            bool changed=false;
+            foreach(string attribute in attributes) {
+                string value=(string)xml.Attribute(attribute);
+                if(!IsAt(value,from))continue;
+                xml.SetAttributeValue(attribute,Moved(value,from,to));changed=true;
+            }
+            if(changed)WriteBack(file,saved,part=>xml.Save(part));
+        }
+        // Renames a folder and carries along the records of it and of every folder inside, the saved paths of
+        // covers kept in it, and the cover folder setting. If any step fails, everything goes back as it was.
+        internal static string RenameFolder(GalleryStore store,string folder,string newName) {
+            string from=Path.GetFullPath(folder).TrimEnd('\\');
+            if(!CanRenameFolder(from))throw new DirectoryNotFoundException(L.T("The source folder could not be found."));
+            string to=Path.Combine(Path.GetDirectoryName(from),newName);
+            if(from==to)return from;
+            bool caseOnly=String.Equals(from,to,StringComparison.OrdinalIgnoreCase);
+            if(!caseOnly && (Directory.Exists(to) || File.Exists(to)))throw new IOException(L.F("There is already a folder or file named “{0}” here.",newName));
+            if(IsAt(store.Root,from))throw new IOException(L.T("A file in this folder is in use. Close it and try again."));
+            var albums=store.Albums().Where(a=>IsAt(a.Source,from)).ToList();
+            var targets=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+            var stale=new List<string>();
+            foreach(var album in albums) {
+                string target=store.AlbumFolderOf(Moved(album.Source,from,to));
+                targets[album.Folder]=target;
+                if(String.Equals(target,album.Folder,StringComparison.OrdinalIgnoreCase) || !Directory.Exists(target))continue;
+                if(Directory.GetDirectories(target,"p-*").Length>0)throw new IOException(L.T("Love My Shelf still has covers for an older folder with that name. Pick another name."));
+                stale.Add(target);
+            }
+            var undo=new Undo();
+            var saved=new List<Tuple<string,byte[]>>();
+            var removed=new List<string>();
+            try {
+                try {
+                    if(caseOnly) {
+                        string temp=Path.Combine(Path.GetDirectoryName(from),Guid.NewGuid().ToString("N")+".tmp");
+                        undo.Move(from,temp,true);undo.Move(temp,to,true);
+                    } else undo.Move(from,to,true);
+                }
+                catch(IOException) {throw new IOException(L.T("A file in this folder is in use. Close it and try again."));}
+                catch(UnauthorizedAccessException) {throw new IOException(L.T("A file in this folder is in use. Close it and try again."));}
+                lock(SharedCoverFiles.MetadataLock) {
+                    foreach(string old in stale) {
+                        string aside=Path.Combine(store.Root,"setup-"+Guid.NewGuid().ToString("N"));
+                        undo.Move(old,aside,true);removed.Add(aside);
+                    }
+                    foreach(var album in albums) {
+                        string record=targets[album.Folder];
+                        if(!String.Equals(record,album.Folder,StringComparison.OrdinalIgnoreCase))undo.Move(album.Folder,record,true);
+                        string source=Moved(album.Source,from,to);
+                        WriteBack(Path.Combine(record,"source.txt"),saved,part=>File.WriteAllText(part,source));
+                        if(String.Equals(album.Source.TrimEnd('\\'),from,StringComparison.OrdinalIgnoreCase))
+                            WriteBack(Path.Combine(record,"album.txt"),saved,part=>File.WriteAllText(part,newName));
+                    }
+                    // Covers of any folder may be kept inside the renamed one.
+                    foreach(var album in store.Albums())
+                        foreach(string record in Directory.GetDirectories(album.Folder,"p-*")) {
+                            Repoint(Path.Combine(record,"photo.xml"),new[]{"coverFile","upscaleFile","motionFile"},from,to,saved);
+                            Repoint(Path.Combine(record,"origin.xml"),new[]{"path"},from,to,saved);
+                        }
+                    var names=targets.ToDictionary(t=>Path.GetFileName(t.Key),t=>Path.GetFileName(t.Value),StringComparer.OrdinalIgnoreCase);
+                    string order=Path.Combine(store.Root,"tab-order.txt");
+                    if(File.Exists(order)) {
+                        var lines=File.ReadAllLines(order).Select(l=>names.ContainsKey(l)?names[l]:l).ToArray();
+                        WriteBack(order,saved,part=>File.WriteAllLines(part,lines));
+                    }
+                    string last=Path.Combine(store.Root,"last.txt");
+                    if(File.Exists(last)) {
+                        string shown=File.ReadAllText(last).Trim();
+                        if(names.ContainsKey(shown))WriteBack(last,saved,part=>File.WriteAllText(part,names[shown]));
+                    }
+                    Repoint(Path.Combine(store.Root,"options.xml"),new[]{"coverDirectory"},from,to,saved);
+                }
+            } catch {
+                for(int i=saved.Count-1;i>=0;i--) try {File.WriteAllBytes(saved[i].Item1,saved[i].Item2);} catch(Exception) {}
+                undo.Rollback();
+                throw;
+            }
+            foreach(string aside in removed) try {Directory.Delete(aside,true);} catch(Exception) {}
+            return to;
+        }
         [ThreadStatic] static List<Tuple<string,string>> backups;
         static List<Tuple<string,string>> undoBackups {get {return backups??(backups=new List<Tuple<string,string>>());}}
         static void CleanBackups() {
@@ -131,20 +239,20 @@ namespace LoveMyShelf {
     // Small window to type a new name. The extension stays as it is, like File Explorer.
     internal sealed class RenameWindow : Window {
         internal string NewName {get;private set;}
-        internal RenameWindow(Window owner,string name) {
+        internal RenameWindow(Window owner,string name,bool folder=false) {
             UI.WindowSetup(this,L.T("Rename"));Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;ResizeMode=ResizeMode.NoResize;
             Width=Math.Min(460,SystemParameters.WorkArea.Width);SizeToContent=SizeToContent.Height;
             var root=new DockPanel();root.Children.Add(new WindowTitleBar(this));
             var page=new StackPanel {Margin=new Thickness(22,16,22,20)};root.Children.Add(page);Content=root;
             var title=UI.Text(L.T("New name"),14);page.Children.Add(title);
-            string extension=Path.GetExtension(name),stem=Path.GetFileNameWithoutExtension(name);
+            string extension=folder?"":Path.GetExtension(name),stem=folder?name:Path.GetFileNameWithoutExtension(name);
             var row=new DockPanel {Margin=new Thickness(0,6,0,0)};
             var ext=UI.Text(extension,14,true);ext.Margin=new Thickness(6,0,0,0);DockPanel.SetDock(ext,Dock.Right);row.Children.Add(ext);
             var box=new TextBox {Text=stem,Padding=new Thickness(6),FontSize=14};
             System.Windows.Automation.AutomationProperties.SetName(box,L.T("New name"));
             row.Children.Add(box);page.Children.Add(row);
-            var hint=UI.Text(NoticeLook.KeepWords(L.T("Its JPG covers, upscaled copies and GIF covers get the same new name.")),12,true);
+            var hint=UI.Text(NoticeLook.KeepWords(L.T(folder?"Its covers stay with the files inside.":"Its JPG covers, upscaled copies and GIF covers get the same new name.")),12,true);
             hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,8,0,0);page.Children.Add(hint);
             var error=UI.Text("",12);error.TextWrapping=TextWrapping.Wrap;error.Margin=new Thickness(0,6,0,0);
             error.SetResourceReference(TextBlock.ForegroundProperty,"Accent");page.Children.Add(error);

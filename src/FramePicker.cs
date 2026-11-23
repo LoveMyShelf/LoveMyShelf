@@ -67,6 +67,7 @@ namespace LoveMyShelf {
         internal Func<CropWindow,MotionRequest,Task> CommitMotion;
         // Seconds the arrow keys skip in the cover editor (the large view's setting).
         internal int SkipSeconds=5;
+        internal int BrightnessStep=3;
         // The playback brightness (-100..100) the video was watched with: the scenes show with it and a cover starts from it.
         int brightness;
         readonly TextBlock brightnessNote=UI.Text("",11,true);
@@ -241,7 +242,7 @@ namespace LoveMyShelf {
                 // Brightness changed while watching wins; otherwise the saved cover's own brightness.
                 var editor=new CropWindow(this,image,photo.Name,saved,photo.Rotation,snapEdges,wheelZoomPercent,previewSide,
                     brightness!=0?brightness:photo.Brightness);
-                editor.CommitCover=CommitCover;editor.AfterCommit=AfterCommit;editor.SkipSeconds=SkipSeconds;
+                editor.CommitCover=CommitCover;editor.AfterCommit=AfterCommit;editor.SkipSeconds=SkipSeconds;editor.BrightnessStep=BrightnessStep;
                 editor.AddFrameControls(path,index,frameCount,current);
                 if(CommitMotion!=null && MotionMaker.Supports(path))
                     editor.EnableMotion(CommitMotion,()=>new MotionSource {Path=path,Moment=MotionSource.MomentOf(path,editor.FrameTime,editor.FrameIndex),

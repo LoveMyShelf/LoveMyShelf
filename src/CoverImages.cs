@@ -50,6 +50,39 @@ namespace LoveMyShelf {
             result.Freeze();return result;
         }
 
+        // Which part of a 9:16 cover's height holds the picture (0..1), by the same rule as the JPG cover above.
+        // True when there is empty space above or below it.
+        internal static bool VisibleRows(double w,double h,Rect frame,double rotation,out double top,out double bottom) {
+            top=0;bottom=1;
+            if(frame.Width<=0 || frame.Height<=0 || w<=0 || h<=0)return false;
+            if(rotation==0) {
+                top=Math.Max(0,-frame.Y/frame.Height);
+                bottom=Math.Min(1,(1-frame.Y)/frame.Height);
+            } else {
+                var destination=new Rect(0,0,frame.Width*w,frame.Height*h);
+                var footprint=new RectangleGeometry(new Rect(0,0,w,h),0,0,new MatrixTransform(Pictures.CoverTransform(w,h,frame,rotation,destination)));
+                var visible=Geometry.Combine(footprint,new RectangleGeometry(destination),GeometryCombineMode.Intersect,null).Bounds;
+                if(visible.IsEmpty || visible.Width<=0 || visible.Height<=0)return false;
+                top=Math.Max(0,visible.Top/destination.Height);
+                bottom=Math.Min(1,visible.Bottom/destination.Height);
+            }
+            if(bottom<=top){top=0;bottom=1;return false;}
+            return top>0.001 || bottom<0.999;
+        }
+        // The same when only the saved frame is known: a cover is 9:16 in pixels, which tells the original's shape.
+        internal static bool VisibleRows(Rect frame,double rotation,out double top,out double bottom) {
+            if(frame.Width<=0 || frame.Height<=0){top=0;bottom=1;return false;}
+            return VisibleRows(9.0/16*frame.Height/frame.Width,1,frame,rotation,out top,out bottom);
+        }
+        // Takes the empty rows off a picture that is still the full 9:16 (a quick preview, or a GIF cover made before
+        // covers were trimmed). A picture already trimmed has another shape and stays as it is.
+        internal static BitmapSource WithoutBars(BitmapSource image,double top,double bottom) {
+            if(image==null || Math.Abs(image.PixelHeight/(double)image.PixelWidth-16.0/9)>0.012)return image;
+            int first=Math.Max(0,(int)Math.Ceiling(top*image.PixelHeight-1e-6));
+            int last=Math.Min(image.PixelHeight,(int)Math.Floor(bottom*image.PixelHeight+1e-6));
+            return last-first<2?image:CropRows(image,first,last);
+        }
+
         internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output) {
             Save(source,crop,rotation,output,1920,false,CancellationToken.None);
         }

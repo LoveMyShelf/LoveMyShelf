@@ -7,6 +7,34 @@ Download new versions from Releases. Extract the new ZIP over your Love My Shelf
 
 ---
 
+## 1.0.4 · 2026-11-23
+
+- **클릭 한 번으로 업데이트:** 다음 버전부터는 알림을 눌러 바뀐 파일만 받고, 한 번 더 누르면 새 버전으로 다시 켜져요. 1.0.3 이하에서 넘어올 때만 마지막으로 새 ZIP을 덮어 풀어 주세요.
+- **새 버전 소식:** 업데이트하기 전에 무엇이 바뀌는지 먼저 보여 줘요.
+- **폴더 이름 바꾸기:** 폴더를 오른쪽 클릭하거나 F2를 눌러 바꿔요. 안에 있는 표지와 기록도 함께 따라와요.
+- **한 원본의 표지들:** 칸에 2/5 같은 번호가 나오고, 마우스를 올리면 같은 원본의 표지에 색 테두리가 생겨요. 크게 볼 때는 오른쪽 여백에서 다른 표지로 바로 바꿀 수 있어요. 표지는 항상 영상 속 장면 순서로 놓여요.
+- **하위 폴더까지 한 번에:** 폴더를 추가하면 나무에 펼쳐지고, 표지가 없는 파일은 하위 폴더까지 모두 표지 X 모음에 모여요.
+- **표지를 만들어도 영상은 그대로:** 저장하면 보던 장면으로 돌아오고, 재생 중이었다면 이어서 재생돼요.
+- **밝기 단축키 크기 설정:** E와 W를 한 번 누를 때 바뀌는 양을 고를 수 있어요. 기본은 3이에요.
+- **표지 안 보기와 지우기가 메뉴 맨 위로:** 표지를 잘못 지워도 3초 안에 알림을 누르면 돌아와요.
+- **GIF 빠른 미리 보기:** 기본 0.1초로 더 부드러워졌고, 0.03초까지 줄일 수 있어요.
+- **고쳤어요:** 일부 영상에서 F로 다음 장면에 안 넘어가던 문제, GIF 표지의 위아래 검은 공백, 나무를 접으면 오른쪽 폴더가 바뀌던 문제, 표지 X 모음에서 만든 두 번째 표지가 바로 안 보이던 문제.
+
+---
+
+- **One-click updates:** from the next version on, click the notice to download only the changed files, then click once more to restart into the new version. Coming from 1.0.3 or earlier, extract the new ZIP over the old folder one last time.
+- **What's new window:** shows what changes before you update.
+- **Rename folders:** right-click a folder or press F2. The covers and records inside come along.
+- **Several covers of one original:** tiles show a number like 2/5, and pointing at one outlines its siblings. The large view lists them in the space on the right. Covers always follow the video's timeline.
+- **Folders inside folders:** an added folder unfolds in the tree, and everything without a cover, subfolders included, gathers in the Unfinished cover collection.
+- **Your video stays open** after you save a cover, at the same scene and still playing if it was.
+- **Brightness step:** choose how much one press of E or W changes. The default is 3.
+- **Hide and delete moved to the top of the menu,** with 3 seconds to undo a deleted cover.
+- **GIF quick preview:** now 0.1 seconds by default, and adjustable down to 0.03.
+- **Fixed:** F not moving to the next scene in some videos, black bars on GIF covers, folding the tree changing the folder on the right, and second covers from the Unfinished collection not appearing right away.
+
+---
+
 ## 1.0.3 · 2026-11-23
 
 - **파일 탐색기처럼 바뀌었어요:** 왼쪽에 폴더 나무가 생겼어요. Love My Shelf에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요. 위쪽 폴더 이름표는 이 나무로 옮겨졌고, 맨 왼쪽 버튼이나 Ctrl+T로 열고 닫아요.

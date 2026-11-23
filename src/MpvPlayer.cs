@@ -179,6 +179,14 @@ namespace LoveMyShelf {
         public bool Paused {set {Property("pause",value?"yes":"no");}}
         public double Volume {set {Property("volume",Math.Max(0,Math.Min(100,value)).ToString("0.###",Inv));}}
         public double Speed {set {Property("speed",value.ToString("0.###",Inv));}}
+        // Clear voice: trims low rumble, lifts the range that carries speech, and raises quiet speech.
+        // The level (gentle, normal, strong) sets how far quiet speech may be raised.
+        static readonly string[] ClearVoiceRaise={"3","6.25","12.5"};
+        public bool SetClearVoice(bool on,int level) {
+            string raise=ClearVoiceRaise[Math.Max(0,Math.Min(ClearVoiceRaise.Length-1,level))];
+            string filter=on?"lavfi=[highpass=f=90,equalizer=f=3000:t=q:w=1:g=3,speechnorm=p=0.9:e="+raise+":r=0.00001:l=1]":"";
+            return handle!=IntPtr.Zero && mpv_set_property_string(handle,Utf8("af"),Utf8(filter))>=0;
+        }
         // Exact seeks land on the first frame that starts at or after the target.
         public void Seek(double ms,bool exact=true) {
             SeekPending=true;

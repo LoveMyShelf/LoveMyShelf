@@ -171,7 +171,13 @@ namespace LoveMyShelf {
         public int FrameIndex;
         internal double? FrameTime;
         internal int FrameTimeOffset;
+        // Where the cover's scene is in the video, for ordering only. Covers picked from the full frame list are
+        // decoded by frame number, so this stays apart from FrameTime and never changes which picture is read.
+        internal double? SavedSceneMs;
+        internal double? SceneMs {get {return FrameTime??SavedSceneMs??(FrameIndex<=0?(double?)0:null);}}
         public bool HasCrop { get { return !Crop.IsEmpty; } }
+        // A saved cover record exists but could not be read: the tile has no crop, yet the work was done.
+        internal bool RecordDamaged;
         // In a folder grid an original with several covers has one tile per cover. The first tile is the main record;
         // the others are "extra" tiles that carry the folder of the main record they follow.
         internal string LeadFolder;
@@ -302,7 +308,7 @@ namespace LoveMyShelf {
         }
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
-            int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness) {
+            int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs) {
             new XElement("photo",new XAttribute("name",name),new XAttribute("original",original),
                 new XAttribute("thumb",thumb), new XAttribute("order",order),new XAttribute("coverCreated",coverCreated),new XAttribute("frame",frameIndex),
                 new XAttribute("x",Num(crop.X)),new XAttribute("y",Num(crop.Y)),
@@ -311,6 +317,7 @@ namespace LoveMyShelf {
                 brightness==0?null:new XAttribute("brightness",brightness),
                 frameTime.HasValue?new XAttribute("frameTimeMs",Num(frameTime.Value)):null,
                 frameTimeOffset>0?new XAttribute("frameTimeOffset",frameTimeOffset):null,
+                sceneMs.HasValue?new XAttribute("sceneMs",Num(sceneMs.Value)):null,
                 coverFile==null?null:new XAttribute("coverFile",coverFile),
                 coverFile==null?null:new XAttribute("coverFileTicks",File.GetLastWriteTimeUtc(coverFile).Ticks)).Save(path);
         }
@@ -333,7 +340,13 @@ namespace LoveMyShelf {
                 throw new InvalidDataException(L.T("The saved cover rotation is invalid."));
             if(frameTime.HasValue && (Double.IsNaN(frameTime.Value) || Double.IsInfinity(frameTime.Value) || frameTime.Value<0 || frameTimeOffset<0))
                 throw new InvalidDataException(L.T("Could not read video frame times."));
+            double? sceneMs=null;
+            try {
+                sceneMs=(double?)n.Attribute("sceneMs");
+                if(sceneMs.HasValue && (Double.IsNaN(sceneMs.Value) || Double.IsInfinity(sceneMs.Value) || sceneMs.Value<0))sceneMs=null;
+            } catch(FormatException) {}
             return new Photo { Folder=folder,Name=(string)n.Attribute("name"), Crop=r,Order=(long)n.Attribute("order"),
+                SavedSceneMs=sceneMs,
                 CoverCreated=coverCreated,
                 Rotation=CropSurface.NormalizeRotation(rotation),
                 Brightness=Math.Max(-100,Math.Min(100,(int?)n.Attribute("brightness")??0)),
@@ -404,31 +417,111 @@ namespace LoveMyShelf {
         }
         internal List<Photo> Photos(Album album,out int skipped,PhotoSort sort,bool descending) {
             var all=FolderPhotos(album,out skipped);
-            var sorted=SortPhotos(all.Where(p=>!p.IsExtra),sort,descending);
-            // Extra covers follow the main record of their original, oldest first.
-            var extras=all.Where(p=>p.IsExtra).GroupBy(p=>p.LeadFolder,StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g=>g.Key,g=>g.OrderBy(p=>p.CoverCreated).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList(),StringComparer.OrdinalIgnoreCase);
-            if(extras.Count==0)return sorted;
-            var result=new List<Photo>(sorted.Count+all.Count-sorted.Count);
-            foreach(var photo in sorted) {
-                result.Add(photo);
-                List<Photo> more;
-                if(extras.TryGetValue(photo.Folder,out more))result.AddRange(more);
-            }
-            return result;
+            return SortCoverFamilies(all,sort,descending);
         }
-        internal List<Photo> UnfinishedCovers(out int skipped) {
+        // Everything without a cover in the Love My Shelf folders and all the folders inside them.
+        // A folder inside two added folders counts once. Stopping early returns what was found so far.
+        internal List<Photo> UnfinishedCovers(out int skipped,System.Threading.CancellationToken token=default(System.Threading.CancellationToken),Action<int> found=null) {
             skipped=0;
             var items=new List<Photo>();
+            var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string coverFolder=Preferences.Load(Root).CoverDirectory;
+            coverFolder=String.IsNullOrWhiteSpace(coverFolder)?null:PlainPath(coverFolder);
+            var clock=System.Diagnostics.Stopwatch.StartNew();
             foreach(var album in VisibleAlbums()) {
-                try {
-                    int unreadable;
-                    items.AddRange(FolderPhotos(album,out unreadable).Where(p=>!p.HasCrop));
-                    skipped+=unreadable;
-                } catch(IOException) {skipped++;}
-                catch(UnauthorizedAccessException) {skipped++;}
+                string top=PlainPath(album.Source);
+                var waiting=new Stack<string>();waiting.Push(top);
+                while(waiting.Count>0) {
+                    if(token.IsCancellationRequested)return items;
+                    string path=waiting.Pop();
+                    if(!seen.Add(path))continue;
+                    try {foreach(string inner in FoldersToScan(path,coverFolder))waiting.Push(inner);}
+                    catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Security.SecurityException) {}
+                    try {
+                        if(!HasPictures(path))continue;
+                        int unreadable;
+                        items.AddRange(FolderPhotos(RecordsFor(path),out unreadable).Where(p=>!p.HasCrop && !p.RecordDamaged && !SharedCoverFiles.IsCoverFile(p.Original)));
+                        skipped+=unreadable;
+                    } catch(IOException) {if(path==top)skipped++;}
+                    catch(UnauthorizedAccessException) {if(path==top)skipped++;}
+                    if(found!=null && clock.ElapsedMilliseconds>=250){clock.Restart();found(items.Count);}
+                }
             }
             return items;
+        }
+        static string PlainPath(string path) {
+            string full=Path.GetFullPath(path);
+            return full.Length>Path.GetPathRoot(full).Length?full.TrimEnd(Path.DirectorySeparatorChar):full;
+        }
+        // Windows' own folders hold thousands of icons, so a whole drive that was added leaves them out.
+        static readonly HashSet<string> DriveSystemFolders=new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            "Windows","Program Files","Program Files (x86)","ProgramData","PerfLogs"
+        };
+        static List<string> FoldersToScan(string path,string coverFolder) {
+            var dir=new DirectoryInfo(path);
+            bool driveTop=dir.Parent==null;
+            var list=new List<string>();
+            foreach(var inner in dir.EnumerateDirectories()) {
+                try {
+                    if(!ShownFolder(inner) || IsFolderLink(inner))continue;
+                    if(driveTop && DriveSystemFolders.Contains(inner.Name))continue;
+                    string full=PlainPath(inner.FullName);
+                    if(coverFolder!=null && String.Equals(full,coverFolder,StringComparison.OrdinalIgnoreCase))continue;
+                    list.Add(full);
+                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+            }
+            return list;
+        }
+        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]
+        struct FindData {
+            public uint Attributes;
+            public System.Runtime.InteropServices.ComTypes.FILETIME Created,Accessed,Written;
+            public uint SizeHigh,SizeLow,ReparseTag,Reserved;
+            [MarshalAs(UnmanagedType.ByValTStr,SizeConst=260)] public string Name;
+            [MarshalAs(UnmanagedType.ByValTStr,SizeConst=14)] public string ShortName;
+        }
+        [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true,EntryPoint="FindFirstFileW")]
+        static extern IntPtr FindFirstFile(string path,out FindData data);
+        [DllImport("kernel32.dll")] static extern bool FindClose(IntPtr handle);
+        // Junctions and symbolic links can point back up and never end. OneDrive folders are marked in a similar way but are real.
+        static bool IsFolderLink(DirectoryInfo dir) {
+            if((dir.Attributes&FileAttributes.ReparsePoint)==0)return false;
+            FindData data;
+            IntPtr handle=FindFirstFile(dir.FullName,out data);
+            if(handle==new IntPtr(-1))return true;
+            FindClose(handle);
+            return data.ReparseTag==0xA0000003 || data.ReparseTag==0xA000000C;
+        }
+        static bool HasPictures(string path) {
+            return Directory.EnumerateFiles(path).Any(f=>(ImageExtensions.Contains(Path.GetExtension(f)) || VideoFrames.Supports(f)) && !SharedCoverFiles.IsBesideCover(f));
+        }
+        // The hidden record of a folder inside an added one. Covers saved there need it to appear in the cover collection.
+        // It is complete before it appears, so it never shows as a Love My Shelf folder for a moment.
+        Album RecordsFor(string path) {
+            string folder=AlbumFolderOf(path),name=Path.GetFileName(path);
+            if(name.Length==0)name=path;
+            string albumFile=Path.Combine(folder,"album.txt"),sourceFile=Path.Combine(folder,"source.txt");
+            if(!File.Exists(albumFile)) {
+                if(Directory.Exists(folder)) {
+                    File.WriteAllText(Path.Combine(folder,HiddenTabFile),"");
+                    File.WriteAllText(sourceFile,path);File.WriteAllText(albumFile,name);
+                } else {
+                    string temp=Path.Combine(Root,"setup-"+Guid.NewGuid().ToString("N"));
+                    Directory.CreateDirectory(temp);
+                    try {
+                        File.WriteAllText(Path.Combine(temp,HiddenTabFile),"");
+                        File.WriteAllText(Path.Combine(temp,"source.txt"),path);File.WriteAllText(Path.Combine(temp,"album.txt"),name);
+                        try {Directory.Move(temp,folder);}
+                        catch(IOException) {if(!File.Exists(albumFile))throw;} // another window made it first
+                    } finally {if(Directory.Exists(temp))Directory.Delete(temp,true);}
+                }
+            }
+            return new Album(folder,File.ReadAllText(albumFile),File.ReadAllText(sourceFile));
+        }
+        // The real folder a record folder stands for.
+        internal static string SourceOfRecords(string folder) {
+            string file=Path.Combine(folder,"source.txt");
+            return File.Exists(file)?File.ReadAllText(file):null;
         }
         static void AppendSaved(Album album,List<Photo> items,ref int skipped) {
             foreach(string folder in Directory.GetDirectories(album.Folder,"p-*")) {
@@ -446,7 +539,7 @@ namespace LoveMyShelf {
             return AllCrops(out skipped,byDate?PhotoSort.Modified:PhotoSort.Name,byDate);
         }
         internal List<Photo> AllCrops(out int skipped,PhotoSort sort,bool descending) {
-            return SortPhotos(SavedCovers(out skipped).Where(p=>!p.ExcludedFromCollection),sort,descending);
+            return SortCoverFamilies(SavedCovers(out skipped).Where(p=>!p.ExcludedFromCollection),sort,descending);
         }
         internal List<Photo> SavedCovers(out int skipped) {
             skipped=0;
@@ -475,13 +568,28 @@ namespace LoveMyShelf {
         internal static List<Photo> SortPhotos(IEnumerable<Photo> items,bool byDate) {
             return SortPhotos(items,byDate?PhotoSort.Modified:PhotoSort.Name,byDate);
         }
-        internal static List<Photo> SortPhotos(IEnumerable<Photo> items,PhotoSort sort,bool descending) {
+        // Every sort moves the covers of one original as one group; inside it, cover 1 is always on the left.
+        // By cover work order, a group's place is its newest cover (newest first) or its first cover (oldest first).
+        internal static List<Photo> SortCoverFamilies(IEnumerable<Photo> items,PhotoSort sort,bool descending) {
+            var families=new Dictionary<Photo,List<Photo>>();
+            var workTimes=new Dictionary<Photo,long>();
+            foreach(var group in items.GroupBy(p=>CoverFamily(p),StringComparer.OrdinalIgnoreCase)) {
+                var covers=InCoverOrder(group);
+                var lead=covers.FirstOrDefault(p=>p.HasCrop)??covers[0];
+                var times=covers.Where(p=>p.HasCrop && !p.ExcludedFromCollection).Select(p=>p.CoverCreated).ToList();
+                families[lead]=covers;
+                workTimes[lead]=times.Count==0?lead.CoverCreated:descending?times.Max():times.Min();
+            }
+            return SortPhotos(families.Keys,sort,descending,p=>workTimes[p]).SelectMany(p=>families[p]).ToList();
+        }
+        internal static List<Photo> SortPhotos(IEnumerable<Photo> items,PhotoSort sort,bool descending,Func<Photo,long> workTime=null) {
+            var time=workTime??(Func<Photo,long>)(p=>p.CoverCreated);
             var names=Comparer<Photo>.Create(CompareFolderPhotos);
             IOrderedEnumerable<Photo> ordered;
             if(sort==PhotoSort.CoverOrder) {
                 // Unfinished items have no work date and follow dated covers in either direction.
                 var coversFirst=items.OrderByDescending(p=>p.HasCrop);
-                ordered=descending?coversFirst.ThenByDescending(p=>p.CoverCreated):coversFirst.ThenBy(p=>p.CoverCreated);
+                ordered=descending?coversFirst.ThenByDescending(time):coversFirst.ThenBy(time);
                 ordered=descending?ordered.ThenByDescending(p=>p,names):ordered.ThenBy(p=>p,names);
             } else if(sort==PhotoSort.Size) {
                 ordered=descending?items.OrderByDescending(Size).ThenByDescending(p=>p,names):items.OrderBy(Size).ThenBy(p=>p,names);
@@ -493,6 +601,47 @@ namespace LoveMyShelf {
                 ordered=descending?items.OrderByDescending(Modified).ThenByDescending(p=>p,names):items.OrderBy(Modified).ThenBy(p=>p,names);
             } else ordered=descending?items.OrderByDescending(p=>p,names):items.OrderBy(p=>p,names);
             return ordered.ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        // Identifies the original a cover belongs to, in any view.
+        internal static string CoverFamily(Photo photo) {return Path.Combine(Path.GetDirectoryName(photo.Folder),RecordBase(photo));}
+        // By where each scene is in the video, then by when the cover was made.
+        // Until every scene time of an original is known, its covers keep the order they were made in.
+        // A hidden main tile (it shows the original) leads.
+        internal static List<Photo> InCoverOrder(IEnumerable<Photo> covers) {
+            var list=covers.ToList();
+            bool scenes=list.Where(p=>p.HasCrop).All(p=>p.SceneMs.HasValue);
+            return list.OrderBy(p=>p.HasCrop && !p.ExcludedFromCollection?1:0)
+                .ThenBy(p=>scenes && p.HasCrop?p.SceneMs.Value:0)
+                .ThenBy(p=>p.CoverCreated).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        // Older covers picked from the full frame list have only a frame number. Their scene time is worked out
+        // once in the background and kept in the record; the new order shows the next time the folder is read.
+        internal void FillSceneTimes(System.Threading.CancellationToken token) {
+            try {
+                int skipped;
+                foreach(var family in SavedCovers(out skipped).GroupBy(p=>CoverFamily(p),StringComparer.OrdinalIgnoreCase)) {
+                    if(family.Count()<2)continue;
+                    foreach(var cover in family.Where(p=>p.HasCrop && !p.SceneMs.HasValue)) {
+                        token.ThrowIfCancellationRequested();
+                        try {
+                            if(File.Exists(cover.Original))SaveSceneTime(cover,MotionMaker.MomentOf(cover,cover.Original));
+                        } catch(OperationCanceledException) {throw;} catch(Exception) {}
+                    }
+                }
+            } catch(Exception) {}
+        }
+        static void SaveSceneTime(Photo cover,double ms) {
+            string metadata=Path.Combine(cover.Folder,"photo.xml");
+            string part=Path.Combine(cover.Folder,"meta-"+Guid.NewGuid().ToString("N")+".tmp");
+            lock(SharedCoverFiles.MetadataLock) {
+                try {
+                    var xml=XElement.Load(metadata);
+                    xml.SetAttributeValue("sceneMs",Num(ms));
+                    xml.Save(part);
+                    File.Replace(part,metadata,null);
+                } finally {File.Delete(part);}
+            }
+            cover.SavedSceneMs=ms;
         }
         // Extra covers of one original live beside its main record as "p-<key>-<id>" folders.
         // The folder grid shows only the main record; the cover collection shows every record.
@@ -506,7 +655,7 @@ namespace LoveMyShelf {
                 FrameIndex=photo.FrameIndex,FrameTime=photo.FrameTime,FrameTimeOffset=photo.FrameTimeOffset};
         }
         // When an original's first cover (its main record "p-<key>") is gone but other covers of it remain,
-        // the earliest shown one takes the first place: its record folder "p-<key>-<id>" is renamed to "p-<key>".
+        // the next shown one in scene order takes the first place: its record folder "p-<key>-<id>" is renamed to "p-<key>".
         // The cover files stay where they are (the record keeps their full paths). Hidden covers are not moved up.
         // Returns the folder the promoted cover had, or null when nothing was moved up.
         internal static string PromoteExtraCover(string mainFolder,Func<string,bool> skip=null) {
@@ -514,17 +663,18 @@ namespace LoveMyShelf {
                 if(Directory.Exists(mainFolder))return null;
                 string parent=Path.GetDirectoryName(mainFolder),basis=Path.GetFileName(mainFolder);
                 if(!Directory.Exists(parent))return null;
-                Photo best=null;
+                var candidates=new List<Photo>();
                 foreach(string folder in Directory.GetDirectories(parent,basis+"-*")) {
                     if(Path.GetFileName(folder).Length<=basis.Length+1 || (skip!=null && skip(folder)))continue;
                     try {
                         if(!File.Exists(Path.Combine(folder,"photo.xml")))continue;
                         var cover=Read(folder);
                         if(!cover.HasCrop || cover.ExcludedFromCollection)continue;
-                        if(best==null || cover.CoverCreated<best.CoverCreated)best=cover;
+                        candidates.Add(cover);
                     } catch(Exception) {}
                 }
-                if(best==null)return null;
+                if(candidates.Count==0)return null;
+                var best=InCoverOrder(candidates)[0];
                 Directory.Move(best.Folder,mainFolder);
                 return best.Folder;
             }
@@ -569,10 +719,10 @@ namespace LoveMyShelf {
                 if(!ImageExtensions.Contains(Path.GetExtension(path)) && !VideoFrames.Supports(path)) continue;
                 if(SharedCoverFiles.IsBesideCover(path)) continue;
                 string name=Path.GetFileName(path), folder=Path.Combine(album.Folder,"p-"+Key(name));
-                bool added=false;
+                bool added=false,damaged=false;
                 if(edits.Contains(folder) && File.Exists(Path.Combine(folder,"photo.xml"))) {
                     try { photos.Add(Read(folder,path));added=true; }
-                    catch(Exception) { skipped++; }
+                    catch(Exception) { skipped++;damaged=true; }
                 }
                 if(!added && extraFolders["p-"+Key(name)].Any()) {
                     // The first cover was deleted earlier while other covers remained: the earliest one moves up.
@@ -580,7 +730,7 @@ namespace LoveMyShelf {
                         if(PromoteExtraCover(folder)!=null){photos.Add(Read(folder,path));added=true;}
                     } catch(Exception) {}
                 }
-                if(!added)photos.Add(new Photo {Folder=folder,Name=name,Original=path,Linked=true});
+                if(!added)photos.Add(new Photo {Folder=folder,Name=name,Original=path,Linked=true,RecordDamaged=damaged});
                 foreach(string extra in extraFolders["p-"+Key(name)]) {
                     try {
                         if(!File.Exists(Path.Combine(extra,"photo.xml")))continue;
@@ -618,6 +768,11 @@ namespace LoveMyShelf {
                     Pictures.Load(original);
             }
             token.ThrowIfCancellationRequested();
+            double? sceneMs=selectedTime.HasValue?null:selectedFrame==old.FrameIndex?old.SavedSceneMs:null;
+            if(!selectedTime.HasValue && !sceneMs.HasValue && selectedFrame>0 && AnimationFrames.Supports(original)) {
+                try {sceneMs=MotionMaker.MomentOf(new Photo {FrameIndex=selectedFrame},original);}
+                catch(OperationCanceledException) {throw;} catch(Exception) {}
+            }
             Directory.CreateDirectory(old.Folder);
             string id = Guid.NewGuid().ToString("N");
             string thumb = "grid-"+id+".jpg", part = Path.Combine(old.Folder,"meta-"+id+".tmp");
@@ -647,7 +802,7 @@ namespace LoveMyShelf {
                 token.ThrowIfCancellationRequested();
                 long coverCreated=old.CoverCreated>0?old.CoverCreated:DateTime.UtcNow.Ticks;
                 WriteMeta(part,old.Name,Path.GetFileName(old.Original),thumb,crop,old.Order,coverCreated,selectedFrame,
-                    rotation,selectedTime,selectedOffset,coverFile,brightness);
+                    rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs);
                 string target=Path.Combine(old.Folder,"photo.xml");
                 lock(SharedCoverFiles.MetadataLock) {
                     if(File.Exists(target)) {

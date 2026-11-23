@@ -111,6 +111,33 @@ namespace LoveMyShelf {
                 Func<ContextMenu> buildMenu=()=>{
                 var menu=new ContextMenu();
                 if(photo.HasCrop) {
+                    // With a GIF cover the names say JPG and GIF, so each choice is clear about what it touches.
+                    bool both=photo.HasMotion;
+                    var collection=new MenuItem { Header=photo.ExcludedFromCollection?L.T(both?"Show the JPG and GIF covers again":"Show this cover again"):
+                        L.T(both?"Hide the JPG and GIF covers in Love My Shelf":"Hide this cover in Love My Shelf") };
+                    collection.Click+=delegate { row.Owner.ChangeCollection(photo); };
+                    menu.Items.Add(collection);
+                    if(both) {
+                        var recycleGif=new MenuItem { Header=L.T("Move only the GIF cover file to the Recycle Bin") };
+                        recycleGif.Click+=delegate { row.Owner.RecycleMotion(photo); };
+                        menu.Items.Add(recycleGif);
+                    }
+                    var recycleCover=new MenuItem { Header=L.T(both?"Move the JPG and GIF cover files to the Recycle Bin":"Move this cover file to the Recycle Bin") };
+                    recycleCover.Click+=delegate { row.Owner.RecycleCover(photo); };
+                    menu.Items.Add(recycleCover);
+                    if(!row.Owner.ShowingAllCrops) {
+                        // Offered when other covers of this original are hidden; checked when the menu opens.
+                        var unhide=new MenuItem {Header=L.F("Show hidden covers again ({0})",0),Visibility=Visibility.Collapsed};
+                        unhide.Click+=delegate { row.Owner.ShowHiddenCovers(photo); };
+                        menu.Items.Add(unhide);
+                        menu.Opened+=delegate {
+                            int hidden=0;
+                            try {hidden=GalleryStore.CoversOf(photo).Count(p=>p.ExcludedFromCollection && p.Folder!=photo.Folder);} catch(Exception) {}
+                            unhide.Header=L.F("Show hidden covers again ({0})",hidden);
+                            unhide.Visibility=hidden>0?Visibility.Visible:Visibility.Collapsed;
+                        };
+                    }
+                    menu.Items.Add(new Separator());
                     foreach(bool cover in new[]{true,false}) {
                         var view=new MenuItem {Header=L.T(cover?"View cover large":"View original large")};
                         view.Click+=delegate {menu.IsOpen=false;row.Owner.OpenPhoto(photo,cover);};
@@ -144,35 +171,6 @@ namespace LoveMyShelf {
                     var gif=new MenuItem {Header=L.T("Make GIF cover")};
                     gif.Click+=delegate {row.Owner.ShowMakeGif(row.Owner,photo);};
                     menu.Items.Add(gif);
-                }
-                if(photo.HasCrop) {
-                    menu.Items.Add(new Separator());
-                    // With a GIF cover the names say JPG and GIF, so each choice is clear about what it touches.
-                    bool both=photo.HasMotion;
-                    var collection=new MenuItem { Header=photo.ExcludedFromCollection?L.T(both?"Show the JPG and GIF covers again":"Show this cover again"):
-                        L.T(both?"Hide the JPG and GIF covers in Love My Shelf":"Hide this cover in Love My Shelf") };
-                    collection.Click+=delegate { row.Owner.ChangeCollection(photo); };
-                    menu.Items.Add(collection);
-                    if(both) {
-                        var recycleGif=new MenuItem { Header=L.T("Move only the GIF cover file to the Recycle Bin") };
-                        recycleGif.Click+=delegate { row.Owner.RecycleMotion(photo); };
-                        menu.Items.Add(recycleGif);
-                    }
-                    var recycleCover=new MenuItem { Header=L.T(both?"Move the JPG and GIF cover files to the Recycle Bin":"Move this cover file to the Recycle Bin") };
-                    recycleCover.Click+=delegate { row.Owner.RecycleCover(photo); };
-                    menu.Items.Add(recycleCover);
-                }
-                if(!row.Owner.ShowingAllCrops && photo.HasCrop) {
-                    // Offered when other covers of this original are hidden; checked when the menu opens.
-                    var unhide=new MenuItem {Header=L.F("Show hidden covers again ({0})",0),Visibility=Visibility.Collapsed};
-                    unhide.Click+=delegate { row.Owner.ShowHiddenCovers(photo); };
-                    menu.Items.Add(unhide);
-                    menu.Opened+=delegate {
-                        int hidden=0;
-                        try {hidden=GalleryStore.CoversOf(photo).Count(p=>p.ExcludedFromCollection && p.Folder!=photo.Folder);} catch(Exception) {}
-                        unhide.Header=L.F("Show hidden covers again ({0})",hidden);
-                        unhide.Visibility=hidden>0?Visibility.Visible:Visibility.Collapsed;
-                    };
                 }
                 if(!row.Owner.ShowingAllCrops) {
                     menu.Items.Add(new Separator());
@@ -270,7 +268,7 @@ namespace LoveMyShelf {
             Action start=async ()=>{
                 if(player.Playing || !ready)return;
                 try {
-                    var frames=await MotionFrames.LoadAsync(photo.MotionFile,side,token);
+                    var frames=await MotionFrames.LoadCoverAsync(photo,side,token);
                     if(token.IsCancellationRequested || !tile.IsLoaded || (mode==GifPlayback.Hover && !hovering))return;
                     player.Start(frames);
                 } catch(Exception) {}
@@ -292,14 +290,51 @@ namespace LoveMyShelf {
             border.SetValue(Border.ClipToBoundsProperty,true);
             border.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
             root.AppendChild(border);
+            // "2/5": this is the second of the original's five covers. Dark behind white reads on any picture, in both themes.
+            var number=new FrameworkElementFactory(typeof(Border),"CoverNumber");
+            number.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            number.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Right);
+            number.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Bottom);
+            number.SetValue(FrameworkElement.MarginProperty,new Thickness(0,0,5,5));
+            number.SetValue(Border.PaddingProperty,new Thickness(5,1,5,2));
+            number.SetValue(Border.CornerRadiusProperty,new CornerRadius(6));
+            number.SetValue(Border.BackgroundProperty,TileMark.NumberBack);
+            var digits=new FrameworkElementFactory(typeof(TextBlock));
+            digits.SetValue(TextBlock.FontSizeProperty,11.0);
+            digits.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);
+            digits.SetValue(TextBlock.ForegroundProperty,Brushes.White);
+            digits.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding {Path=new PropertyPath(TileMark.NumberProperty),
+                RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+            number.AppendChild(digits);
+            root.AppendChild(number);
+            // Every cover of the original under the mouse gets this outline.
+            var family=new FrameworkElementFactory(typeof(Border),"CoverFamily");
+            family.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            family.SetValue(UIElement.VisibilityProperty,Visibility.Collapsed);
+            family.SetValue(Border.BorderThicknessProperty,new Thickness(2));
+            family.SetResourceReference(Border.BorderBrushProperty,"Accent");
+            root.AppendChild(family);
             var outline=new FrameworkElementFactory(typeof(Border));
             outline.SetValue(UIElement.IsHitTestVisibleProperty,false);
             outline.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));
             outline.SetValue(Border.BorderThicknessProperty,new TemplateBindingExtension(Control.BorderThicknessProperty));
             root.AppendChild(outline);
             tileTemplate=new ControlTemplate(typeof(Button)) { VisualTree=root };
+            var noNumber=new Trigger {Property=TileMark.NumberProperty,Value=null};
+            noNumber.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverNumber"));
+            tileTemplate.Triggers.Add(noNumber);
+            var lit=new Trigger {Property=TileMark.LitProperty,Value=true};
+            lit.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Visible,"CoverFamily"));
+            tileTemplate.Triggers.Add(lit);
             return tileTemplate;
         }
+    }
+    // What a photo tile shows about the other covers of its original (drawn by the tile's template).
+    internal static class TileMark {
+        internal static readonly Brush NumberBack=Frozen(Color.FromArgb(0xCC,0,0,0));
+        static Brush Frozen(Color color) {var brush=new SolidColorBrush(color);brush.Freeze();return brush;}
+        internal static readonly DependencyProperty NumberProperty=DependencyProperty.RegisterAttached("Number",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty LitProperty=DependencyProperty.RegisterAttached("Lit",typeof(bool),typeof(TileMark));
     }
     // Marks a folder tile, so a drop can tell it moves files into that folder.
     internal sealed class FolderTarget {
@@ -381,13 +416,13 @@ namespace LoveMyShelf {
         public bool ShowingAllCrops { get { return active==allCrops; } }
         bool ShowingUnfinished { get { return active==unfinished; } }
         internal Preferences Settings { get { return settings; } }
-        // The large view's volume, kept for the next video (like PotPlayer). Every window learns it, so another
-        // window's later save doesn't put the old volume back.
-        internal void SaveVolume(int value) {
+        // The large view's volume and Clear voice, kept for the next video (like PotPlayer). Every window learns
+        // them, so another window's later save doesn't put the old values back.
+        internal void SaveAudio(int value,bool clearVoice,int clearVoiceLevel) {
             value=Math.Max(0,Math.Min(100,value));
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
-            if(settings.Volume==value)return;
-            foreach(var w in windows)w.settings.Volume=value;
+            if(settings.Volume==value && settings.ClearVoice==clearVoice && settings.ClearVoiceLevel==clearVoiceLevel)return;
+            foreach(var w in windows){w.settings.Volume=value;w.settings.ClearVoice=clearVoice;w.settings.ClearVoiceLevel=clearVoiceLevel;}
             var updated=settings.Copy();
             try {updated.Save(store.Root);} catch(Exception) {}
         }
@@ -706,6 +741,7 @@ namespace LoveMyShelf {
             Upscales.Finished+=UpscaleFinished;
             Upscales.Failed+=(photo,message)=>Notify(L.T("Upscaling failed"),photo.Name+Environment.NewLine+message,null,NoticeKind.Warning);
             Closed+=delegate {
+                FinishPendingCovers();
                 resizeTimer.Stop();refreshVersion++;lifetime.Cancel();Upscales.Stop();
                 FilesChanged-=ReloadAfterFileMove;
                 // Large views are windows of their own now; they close with the folder window they came from.
@@ -812,6 +848,9 @@ namespace LoveMyShelf {
             ContentRendered+=delegate {
                 if(coverSetupShown || another)return; // the first window already did this
                 coverSetupShown=true;
+                AppUpdater.ReportStarted();
+                var sceneStore=store;var sceneToken=lifetime.Token;
+                Task.Run(()=>sceneStore.FillSceneTimes(sceneToken));
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
                     var updated=settings.Copy();updated.MarqueeTipShown=true;
@@ -827,12 +866,59 @@ namespace LoveMyShelf {
         async void CheckForUpdate() {
             string newer=await AppInfo.NewerVersionAsync();
             if(newer==null || lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
+            var plan=await AppUpdater.LoadAsync(newer);
+            if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
+            if(plan==null) {
+                Notify(L.F("Version {0} is out",newer),
+                    L.T("Click here to open the download page. Close Love My Shelf, then unzip the new ZIP over your Love My Shelf folder. Your covers and settings stay as they are."),
+                    OpenReleasesPage,NoticeKind.Info);
+                return;
+            }
             Notify(L.F("Version {0} is out",newer),
-                L.T("Click here to open the download page. Unzip the new ZIP over your Love My Shelf folder. Your covers and settings stay as they are."),
-                ()=>{
-                    try {System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppInfo.ReleasesPage) {UseShellExecute=true});}
-                    catch(Exception ex) {UI.Error(this,ex);}
-                },NoticeKind.Info);
+                plan.Notes.Count>0?L.T("Click here to see what’s new and update."):
+                    L.T("Click here to update. You can keep using Love My Shelf while it downloads. Your covers and settings stay as they are."),
+                ()=>ShowUpdateNews(plan),NoticeKind.Info,true);
+        }
+        void ShowUpdateNews(UpdatePlan plan) {
+            if(plan.Notes.Count==0){DownloadUpdate(plan);return;}
+            var news=new UpdateNewsWindow(ActiveAppWindow(),plan,lifetime.Token);
+            if(news.ShowDialog()==true)DownloadUpdate(plan);
+        }
+        void OpenReleasesPage() {
+            try {System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppInfo.ReleasesPage) {UseShellExecute=true});}
+            catch(Exception ex) {UI.Error(this,ex);}
+        }
+        async void DownloadUpdate(UpdatePlan plan) {
+            var working=Notify(L.T("Getting the update…"),L.T("You can keep using Love My Shelf. We’ll let you know here when it’s ready."),null,NoticeKind.Busy);
+            try {
+                string stage=await Task.Run(()=>AppUpdater.Prepare(plan,lifetime.Token),lifetime.Token);
+                working.Dismiss();
+                if(!lifetime.IsCancellationRequested)OfferRestart(stage);
+            } catch(OperationCanceledException) {working.Dismiss();}
+            catch(Exception) {
+                working.Dismiss();
+                if(!lifetime.IsCancellationRequested)
+                    Notify(L.T("Couldn’t get the update"),L.T("Nothing was changed. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+            }
+        }
+        void OfferRestart(string stage) {
+            Notify(L.T("The update is ready"),L.T("Click here to restart Love My Shelf with the new version. It only takes a moment."),
+                ()=>RestartForUpdate(stage),NoticeKind.Done,true);
+        }
+        void RestartForUpdate(string stage) {
+            var windows=Application.Current.Windows.OfType<Window>().ToList();
+            if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+                Notify(L.T("Still working on something"),L.T("Click here again when the work in progress is done, so nothing gets cut off."),
+                    ()=>RestartForUpdate(stage),NoticeKind.Info,true);
+                return;
+            }
+            foreach(var window in windows.OfType<GalleryWindow>())window.FinishPendingCovers();
+            try {AppUpdater.StartApply(stage);}
+            catch(Exception) {
+                Notify(L.T("Couldn’t get the update"),L.T("Nothing was changed. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                return;
+            }
+            Application.Current.Shutdown();
         }
         void ChangeFolderFilter(int choice) {
             if(active==null || active.Source==null || folderFilter==choice)return;
@@ -931,7 +1017,14 @@ namespace LoveMyShelf {
                     String.Equals(Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar),
                         Path.GetFullPath(settings.CoverDirectory).TrimEnd(Path.DirectorySeparatorChar),StringComparison.OrdinalIgnoreCase))
                     Select(allCrops);
-                else Select(store.OpenFolder(path));
+                else {
+                    bool isNew=!OnShelf(path);
+                    Select(store.OpenFolder(path));
+                    if(isNew) {
+                        if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();tree.UnfoldShelfFolder(path);TreeSyncSoon();}
+                        foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
+                    }
+                }
             } catch(Exception ex) {UI.Error(this,ex);}
         }
         void Select(Album album) {
@@ -1064,9 +1157,10 @@ namespace LoveMyShelf {
         // Like pinning a folder to Quick access in File Explorer: the folder gets a tab and a row under Love My Shelf.
         internal void AddToShelf(string path) {
             try {store.OpenFolder(path);} catch(Exception ex) {UI.Error(this,ex);return;}
-            BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+            BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();tree.UnfoldShelfFolder(path);TreeSyncSoon();}
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
-            if(photos.Count==0 && active!=null && active.Source==null)ShowPhotos();
+            if(ShowingUnfinished)Refresh();
+            else if(photos.Count==0 && active!=null && active.Source==null)ShowPhotos();
         }
         internal void RemoveFromShelf(string path) {
             var album=store.VisibleAlbums().FirstOrDefault(a=>ShellPlaces.Same(a.Source,path));if(album==null)return;
@@ -1074,6 +1168,7 @@ namespace LoveMyShelf {
             if(trail.Count>0 && trail[0].Folder==album.Folder)Select(allCrops);else BuildTabs();
             if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
+            if(ShowingUnfinished)Refresh();
         }
         void ReorderShelf(string path,Album place) {
             var albums=store.VisibleAlbums();
@@ -1084,7 +1179,7 @@ namespace LoveMyShelf {
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
         }
         internal bool OnShelf(string path) {return store.VisibleAlbums().Any(a=>ShellPlaces.Same(a.Source,path));}
-        void FoldersChanged() {BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}}
+        void FoldersChanged() {BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}if(ShowingUnfinished)Refresh();}
         FolderPane folderPane;
         DockPanel folderArea;
         internal void PlaceFolderPane() {
@@ -1241,9 +1336,8 @@ namespace LoveMyShelf {
                             if(trail.Count>0 && trail[0].Folder==item.Folder)Select(allCrops);
                             else {
                                 tabs.Children.Remove(button);
-                                // That folder's tiles leave the list and the others slide forward.
-                                if(ShowingUnfinished)
-                                    RemoveTiles(p=>String.Equals(Path.GetDirectoryName(p.Folder),item.Folder,StringComparison.OrdinalIgnoreCase));
+                                // The folders inside it may leave too, unless another added folder still holds them.
+                                if(ShowingUnfinished)Refresh();
                             }
                         }
                         catch(Exception ex){UI.Error(this,ex);}
@@ -1364,8 +1458,10 @@ namespace LoveMyShelf {
         }
         // The folder whose tiles are on screen (see Refresh).
         string shownAlbum;
+        CancellationTokenSource unfinishedScan;
         async void Refresh() {
             int version=++refreshVersion;
+            if(unfinishedScan!=null){unfinishedScan.Cancel();unfinishedScan=null;}
             int skipped=0; folderUnavailable=false;
             var folders=new List<Tuple<string,int>>();
             try {
@@ -1377,10 +1473,25 @@ namespace LoveMyShelf {
                     count.Text="";count.ToolTip=null;
                     var sort=settings.Sort;
                     bool descending=settings.Descending;
-                    var saved=await Task.Run(()=>pending?GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped),sort,descending):
-                        store.AllCrops(out skipped,sort,descending));
+                    // Reading every folder inside can take a while: the count keeps moving, and leaving stops it.
+                    var scan=pending?CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token):null;
+                    if(scan!=null)unfinishedScan=scan;
+                    var scanToken=scan==null?CancellationToken.None:scan.Token;
+                    Action<int> foundSoFar=n=>Dispatcher.BeginInvoke(new Action(()=>{
+                        if(version==refreshVersion)emptyHelp.Text=L.F("{0:N0} files without a cover found so far",n);
+                    }));
+                    List<Photo> saved;
+                    try {
+                        saved=await Task.Run(()=>pending?GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped,scanToken,foundSoFar),sort,descending):
+                            store.AllCrops(out skipped,sort,descending));
+                    } finally {
+                        if(scan!=null) {
+                            if(unfinishedScan==scan)unfinishedScan=null;
+                            scan.Dispose();
+                        }
+                    }
                     if(version!=refreshVersion) return;
-                    photos=saved;
+                    photos=WithoutPending(saved);
                 } else {
                     // A folder with thousands of files is read off the UI thread so the window never freezes.
                     var album=active;var sort=settings.Sort;bool descending=settings.Descending;int filterNow=folderFilter;
@@ -1402,7 +1513,7 @@ namespace LoveMyShelf {
                     }
                     var read=await reading;
                     if(version!=refreshVersion) return;
-                    photos=read.Item1;skipped=read.Item2;folders=read.Item3;
+                    photos=WithoutPending(read.Item1);skipped=read.Item2;folders=read.Item3;
                 }
                 shownAlbum=active.Folder;
             }
@@ -1413,15 +1524,16 @@ namespace LoveMyShelf {
             if(query.Length>0)folders=folders.Where(f=>Path.GetFileName(f.Item1).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
             subfolders=folders;
             ClearSelection();
-            // Extra covers keep following their original's main tile (the sort is stable).
+            // The covers of one original keep their order inside the shuffled group (the sort is stable).
             if(shuffledOrder!=null) photos=photos.OrderBy(p=>{
-                int rank; return shuffledOrder.TryGetValue(p.IsExtra?p.LeadFolder:p.Folder,out rank)?rank:Int32.MaxValue;
+                int rank; return shuffledOrder.TryGetValue(GalleryStore.CoverFamily(p),out rank)?rank:Int32.MaxValue;
             }).ToList();
             skippedCount=skipped;
             var reflow=pendingReflow;pendingReflow=null;
             ShowPhotos(reflow);
         }
         void ShowPhotos(Reflow reflow=null) {
+            UpdateCoverMarks();
             SetCount(skippedCount);
             // No filter and no search, and still nothing: this folder really has no photos or videos.
             bool noFiles=photos.Count==0 && !folderUnavailable && active.Source!=null && folderFilter==0 && search.Text.Trim().Length==0;
@@ -1438,7 +1550,7 @@ namespace LoveMyShelf {
                 L.T(searching?"No names match your search":pending?"No unfinished covers here":coversOnly?"No covers yet":"No photos or videos in this folder");
             emptyHelp.Text=folderUnavailable?L.T("Check the folder location and permissions, then press F5."):
                 L.T(searching?"Try another name, or clear the search.":
-                    ShowingUnfinished?"Unfinished items from visible folder tabs appear here.":
+                    ShowingUnfinished?"Files without a cover from your Love My Shelf folders and all the folders inside them appear here.":
                     pending?"Change the folder filter to see all items.":
                     coversOnly?"Open a local folder and make a cover to see it here.":"Choose another folder or add files and press F5.");
             // Nothing added yet: point to the folder tree, where folders are added (and open it).
@@ -1530,20 +1642,21 @@ namespace LoveMyShelf {
         }
         void Shuffle() {
             bool pending=ShowingPending;
-            var ordered=photos.Where(p=>p!=null && !p.IsExtra && (!pending || !p.HasCrop)).ToList();
-            if(ordered.Count<2 && ordered.Count==photos.Count)return;
+            // Whole originals are shuffled: their covers stay together, cover 1 on the left.
+            var ordered=photos.Where(p=>p!=null).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)
+                .Select(g=>GalleryStore.InCoverOrder(g)).Where(f=>!pending || f.Any(p=>!p.IsExtra && !p.HasCrop)).ToList();
+            if(ordered.Count<2 && ordered.Sum(f=>f.Count)==photos.Count)return;
             bool changed=false;
             for(int i=ordered.Count-1;i>0;i--) {
                 int j=random.Next(i+1);
                 if(j==i) continue;
-                Photo item=ordered[i]; ordered[i]=ordered[j]; ordered[j]=item; changed=true;
+                var item=ordered[i]; ordered[i]=ordered[j]; ordered[j]=item; changed=true;
             }
             if(!changed) ordered.Reverse();
             shuffledOrder=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
-            for(int i=0;i<ordered.Count;i++) shuffledOrder[ordered[i].Folder]=i;
-            // Extra covers stay right after their original's main tile.
-            var extras=photos.Where(p=>p!=null && p.IsExtra).ToLookup(p=>p.LeadFolder,StringComparer.OrdinalIgnoreCase);
-            photos=ordered.SelectMany(p=>new[]{p}.Concat(extras[p.Folder])).ToList();scrollToTop=true;ShowPhotos();
+            for(int i=0;i<ordered.Count;i++) shuffledOrder[GalleryStore.CoverFamily(ordered[i][0])]=i;
+            photos=ordered.SelectMany(f=>f).ToList();
+            scrollToTop=true;ShowPhotos();
             if(rows.Count>0)grid.ScrollIntoView(rows[0]);
         }
         internal static string SortName(PhotoSort sort) {
@@ -1602,6 +1715,7 @@ namespace LoveMyShelf {
             return new PhotoRow { Owner=this,Columns=columns,Height=height,Number=folderRows+start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
         }
         internal bool EditFrames(Viewer playback) {
+            FinishPendingCovers();
             if(!EnsureCoverFolder(playback))return false;
             Photo photo=playback.CurrentPhoto;
             string path=photo.Original;
@@ -1618,20 +1732,26 @@ namespace LoveMyShelf {
         FramePicker CreateFramePicker(Viewer playback,string path,Photo photo,bool nearby) {
             var picker=new FramePicker(playback,path,photo,playback.CropFrame,playback.CropTime,
                 settings.SnapEdges,settings.WheelZoomPercent,nearby,FullScreen.IsFull(this),Preferences.EditorPreviewSide);
-            picker.Brightness=playback.PlaybackBrightness;picker.SkipSeconds=settings.SkipSeconds;
+            picker.Brightness=playback.PlaybackBrightness;picker.SkipSeconds=settings.SkipSeconds;picker.BrightnessStep=settings.BrightnessStep;
             var target=AddTarget(photo,path);
-            picker.CommitCover=editor=>SaveCrop(target,editor,editor.FrameIndex);
-            // The new cover's large view opens over the editor, the scene grid and the video before they close.
-            picker.AfterCommit=()=>OpenSavedOver(playback,playback);
+            // While watching, the video stays open behind the editor and is simply there again after saving.
+            // A video opened only to make a cover closes and shows the new cover instead.
+            bool staysOpen=!playback.ForCrop;
+            picker.CommitCover=async editor=>{
+                var updated=await SaveCrop(target,editor,editor.FrameIndex,null,true,!staysOpen);
+                if(staysOpen)playback.CoverSaved(updated);
+            };
+            if(!staysOpen)picker.AfterCommit=()=>OpenSavedOver(playback,playback);
             picker.CommitMotion=async (editor,request)=>{
-                var updated=await SaveCrop(target,editor,editor.FrameIndex,null,false);
+                var updated=await SaveCrop(target,editor,editor.FrameIndex,null,false,!staysOpen);
+                if(staysOpen)playback.CoverSaved(updated);
                 MakeMotion(updated,request);
             };
             return picker;
         }
         CropWindow CreateCropEditor(Window owner,Photo photo,BitmapSource preview) {
             return new CropWindow(owner,preview,photo.Name,photo.HasCrop?(Rect?)photo.Crop:null,photo.Rotation,
-                settings.SnapEdges,settings.WheelZoomPercent,brightness:photo.Brightness);
+                settings.SnapEdges,settings.WheelZoomPercent,brightness:photo.Brightness) {BrightnessStep=settings.BrightnessStep};
         }
         internal async Task<Photo> EditSavedCover(Viewer viewer,Photo photo) {
             if(!EnsureCoverFolder(viewer))return null;
@@ -1665,6 +1785,7 @@ namespace LoveMyShelf {
             catch(Exception ex){if(viewer.IsVisible && viewer.CurrentPhoto==photo)UI.Error(viewer,ex);return null;}
         }
         public async void Edit(Photo photo) {
+            FinishPendingCovers();
             try {
                 if(!EnsureCoverFolder(this))return;
                 if(AnimationFrames.Supports(photo.Original)) {
@@ -1708,7 +1829,7 @@ namespace LoveMyShelf {
             Action makeGif=motion?(Action)(()=>ShowMakeGif(ActiveAppWindow(),updated)):null;
             string gifLine=motion?" "+L.T("Click here to make a GIF cover from this JPG cover."):"";
             if(added)
-                Notify(L.T("Added another cover"),L.T("Both covers are kept. The new cover now sits next to the first one.")+gifLine,makeGif);
+                Notify(L.T("Added another cover"),L.T("Both covers are kept. The new cover joins the others in the order of the video’s scenes.")+gifLine,makeGif);
             else if(motion && !(showAfter && OpenCoverAfterSave))
                 // The large view has its own Make GIF button; the notice is for when it doesn't open.
                 Notify(L.T("Cover saved"),gifLine.Trim(),makeGif);
@@ -1768,7 +1889,7 @@ namespace LoveMyShelf {
                 if(result.Item1.Before<request.Before-0.05)shorter+=L.F("Only {0:0.#} s was available before the cover.",result.Item1.Before)+" ";
                 if(result.Item1.After<request.After-0.05)shorter+=L.F("Only {0:0.#} s was available after the cover.",result.Item1.After)+" ";
                 Notify(L.T("The GIF cover is ready"),shorter+L.T("Click here to go to the GIF cover’s large view."),
-                    ready==null?(Action)null:()=>OpenReadyCover(ready));
+                    ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,5);
             } catch(OperationCanceledException) {}
             catch(Exception ex) {
                 working.Dismiss();
@@ -1792,11 +1913,39 @@ namespace LoveMyShelf {
             } catch(Exception ex){UI.Error(this,ex);}
         }
         // Sends the cover's files (still, upscaled copy, GIF) to the Recycle Bin and forgets the cover.
-        // The original stays where it is. In a folder the tile goes back to showing the original.
+        // The original stays where it is. The tile leaves at once, but nothing on disk changes for 3 seconds,
+        // so the notice can bring the cover back exactly as it was. Pointing at the notice holds the time.
+        sealed class PendingCovers {internal List<Photo> Covers;internal bool Done;}
+        readonly List<PendingCovers> pendingDeletes=new List<PendingCovers>();
+        readonly HashSet<string> pendingFolders=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        const double UndoSeconds=3;
         internal void RecycleCover(Photo photo) {RecycleCovers(new[]{photo});}
         internal void RecycleCovers(IEnumerable<Photo> covers) {
+            var chosen=covers.Where(p=>p.HasCrop && pendingFolders.Add(p.Folder)).ToList();
+            if(chosen.Count==0)return;
+            var pending=new PendingCovers {Covers=chosen};
+            pendingDeletes.Add(pending);
+            ShowWithoutPending();
+            var toast=new UpscaleToast(ActiveAppWindow(),
+                chosen.Count==1?L.T("Moved the cover to the Recycle Bin"):L.F("Moved {0:N0} covers to the Recycle Bin",chosen.Count),
+                L.T("Click here within 3 seconds to undo. The original stays in its folder."),
+                ()=>UndoCovers(pending),NoticeKind.Info,false,UndoSeconds);
+            toast.Closed+=delegate {if(!toast.WasClicked)FinishCovers(pending);};
+            toast.Show();
+        }
+        void UndoCovers(PendingCovers pending) {
+            if(pending.Done)return;
+            pending.Done=true;pendingDeletes.Remove(pending);
+            foreach(var photo in pending.Covers)pendingFolders.Remove(photo.Folder);
+            ReloadKeepingPlace();
+        }
+        void FinishCovers(PendingCovers pending) {
+            if(pending.Done)return;
+            pending.Done=true;pendingDeletes.Remove(pending);
+            bool open=!lifetime.IsCancellationRequested && IsVisible,reload=false;
             var done=new List<Photo>();
-            foreach(var photo in covers.ToList()) {
+            foreach(var photo in pending.Covers) {
+                pendingFolders.Remove(photo.Folder);
                 try {
                     var files=new[]{photo.CoverFile,photo.UpscaleFile,photo.MotionFile}
                         .Where(f=>!String.IsNullOrEmpty(f) && File.Exists(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -1805,34 +1954,45 @@ namespace LoveMyShelf {
                     GalleryStore.RemoveRecord(photo);
                     done.Add(photo);
                 } catch(Exception ex){
-                    Notify(L.T("Couldn’t move the cover to the Recycle Bin"),ex.Message,null,NoticeKind.Warning);
+                    reload=true; // it couldn't go: its tile comes back
+                    if(open)Notify(L.T("Couldn’t move the cover to the Recycle Bin"),ex.Message,null,NoticeKind.Warning);
                 }
             }
-            if(done.Count==0)return;
-            // The collection and extra cover tiles lose the tile; a main tile goes back to its original.
-            // With "Cover O" chosen, an original without any cover left has nothing to show either.
-            var gone=new HashSet<string>(done.Where(p=>ShowingAllCrops || p.IsExtra).Select(p=>p.Folder),StringComparer.OrdinalIgnoreCase);
-            // A deleted first cover with other covers left: the earliest of them moves up to the first place,
-            // so its tile simply goes away and the rest slide forward (no bare original tile is left behind).
-            var promoted=new Dictionary<string,Photo>(StringComparer.OrdinalIgnoreCase);
+            // A deleted first cover with other covers left: the next of them moves up to the first place.
+            // A cover still waiting out its own 3 seconds is never moved up.
             foreach(var photo in done.Where(p=>GalleryStore.RecordBase(p).Length==Path.GetFileName(p.Folder).Length)) {
                 try {
-                    string from=GalleryStore.PromoteExtraCover(photo.Folder,f=>{int percent;return Upscales.Stage(f,out percent)!=UpscaleStage.None;});
-                    if(from==null)continue;
-                    var now=GalleryStore.Read(photo.Folder,photo.Linked?photo.Original:null);
-                    promoted[from]=now;gone.Add(photo.Folder);
+                    if(GalleryStore.PromoteExtraCover(photo.Folder,f=>{int percent;return pendingFolders.Contains(f) || Upscales.Stage(f,out percent)!=UpscaleStage.None;})!=null)
+                        reload=true;
                 } catch(Exception) {}
             }
-            foreach(var photo in done.Where(p=>!ShowingAllCrops && !p.IsExtra && !gone.Contains(p.Folder))) {
-                bool otherCovers=photos.Any(p=>p!=null && p.IsExtra && String.Equals(p.LeadFolder,photo.Folder,StringComparison.OrdinalIgnoreCase) && !done.Any(d=>d.Folder==p.Folder));
-                if(active.Source!=null && folderFilter==2 && !otherCovers)gone.Add(photo.Folder);
-                else {
-                    int index=photos.FindIndex(p=>p!=null && p.Folder==photo.Folder);
-                    if(index>=0)UpdatePhoto(index,new Photo {Folder=photo.Folder,Name=photo.Name,Original=photo.Original,Linked=true});
-                }
+            if(open && reload)ReloadKeepingPlace();
+        }
+        // Before anything else touches the records (renaming, moving, a new cover, closing), waiting covers finish first.
+        void FinishPendingCovers() {
+            foreach(var pending in pendingDeletes.ToList())FinishCovers(pending);
+        }
+        // The list as it looks while covers wait: their tiles are gone, and an original left with no cover shows itself again.
+        List<Photo> WithoutPending(List<Photo> list) {
+            if(pendingFolders.Count==0)return list;
+            var result=new List<Photo>(list.Count);
+            foreach(var photo in list) {
+                if(photo==null || !pendingFolders.Contains(photo.Folder)){result.Add(photo);continue;}
+                if(ShowingAllCrops || photo.IsExtra)continue;
+                bool otherCovers=list.Any(p=>p!=null && p.IsExtra && String.Equals(p.LeadFolder,photo.Folder,StringComparison.OrdinalIgnoreCase) && !pendingFolders.Contains(p.Folder));
+                if(otherCovers || (active.Source!=null && folderFilter==2))continue;
+                result.Add(new Photo {Folder=photo.Folder,Name=photo.Name,Original=photo.Original,Linked=true});
             }
-            if(gone.Count>0)RemoveTiles(p=>gone.Contains(p.Folder),promoted);
-            Notify(L.T("Moved the cover to the Recycle Bin"),L.T("The original is still in its folder. You can restore the cover file from the Recycle Bin."),null);
+            return result;
+        }
+        void ShowWithoutPending() {
+            var now=WithoutPending(photos);
+            var stays=new HashSet<string>(now.Where(p=>p!=null).Select(p=>p.Folder),StringComparer.OrdinalIgnoreCase);
+            foreach(var bare in now.Where(p=>p!=null && !p.HasCrop && pendingFolders.Contains(p.Folder))) {
+                int index=photos.FindIndex(p=>p!=null && p.Folder==bare.Folder);
+                if(index>=0 && photos[index].HasCrop)UpdatePhoto(index,bare);
+            }
+            if(photos.Any(p=>p!=null && !stays.Contains(p.Folder)))RemoveTiles(p=>!stays.Contains(p.Folder));
         }
         // After an edited GIF cover is made: the old file goes to the Recycle Bin and the new one takes its name
         // (when it's the same kind of file in the same folder). If anything fails, both files simply stay.
@@ -1882,6 +2042,7 @@ namespace LoveMyShelf {
         // Sends originals to the Recycle Bin. Every tile of an original (its extra covers too) leaves the list at once.
         internal void RecycleOriginals(IEnumerable<Photo> targets) {
             if(ShowingAllCrops)return;
+            FinishPendingCovers();
             var removed=new List<Photo>();
             foreach(var photo in targets.Where(p=>p.Linked && photos.Contains(p)).ToList()) {
                 if(removed.Any(r=>SameOriginal(r,photo)))continue; // its main tile was already handled
@@ -1890,9 +2051,9 @@ namespace LoveMyShelf {
                     // has previously located a same-named original somewhere else.
                     string source=active.Source;
                     if(ShowingUnfinished) {
-                        var album=store.VisibleAlbums().FirstOrDefault(a=>String.Equals(a.Folder,Path.GetDirectoryName(photo.Folder),StringComparison.OrdinalIgnoreCase));
-                        if(album==null)continue;
-                        source=album.Source;
+                        // The tile may come from a folder inside an added one: its own record says where it lives.
+                        source=GalleryStore.SourceOfRecords(Path.GetDirectoryName(photo.Folder));
+                        if(source==null)continue;
                     }
                     string path=Path.Combine(source,Path.GetFileName(photo.Name));
                     if(!File.Exists(path))throw new FileNotFoundException(L.T("The original is missing from this folder."),path);
@@ -1982,21 +2143,26 @@ namespace LoveMyShelf {
             ShowPhotos(reflow);
             RefreshSelection();
         }
-        // A new extra cover appears right after the last tile of its original.
+        // A new extra cover takes its place among the tiles of its original, in scene order unless the person arranged them.
         void InsertCover(Photo cover) {
-            if(rows==null || active==null || ShowingUnfinished || (active.Source!=null && folderFilter==1))return;
+            if(rows==null || active==null)return;
             string folder=Path.GetDirectoryName(cover.Folder),recordBase=GalleryStore.RecordBase(cover);
             int last=-1;
+            var family=new List<Photo>();
             for(int i=0;i<photos.Count;i++) {
                 var p=photos[i];
                 if(p!=null && String.Equals(Path.GetDirectoryName(p.Folder),folder,StringComparison.OrdinalIgnoreCase) &&
-                    String.Equals(GalleryStore.RecordBase(p),recordBase,StringComparison.OrdinalIgnoreCase))last=i;
+                    String.Equals(GalleryStore.RecordBase(p),recordBase,StringComparison.OrdinalIgnoreCase)){last=i;family.Add(p);}
             }
             if(last<0)return; // that original isn't shown here; the cover appears when the view is loaded again
-            if(active.Source!=null)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
+            if(active.Source!=null || ShowingUnfinished)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
+            var order=GalleryStore.InCoverOrder(family.Concat(new[]{cover}));
+            int at=order.IndexOf(cover);
+            int place=at+1<order.Count?photos.IndexOf(order[at+1]):last+1;
+            if(place<0)place=last+1;
             var reflow=CaptureReflow();
             reflow.Fresh.Add(cover.Folder);
-            photos.Insert(last+1,cover);
+            photos.Insert(place,cover);
             ShowPhotos(reflow);
         }
         static bool SameOriginal(Photo a,Photo b) {
@@ -2008,6 +2174,7 @@ namespace LoveMyShelf {
             if(photo!=null && photo.LeadFolder==null && photos[index]!=null && photos[index].LeadFolder!=null && photo.Folder==photos[index].Folder)
                 photo.LeadFolder=photos[index].LeadFolder;
             photos[index]=photo;
+            CoverMarksSoon();
             rows[folderRows+index/columns].Replace(index%columns,photo);
             SetCount(skippedCount);
         }
@@ -2203,6 +2370,7 @@ namespace LoveMyShelf {
             Dispatcher.Invoke(new Action(()=>moveToRecycleBin(path,new System.Windows.Interop.WindowInteropHelper(this).Handle)));
         }
         async void MoveOriginals(string[] originals,bool copy,Album target) {
+            FinishPendingCovers();
             string folderName=target.Name;
             var busy=Notify(L.T(copy?"Copying files…":"Moving files…"),L.F("{0:N0} files are going to “{1}”.",originals.Length,folderName),null,NoticeKind.Busy);
             MoveReport report=null;Exception error=null;
@@ -2273,9 +2441,11 @@ namespace LoveMyShelf {
             ShellMenu.Show(this,own,ClipboardFiles(targets),MenuPoint(at,e),take,RefreshSoon,RangeHint);
         }
         // For a folder (in the folders area or the tree): Windows does what it does to folders, except Rename
-        // (it needs File Explorer's own view) and Paste, which Love My Shelf does so covers follow.
+        // and Paste, which Love My Shelf does so covers follow.
         internal void ShowFolderMenu(ContextMenu own,IList<string> folders,FrameworkElement at,ContextMenuEventArgs e) {
-            var take=new ShellMenu.Takeovers {HideRename=true,LiftDelete=true,Paste=folders.Count==1?(Action)(()=>PasteFromClipboard(folders[0])):null};
+            bool renames=folders.Count==1 && Renamer.CanRenameFolder(folders[0]);
+            var take=new ShellMenu.Takeovers {HideRename=!renames,Rename=renames?(Action)(()=>RenameFolder(folders[0])):null,
+                LiftDelete=true,Paste=folders.Count==1?(Action)(()=>PasteFromClipboard(folders[0])):null};
             ShellMenu.Show(this,own,folders,MenuPoint(at,e),take,()=>{
                 // The folder on screen was just deleted: go to the nearest folder still there, like File Explorer.
                 if(active!=null && active.Source!=null && !Directory.Exists(active.Source)) {
@@ -2579,11 +2749,49 @@ namespace LoveMyShelf {
         internal void TrackTile(Button tile,Photo photo) {
             shownTiles[photo.Folder]=tile;
             if(cutFolders.Contains(photo.Folder))tile.Opacity=0.45;
-            tile.MouseEnter+=delegate {ShowNameSoon(tile,photo.Name);};
-            tile.MouseLeave+=delegate {if(nameTile==tile)HideName();};
+            tile.MouseEnter+=delegate {
+                ShowNameSoon(tile,photo.Name);
+                CoverSibling mark;LightCoverFamily(coverMarks.TryGetValue(photo.Folder,out mark)?mark.Family:null);
+            };
+            tile.MouseLeave+=delegate {if(nameTile==tile)HideName();LightCoverFamily(null);};
             tile.ContextMenuOpening+=delegate {HideName();};
             tile.Unloaded+=delegate {Button current;if(shownTiles.TryGetValue(photo.Folder,out current) && current==tile)shownTiles.Remove(photo.Folder);};
             ShowSelected(tile,selected.Contains(photo.Folder),focusIndex>=0 && focusIndex<photos.Count && photos[focusIndex]==photo);
+            PaintCoverMark(tile,photo.Folder);
+        }
+        // ---------- Covers of the same original: their numbers and the outline on hover ----------
+        sealed class CoverSibling {internal string Family;internal int Number,Total;}
+        readonly Dictionary<string,CoverSibling> coverMarks=new Dictionary<string,CoverSibling>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string,List<Photo>> coverFamilies=new Dictionary<string,List<Photo>>(StringComparer.OrdinalIgnoreCase);
+        string litFamily;
+        bool coverMarksQueued;
+        void UpdateCoverMarks() {
+            coverMarks.Clear();coverFamilies.Clear();
+            foreach(var group in photos.Where(p=>p!=null && p.HasCrop && !p.ExcludedFromCollection).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)) {
+                var covers=GalleryStore.InCoverOrder(group);
+                if(covers.Count<2)continue;
+                coverFamilies[group.Key]=covers;
+                for(int i=0;i<covers.Count;i++)coverMarks[covers[i].Folder]=new CoverSibling {Family=group.Key,Number=i+1,Total=covers.Count};
+            }
+            if(litFamily!=null && !coverFamilies.ContainsKey(litFamily))litFamily=null;
+            PaintCoverMarks();
+        }
+        // Several tiles can change in one go (hiding covers, for example); the numbers are worked out once afterwards.
+        void CoverMarksSoon() {
+            if(coverMarksQueued)return;
+            coverMarksQueued=true;
+            Dispatcher.BeginInvoke(new Action(()=>{coverMarksQueued=false;UpdateCoverMarks();}),DispatcherPriority.Background);
+        }
+        void PaintCoverMarks() {foreach(var pair in shownTiles)PaintCoverMark(pair.Value,pair.Key);}
+        void PaintCoverMark(Button tile,string folder) {
+            CoverSibling mark;
+            bool has=coverMarks.TryGetValue(folder,out mark);
+            tile.SetValue(TileMark.NumberProperty,has?mark.Number+"/"+mark.Total:null);
+            tile.SetValue(TileMark.LitProperty,has && String.Equals(mark.Family,litFamily,StringComparison.OrdinalIgnoreCase));
+        }
+        void LightCoverFamily(string family) {
+            if(String.Equals(litFamily,family,StringComparison.OrdinalIgnoreCase))return;
+            litFamily=family;PaintCoverMarks();
         }
         // Hover name card: the whole file name, just below the tile (above it on the last visible row),
         // covering the neighbouring tile but never the one it names. It waits a moment so sweeping the
@@ -2603,6 +2811,8 @@ namespace LoveMyShelf {
             nameText.SetResourceReference(TextBlock.ForegroundProperty,"Text");
             TextOptions.SetTextFormattingMode(nameText,TextFormattingMode.Ideal);
             nameCard.Child=nameText;nameLayer.Children.Add(nameCard);
+            grid.MouseLeave+=delegate {LightCoverFamily(null);};
+            Deactivated+=delegate {LightCoverFamily(null);};
             Panel.SetZIndex(nameLayer,5);host.Children.Add(nameLayer);
             nameTimer.Tick+=delegate {nameTimer.Stop();PlaceName();};
             grid.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler((s,e)=>{if(e.VerticalChange!=0)HideName();}));
@@ -2741,6 +2951,8 @@ namespace LoveMyShelf {
                     if(!control)return;
                     PasteFromClipboard(null);break;
                 case Key.F2:
+                    string chosenFolder=FolderForRename();
+                    if(chosenFolder!=null){RenameFolder(chosenFolder);break;}
                     var one=FocusedOrOnly();if(one==null || !one.Linked)return;
                     RenameOriginal(one);break;
                 case Key.Delete:
@@ -2783,18 +2995,19 @@ namespace LoveMyShelf {
             var targets=Targets(photo);
             if(targets.Count<2)return single;
             var menu=new ContextMenu();
-            var copy=new MenuItem {Header=L.F("Copy {0:N0} items",targets.Count)};
-            copy.Click+=delegate {ShareTiles.RunMany(this,targets,false);};
-            var share=new MenuItem {Header=L.F("Share {0:N0} items…",targets.Count)};
-            share.Click+=delegate {ShareTiles.RunMany(this,targets,true);};
-            menu.Items.Add(copy);menu.Items.Add(share);
             var withCovers=targets.Where(p=>p.HasCrop && !p.ExcludedFromCollection).ToList();
             if(withCovers.Count>0) {
                 var hide=new MenuItem {Header=L.F(withCovers.Any(p=>p.HasMotion)?"Hide {0:N0} covers (JPG and GIF) in Love My Shelf":"Hide {0:N0} covers in Love My Shelf",withCovers.Count)};
                 hide.Click+=delegate {ChangeCollections(withCovers);ClearSelection();};
                 menu.Items.Add(hide);
+                menu.Items.Add(new Separator());
             }
-            menu.Items.Add(new Separator());
+            var copy=new MenuItem {Header=L.F("Copy {0:N0} items",targets.Count)};
+            copy.Click+=delegate {ShareTiles.RunMany(this,targets,false);};
+            var share=new MenuItem {Header=L.F("Share {0:N0} items…",targets.Count)};
+            share.Click+=delegate {ShareTiles.RunMany(this,targets,true);};
+            menu.Items.Add(copy);menu.Items.Add(share);
+            menu.Items.Add(new Separator()); // the Recycle Bin stays at the bottom: here it can mean the originals
             int originals=ShowingAllCrops?targets.Count:targets.GroupBy(p=>Path.GetDirectoryName(p.Folder)+"|"+p.Name,StringComparer.OrdinalIgnoreCase).Count();
             var delete=new MenuItem {Header=L.F(ShowingAllCrops?"Move {0:N0} cover files to the Recycle Bin":"Move {0:N0} originals to the Recycle Bin",originals),InputGestureText="Delete"};
             delete.Click+=delegate {DeleteSelected();};
@@ -2822,6 +3035,7 @@ namespace LoveMyShelf {
             if(!photo.Linked)return;
             var dialog=new RenameWindow(this,photo.Name);
             if(dialog.ShowDialog()!=true || dialog.NewName==photo.Name)return;
+            FinishPendingCovers();
             string newName=dialog.NewName;
             string albumFolder=Path.GetDirectoryName(photo.Folder),oldBase=GalleryStore.RecordBase(photo);
             string newBase="p-"+GalleryStore.KeyOf(newName);
@@ -2844,6 +3058,66 @@ namespace LoveMyShelf {
                 Notify(L.T("Couldn’t rename"),ex.Message,null,NoticeKind.Warning);
             }
         }
+        // The folder F2 means: the row chosen in the tree or the one folder chosen in the folders area, when the keyboard is there.
+        string FolderForRename() {
+            string path=null;
+            if(tree!=null && tree.IsKeyboardFocusWithin && tree.Current!=null)path=tree.Current.Path;
+            else if(folderPane!=null && folderPane.IsKeyboardFocusWithin)path=folderPane.OnlyChosen;
+            return path!=null && Renamer.CanRenameFolder(path)?path:null;
+        }
+        static bool renamingFolder;
+        internal async void RenameFolder(string path) {
+            if(renamingFolder || !Renamer.CanRenameFolder(path))return;
+            string from=Path.GetFullPath(path).TrimEnd('\\'),oldName=Path.GetFileName(from);
+            var windows=Application.Current.Windows.OfType<Window>().ToList();
+            if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+                Notify(L.T("Still working on something"),L.T("Try renaming the folder when the work in progress is done."),null,NoticeKind.Info);return;
+            }
+            // An open picture, video or editor is holding on to the records inside.
+            var open=windows.FirstOrDefault(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow));
+            if(open!=null) {
+                open.Activate();
+                Notify(L.T("Close this window first"),L.T("Close the open picture or video window, then rename the folder."),null,NoticeKind.Info);return;
+            }
+            var dialog=new RenameWindow(this,oldName,true);
+            if(dialog.ShowDialog()!=true || dialog.NewName==oldName)return;
+            string newName=dialog.NewName;
+            var galleries=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+            foreach(var gallery in galleries)gallery.FinishPendingCovers();
+            renamingFolder=true;
+            try {
+                string to=await Task.Run(()=>Renamer.RenameFolder(store,from,newName));
+                foreach(var gallery in galleries)if(!gallery.lifetime.IsCancellationRequested)gallery.FolderRenamed(from,to);
+                Notify(L.T("Renamed"),L.F("“{0}” is now “{1}”.",oldName,newName),null);
+            } catch(Exception ex) {
+                Notify(L.T("Couldn’t rename"),ex.Message,null,NoticeKind.Warning);
+            } finally {renamingFolder=false;}
+        }
+        // Every window follows the new name without moving: same folder on screen, same place in the list.
+        void FolderRenamed(string from,string to) {
+            if(Renamer.IsAt(settings.CoverDirectory,from))settings.CoverDirectory=Renamer.Moved(settings.CoverDirectory,from,to);
+            foreach(var stack in new[]{backStack,forwardStack})
+                for(int i=0;i<stack.Count;i++)if(!stack[i].StartsWith("@") && Renamer.IsAt(stack[i],from))stack[i]=Renamer.Moved(stack[i],from,to);
+            bool inside=active!=null && active.Source!=null && Renamer.IsAt(active.Source,from);
+            if(inside || ShowingAllCrops)ClearSelection();
+            if(inside) {
+                string name=Path.GetFileName(to);
+                Func<Album,Album> follow=a=>{
+                    if(a.Source==null || !Renamer.IsAt(a.Source,from))return a;
+                    string source=Renamer.Moved(a.Source,from,to);
+                    return new Album(store.AlbumFolderOf(source),ShellPlaces.Same(a.Source,from)?name:a.Name,source);
+                };
+                int view;bool hadView=folderFilters.TryGetValue(active.Folder,out view);
+                for(int i=0;i<trail.Count;i++)trail[i]=follow(trail[i]);
+                var now=follow(active);
+                if(hadView)folderFilters[now.Folder]=view;
+                active=now;Title=now.Name;
+                BuildPath();
+            }
+            BuildTabs();
+            if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.FolderRenamed(from,to);TreeSyncSoon();}
+            ReloadKeepingPlace();
+        }
         internal readonly UpscaleJobs Upscales=new UpscaleJobs();
         // Raised after a saved cover changes outside the editor, so an open viewer can follow.
         internal event Action<Photo> CoverReplaced;
@@ -2853,14 +3127,14 @@ namespace LoveMyShelf {
                 .Where(w=>w.IsVisible && !(w is UpscaleToast) && !(w is VideoOverlay)).ToList();
             return windows.LastOrDefault(w=>w.IsEnabled && w.IsActive)??windows.LastOrDefault(w=>w.IsEnabled)??this;
         }
-        internal UpscaleToast Notify(string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done) {
+        internal UpscaleToast Notify(string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15) {
             var toast=new UpscaleToast(ActiveAppWindow(),title,message,clicked==null?null:(Action)(()=>{
                 // A notice can be clicked while another window (the cover editor, Make GIF cover, a question) is open.
                 // Opening something on top of it would stack windows, so that window is brought forward instead.
                 var busy=BlockingWindow();
                 if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.T("Finish or close the window that is open, then click the notice again."),null,NoticeKind.Info);return;}
                 clicked();
-            }),kind);
+            }),kind,keepOpen,seconds);
             toast.Show();
             return toast;
         }

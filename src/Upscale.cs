@@ -228,6 +228,7 @@ namespace LoveMyShelf {
         internal event Action<Photo> Finished;          // updated photo with a pending choice
         internal event Action<Photo,string> Failed;     // photo, message
 
+        internal bool IsBusy {get {return running!=null || queue.Count>0;}}
         internal UpscaleStage Stage(string folder,out int percent) {
             percent=0;
             if(running!=null && Same(running.Photo.Folder,folder)) {
@@ -325,7 +326,12 @@ namespace LoveMyShelf {
     // A small notice in the lower-right corner of the LoveMyShelf window.
     internal sealed class UpscaleToast : Window {
         readonly DispatcherTimer timer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(15)};
-        internal UpscaleToast(Window anchor,string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done) {
+        internal bool IsWorking {get {return kind==NoticeKind.Busy && !closed;}}
+        readonly NoticeKind kind;
+        // True when the notice closed because it was clicked (not by its timer or the ✕).
+        internal bool WasClicked {get;private set;}
+        internal UpscaleToast(Window anchor,string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15) {
+            this.kind=kind;timer.Interval=TimeSpan.FromSeconds(seconds);
             WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;Topmost=true;ShowActivated=false;
             AllowsTransparency=true;Background=Brushes.Transparent;
             SizeToContent=SizeToContent.Height;Width=380;
@@ -347,10 +353,10 @@ namespace LoveMyShelf {
             Loaded+=delegate {NoticeLook.Enter(card);};
             if(clicked!=null) {
                 Cursor=Cursors.Hand;
-                MouseLeftButtonUp+=delegate {Close();clicked();};
+                MouseLeftButtonUp+=delegate {WasClicked=true;Close();clicked();};
             }
             // A "working on it" notice stays until the work ends and the caller dismisses it.
-            bool stays=kind==NoticeKind.Busy;
+            bool stays=kind==NoticeKind.Busy || keepOpen;
             timer.Tick+=delegate {Close();};
             MouseEnter+=delegate {timer.Stop();};
             MouseLeave+=delegate {if(!stays)timer.Start();};

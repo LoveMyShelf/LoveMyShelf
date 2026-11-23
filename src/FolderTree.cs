@@ -136,8 +136,15 @@ namespace LoveMyShelf {
             openSoon.Tick+=delegate {openSoon.Stop();OpenSelected();};
             // Choosing a row opens it (after a moment, so walking with the arrow keys stays smooth), like File Explorer.
             // With the mouse it opens on release (so pressing to drag a folder doesn't open it), like File Explorer.
-            SelectedItemChanged+=delegate {if(!syncing && Mouse.LeftButton!=MouseButtonState.Pressed){openSoon.Stop();openSoon.Start();}};
-            PreviewMouseLeftButtonUp+=(s,e)=>{if(SelectedItem!=null && ItemAt(e.OriginalSource)==SelectedItem){openSoon.Stop();OpenSelected();}};
+            // Folding a row around the open folder moves the mark onto that row; that is not a choice to open it.
+            SelectedItemChanged+=(s,e)=>{
+                if(syncing)return;
+                var now=e.NewValue as TreeViewItem;var was=e.OldValue as TreeViewItem;
+                if(now!=null && was!=null && !now.IsExpanded && IsUnder(was,now)){openSoon.Stop();return;}
+                if(Mouse.LeftButton!=MouseButtonState.Pressed){openSoon.Stop();openSoon.Start();}
+            };
+            // The fold arrow only folds and unfolds.
+            PreviewMouseLeftButtonUp+=(s,e)=>{if(!OnArrow(e.OriginalSource) && SelectedItem!=null && ItemAt(e.OriginalSource)==SelectedItem){openSoon.Stop();OpenSelected();}};
             AddHandler(TreeViewItem.ExpandedEvent,new RoutedEventHandler(Unfolded));
             // A folder row can be dragged like in File Explorer: onto Love My Shelf to add it, or out to another program.
             Point? down=null;TreeViewItem pressed=null;
@@ -156,6 +163,30 @@ namespace LoveMyShelf {
             var node=source as DependencyObject;
             while(node!=null && !(node is TreeViewItem))node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
             return node as TreeViewItem;
+        }
+        static bool OnArrow(object source) {
+            var node=source as DependencyObject;
+            while(node!=null && !(node is TreeViewItem)) {
+                if(node is System.Windows.Controls.Primitives.ToggleButton)return true;
+                node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node);
+            }
+            return false;
+        }
+        static TreeViewItem ParentRow(TreeViewItem row) {return ItemsControl.ItemsControlFromItemContainer(row) as TreeViewItem;}
+        static bool IsUnder(TreeViewItem row,TreeViewItem above) {
+            for(var at=ParentRow(row);at!=null;at=ParentRow(at))if(at==above)return true;
+            return false;
+        }
+        bool InTree(TreeViewItem row) {
+            ItemsControl at=row;
+            while(at is TreeViewItem)at=ItemsControl.ItemsControlFromItemContainer(at);
+            return at==this;
+        }
+        // The row of the open folder, or the outermost folded row hiding it.
+        static TreeViewItem VisibleRow(TreeViewItem row) {
+            var shown=row;
+            for(var at=ParentRow(row);at!=null;at=ParentRow(at))if(!at.IsExpanded)shown=at;
+            return shown;
         }
         // The folder of a tree row under the pointer (for dropping files), or null.
         internal static TreeViewItem FolderRowAt(object source) {
@@ -255,11 +286,32 @@ namespace LoveMyShelf {
             };
             return menu;
         }
+        // A folder just added shows the folders inside it right away.
+        internal void UnfoldShelfFolder(string path) {
+            if(Items.Count==0)return;
+            var shelf=Items[0] as TreeViewItem;if(shelf==null)return;
+            shelf.IsExpanded=true;
+            foreach(var row in shelf.Items.OfType<TreeViewItem>()) {
+                var entry=row.Tag as TreeEntry;
+                if(entry==null || entry.Kind!="tab" || !ShellPlaces.Same(entry.Path,path))continue;
+                if(row.Items.Count==1 && row.Items[0]==Placeholder)Load(row,false);
+                row.IsExpanded=true;
+                return;
+            }
+        }
         // ----- Unfolding: read the folders inside only now -----
         void Unfolded(object sender,RoutedEventArgs e) {
             var item=e.OriginalSource as TreeViewItem;if(item==null)return;
             RememberFold(item,false);
             if(item.Items.Count==1 && item.Items[0]==Placeholder)Load(item,false);
+            // Unfolding around the open folder puts the mark back on it.
+            if(!syncing && shownRow!=null && IsUnder(shownRow,item)) {
+                var row=VisibleRow(shownRow);
+                if(row!=SelectedItem) {
+                    syncing=true;
+                    try {row.IsSelected=true;} finally {syncing=false;}
+                }
+            }
         }
         void Folded(object sender,RoutedEventArgs e) {var item=e.OriginalSource as TreeViewItem;if(item!=null)RememberFold(item,true);}
         void RememberFold(TreeViewItem item,bool folded) {
@@ -295,10 +347,54 @@ namespace LoveMyShelf {
                 if(then!=null)then();
             },TaskScheduler.FromCurrentSynchronizationContext());
         }
+        // ----- A folder got a new name: its rows follow, and what is unfolded stays unfolded -----
+        [DllImport("shlwapi.dll",CharSet=CharSet.Unicode)] static extern int StrCmpLogicalW(string a,string b);
+        internal void FolderRenamed(string from,string to) {
+            syncing=true;
+            try {foreach(var row in Items.OfType<TreeViewItem>().ToList())FollowRename(row,from,to);}
+            finally {syncing=false;}
+        }
+        void FollowRename(TreeViewItem row,string from,string to) {
+            var entry=row.Tag as TreeEntry;
+            bool renamed=false;
+            if(entry!=null && Renamer.IsAt(entry.Path,from)) {
+                renamed=ShellPlaces.Same(entry.Path,from);
+                entry.Path=Renamer.Moved(entry.Path,from,to);row.ToolTip=entry.Path;
+                if(renamed) {
+                    entry.Label=System.IO.Path.GetFileName(to);
+                    var header=row.Header as DockPanel;
+                    var text=header==null?null:header.Children.OfType<TextBlock>().FirstOrDefault();
+                    if(text!=null)text.Text=entry.Label;
+                    System.Windows.Automation.AutomationProperties.SetName(row,entry.Label);
+                }
+                if(entry.Album!=null)entry.Album=new Album(owner.Store.AlbumFolderOf(entry.Path),renamed?entry.Label:entry.Album.Name,entry.Path);
+            }
+            foreach(var child in row.Items.OfType<TreeViewItem>().ToList())FollowRename(child,from,to);
+            var parent=ParentRow(row);
+            var above=parent==null?null:parent.Tag as TreeEntry;
+            if(!renamed || above==null || above.Kind=="lms" || above.Kind=="pc" || above.Kind=="network")return;
+            // Back into name order among the folders beside it.
+            int now=parent.Items.IndexOf(row),wanted=0;
+            foreach(var other in parent.Items.OfType<TreeViewItem>()) {
+                if(other==row)continue;
+                if(StrCmpLogicalW(((TreeEntry)other.Tag).Label,entry.Label)>0)break;
+                wanted++;
+            }
+            if(wanted==now)return;
+            bool marked=row.IsSelected;
+            parent.Items.RemoveAt(now);parent.Items.Insert(wanted,row);
+            if(marked)row.IsSelected=true;
+        }
         // ----- Following the folder on screen -----
         // Marks the row of what the window shows, unfolding the way down to it (as File Explorer does).
+        TreeViewItem shownRow;
+        string shownKey;
         internal void ShowCurrent(Album active,IList<Album> trail,bool fromPc) {
             if(active==null)return;
+            // Still the same folder (a refresh, say): whatever the person folded stays folded.
+            string key=active.Folder+"|"+fromPc+"|"+(trail.Count>0?trail[0].Folder:"");
+            if(shownRow!=null && shownKey==key && InTree(shownRow))return;
+            shownRow=null;
             TreeViewItem found=null;
             syncing=true;
             try {
@@ -320,7 +416,11 @@ namespace LoveMyShelf {
                         if(drive!=null)found=Walk(drive,trail.Select(a=>a.Source).Where(p=>!ShellPlaces.Same(p,root)));
                     }
                 }
-                if(found!=null){found.IsSelected=true;found.BringIntoView();}
+                if(found!=null) {
+                    found.IsSelected=true;found.BringIntoView();
+                    // A row short of the folder (not listed yet) is tried again next time.
+                    if(active.Source==null || ShellPlaces.Same(((TreeEntry)found.Tag).Path,active.Source)){shownRow=found;shownKey=key;}
+                }
                 else if(SelectedItem is TreeViewItem)((TreeViewItem)SelectedItem).IsSelected=false;
             } finally {syncing=false;}
         }

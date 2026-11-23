@@ -213,6 +213,22 @@ namespace LoveMyShelf {
             if(gallery!=null)volume.Value=gallery.Settings.Volume; // the volume used last time
             volume.ValueChanged+=delegate {muted=false;ApplyAudio();}; // moving the bar turns the sound back on
             playbackButtons.Children.Add(volume);
+            // The check mark keeps its space when hidden, so the button doesn't change width.
+            clearVoice=gallery!=null && gallery.Settings.ClearVoice;
+            if(gallery!=null)clearVoiceLevel=gallery.Settings.ClearVoiceLevel;
+            clearVoiceCheck=new TextBlock {Text="✓",Margin=new Thickness(0,0,4,0),Visibility=clearVoice?Visibility.Visible:Visibility.Hidden};
+            var clearVoiceLabel=new StackPanel {Orientation=Orientation.Horizontal};
+            clearVoiceLabel.Children.Add(clearVoiceCheck);clearVoiceLabel.Children.Add(new TextBlock {Text=L.T("Clear voice")});
+            clearVoiceButton=UI.Btn("",ToggleClearVoice);clearVoiceButton.Content=clearVoiceLabel;
+            clearVoiceButton.Focusable=false;clearVoiceButton.IsEnabled=false;clearVoiceButton.VerticalAlignment=VerticalAlignment.Center;
+            LabelControl(clearVoiceButton,L.T("Make voices easier to hear (V)"));
+            playbackButtons.Children.Add(clearVoiceButton);
+            clearVoiceMenuButton=UI.Btn("▾",ShowClearVoiceMenu);
+            clearVoiceMenuButton.MinWidth=0;clearVoiceMenuButton.Width=26;clearVoiceMenuButton.Padding=new Thickness(0);
+            clearVoiceMenuButton.Margin=new Thickness(2,0,0,0);clearVoiceMenuButton.Focusable=false;clearVoiceMenuButton.IsEnabled=false;
+            clearVoiceMenuButton.VerticalAlignment=VerticalAlignment.Center;
+            LabelControl(clearVoiceMenuButton,L.T("Clear voice strength"));
+            playbackButtons.Children.Add(clearVoiceMenuButton);
             // Speed has no box: C / X / Z like PotPlayer (see the key handler).
             root.SizeChanged+=delegate {ApplyPlaybackBrightness();};
             seek.Style=(Style)Application.Current.Resources["PlaybackTimeline"];
@@ -285,7 +301,19 @@ namespace LoveMyShelf {
             if(!forCrop)controls.Children.Add(motionToggle);
             Closed+=delegate {StopMotion();prepared.Clear();};
             locate=UI.Btn(L.T("Locate original"),ChooseOriginal);locate.Visibility=Visibility.Collapsed;controls.Children.Add(locate);
-            controls.Children.Add(UI.Btn(L.T("Close"),Close));ui.Children.Add(panel);
+            controls.Children.Add(UI.Btn(L.T("Close"),Close));
+            if(!forCrop && gallery!=null) {
+                coverStrip.Chosen=ChooseSibling;
+                ui.Children.Add(coverStrip); // under the bar, which floats over it in full screen
+                root.SizeChanged+=delegate {PlaceCoverStrip();};
+                stripSleep.Tick+=delegate {
+                    if(coverStrip.IsMouseOver)return;
+                    stripSleep.Stop();stripAwake=false;PlaceCoverStrip();
+                };
+                AddHandler(Mouse.PreviewMouseMoveEvent,new MouseEventHandler((s,e)=>WakeCoverStrip()),true);
+                Closed+=delegate {stripSleep.Stop();stripRequest++;};
+            }
+            ui.Children.Add(panel);
             status.HorizontalAlignment=HorizontalAlignment.Center;status.VerticalAlignment=VerticalAlignment.Center;
             ui.Children.Add(status);
             AddHandler(Mouse.PreviewMouseMoveEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
@@ -311,7 +339,8 @@ namespace LoveMyShelf {
                         StepFrame(key==Key.D?-1:1);break;
                     case Key.E:case Key.W:case Key.Q:
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        playbackBrightness=key==Key.Q?0:Math.Max(-100,Math.Min(100,playbackBrightness+(key==Key.E?1:-1)));
+                        int brightnessStep=home==null?3:home.Settings.BrightnessStep;
+                        playbackBrightness=key==Key.Q?0:Math.Max(-100,Math.Min(100,playbackBrightness+(key==Key.E?brightnessStep:-brightnessStep)));
                         ApplyPlaybackBrightness();seekPreview.Brightness=playbackBrightness;
                         ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0}",playbackBrightness));break;
                     case Key.Space:if(!e.IsRepeat){if(motion)SetPaused(!paused);else if(!WantsCrop)Primary();}break;
@@ -334,6 +363,9 @@ namespace LoveMyShelf {
                         if(!motion || !volume.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         muted=!muted;ApplyAudio();
                         ShowCornerNote(muted?L.T("Sound off"):L.F("Volume {0}%",(int)volume.Value));break;
+                    case Key.V:
+                        if(!motion || !clearVoiceButton.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        ToggleClearVoice();break;
                     case Key.Tab:if(!fullscreen)SetHidden(false);return;default:return;
                 } e.Handled=true;
             };
@@ -341,9 +373,63 @@ namespace LoveMyShelf {
             Closed+=delegate {
                 if(loading!=null)loading.Cancel();
                 ClearTransport();picture.Source=null;
-                if(home!=null)home.SaveVolume((int)Math.Round(volume.Value));
+                if(home!=null)home.SaveAudio((int)Math.Round(volume.Value),clearVoice,clearVoiceLevel);
             };
             ContentRendered+=delegate {Focus();};
+        }
+        // ----- The other covers of this original, in the space beside a tall cover -----
+        readonly CoverStrip coverStrip=new CoverStrip();
+        readonly DispatcherTimer stripSleep=new DispatcherTimer {Interval=TimeSpan.FromSeconds(2.6)};
+        bool stripAwake=true,holdStrip;
+        int stripRequest;
+        System.Drawing.Point stripPointer;
+        async void RefreshCoverStrip(Photo photo) {
+            if(forCrop || home==null)return;
+            int request=++stripRequest;
+            if(!photo.HasCrop){coverStrip.Clear();return;}
+            coverStrip.Mark(photo.Folder);
+            List<Photo> covers;
+            try {
+                covers=await Task.Run(()=>GalleryStore.InCoverOrder(GalleryStore.CoversOf(photo).FindAll(p=>p.HasCrop && !p.ExcludedFromCollection)));
+            } catch(Exception) {return;}
+            if(request!=stripRequest || !IsVisible)return;
+            coverStrip.Fill(covers,CurrentPhoto.Folder);
+            PlaceCoverStrip();
+        }
+        void PlaceCoverStrip() {
+            if(forCrop || home==null || holdStrip)return;
+            double height=Math.Max(0,root.ActualHeight-viewport.Margin.Bottom),room=0;
+            bool show=cachedCover && !motion && coverStrip.Count>1 && picture.Source!=null && root.ActualWidth>0;
+            if(show) {
+                room=MediaViewport.Fit(MediaViewport.Aspect(picture),new Size(root.ActualWidth,height)).X;
+                show=room>=CoverStrip.MinRoom && (!fullscreen || stripAwake);
+            }
+            if(!show){coverStrip.Visibility=Visibility.Collapsed;return;}
+            coverStrip.Place(room,height,viewport.Margin.Bottom);
+            coverStrip.Visibility=Visibility.Visible;
+            if(fullscreen && !stripSleep.IsEnabled)stripSleep.Start();
+        }
+        // In full screen the list rests with the mouse, so only the cover is left on screen.
+        void WakeCoverStrip() {
+            if(!fullscreen)return;
+            var now=System.Windows.Forms.Cursor.Position;
+            if(now==stripPointer)return;
+            stripPointer=now;stripAwake=true;
+            stripSleep.Stop();stripSleep.Start();
+            PlaceCoverStrip();
+        }
+        void ChooseSibling(Photo cover) {
+            int at=-1;
+            for(int i=0;i<items.Count;i++)
+                if(String.Equals(items[i].Folder,cover.Folder,StringComparison.OrdinalIgnoreCase)){at=i;break;}
+            if(at<0) {
+                // Left out of this list by a filter or a search: it joins right here, so K and L still work.
+                var list=items as List<Photo>;
+                if(list==null)return;
+                at=index+1;list.Insert(at,cover);
+            }
+            index=at;
+            LoadCurrent(true);
         }
         void ShowCornerNote(string text) {
             cornerNote.Text=text;cornerNote.BeginAnimation(OpacityProperty,null);cornerNote.Opacity=1;
@@ -351,6 +437,46 @@ namespace LoveMyShelf {
         }
         static void LabelControl(Control control,string label) {
             AutomationProperties.SetName(control,label);control.ToolTip=label;
+        }
+        readonly Button clearVoiceButton;
+        readonly TextBlock clearVoiceCheck;
+        readonly Button clearVoiceMenuButton;
+        static readonly string[] ClearVoiceLevels={"Gentle","Normal","Strong"};
+        bool clearVoice,clearVoiceMenuOpen;
+        int clearVoiceLevel=1;
+        void ToggleClearVoice() {
+            if(mpv==null || !mpv.SetClearVoice(!clearVoice,clearVoiceLevel)) {
+                ShowCornerNote(L.T("Clear voice isn't available for this video"));
+                return;
+            }
+            clearVoice=!clearVoice;
+            clearVoiceCheck.Visibility=clearVoice?Visibility.Visible:Visibility.Hidden;
+            ShowCornerNote(clearVoice?L.F("Clear voice: {0}",L.T(ClearVoiceLevels[clearVoiceLevel])):L.T("Clear voice off"));
+        }
+        // Built fresh so the check mark shows the current level. Choosing a level also turns the feature on.
+        void ShowClearVoiceMenu() {
+            var menu=new ContextMenu {PlacementTarget=clearVoiceMenuButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Top};
+            for(int i=0;i<ClearVoiceLevels.Length;i++) {
+                int level=i;
+                var item=new MenuItem {Header=L.T(ClearVoiceLevels[i]),IsChecked=clearVoiceLevel==i};
+                item.Click+=delegate {ChooseClearVoiceLevel(level);};
+                menu.Items.Add(item);
+            }
+            // In full screen the bar stays up while the menu is open, even with the pointer on the menu.
+            menu.Closed+=delegate {clearVoiceMenuOpen=false;RefreshFullscreenControls();};
+            clearVoiceMenuOpen=true;
+            menu.IsOpen=true;
+        }
+        void ChooseClearVoiceLevel(int level) {
+            if(!clearVoice || level!=clearVoiceLevel) { // the same level again would only interrupt the sound
+                if(mpv==null || !mpv.SetClearVoice(true,level)) {
+                    ShowCornerNote(L.T("Clear voice isn't available for this video"));
+                    return;
+                }
+                clearVoice=true;clearVoiceLevel=level;
+                clearVoiceCheck.Visibility=Visibility.Visible;
+            }
+            ShowCornerNote(L.F("Clear voice: {0}",L.T(ClearVoiceLevels[level])));
         }
         bool muted;
         void ApplyAudio() {
@@ -407,7 +533,8 @@ namespace LoveMyShelf {
                 SeekTo(Math.Min(Math.Max(0,duration-1),Math.Max(0,startMs+direction*(double)Scenes.StepMs)));
                 return;
             }
-            int current=timing.At(startMs);
+            // mpv can report a picture's time a fraction of a millisecond before the list does.
+            int current=timing.At(startMs+1);
             int target=current+direction;
             while(target>=0 && target<timing.Count && timing.Start(target)==timing.Start(current))target+=direction;
             // One step is one scene (0.2 s unless changed in the options), never finer than the video's own pictures.
@@ -427,6 +554,7 @@ namespace LoveMyShelf {
             fullscreen=full;
             surfaceClick.Stop();
             hidden=false;
+            stripAwake=true;stripSleep.Stop();
             // Windowed (like PotPlayer): the bar sits below the picture on the window color.
             // Full screen: it floats over the picture with nothing behind it.
             panel.SetResourceReference(Panel.BackgroundProperty,full?"ViewerBar":"Paper");
@@ -483,7 +611,7 @@ namespace LoveMyShelf {
             double bottomZone=Math.Max(bottomDistance,panel.ActualHeight);
             bool nearPanel=inside && ActualHeight-pointer.Y<=bottomZone;
             titleBar.Visibility=nearTitle || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
-            SetPanelVisible(nearPanel || panel.IsMouseCaptureWithin);
+            SetPanelVisible(nearPanel || panel.IsMouseCaptureWithin || clearVoiceMenuOpen);
         }
         void SetHidden(bool hide) {
             hidden=hide;
@@ -502,6 +630,7 @@ namespace LoveMyShelf {
             double reserve=!fullscreen && panel.Visibility==Visibility.Visible?panel.ActualHeight:0;
             var margin=new Thickness(0,0,0,reserve);
             if(viewport.Margin!=margin){viewport.Margin=margin;brightnessLayer.Margin=margin;ApplyPlaybackBrightness();}
+            PlaceCoverStrip();
         }
         // A small rounded backing for text that sits over the picture, with steady-width digits.
         static Border Pill(TextBlock text,Thickness margin) {
@@ -543,6 +672,7 @@ namespace LoveMyShelf {
             sync=true;seek.Maximum=duration;seek.Value=0;sync=false;pause.Content=L.T("Pause");pause.IsEnabled=true;seek.IsEnabled=true;
             ticker.Interval=TimeSpan.FromMilliseconds(largeVideo?100:30);
             volume.IsEnabled=(media!=null && media.HasAudio) || (mpv!=null && mpvAudio);
+            clearVoiceButton.IsEnabled=clearVoiceMenuButton.IsEnabled=mpv!=null && mpvAudio;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Visible;
             ReserveWidth(time,Widest(Stamp(duration)+" / "+Stamp(duration)));
             clock.Restart();ticker.Start();UpdateBar(0);
@@ -673,8 +803,33 @@ namespace LoveMyShelf {
             CropNearby=mpv!=null;
             CropTime=Native?Position():(double?)null;
             CropFrame=times==null?0:times.At(startMs);
-            if(gallery.EditFrames(this))Close();
-            else if(resume && IsVisible)SetPaused(false);
+            bool saved=gallery.EditFrames(this);
+            if(saved && forCrop){Close();return;}
+            if(!IsVisible)return;
+            if(saved)Activate();
+            if(resume)SetPaused(false);
+        }
+        // A cover was made while watching. The video keeps playing from the same spot, and this window now knows
+        // the new cover, so the next one is added beside it instead of replacing it.
+        internal void CoverSaved(Photo saved) {
+            if(String.Equals(saved.Folder,CurrentPhoto.Folder,StringComparison.OrdinalIgnoreCase))items[index]=saved;
+            else {
+                var list=items as List<Photo>;
+                if(list!=null) {
+                    string family=GalleryStore.CoverFamily(saved);
+                    var covers=list.FindAll(p=>String.Equals(GalleryStore.CoverFamily(p),family,StringComparison.OrdinalIgnoreCase));
+                    var order=GalleryStore.InCoverOrder(new List<Photo>(covers){saved});
+                    int at=order.IndexOf(saved);
+                    int place=at+1<order.Count?list.IndexOf(order[at+1]):(covers.Count>0?list.IndexOf(covers[covers.Count-1])+1:index+1);
+                    if(place<0)place=index+1;
+                    list.Insert(place,saved);
+                    if(place<=index)index++;
+                }
+            }
+            prev.IsEnabled=index>0;next.IsEnabled=index<items.Count-1;caption.Text=(index+1)+" / "+items.Count;
+            ReserveWidth(caption,Widest(items.Count+" / "+items.Count));
+            toggle.Content=L.T("View cover");
+            ShowRecrop(true);
         }
         void Primary(){
             if(!toggle.IsEnabled)return;
@@ -691,6 +846,9 @@ namespace LoveMyShelf {
             if(!forCrop)Title=photo.Name; // only the file name, like the folder windows
             var gallery=home;
             bool selected=!WantsCrop && (showCover??(gallery==null || gallery.Settings.ShowCover(photo.Original)));
+            // Moving between covers of one original keeps the list still; anything else takes it away until it's known.
+            holdStrip=selected && coverStrip.Holds(photo);
+            if(!holdStrip)coverStrip.Visibility=Visibility.Collapsed;
             full=null;cropped=null;original=!selected;cachedCover=false;SetPicture(null);
             status.Text=L.T("Loading…");status.VerticalAlignment=VerticalAlignment.Center;
             prev.IsEnabled=index>0;next.IsEnabled=index<items.Count-1;caption.Text=(index+1)+" / "+items.Count;
@@ -742,6 +900,7 @@ namespace LoveMyShelf {
                     if(photo.Linked)locate.Visibility=Visibility.Visible;
                 }
             }finally{
+                if(!token.IsCancellationRequested){holdStrip=false;PlaceCoverStrip();}
                 if(!token.IsCancellationRequested){var later=Dispatcher.BeginInvoke(new Action(()=>{if(loading==null && IsVisible)PrepareNeighbours();}),DispatcherPriority.ApplicationIdle);}
                 if(loading==current)loading=null;current.Dispose();
             }
@@ -833,6 +992,7 @@ namespace LoveMyShelf {
             toggle.Content=L.T(AnimationFrames.Supports(photo.Original)?"Play original":"View original");
             toggle.IsEnabled=true;status.Text="";
             UpdateUpscale();
+            RefreshCoverStrip(photo);
             if(!forCrop && photo.HasCrop && MotionMaker.Supports(photo.Original)) {
                 // A cover that has a GIF already: edit that GIF (same part and choices) instead of making a new one.
                 makeGif.Content=L.T(photo.HasMotion?"Edit GIF cover":"Make GIF cover");
@@ -862,7 +1022,7 @@ namespace LoveMyShelf {
             StopMotion();
             var current=new CancellationTokenSource();motionLoading=current;
             try {
-                var frames=await MotionFrames.LoadAsync(photo.MotionFile,1600,current.Token);
+                var frames=await MotionFrames.LoadCoverAsync(photo,1600,current.Token);
                 if(current.IsCancellationRequested || items[index]!=photo || !cachedCover || !showMotion)return;
                 motionPlayer.Start(frames);
             } catch(Exception) {}
@@ -954,6 +1114,7 @@ namespace LoveMyShelf {
             player.Opened+=(length,audio)=>{
                 if(token.IsCancellationRequested || mpv!=player)return;
                 mpvAudio=audio;ApplyAudio();player.Speed=rate;
+                if(audio && clearVoice && !player.SetClearVoice(true,clearVoiceLevel))ShowCornerNote(L.T("Clear voice isn't available for this video"));
                 largeVideo=VideoFrames.IsHighResolution(player.PixelWidth,player.PixelHeight);
                 viewport.InvalidateMeasure();
                 StartTransport(length);ReadyMotion();

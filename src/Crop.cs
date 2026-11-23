@@ -189,6 +189,8 @@ namespace LoveMyShelf {
         internal double? FrameTime {get{return nearby==null?(double?)null:nearby.Start(FrameIndex);}}
         internal int FrameTimeOffset {get{return nearby==null?0:nearby.TimestampOffset(FrameIndex);}}
         internal Func<CropWindow,Task> CommitCover;
+        // How much one press of E or W changes the brightness (the slider still moves one at a time).
+        internal int BrightnessStep=3;
         // Runs after the cover is saved and before the editor closes (the large view opens here, so no gap shows).
         internal Func<Task> AfterCommit;
         readonly Button save,motionButton;
@@ -256,7 +258,7 @@ namespace LoveMyShelf {
                     case Key.Up: case Key.Down: break;
                     case Key.E: case Key.W: case Key.Q:
                         if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Surface.SetBrightness(key==Key.Q?0:Math.Max(-100,Math.Min(100,Surface.Brightness+(key==Key.E?1:-1))));break;
+                        Surface.SetBrightness(key==Key.Q?0:Math.Max(-100,Math.Min(100,Surface.Brightness+(key==Key.E?BrightnessStep:-BrightnessStep))));break;
                     default:return;
                 }
                 e.Handled=true;

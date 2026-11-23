@@ -514,8 +514,8 @@ namespace LoveMyShelf {
                     T("A photo that already has a cover shows the cover in its tile.","이미 표지를 만든 사진은 칸에 표지가 보여요."),
                     T("At the bottom left, [[All]] shows everything, [[Finished]] shows only tiles with a cover, and [[Unfinished]] shows only tiles without a cover.",
                       "아래 왼쪽의 [[전체]]는 모두, [[표지 O]]는 표지가 있는 칸만, [[표지 X]]는 아직 표지가 없는 칸만 보여 줘요. X는 오류가 아니라 '아직 표지가 없다'는 뜻이에요."),
-                    T("[[Cover collection]] at the bottom middle gathers every cover from every folder. [[Unfinished cover collection]] next to it gathers what still has no cover from the folders shown on top.",
-                      "아래 가운데 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆 [[표지 X 모음]]은 위쪽 폴더들에서 아직 표지가 없는 것(X)만 모아 보여 줘요."),
+                    T("[[Cover collection]] at the bottom middle gathers every cover from every folder. [[Unfinished cover collection]] next to it gathers what still has no cover from your Love My Shelf folders and every folder inside them.",
+                      "아래 가운데 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆 [[표지 X 모음]]은 Love My Shelf에 추가한 폴더와 그 안의 모든 하위 폴더에서 아직 표지가 없는 것(X)만 모아 보여 줘요."),
                     T("When the window is narrow, for example two windows side by side, the buttons at the bottom get shorter names or small pictures, like [[O set]] or [[O]], and [[New window]] and [[Guide & Options]] at the top become small pictures (⧉ ?). Point the mouse at one to see its full name.",
                       "창이 좁으면(예: 창 두 개를 나란히 띄웠을 때) 아래쪽 버튼 이름이 [[O 모음]], [[O]]처럼 짧아지거나 작은 그림으로 바뀌어요. 위쪽 [[새 창]]·[[설명서 겸 옵션]]도 그림(⧉ ?)으로 바뀌어요. 마우스를 올리면 원래 이름이 나와요."),
                     T("[[Cover size]] at the bottom right makes the tiles bigger or smaller in four steps.","아래 오른쪽 [[표지 크기]]를 누를 때마다 칸이 네 단계로 커지거나 작아져요.")}});
@@ -695,6 +695,11 @@ namespace LoveMyShelf {
                 v=>v==3?T("Small steps","조금씩"):v==5?T("Usual","보통"):v==10?T("Bigger steps","크게"):T("Long jumps through long videos","긴 영상에서 성큼성큼"),4));
             ((Setting)video.Items.Last()).Lines=new[]{T("While watching, press → to skip ahead and ← to skip back. Choose how many seconds one press skips.",
                 "영상을 볼 때 키보드의 → 키를 누르면 앞으로, ← 키를 누르면 뒤로 건너뛰어요. 한 번 누를 때 몇 초씩 건너뛸지 골라요.")};
+            video.Items.Add(Numbers("brightnessStep",T("How much should E and W change the brightness?","E, W 키로 밝기를 얼마나 바꿀까요?"),new[]{1,2,3,4,5,10},3,
+                p=>p.BrightnessStep,(p,v)=>p.BrightnessStep=v,v=>v.ToString(),
+                v=>v==1?T("Finest","가장 세밀하게"):v==3?T("Usual","보통"):v==10?T("Big steps","크게"):"",3));
+            ((Setting)video.Items.Last()).Lines=new[]{T("While watching a video or making a cover, E makes the picture brighter and W darker. Q puts it back to normal. Choose how much one press changes it.",
+                "영상을 보거나 표지를 만들 때 E를 누르면 밝아지고 W를 누르면 어두워져요. Q를 누르면 원래대로 돌아와요. 한 번 누를 때 얼마나 바뀔지 골라요.")};
             video.Items.Add(Numbers("sceneStep",T("How far apart is one scene? (scene step)","한 장면은 몇 초 간격일까요? (장면 간격)"),new[]{150,200,250,500},200,
                 p=>p.SceneStepMs,(p,v)=>p.SceneStepMs=v,v=>T((v/1000.0).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)+" s",(v/1000.0).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)+"초"),
                 v=>v==150?T("Closest together. Takes longer to read","가장 촘촘해요. 읽는 데 오래 걸려요"):v==200?T("A blink or a wink is rarely missed","눈 깜빡임도 윙크도 거의 안 놓쳐요"):v==500?T("Fastest. Rough","가장 빨라요. 대신 듬성듬성해요"):"",4));
@@ -789,11 +794,16 @@ namespace LoveMyShelf {
                 v=>v==4?T("Easy to aim precisely","세밀하게 맞추기 쉬워요"):v==10?T("A good balance","알맞아요"):v==30?T("See a lot around the cover","앞뒤를 넓게 봐요"):"",3));
             ((Setting)gif.Items.Last()).Lines=new[]{T("How long a stretch of video the strip shows when the window opens, with the cover's moment in the middle. Shorter makes it easier to place the handles exactly; longer shows more before and after. Drag the pictures to see the rest.",
                 "GIF 표지 만들기 창을 처음 열었을 때, 띠 한 줄에 영상을 몇 초어치 보여 줄지예요. 표지 장면이 가운데에 와요. 짧을수록 손잡이를 세밀하게 옮기기 쉽고, 길수록 앞뒤를 넓게 볼 수 있어요. 그림을 끌면 안 보이던 부분도 볼 수 있어요.")};
-            gif.Items.Add(Numbers("gifPreviewStep",T("How far apart should the quick preview read scenes?","빠른 미리 보기는 몇 초마다 한 장씩 읽을까요?"),new[]{100,200,300,500},200,
-                p=>p.GifPreviewStepMs,(p,v)=>p.GifPreviewStepMs=v,v=>T((v/1000.0).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)+" s",(v/1000.0).ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)+"초"),
-                v=>v==100?T("Smoother, slower to appear","더 부드러워요. 나오는 데 조금 더 걸려요"):v==200?T("A good balance","알맞아요"):v==500?T("Appears fastest, choppy","가장 빨리 나와요. 대신 뚝뚝 끊겨요"):"",4));
-            ((Setting)gif.Items.Last()).Lines=new[]{T("Only for the quick preview in the Make GIF cover window. While you move the handles, the preview is made at once from pictures read this far apart; a moment after you stop, the real file replaces it. This doesn't change the finished GIF cover, and it's separate from the scene step under Scenes from videos.",
-                "GIF 표지 만들기 창의 빠른 미리 보기에만 쓰여요. 손잡이를 옮기는 동안에는 이 간격마다 한 장씩 읽은 그림으로 미리 보기를 바로 보여 주고, 손을 떼고 잠깐 있으면 실제 파일로 바뀌어요. 다 만든 GIF 표지에는 영향이 없고, '영상에서 장면 고르기'의 장면 간격과도 상관없어요.")};
+            gif.Items.Add(Numbers("gifPreviewStep",T("How far apart should the quick preview read scenes?","빠른 미리 보기는 몇 초마다 한 장씩 읽을까요?"),new[]{50,100,200,500},100,
+                p=>p.GifPreviewStepMs,(p,v)=>p.GifPreviewStepMs=v,v=>T((v/1000.0).ToString("0.###",System.Globalization.CultureInfo.InvariantCulture)+" s",(v/1000.0).ToString("0.###",System.Globalization.CultureInfo.InvariantCulture)+"초"),
+                v=>v==50?T("Very smooth, takes longer to appear","아주 부드러워요. 나오는 데 더 걸려요"):v==100?T("A good balance","알맞아요"):v==200?T("Appears faster, a little choppy","더 빨리 나와요. 조금 끊겨요"):v==500?T("Appears fastest, choppy","가장 빨리 나와요. 대신 뚝뚝 끊겨요"):"",4));
+            var previewSetting=(Setting)gif.Items.Last();
+            previewSetting.Lines=new[]{T("Only for the quick preview in the Make GIF cover window. While you move the handles, the preview is made at once from pictures read this far apart; a moment after you stop, the real file replaces it. This doesn't change the finished GIF cover, and it's separate from the scene step under Scenes from videos.",
+                "GIF 표지 만들기 창의 빠른 미리 보기에만 쓰여요. 손잡이를 옮기는 동안에는 이 간격마다 한 장씩 읽은 그림으로 미리 보기를 바로 보여 주고, 손을 떼고 잠깐 있으면 실제 파일로 바뀌어요. 다 만든 GIF 표지에는 영향이 없고, '영상에서 장면 고르기'의 장면 간격과도 상관없어요."),
+                T("A video can't go finer than its own pictures. If a long part would need more than 400 pictures, that preview reads them a little further apart so the computer doesn't slow down.",
+                "영상 자체 그림보다 더 잘게는 읽을 수 없어요. 고른 구간이 길어서 그림이 400장을 넘으면, 컴퓨터가 느려지지 않게 그 미리 보기만 간격을 조금 넓혀요.")};
+            previewSetting.Extra=g=>g.NumberBox(previewSetting,T("Or type your own, in seconds (0.03 to 2)","직접 쓰기 (초, 0.03 ~ 2)"),p=>p.GifPreviewStepMs/1000.0,
+                (p,seconds)=>p.GifPreviewStepMs=(int)Math.Round(Math.Max(0.03,Math.Min(2,seconds))*1000));
             gif.Items.Add(new Setting {Id="gridGif",SectionId="gif",Title=T("Should GIF covers move in the tiles?","칸에서 GIF 표지를 움직일까요?"),
                 Lines=new[]{T("How GIF covers show while you browse. The tile shows the JPG cover first.","파일을 둘러볼 때 칸에서 GIF 표지를 어떻게 보여 줄지예요. 칸에는 먼저 JPG 표지가 보여요.")},
                 Choices=new[]{new Choice(T("Don't move","움직이지 않기"),T("Tiles always show the JPG cover. Easiest on the computer.","칸에는 언제나 JPG 표지만 보여요. 컴퓨터가 가장 편해요.")),
@@ -809,7 +819,11 @@ namespace LoveMyShelf {
                       "영상의 재생 막대에 마우스를 올리면, 그 위치의 장면이 시간과 함께 작은 그림으로 떠요. 누르면 그 위치로 가요."),
                     T("When you change the speed, brightness or volume with keys, a small note shows the new value at the top left.","키로 재생 속도, 밝기, 음량을 바꾸면 화면 왼쪽 위에 바뀐 값이 작게 나와요."),
                     T("The volume is remembered: the next video starts at the volume you left. {{↑}} {{↓}} change it by 5, and {{M}} turns the sound off and on.",
-                      "음량은 기억돼요. 다음 영상도 마지막에 둔 음량으로 시작해요. {{↑}} {{↓}}로 5씩 바꾸고, {{M}}으로 소리를 껐다 켜요.")},
+                      "음량은 기억돼요. 다음 영상도 마지막에 둔 음량으로 시작해요. {{↑}} {{↓}}로 5씩 바꾸고, {{M}}으로 소리를 껐다 켜요."),
+                    T("If speech is hard to make out, press {{V}} or the Clear voice button. Small voices get louder and words stand out. Music can sound a little different, so press it again to turn it off.",
+                      "말소리가 잘 안 들리면 {{V}}나 '목소리 또렷하게' 버튼을 눌러 보세요. 작은 목소리가 커지고 말이 더 잘 들려요. 음악은 느낌이 조금 달라질 수 있으니, 그럴 땐 한 번 더 눌러 끄면 돼요."),
+                    T("The small ▾ next to that button picks how strong it is: Gentle, Normal or Strong. Strong lifts small voices the most, but quiet background noise can get louder too.",
+                      "버튼 옆 작은 ▾를 누르면 세기를 약하게, 보통, 강하게 중에서 고를 수 있어요. 강하게는 작은 목소리를 가장 많이 키우지만, 조용한 곳의 잡음도 같이 커질 수 있어요.")},
                 Keys=new[]{K(T("Previous / next file","이전 파일 / 다음 파일"),"K","L"),K(T("Play or pause","재생 / 일시정지"),"Space"),
                     K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
                     K(T("Brighter / darker / back to normal","밝게 / 어둡게 / 원래대로"),"E","W","Q"),
@@ -854,10 +868,15 @@ namespace LoveMyShelf {
 
             // ----- Tidying up -----
             var tidy=add("tidy",T("Tidying up","정리하기"));
+            tidy.Items.Add(new Card {Title=T("Several covers of one original","원본 하나에 표지가 여러 개일 때"),
+                Lines=new[]{T("When one photo or video has several covers, each cover shows a small number like 2/5. That means it is the second of five covers. They always stay together. Covers of a video line up by where their scene is in the video, whichever you made first.","사진이나 영상 하나에 표지가 여러 개 있으면 칸 오른쪽 아래에 2/5 같은 번호가 나와요. 표지 5개 중 두 번째라는 뜻이에요. 이 표지들은 항상 붙어 다니고, 영상의 표지는 어느 것을 먼저 만들었든 영상 속 장면 시간 순서로 놓여요."),
+                    T("Point at a cover with the mouse, and every cover of the same original gets a colored outline.","표지에 마우스를 올리면 같은 원본의 표지들에 모두 색 테두리가 생겨요."),
+                    T("In the large view, the other covers appear small in the empty space on the right when the screen has room. Click one to see it. In full screen they rest when the mouse stops, and come back when it moves.","크게 볼 때 화면 오른쪽에 여백이 있으면 같은 원본의 다른 표지들이 작게 나와요. 누르면 그 표지로 바뀌어요. 전체 화면에서는 마우스가 멈추면 숨고, 움직이면 다시 나와요.")}});
             tidy.Items.Add(new Card {Title=T("Hide or delete a cover","표지 숨기기와 지우기"),
                 Lines=new[]{T("Right-click a tile:","칸을 오른쪽 클릭하면 이런 것들이 있어요."),
                     T("[[Hide this cover in Love My Shelf]] keeps the file but stops showing it in Love My Shelf. [[Show this cover again]] brings it back.","[[이 표지 프로그램에서 안 보기]]는 파일은 그대로 두고 Love My Shelf에서만 안 보이게 해요. [[이 표지 다시 보기]]로 되돌릴 수 있어요."),
                     T("[[Move this cover file to the Recycle Bin]] deletes only the cover. The original stays. If the cover also has a GIF cover, this reads [[Move the JPG and GIF cover files to the Recycle Bin]], and [[Move only the GIF cover file to the Recycle Bin]] deletes just the GIF and keeps the JPG cover. Hide and show then read [[Hide the JPG and GIF covers in Love My Shelf]] and [[Show the JPG and GIF covers again]].","[[이 표지 파일 휴지통으로 보내기]]는 표지만 지워요. 원본은 그대로예요. GIF 표지도 있으면 이 이름이 [[JPG·GIF 표지 모두 휴지통으로 보내기]]로 바뀌고, [[GIF 표지만 휴지통으로 보내기]]를 누르면 GIF만 지우고 JPG 표지는 남아요. 안 보기·다시 보기도 이때는 [[JPG·GIF 표지 모두 프로그램에서 안 보기]], [[JPG·GIF 표지 모두 다시 보기]]로 바뀌어요."),
+                    T("Deleted a cover by mistake? A notice shows at the bottom right for 3 seconds. Click it and the cover comes back. Pointing at the notice holds the time.","표지를 잘못 지웠다면 오른쪽 아래에 3초 동안 나오는 알림을 누르세요. 표지가 그대로 돌아와요. 알림 위에 마우스를 올리면 시간이 멈춰요."),
                     T("[[Move original to Recycle Bin]] deletes the original photo or video itself. You can bring it back from the Recycle Bin on the desktop.","[[원본 파일 휴지통으로 보내기]]는 원래 사진이나 영상 자체를 지워요. 바탕 화면의 휴지통에서 되살릴 수 있어요.")}});
             tidy.Items.Add(new Card {Title=T("If you moved an original","원본을 다른 곳으로 옮겼다면"),
                 Lines=new[]{T("Love My Shelf remembers where each original was. If you moved or renamed it in File Explorer, the tile shows a small saved preview instead.",
@@ -878,8 +897,8 @@ namespace LoveMyShelf {
                 Choices=new[]{new Choice("한국어",""),new Choice("English","")},Columns=2,
                 Get=p=>p.Korean?0:1,Set=(p,i)=>p.Korean=i==0});
             screen.Items.Add(new Setting {Id="updates",SectionId="screen",Title=T("Tell me when a new version is out?","새 버전이 나오면 알려 드릴까요?"),
-                Lines=new[]{T("When on, Love My Shelf asks GitHub (the website where Love My Shelf is published) once each time it starts whether there's a newer version. It sends no photos or personal information. If there is one, a message appears at the bottom right.",
-                    "켜 두면 Love My Shelf를 켤 때마다 한 번, GitHub(Love My Shelf를 올려 두는 인터넷 사이트)에 새 버전이 있는지 물어봐요. 이때 사진이나 내 정보는 하나도 보내지 않아요. 새 버전이 있으면 오른쪽 아래에 알려 드려요.")},
+                Lines=new[]{T("When on, Love My Shelf asks GitHub (the website where Love My Shelf is published) once each time it starts whether there's a newer version. It sends no photos or personal information. If there is one, a message appears at the bottom right. Click it and the update downloads and installs by itself; your covers and settings stay.",
+                    "켜 두면 Love My Shelf를 켤 때마다 한 번, GitHub(Love My Shelf를 올려 두는 인터넷 사이트)에 새 버전이 있는지 물어봐요. 이때 사진이나 내 정보는 하나도 보내지 않아요. 새 버전이 있으면 오른쪽 아래에 알려 드려요. 그 알림을 누르면 알아서 내려받아 바꿔 주고, 만든 표지와 설정은 그대로 남아요.")},
                 Choices=new[]{new Choice(T("Tell me","알려 주기"),""),new Choice(T("Don't tell me","알리지 않기"),T("Love My Shelf never asks the internet.","인터넷에 전혀 묻지 않아요."))},
                 Default=0,Columns=2,Get=p=>p.CheckUpdates?0:1,Set=(p,i)=>p.CheckUpdates=i==0});
 
@@ -891,7 +910,7 @@ namespace LoveMyShelf {
                 K(T("Choose all","모두 고르기"),"Ctrl+","A"),K(T("Copy / cut / paste files","파일 복사 / 잘라내기 / 붙여넣기"),"Ctrl+","C","X","V"),K(T("Undo the choosing","고른 것 풀기"),"Esc"),K(T("Choose a folder to add","추가할 폴더 고르기"),"Ctrl+","O"),K(T("Search names","이름 검색"),"Ctrl+","F"),K(T("Back / forward","뒤로 / 앞으로"),"Alt+","←","→"),K(T("Up to the folder above","위 폴더로"),"Alt+","↑"),K(T("Type a path in the address bar","주소창에 경로 입력"),"Ctrl+","L"),K(T("Folder tree","폴더 나무"),"Ctrl+","T"),K(T("Refresh","새로 고침"),"F5")}});
             keys.Items.Add(new Card {Title=T("Large view","크게 보기"),Keys=new[]{
                 K(T("Previous / next file","이전 / 다음 파일"),"K","L"),K(T("Play / pause","재생 / 일시정지"),"Space"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
-                K(T("One scene","한 장면씩"),"D","F"),K(T("Brightness","밝기"),"E","W","Q"),K(T("Speed","재생 속도"),"C","X","Z"),K(T("Volume","음량"),"↑","↓"),K(T("Sound off / on","소리 끄기 / 켜기"),"M"),K(T("Close","닫기"),"Esc")}});
+                K(T("One scene","한 장면씩"),"D","F"),K(T("Brightness","밝기"),"E","W","Q"),K(T("Speed","재생 속도"),"C","X","Z"),K(T("Volume","음량"),"↑","↓"),K(T("Sound off / on","소리 끄기 / 켜기"),"M"),K(T("Clear voice on / off","목소리 또렷하게 켜기 / 끄기"),"V"),K(T("Close","닫기"),"Esc")}});
             keys.Items.Add(new Card {Title=T("Making a cover","표지 만들기"),Keys=new[]{
                 K(T("Bigger / smaller","크게 / 작게"),"+","−"),K(T("Previous / next scene","이전 / 다음 장면"),"D","F"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
                 K(T("Brightness","밝기"),"E","W","Q"),K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});

@@ -48,12 +48,15 @@ namespace LoveMyShelf {
         public int GifFps=15;
         public int GifHeight=960;
         public int SceneStepMs=200;      // scene step: milliseconds between scenes everywhere a scene is picked (what used to be "frames")
-        public int GifPreviewStepMs=200; // Make GIF cover's quick preview only: milliseconds between the scenes it reads
+        public int GifPreviewStepMs=100; // Make GIF cover's quick preview only: milliseconds between the scenes it reads
         public int GifSideTenths=15;    // seconds before and after the cover's moment, in tenths
         internal static string SuggestedCoverParent {get {return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);}}
         public PhotoSort Sort;
         public int SkipSeconds=5;
+        public int BrightnessStep=3;     // how much one press of E or W changes the brightness
         public int Volume=100;
+        public bool ClearVoice;
+        public int ClearVoiceLevel=1;   // 0 gentle, 1 normal, 2 strong
         public bool SnapEdges=true;
         public int WheelZoomPercent=7;
         public bool PinTopOnWheel=true;
@@ -103,14 +106,17 @@ namespace LoveMyShelf {
                     GifHeight=ReadNumber(xml,"gifHeight",240,2160,960),
                     GifSideTenths=ReadNumber(xml,"gifSide",1,300,15),
                     SceneStepMs=ReadNumber(xml,"sceneStep",30,2000,200),
-                    GifPreviewStepMs=ReadNumber(xml,"gifPreviewStep",30,2000,200),
+                    GifPreviewStepMs=ReadPreviewStep(xml),
                     OpenPhotoOriginal=(string)xml.Attribute("largePhoto")=="original",
                     OpenMotionOriginal=(string)xml.Attribute("largeMotion")=="original",
                     OpenByDoubleClick=(string)xml.Attribute("openLarge")==null?DefaultOpenByDoubleClick:(string)xml.Attribute("openLarge")=="double",
                     Sort=sort=="date"?PhotoSort.Modified:sort=="cover"?PhotoSort.CoverOrder:sort=="size"?PhotoSort.Size:sort=="type"?PhotoSort.Type:PhotoSort.Name,
                     Descending=direction==null?sort=="date":direction=="desc",
                     SkipSeconds=ReadNumber(xml,"skipSeconds",1,300,5),
+                    BrightnessStep=ReadNumber(xml,"brightnessStep",1,20,3),
                     Volume=ReadNumber(xml,"volume",0,100,100),
+                    ClearVoice=(string)xml.Attribute("clearVoice")=="true",
+                    ClearVoiceLevel=ReadNumber(xml,"clearVoiceLevel",0,2,1),
                     SnapEdges=(string)editor.Attribute("snapEdges")!="false",
                     WheelZoomPercent=ReadNumber(editor,"wheelZoomPercent",1,50,7),
                     PinTopOnWheel=(string)editor.Attribute("pinTop")!="false"
@@ -124,6 +130,11 @@ namespace LoveMyShelf {
         static int ReadNumber(XElement xml,string name,int min,int max,int fallback) {
             int value;
             return Int32.TryParse((string)xml.Attribute(name),out value) && value>=min && value<=max?value:fallback;
+        }
+        // 0.2 s was the old default. It moves to 0.1 s once; files saved since carry the mark, so a later choice of 0.2 s stays.
+        static int ReadPreviewStep(XElement xml) {
+            int value=ReadNumber(xml,"gifPreviewStep",30,2000,100);
+            return value==200 && xml.Attribute("gifPreviewDefault")==null?100:value;
         }
         internal Preferences Copy() {return (Preferences)MemberwiseClone();}
         internal bool SameAs(Preferences other) {return ToXml().ToString()==other.ToXml().ToString();}
@@ -152,12 +163,12 @@ namespace LoveMyShelf {
                     new XAttribute("shareLimitMB",ShareLimitMB),new XAttribute("gifStrip",GifStripSeconds),
                     new XAttribute("gifFormat",new[]{"gif","webp","mp4"}[Math.Max(0,Math.Min(2,GifFormat))]),
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),
-                    new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),
+                    new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),
                     new XAttribute("largePhoto",OpenPhotoOriginal?"original":"cover"),
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("volume",Volume),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }
