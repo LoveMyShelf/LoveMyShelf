@@ -2,7 +2,7 @@
 
 <img src="docs/images/icon.png" width="64" align="right" alt="">
 
-A Windows app for going through huge, unsorted folders of photos, GIFs and videos. It works like File Explorer, shows everything as large tiles, and lets you keep the moment you care about as a **9:16 cover**.
+A Windows app that works like File Explorer and lets you give your videos, photos, and memes the covers you choose, so huge messy folders are easy to scan. Everything appears as large tiles, and you can keep the moment you care about as a **9:16 cover**.
 
 **[Download for Windows](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)** · [한국어](README.ko.md) · [User guide](GUIDE.md) · [Changelog](CHANGELOG.md) · [All releases](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 

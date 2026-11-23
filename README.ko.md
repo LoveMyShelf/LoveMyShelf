@@ -2,7 +2,7 @@
 
 <img src="docs/images/icon.png" width="64" align="right" alt="">
 
-사진, GIF, 영상이 뒤섞여 쌓인 큰 폴더를 한눈에 정리하는 Windows 프로그램입니다. 파일 탐색기처럼 쓰면서 모든 파일을 큼직하게 볼 수 있고, 마음에 드는 장면은 **9:16 세로 표지**로 남겨 둘 수 있습니다.
+파일 탐색기처럼 쓰면서, 영상과 사진, 짤에 내가 고른 표지를 붙여 큰 폴더를 한눈에 정리하는 Windows 프로그램입니다. 모든 파일이 큼직하게 보이고, 마음에 드는 장면은 **9:16 세로 표지**로 남겨 둘 수 있습니다.
 
 **[Windows용 다운로드](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)** · [English](README.md) · [설명서](GUIDE.ko.md) · [변경 사항](CHANGELOG.md) · [모든 버전](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 
