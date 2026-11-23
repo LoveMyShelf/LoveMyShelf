@@ -38,6 +38,11 @@ namespace LoveMyShelf {
             if(image!=null)TileCache.Put(key,ticks,image);
             return image;
         }
+        // The small copy kept with the record, for when the cover file can't be read (its drive is away or busy).
+        internal static Task<BitmapSource> LoadSavedCopy(Photo photo,int side,int row,Func<int> center,CancellationToken token) {
+            string thumb=photo.Thumb;
+            return files.Add(()=>Pictures.Load(thumb,side),row,center,token);
+        }
         // Reads the first picture inside LoveMyShelf (libmpv) instead of starting FFmpeg; FFmpeg is the last resort.
         static BitmapSource VideoStill(string path,int side,CancellationToken token) {
             MpvThumbnails thumbs=null;

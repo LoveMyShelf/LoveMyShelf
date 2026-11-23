@@ -77,6 +77,7 @@ namespace LoveMyShelf {
             Option("hwdec","auto-safe");Option("hr-seek","yes");Option("loop-file","inf");
             Option("keep-open","no");Option("idle","yes");Option("audio-display","no");
             Option("background-color","#000000");Option("force-window","no");
+            Option("sub-auto","no"); // Love My Shelf finds and reads subtitle files itself (see Subtitles.cs)
             Check(mpv_initialize(handle),"initialize");
             events.Start();
             Command("loadfile",path,"replace");
@@ -175,7 +176,37 @@ namespace LoveMyShelf {
                 return Encoding.UTF8.GetString(bytes);
             } finally {mpv_free(text);}
         }
-        internal void Screenshot(string file) {Command("screenshot-to-file",file,"video");}
+        // The video's own picture at full size, as a PNG or (when the name ends in .jpg) a JPG of the given quality.
+        // Light PNG compression keeps playback from stalling on 4K frames.
+        internal bool Screenshot(string file,int jpgQuality) {
+            Property("screenshot-png-compression","1");
+            if(jpgQuality>0)Property("screenshot-jpeg-quality",jpgQuality.ToString(Inv));
+            return Command("screenshot-to-file",file,"video")>=0 && System.IO.File.Exists(file);
+        }
+        // Shows this subtitle file in place of the one added before. mpv reads it fully here, so the file can go afterwards.
+        string addedSubtitle;
+        internal bool ShowSubtitle(string file) {
+            if(addedSubtitle!=null){Command("sub-remove",addedSubtitle);addedSubtitle=null;}
+            if(file==null)return true;
+            if(Command("sub-add",file,"select")<0)return false;
+            addedSubtitle=Read("sid");
+            return true;
+        }
+        internal bool SubtitlesVisible {set {Property("sub-visibility",value?"yes":"no");}}
+        // 100 is the usual place at the bottom; a smaller number is higher up.
+        int subtitlePosition=100;
+        internal int SubtitlePosition {set {
+            if(value==subtitlePosition)return;
+            subtitlePosition=value;Property("sub-pos",value.ToString(Inv));
+        }}
+        // A subtitle track inside the video file itself.
+        internal bool HasOwnSubtitle {get {
+            int count;
+            if(!Int32.TryParse(Read("track-list/count"),out count))return false;
+            for(int i=0;i<count;i++)
+                if(Read("track-list/"+i+"/type")=="sub" && Read("track-list/"+i+"/external")!="yes")return true;
+            return false;
+        }}
         public bool Paused {set {Property("pause",value?"yes":"no");}}
         public double Volume {set {Property("volume",Math.Max(0,Math.Min(100,value)).ToString("0.###",Inv));}}
         public double Speed {set {Property("speed",value.ToString("0.###",Inv));}}
@@ -201,8 +232,8 @@ namespace LoveMyShelf {
 
         void Option(string name,string value) {Check(mpv_set_option_string(handle,Utf8(name),Utf8(value)),name);}
         void Property(string name,string value) {if(handle!=IntPtr.Zero)mpv_set_property_string(handle,Utf8(name),Utf8(value));}
-        void Command(params string[] args) {
-            if(handle==IntPtr.Zero)return;
+        int Command(params string[] args) {
+            if(handle==IntPtr.Zero)return -1;
             var pointers=new IntPtr[args.Length+1];
             try {
                 for(int i=0;i<args.Length;i++) {
@@ -210,7 +241,7 @@ namespace LoveMyShelf {
                     pointers[i]=Marshal.AllocHGlobal(bytes.Length);
                     Marshal.Copy(bytes,0,pointers[i],bytes.Length);
                 }
-                mpv_command(handle,pointers);
+                return mpv_command(handle,pointers);
             } finally {
                 foreach(var p in pointers)if(p!=IntPtr.Zero)Marshal.FreeHGlobal(p);
             }

@@ -54,6 +54,16 @@ namespace LoveMyShelf {
         public PhotoSort Sort;
         public int SkipSeconds=5;
         public int BrightnessStep=3;     // how much one press of E or W changes the brightness
+        public int TileNames;            // file names under the tiles: 0 none, 1 one line, 2 two lines, 3 the whole name
+        public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
+        public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
+        public bool CaptureJpg;          // false: PNG; true: JPG
+        public string SeenVersion="";    // the version last started, for the one small "updated" notice
+        public string SubtitleBounds=""; // where the subtitle explorer was last: left,top,width,height
+        internal const string CaptureFolderName="Love My Shelf 캡처";
+        internal string CaptureFolder {get {
+            return String.IsNullOrWhiteSpace(CaptureDirectory)?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),CaptureFolderName):CaptureDirectory;
+        }}
         public int Volume=100;
         public bool ClearVoice;
         public int ClearVoiceLevel=1;   // 0 gentle, 1 normal, 2 strong
@@ -114,6 +124,12 @@ namespace LoveMyShelf {
                     Descending=direction==null?sort=="date":direction=="desc",
                     SkipSeconds=ReadNumber(xml,"skipSeconds",1,300,5),
                     BrightnessStep=ReadNumber(xml,"brightnessStep",1,20,3),
+                    TileNames=ReadNumber(xml,"tileNames",0,3,0),
+                    CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
+                    CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
+                    CaptureJpg=(string)xml.Attribute("captureFormat")=="jpg",
+                    SeenVersion=(string)xml.Attribute("seenVersion")??"",
+                    SubtitleBounds=(string)xml.Attribute("subtitleBounds")??"",
                     Volume=ReadNumber(xml,"volume",0,100,100),
                     ClearVoice=(string)xml.Attribute("clearVoice")=="true",
                     ClearVoiceLevel=ReadNumber(xml,"clearVoiceLevel",0,2,1),
@@ -168,7 +184,7 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("tileNames",TileNames),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }

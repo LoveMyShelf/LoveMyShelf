@@ -208,7 +208,7 @@ namespace LoveMyShelf {
         public CropWindow(Window owner,BitmapSource image,string name,Rect? saved,double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,
             int previewSide=2200,int brightness=0) {
             this.previewSide=previewSide;
-            UI.WindowSetup(this,saved.HasValue?L.T("Make another cover"):L.T("Make cover")); Owner=owner; ShowInTaskbar=false;
+            UI.WindowSetup(this,saved.HasValue?L.T("Make one more cover"):L.T("Make cover")); Owner=owner; ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             Width=Math.Min(880,SystemParameters.WorkArea.Width); Height=Math.Min(850,SystemParameters.WorkArea.Height);
             MinWidth=390; MinHeight=360;
@@ -219,7 +219,7 @@ namespace LoveMyShelf {
             var title=UI.Text(name,12); title.TextTrimming=TextTrimming.CharacterEllipsis; head.Children.Add(title);
             DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
             Surface=new CropSurface(image,saved,rotation,snapEdges,wheelZoomPercent,brightness);
-            AutomationProperties.SetHelpText(Surface,L.T("Drag to reposition and scroll to zoom."));
+            AutomationProperties.SetHelpText(Surface,L.T("Drag to move it, and roll the wheel to fit the size."));
             var bar=UI.Bar(new Thickness(6,2,6,2));
             save=UI.Btn(L.T("Save cover"),SaveCover,true); save.IsDefault=true; UI.Right(bar,save);
             var cancel=UI.Btn(L.T("Cancel"),()=>{
@@ -228,7 +228,7 @@ namespace LoveMyShelf {
             });
             cancel.Margin=new Thickness(0,0,5,0); UI.Right(bar,cancel);
             motionButton=UI.Btn(L.T("Make GIF cover"),MakeMotion);motionButton.Margin=new Thickness(0,0,5,0);
-            motionButton.Visibility=Visibility.Collapsed;motionButton.ToolTip=L.T("Save the JPG cover and also make a GIF cover around this moment.");
+            motionButton.Visibility=Visibility.Collapsed;motionButton.ToolTip=L.T("Saves the JPG cover and also makes a moving GIF cover around this scene.");
             UI.Right(bar,motionButton);
             var reset=UI.Btn(L.T("Reset"),()=>Surface.Reset()); reset.Margin=new Thickness(0,0,8,0); DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
             bar.LastChildFill=false;
@@ -357,14 +357,14 @@ namespace LoveMyShelf {
             framePath=path;FrameIndex=index;frameCount=count;nearby=localTimes;
             nearbyAtStart=localTimes!=null && localTimes.Count>0 && localTimes.Start(0)<=0.5;nearbyAtEnd=false;
             var bar=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(6,2,6,2)};
-            previousFrame=UI.Btn(L.T("Previous frame (D)"),()=>MoveFrame(-1));bar.Children.Add(previousFrame);
+            previousFrame=UI.Btn(L.T("Previous scene (D)"),()=>MoveFrame(-1));bar.Children.Add(previousFrame);
             frameNumber=UI.Text("",11,true);frameNumber.Margin=new Thickness(6,0,6,0);frameNumber.TextAlignment=TextAlignment.Center;
             // Wide enough for the longest label so the Next button never moves.
             var probe=new TextBlock {Text=localTimes==null?String.Format("{0:N0} / {0:N0}",count).Replace('1','0').Replace('2','0').Replace('3','0').Replace('4','0').Replace('5','0').Replace('6','0').Replace('7','0').Replace('8','0').Replace('9','0'):Viewer.Stamp(0),FontSize=11};
             Typography.SetNumeralAlignment(probe,FontNumeralAlignment.Tabular);probe.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));
             frameNumber.MinWidth=Math.Ceiling(probe.DesiredSize.Width)+2;
             bar.Children.Add(frameNumber);
-            nextFrame=UI.Btn(L.T("Next frame (F)"),()=>MoveFrame(1));bar.Children.Add(nextFrame);
+            nextFrame=UI.Btn(L.T("Next scene (F)"),()=>MoveFrame(1));bar.Children.Add(nextFrame);
             DockPanel.SetDock(bar,Dock.Bottom);
             var root=(DockPanel)Content;root.Children.Insert(root.Children.IndexOf(Surface),bar);
             UpdateFrameControls(true);
@@ -374,7 +374,7 @@ namespace LoveMyShelf {
             // A video's list can be read further past either end, until the video's start or end.
             previousFrame.IsEnabled=ready && (FrameIndex>0 || (nearby!=null && !nearbyAtStart));
             nextFrame.IsEnabled=ready && (FrameIndex<frameCount-1 || (nearby!=null && !nearbyAtEnd));
-            frameNumber.Text=!ready?L.T(readingMore?"Reading more…":"Loading…"):nearby==null?String.Format("{0:N0} / {1:N0}",FrameIndex+1,frameCount):
+            frameNumber.Text=!ready?L.T(readingMore?"Loading more…":"Loading…"):nearby==null?String.Format("{0:N0} / {1:N0}",FrameIndex+1,frameCount):
                 Viewer.Stamp(nearby.Start(FrameIndex));
         }
         async void MoveFrame(int step) {

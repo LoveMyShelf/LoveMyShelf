@@ -335,11 +335,11 @@ namespace LoveMyShelf {
             int frameTimeOffset=(int?)n.Attribute("frameTimeOffset")??0;
             if (!(r.Width>0 && r.Height>0 && r.X<1 && r.Y<1 && r.Right>0 && r.Bottom>0) ||
                 Double.IsInfinity(r.Right) || Double.IsInfinity(r.Bottom))
-                throw new InvalidDataException(L.T("The saved cover coordinates are invalid."));
+                throw new InvalidDataException(L.T("The saved cover information is damaged and can't be read."));
             if(Double.IsNaN(rotation) || Double.IsInfinity(rotation))
-                throw new InvalidDataException(L.T("The saved cover rotation is invalid."));
+                throw new InvalidDataException(L.T("The saved cover's rotation information is damaged and can't be read."));
             if(frameTime.HasValue && (Double.IsNaN(frameTime.Value) || Double.IsInfinity(frameTime.Value) || frameTime.Value<0 || frameTimeOffset<0))
-                throw new InvalidDataException(L.T("Could not read video frame times."));
+                throw new InvalidDataException(L.T("Could not read the video's scene times."));
             double? sceneMs=null;
             try {
                 sceneMs=(double?)n.Attribute("sceneMs");

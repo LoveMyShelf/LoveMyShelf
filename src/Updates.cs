@@ -16,7 +16,9 @@ using System.Xml.Linq;
 namespace LoveMyShelf {
     internal static class AppInfo {
         // Keep in step with the GitHub release tag (v1.2.0 and so on).
-        internal const string Version="1.0.4";
+        internal const string Version="1.0.5";
+        // The last version without the "updated" notice: someone coming from it has no record of what they last saw.
+        internal const string LastWithoutNotice="1.0.4";
         internal const string ReleasesPage="https://github.com/LoveMyShelf/LoveMyShelf/releases/latest";
         const string LatestApi="https://api.github.com/repos/LoveMyShelf/LoveMyShelf/releases/latest";
 
@@ -142,17 +144,27 @@ namespace LoveMyShelf {
                     plan.Files.Add(file);
                 }
                 if(!seen.Contains(ExeName))return null;
-                plan.Notes=ReadNotes(root,plan.Version);
+                string newest=plan.Version;
+                plan.Notes=ReadNotes(root,v=>AppInfo.IsNewer(v,AppInfo.Version) && !AppInfo.IsNewer(v,newest));
                 return plan;
             } catch(Exception) {return null;}
         }
+        // Every version up to this one, newest first, from the notes built into the program.
+        internal static List<ReleaseNote> InstalledNotes(string upTo=AppInfo.Version) {
+            try {
+                using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("LoveMyShelf.release-notes.xml")) {
+                    if(stream==null)return new List<ReleaseNote>();
+                    return ReadNotes(XDocument.Load(stream).Root,v=>System.Version.Parse(v)<=System.Version.Parse(upTo));
+                }
+            } catch(Exception) {return new List<ReleaseNote>();}
+        }
         // A problem in the notes never blocks an update; the plain notice is used instead.
-        static List<ReleaseNote> ReadNotes(XElement root,string newest) {
+        static List<ReleaseNote> ReadNotes(XElement root,Func<string,bool> wanted) {
             var notes=new List<ReleaseNote>();
             try {
                 foreach(var release in root.Elements("release")) {
                     string version=(string)release.Attribute("version");
-                    if(!AppInfo.IsNewer(version,AppInfo.Version) || AppInfo.IsNewer(version,newest))continue;
+                    if(!wanted(version))continue;
                     var note=new ReleaseNote {Version=version,SummaryKo=(string)release.Attribute("summaryKo")??"",SummaryEn=(string)release.Attribute("summaryEn")??""};
                     foreach(var item in release.Elements("item")) {
                         string keys=(string)item.Attribute("keys")??"";

@@ -72,7 +72,7 @@ namespace LoveMyShelf {
                 Path.GetFileName(d)[oldBase.Length]=='-').ToList();
             foreach(var record in records) {
                 string target=Path.Combine(albumFolder,newBase+Path.GetFileName(record).Substring(oldBase.Length));
-                if(!caseOnly && Directory.Exists(target))throw new IOException(L.T("Love My Shelf still has records for an older file with that name. Press F5 and try again, or pick another name."));
+                if(!caseOnly && Directory.Exists(target))throw new IOException(L.T("Records of an older file with that name are still left. Press F5 and try again, or use another name."));
             }
             var undo=new Undo();
             try {
@@ -165,7 +165,7 @@ namespace LoveMyShelf {
             if(from==to)return from;
             bool caseOnly=String.Equals(from,to,StringComparison.OrdinalIgnoreCase);
             if(!caseOnly && (Directory.Exists(to) || File.Exists(to)))throw new IOException(L.F("There is already a folder or file named “{0}” here.",newName));
-            if(IsAt(store.Root,from))throw new IOException(L.T("A file in this folder is in use. Close it and try again."));
+            if(IsAt(store.Root,from))throw new IOException(L.T("A file in this folder is in use by another program. Close that program and try again."));
             var albums=store.Albums().Where(a=>IsAt(a.Source,from)).ToList();
             var targets=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
             var stale=new List<string>();
@@ -173,7 +173,7 @@ namespace LoveMyShelf {
                 string target=store.AlbumFolderOf(Moved(album.Source,from,to));
                 targets[album.Folder]=target;
                 if(String.Equals(target,album.Folder,StringComparison.OrdinalIgnoreCase) || !Directory.Exists(target))continue;
-                if(Directory.GetDirectories(target,"p-*").Length>0)throw new IOException(L.T("Love My Shelf still has covers for an older folder with that name. Pick another name."));
+                if(Directory.GetDirectories(target,"p-*").Length>0)throw new IOException(L.T("Cover records of a folder that used the same name before are still left. Use another name."));
                 stale.Add(target);
             }
             var undo=new Undo();
@@ -186,8 +186,8 @@ namespace LoveMyShelf {
                         undo.Move(from,temp,true);undo.Move(temp,to,true);
                     } else undo.Move(from,to,true);
                 }
-                catch(IOException) {throw new IOException(L.T("A file in this folder is in use. Close it and try again."));}
-                catch(UnauthorizedAccessException) {throw new IOException(L.T("A file in this folder is in use. Close it and try again."));}
+                catch(IOException) {throw new IOException(L.T("A file in this folder is in use by another program. Close that program and try again."));}
+                catch(UnauthorizedAccessException) {throw new IOException(L.T("A file in this folder is in use by another program. Close that program and try again."));}
                 lock(SharedCoverFiles.MetadataLock) {
                     foreach(string old in stale) {
                         string aside=Path.Combine(store.Root,"setup-"+Guid.NewGuid().ToString("N"));
@@ -252,7 +252,7 @@ namespace LoveMyShelf {
             var box=new TextBox {Text=stem,Padding=new Thickness(6),FontSize=14};
             System.Windows.Automation.AutomationProperties.SetName(box,L.T("New name"));
             row.Children.Add(box);page.Children.Add(row);
-            var hint=UI.Text(NoticeLook.KeepWords(L.T(folder?"Its covers stay with the files inside.":"Its JPG covers, upscaled copies and GIF covers get the same new name.")),12,true);
+            var hint=UI.Text(NoticeLook.KeepWords(L.T(folder?"The link between the files inside and their covers stays as it is.":"The JPG covers, upscaled covers and GIF covers made from this file get the same new name too.")),12,true);
             hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,8,0,0);page.Children.Add(hint);
             var error=UI.Text("",12);error.TextWrapping=TextWrapping.Wrap;error.Margin=new Thickness(0,6,0,0);
             error.SetResourceReference(TextBlock.ForegroundProperty,"Accent");page.Children.Add(error);

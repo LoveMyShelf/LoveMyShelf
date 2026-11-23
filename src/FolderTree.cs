@@ -245,6 +245,28 @@ namespace LoveMyShelf {
                 if(t.Result!=null && t.Result.Count>0){network.Margin=gap;network.Visibility=Visibility.Visible;if(!folded.Contains("network"))network.IsExpanded=true;}
             },TaskScheduler.FromCurrentSynchronizationContext());
         }
+        // A drive was plugged in or out: only the drive rows change, so everything unfolded stays unfolded.
+        internal void RefreshDrives() {
+            var pc=Items.OfType<TreeViewItem>().FirstOrDefault(r=>r.Tag is TreeEntry && ((TreeEntry)r.Tag).Kind=="pc");
+            if(pc==null || (pc.Items.Count==1 && pc.Items[0]==Placeholder))return;
+            Task.Run(()=>ShellPlaces.Drives()).ContinueWith(t=>{
+                if(t.IsFaulted || t.Result==null)return;
+                syncing=true;
+                try {
+                    foreach(var row in pc.Items.OfType<TreeViewItem>().ToList()) {
+                        var entry=(TreeEntry)row.Tag;
+                        if(!t.Result.Any(d=>ShellPlaces.Same(d.Path,entry.Path) && d.Name==entry.Label))pc.Items.Remove(row);
+                    }
+                    int at=0;
+                    foreach(var drive in t.Result) {
+                        var there=pc.Items.OfType<TreeViewItem>().FirstOrDefault(r=>ShellPlaces.Same(((TreeEntry)r.Tag).Path,drive.Path));
+                        if(there==null)pc.Items.Insert(Math.Min(at,pc.Items.Count),Row(new TreeEntry {Kind="drive",Label=drive.Name,Path=drive.Path},true));
+                        at++;
+                    }
+                } finally {syncing=false;}
+                owner.TreeSyncSoon();
+            },TaskScheduler.FromCurrentSynchronizationContext());
+        }
         TreeViewItem Row(TreeEntry entry,bool unfolds) {
             var icon=Icon(entry.Kind);
             var text=new TextBlock {Text=entry.Label,TextTrimming=TextTrimming.CharacterEllipsis,VerticalAlignment=VerticalAlignment.Center};

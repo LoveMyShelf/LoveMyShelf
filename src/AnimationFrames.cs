@@ -43,9 +43,9 @@ namespace LoveMyShelf {
                     stream.Position=0;
                     webp=BitmapDecoder.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.None);
                     Count=webp.Frames.Count;
-                    if(delays.Count>1 && Count!=delays.Count) throw new NotSupportedException(L.T("The installed Windows WebP codec cannot read every frame."));
+                    if(delays.Count>1 && Count!=delays.Count) throw new NotSupportedException(L.T("Windows on this computer can't read every scene of this WebP."));
                 }
-                if(Count<1) throw new InvalidDataException(L.T("There are no frames to display."));
+                if(Count<1) throw new InvalidDataException(L.T("There are no scenes to show."));
                 var starts=new double[Count];double ms=0;
                 for(int i=0;i<Count;i++){starts[i]=ms;ms+=Delay(i);}
                 Times=new FrameTimes(starts,ms);

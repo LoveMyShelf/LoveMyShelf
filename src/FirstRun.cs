@@ -52,7 +52,7 @@ namespace LoveMyShelf {
             var title=UI.Text(L.T("Welcome to Love My Shelf"),18);
             title.FontWeight=FontWeights.SemiBold;page.Children.Add(title);
             var lines=new[]{
-                L.T("Love My Shelf shows the photos, GIFs and videos in your folders at a glance, right on your own computer. It doesn’t upload anything to the internet.")
+                L.T("Love My Shelf is a program that shows the photos, GIFs and videos in your folders at a glance, inside your own computer. It doesn’t upload anything to the internet.")
             };
             for(int i=0;i<lines.Length;i++) {
                 var text=UI.Text((i==0?"":"•  ")+NoticeLook.KeepWords(lines[i]),14,i>0);
@@ -60,7 +60,7 @@ namespace LoveMyShelf {
                 text.LineHeight=22;text.LineStackingStrategy=LineStackingStrategy.BlockLineHeight;
                 page.Children.Add(text);
             }
-            var tip=UI.Text(NoticeLook.KeepWords(L.T("Shortcuts, how-tos and settings are all in Guide & Options at the top right. You can also press F1.")),13,true);
+            var tip=UI.Text(NoticeLook.KeepWords(L.T("Shortcuts, how-tos and settings are all in [Guide & Options] at the top right. Pressing F1 opens it too.")),13,true);
             tip.TextWrapping=TextWrapping.Wrap;tip.Margin=new Thickness(0,14,0,0);page.Children.Add(tip);
             var ok=UI.Btn(L.T("Let’s start"),()=>{
                 settings.UsageNoticeShown=true;DialogResult=true;

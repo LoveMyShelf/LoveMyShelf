@@ -112,7 +112,7 @@ namespace LoveMyShelf {
                 string exe=Path.Combine(dir.Trim('"'),name+".exe");
                 if(File.Exists(exe))return exe;
             }
-            throw new FileNotFoundException(name+L.T(".exe was not found. Check the folder containing FFmpeg and FFprobe."));
+            throw new FileNotFoundException(name+L.T(".exe was not found. The Love My Shelf folder needs its tools folder. Unzip the downloaded ZIP file again from the start."));
         }
         internal static string Quote(string path) {return "\""+path+"\"";}
         internal static Process Run(string name,string arguments) {
@@ -211,7 +211,7 @@ namespace LoveMyShelf {
                     }
                 }
                 p.WaitForExit();token.ThrowIfCancellationRequested();
-                if(p.ExitCode!=0 || starts.Count==0)throw new InvalidDataException(L.T("Could not read video frame times."));
+                if(p.ExitCode!=0 || starts.Count==0)throw new InvalidDataException(L.T("Could not read the video's scene times."));
             }
             return new FrameTimes(starts.ToArray(),end);
         }
@@ -227,7 +227,7 @@ namespace LoveMyShelf {
             }
             try {
                 var times=Probe(path,false,progress,token,background)??Probe(path,true,progress,token,background);
-                if(times==null)throw new InvalidDataException(L.T("Could not read video frame times."));
+                if(times==null)throw new InvalidDataException(L.T("Could not read the video's scene times."));
                 lock(cache){cache.RemoveAll(e=>e.Path==path);if(cache.Count>=6)cache.RemoveAt(0);cache.Add(new Entry{Path=path,Ticks=ticks,Bytes=bytes,Times=times});}
                 return times;
             } finally {lock(cache){indexing.Remove(path);Monitor.PulseAll(cache);}}
@@ -381,7 +381,7 @@ namespace LoveMyShelf {
         BitmapSource ReadImage() {
             var output=pipe.StandardOutput.BaseStream;
             byte[] header=new byte[6];Fill(output,header,0,6);int size=BitConverter.ToInt32(header,2);
-            if(header[0]!=66 || header[1]!=77 || size<54 || size>512*1024*1024)throw new InvalidDataException(L.T("The video frame format is invalid."));
+            if(header[0]!=66 || header[1]!=77 || size<54 || size>512*1024*1024)throw new InvalidDataException(L.T("The video scene is in a format that can't be read."));
             var data=new byte[size];Buffer.BlockCopy(header,0,data,0,6);Fill(output,data,6,size-6);
             using(var memory=new MemoryStream(data)) {
                 var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.StreamSource=memory;image.EndInit();image.Freeze();return image;
@@ -391,13 +391,13 @@ namespace LoveMyShelf {
         void SkipImage() {
             var output=pipe.StandardOutput.BaseStream;
             byte[] header=new byte[6];Fill(output,header,0,6);int size=BitConverter.ToInt32(header,2);
-            if(header[0]!=66 || header[1]!=77 || size<54 || size>512*1024*1024)throw new InvalidDataException(L.T("The video frame format is invalid."));
+            if(header[0]!=66 || header[1]!=77 || size<54 || size>512*1024*1024)throw new InvalidDataException(L.T("The video scene is in a format that can't be read."));
             var buffer=new byte[Math.Min(size-6,1<<20)];
             int left=size-6;
             while(left>0){int part=Math.Min(left,buffer.Length);Fill(output,buffer,0,part);left-=part;}
         }
         static void Fill(Stream stream,byte[] bytes,int offset,int count) {
-            while(count>0){int read=stream.Read(bytes,offset,count);if(read==0)throw new EndOfStreamException(L.T("Could not read the selected video frame."));offset+=read;count-=read;}
+            while(count>0){int read=stream.Read(bytes,offset,count);if(read==0)throw new EndOfStreamException(L.T("Could not read the scene chosen from the video."));offset+=read;count-=read;}
         }
         public static string PlayableCopy(string path,string directory,CancellationToken token) {
             Directory.CreateDirectory(directory);

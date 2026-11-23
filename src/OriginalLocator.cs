@@ -94,6 +94,59 @@ namespace LoveMyShelf {
                 return !idOnly && f.Length==saved.Length && Signature(f)==saved.Signature;
             }} catch(IOException){return false;}catch(UnauthorizedAccessException){return false;}
         }
+        // A tag editor (Mp3tag and the like) may save a video as a new file under the same name, so both its Windows ID
+        // and its content signature change. Same drive, same place, nearly the same size: it is still this original.
+        static bool EditedInPlace(Reference saved,string path) {
+            try {
+                if(!Paths.Equals(Path.GetFullPath(path),Path.GetFullPath(saved.Path)))return false;
+                using(var f=Open(path)){
+                    FileInfoNative info;
+                    if(!GetFileInformationByHandle(f.SafeFileHandle,out info) || info.Volume!=saved.Volume)return false;
+                    return Math.Abs(f.Length-saved.Length)<=Math.Max(64L*1024*1024,saved.Length/10);
+                }
+            } catch(IOException){return false;}catch(UnauthorizedAccessException){return false;}catch(ArgumentException){return false;}
+        }
+        // ----- For DriveLinks -----
+        internal static uint VolumeOf(string root) {
+            using(var handle=CreateFile(root,0,7,IntPtr.Zero,3,0x02000000,IntPtr.Zero)) {
+                FileInfoNative info;
+                return !handle.IsInvalid && GetFileInformationByHandle(handle,out info)?info.Volume:0;
+            }
+        }
+        internal static bool Facts(string folder,out string path,out uint volume,out long length) {
+            var saved=Read(folder);
+            path=saved==null?null:saved.Path;volume=saved==null?0:saved.Volume;length=saved==null?0:saved.Length;
+            return saved!=null && !String.IsNullOrEmpty(saved.Path);
+        }
+        internal static string FoundById(string folder) {
+            var saved=Read(folder);
+            try {return saved==null?null:PathById(saved);}
+            catch(IOException){return null;}catch(UnauthorizedAccessException){return null;}
+        }
+        // The same content under another name in this folder (for drives whose file IDs don't last).
+        internal static string FoundBeside(string folder,string directory) {
+            var saved=Read(folder);
+            if(saved==null)return null;
+            try {
+                foreach(var file in new DirectoryInfo(directory).EnumerateFiles())
+                    if(file.Length==saved.Length && Compatible(file.FullName,saved.Path) && Matches(saved,file.FullName))return file.FullName;
+            } catch(IOException){} catch(UnauthorizedAccessException){}
+            return null;
+        }
+        internal static void MovePath(string folder,string path) {
+            string target=Path.Combine(folder,Metadata);
+            if(!File.Exists(target))return;
+            string temp=Path.Combine(folder,"origin-"+Guid.NewGuid().ToString("N")+".tmp");
+            try {
+                lock(writeLock) {
+                    var xml=XElement.Load(target);
+                    xml.SetAttributeValue("path",path);xml.Save(temp);
+                    File.Replace(temp,target,null);
+                }
+            } finally {try{File.Delete(temp);}catch(IOException){}catch(UnauthorizedAccessException){}}
+        }
+        // The person said this file is the original, even though it no longer looks the same.
+        internal static void Link(Photo photo,string path) {Remember(photo,path,false,true);}
         static string PathById(Reference saved) {
             if(saved.Id==0)return null;
             var roots=new List<string>{Path.GetPathRoot(saved.Path)};
@@ -218,6 +271,9 @@ namespace LoveMyShelf {
             token.ThrowIfCancellationRequested();
             string path=saved==null?null:PathById(saved);
             string name=Path.GetFileName(previous);
+            if(path==null && saved!=null && File.Exists(previous) && EditedInPlace(saved,previous))path=previous;
+            // Its drive is unplugged: never settle for a look-alike copy somewhere else.
+            if(path==null && DriveLinks.DriveAway(previous))throw new FileNotFoundException(L.T("The drive with this file isn't connected."),previous);
             if(path==null){
                 var remaining=new List<string>();
                 var named=new HashSet<string>(Paths);
@@ -243,7 +299,7 @@ namespace LoveMyShelf {
         }
         internal static bool MatchesOriginal(Photo photo,string path,CancellationToken token) {
             var saved=Read(photo.Folder);
-            return saved!=null?Matches(saved,path):CropMatches(photo,path,File.ReadAllBytes(photo.Thumb),token);
+            return saved!=null?Matches(saved,path) || EditedInPlace(saved,path):CropMatches(photo,path,File.ReadAllBytes(photo.Thumb),token);
         }
         internal static bool TryChosen(Photo photo,string path,CancellationToken token) {
             if(!MatchesOriginal(photo,path,token))return false;

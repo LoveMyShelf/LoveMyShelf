@@ -81,7 +81,7 @@ namespace LoveMyShelf {
                 op.Advise(sink,out cookie);op.DeleteItem(item,null);op.PerformOperations();
                 bool aborted;op.GetAnyOperationsAborted(out aborted);
                 if(sink.Result<0)Marshal.ThrowExceptionForHR(sink.Result);
-                if(aborted || !sink.Completed)throw new IOException(L.T("Could not move the original to the Recycle Bin."));
+                if(aborted || !sink.Completed)throw new IOException(L.T("Could not move the original file to the Recycle Bin."));
             } catch(COMException) {
                 if(sink.Refused)throw new IOException(L.T("The Windows Recycle Bin is unavailable for this location."));
                 throw;

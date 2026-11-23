@@ -196,8 +196,8 @@ namespace LoveMyShelf {
             var back=UI.Btn(L.T("Back to the cover"),()=>{viewStart=ClampView(source.Moment-span/2);Layout();ShowDraft(draftOwed);});
             DockPanel.SetDock(back,Dock.Right);stripBar.Children.Add(back);
             help=UI.Text(NoticeLook.KeepWords(editing && saved==null?
-                L.T("This GIF was made before Love My Shelf remembered GIF choices, so it starts from the usual part around the cover."):
-                L.T("Drag the two handles to choose the part. Drag the pictures to see more.")),12,true);
+                L.T("This GIF was made earlier, so the part set then is not saved. It starts from the part before and after the cover, as when it was first made."):
+                L.T("Drag the two handles to set the part. Drag the pictures to see other parts too.")),12,true);
             help.TextWrapping=TextWrapping.Wrap;help.VerticalAlignment=VerticalAlignment.Center;stripBar.Children.Add(help);
             bottom.Children.Add(stripBar);
             var stripFrame=new Border {Child=strip,CornerRadius=new CornerRadius(6),ClipToBounds=true};
@@ -229,10 +229,10 @@ namespace LoveMyShelf {
             var grid=new Grid();choices.Children.Add(grid);
             grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(14)});grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.RowDefinitions.Add(new RowDefinition());grid.RowDefinitions.Add(new RowDefinition());
-            fps=Choice(Cell(grid,0,0),L.T("Smoothness (frames per second)"),Array.ConvertAll(Rates,r=>L.F("{0} a second",r)),fpsPick);
+            fps=Choice(Cell(grid,0,0),L.T("Smoothness (pictures per second)"),Array.ConvertAll(Rates,r=>L.F("{0} a second",r)),fpsPick);
             height=Choice(Cell(grid,0,2),L.T("Height"),Array.ConvertAll(Heights,h=>L.F("{0} px",h)),heightPick);
-            quality=Choice(Cell(grid,1,0),L.T("Picture quality"),new[]{L.T("High (bigger file)"),L.T("Normal"),L.T("Smaller file")},qualityPick);
-            format=Choice(Cell(grid,1,2),L.T("File type"),new[]{L.T("GIF · moves everywhere · big file"),L.T("WebP · smooth colors, small · not everywhere"),L.T("MP4 · smallest, sharpest · goes up as a video")},formatPick);
+            quality=Choice(Cell(grid,1,0),L.T("Picture quality"),new[]{L.T("High (bigger file)"),L.T("Normal"),L.T("Low (smaller file)")},qualityPick);
+            format=Choice(Cell(grid,1,2),L.T("File type"),new[]{L.T("GIF · moves everywhere · big size"),L.T("WebP · smooth colors, small size · doesn't work in some places"),L.T("MP4 · smallest size and sharp · goes up as a video")},formatPick);
             // What these mean, in plain words, and the place to choose what they start as.
             var explain=UI.Btn(L.T("What do these mean? (F1)"),()=>GuideWindow.Open(this,"gif"));
             explain.HorizontalAlignment=HorizontalAlignment.Left;explain.Margin=new Thickness(0,2,0,4);choices.Children.Add(explain);
@@ -317,7 +317,7 @@ namespace LoveMyShelf {
                         // A clip shorter than the strip fills the strip instead of leaving it mostly empty.
                         if(duration<span){span=Math.Max(500,duration);Regrid(true);}
                         // A short clip is shown whole, so there's nothing more to drag to; say so instead of inviting a drag.
-                        if(WholeClipShown)help.Text=NoticeLook.KeepWords(L.F("The whole clip ({0:0.0} s) is on the strip. Drag the two handles to choose the part.",duration/1000));
+                        if(WholeClipShown)help.Text=NoticeLook.KeepWords(L.F("The whole video ({0:0.0} s) shows on the strip. Drag the two handles to set the part.",duration/1000));
                         end=Math.Min(end,duration);viewStart=ClampView(viewStart);
                     }
                 } catch(Exception) {}
@@ -702,7 +702,7 @@ namespace LoveMyShelf {
                 if(preparedResult!=null && preparedResult.Width>0)size=preparedResult.Width+"×"+preparedResult.Height+" · "+size;
                 if(preparedFrames>0){frames=preparedFrames;seconds=preparedSeconds;}
             } else {mb=Estimate(request,coverPixels);size=mb<1?L.F("about {0} KB",Math.Max(1,Math.Round(mb*1024/10)*10).ToString("N0",CultureInfo.CurrentCulture)):L.F("about {0} MB",Mb(mb));}
-            summary.Text=L.F("{0:0.0} s · {1:N0} frames · {2}",seconds,frames,size);
+            summary.Text=L.F("{0:0.0} s · {1:N0} pictures · {2}",seconds,frames,size);
             // Very large files are only pointed out, never blocked.
             if(mb>=50)summary.Foreground=new SolidColorBrush(NoticeLook.Amber);
             else summary.SetResourceReference(TextBlock.ForegroundProperty,"Subtle");
@@ -829,12 +829,12 @@ namespace LoveMyShelf {
         }
         // The frames made on the way go forward only; play them the way the file will.
         static MotionFrames Arrange(List<BitmapSource> forward,int rate,MotionRequest r) {
-            if(forward.Count==0)throw new InvalidDataException(L.T("There are no frames to display."));
+            if(forward.Count==0)throw new InvalidDataException(L.T("There are no scenes to show."));
             return ArrangeWith(forward,(int)Math.Round(1000.0/Math.Max(1,rate)),r);
         }
         // The same, with the time each picture stays in milliseconds.
         static MotionFrames ArrangeWith(List<BitmapSource> forward,int delay,MotionRequest r) {
-            if(forward.Count==0)throw new InvalidDataException(L.T("There are no frames to display."));
+            if(forward.Count==0)throw new InvalidDataException(L.T("There are no scenes to show."));
             var order=new List<BitmapSource>(forward);
             if(r.Loop=="reverse")order.Reverse();
             else if(r.Loop=="bounce" && forward.Count>=3)for(int i=forward.Count-2;i>=1;i--)order.Add(forward[i]);
@@ -1045,7 +1045,7 @@ namespace LoveMyShelf {
             var size=VideoFrames.ReadOrientation(source.Path,token);
             width=size.Width;height=size.Height;
             if(Math.Abs(size.Angle%180)==90){int swap=width;width=height;height=swap;}
-            if(width<=0 || height<=0)throw new InvalidDataException(L.T("Could not read the frames."));
+            if(width<=0 || height<=0)throw new InvalidDataException(L.T("Could not read the scenes."));
             // The bigger the original, the smaller the quick preview.
             drawSide=VideoFrames.IsHighResolution(width,height)?Math.Min(previewSide,270):Math.Min(previewSide,400);
             double gap=VideoFrames.FrameGapMs(source.Path,token);
@@ -1205,7 +1205,7 @@ namespace LoveMyShelf {
             int x0=(int)Math.Round(cx-boxW/2.0),y0=(int)Math.Round(cy-boxH/2.0);
             int ix0=Math.Max(0,x0),iy0=Math.Max(0,y0),ix1=Math.Min(width,x0+boxW),iy1=Math.Min(height,y0+boxH);
             int iw=ix1-ix0,ih=iy1-iy0;
-            if(iw<2 || ih<2)throw new InvalidDataException(L.T("There are no frames to display."));
+            if(iw<2 || ih<2)throw new InvalidDataException(L.T("There are no scenes to show."));
             // Shrink to about the final size (a little larger when turned, so the turn stays sharp).
             double s=Math.Min(1,(turned?1.5:1.0)*outH/ch);
             int sw=Math.Max(1,(int)Math.Round(iw*s)),sh=Math.Max(1,(int)Math.Round(ih*s));
@@ -1275,13 +1275,13 @@ namespace LoveMyShelf {
             string original=source.Path;
             var size=VideoFrames.ReadOrientation(original,token);
             int width=size.Width,height=size.Height;
-            if(width<=0 || height<=0)throw new InvalidDataException(L.T("Could not read the frames."));
+            if(width<=0 || height<=0)throw new InvalidDataException(L.T("Could not read the scenes."));
             if(Math.Abs(size.Angle%180)==90){int swap=width;width=height;height=swap;}
             double duration=VideoFrames.DurationMs(original,token);
             double start=Math.Max(0,source.Moment-request.Before*1000);
             double end=source.Moment+request.After*1000;
             if(duration>0)end=Math.Min(end,duration);
-            if(end-start<50)throw new InvalidDataException(L.T("There are no frames to display."));
+            if(end-start<50)throw new InvalidDataException(L.T("There are no scenes to show."));
             result.Before=(source.Moment-start)/1000;result.After=Math.Max(0,end-source.Moment)/1000;
             int outW,outH;
             string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,true,out outW,out outH);
@@ -1318,7 +1318,7 @@ namespace LoveMyShelf {
                             int index=Math.Min(file.Count-1,file.Times.At(t));
                             if(index!=shown) {
                                 var frame=Bgra(file.Read(index,0));
-                                if(frame.PixelWidth!=width || frame.PixelHeight!=height)throw new InvalidDataException(L.T("The video frame format is invalid."));
+                                if(frame.PixelWidth!=width || frame.PixelHeight!=height)throw new InvalidDataException(L.T("The video scene is in a format that can't be read."));
                                 frame.CopyPixels(pixels,stride,0);shown=index;
                             }
                             output.Write(pixels,0,pixels.Length);

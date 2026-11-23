@@ -153,12 +153,12 @@ namespace LoveMyShelf {
         }
         internal OnnxSession(string library,string model,int threads) {
             IntPtr module=LoadLibraryEx(library,IntPtr.Zero,AlteredSearchPath);
-            if(module==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling engine.")+" ("+Marshal.GetLastWin32Error()+")");
+            if(module==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder.")+" ("+Marshal.GetLastWin32Error()+")");
             IntPtr getBase=GetProcAddress(module,"OrtGetApiBase");
-            if(getBase==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling engine."));
+            if(getBase==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder."));
             IntPtr apiBase=((GetApiBaseFn)Marshal.GetDelegateForFunctionPointer(getBase,typeof(GetApiBaseFn)))();
             api=((GetApiFn)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(apiBase,0),typeof(GetApiFn)))(ApiVersion);
-            if(api==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling engine."));
+            if(api==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder."));
             errorMessage=Fn<ErrorMessageFn>(2);
             run=Fn<RunFn>(9);
             createTensor=Fn<CreateTensorFn>(49);
@@ -193,7 +193,7 @@ namespace LoveMyShelf {
                 Check(shape(outputs[0],out info));
                 UIntPtr count;Check(dimCount(info,out count));
                 var size=new long[(int)count];Check(dims(info,size,count));
-                if(size.Length!=4 || size[1]!=3 || size[2]!=size[3])throw new InvalidDataException(L.T("The upscaling model returned an unexpected image."));
+                if(size.Length!=4 || size[1]!=3 || size[2]!=size[3])throw new InvalidDataException(L.T("The result didn't come out right, so it wasn't saved."));
                 outSide=(int)size[2];
                 IntPtr data;Check(getData(outputs[0],out data));
                 var result=new float[3*outSide*outSide];
@@ -265,7 +265,7 @@ namespace LoveMyShelf {
                 if(stopped)return;
                 running=null;Raise(job.Photo.Folder);
                 if(updated==null) {
-                    if(Failed!=null)Failed(job.Photo,L.T("The cover changed while upscaling, so the result was discarded."));
+                    if(Failed!=null)Failed(job.Photo,L.T("The cover changed during upscaling, so the upscaled result wasn't saved."));
                 } else if(Finished!=null)Finished(updated);
             } catch(Exception ex) {
                 if(stopped)return;
@@ -307,7 +307,7 @@ namespace LoveMyShelf {
                 dispatcher.BeginInvoke(new Action(()=>{
                     if(child==process)child=null;
                     process.Dispose();
-                    done.TrySetResult(code==0?null:(message.Length>0?message:L.T("Upscaling stopped unexpectedly.")));
+                    done.TrySetResult(code==0?null:(message.Length>0?message:L.T("It stopped in the middle of upscaling.")));
                 }));
             };
             process.Start();
@@ -413,8 +413,8 @@ namespace LoveMyShelf {
             windowContent.Children.Add(new WindowTitleBar(this));
             var root=new DockPanel {Margin=new Thickness(12,8,12,12)};
             windowContent.Children.Add(root);Content=windowContent;
-            var hint=UI.Text(L.T("Scroll to zoom and drag to move. Both pictures move together. Double-click to reset.")+" "+
-                L.T("The file you do not choose stays in the cover folder."),12,true);
+            var hint=UI.Text(L.T("Zoom with the wheel and drag to move. The two pictures move together. Double-click to go back to how it was.")+" "+
+                L.T("The file you don't choose also stays in the cover folder."),12,true);
             hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(2,0,2,8);
             DockPanel.SetDock(hint,Dock.Top);root.Children.Add(hint);
             var footer=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
@@ -437,7 +437,7 @@ namespace LoveMyShelf {
             var size=UI.Text("",12,true);size.Margin=new Thickness(8,0,0,0);
             header.Children.Add(name);header.Children.Add(size);
             DockPanel.SetDock(header,Dock.Top);side.Children.Add(header);
-            var choose=UI.Btn(inUse?L.T("In use · keep this one"):L.T("Use this one"),()=>{ChoseUpscaled=upscaled;DialogResult=true;},true);
+            var choose=UI.Btn(inUse?L.T("In use · keep using it"):L.T("Use this cover"),()=>{ChoseUpscaled=upscaled;DialogResult=true;},true);
             choose.Margin=new Thickness(0,8,0,0);choose.MinHeight=30;
             DockPanel.SetDock(choose,Dock.Bottom);side.Children.Add(choose);
             var image=new Image {Stretch=Stretch.Uniform,RenderTransform=transform};

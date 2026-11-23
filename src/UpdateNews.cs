@@ -49,7 +49,7 @@ namespace LoveMyShelf {
             update.IsDefault=true;update.MinHeight=36;update.MinWidth=118;update.Margin=new Thickness(8,0,0,0);UI.Right(footer,update);
             var later=UI.Btn(K("Later","나중에"),()=>DialogResult=false);
             later.IsCancel=true;later.MinHeight=36;later.MinWidth=84;UI.Right(footer,later);
-            var size=UI.Text(K("Checking the download size…","내려받을 크기를 확인하고 있어요…"),12,true);
+            var size=UI.Text(K("Checking the download size…","다운로드 용량을 확인하고 있어요…"),12,true);
             size.TextTrimming=TextTrimming.CharacterEllipsis;size.Margin=new Thickness(0,0,10,0);footer.Children.Add(size);
 
             var safe=new Border {Margin=new Thickness(28,6,28,0),Padding=new Thickness(14,10,14,10),CornerRadius=new CornerRadius(10),BorderThickness=new Thickness(1)};
@@ -67,9 +67,7 @@ namespace LoveMyShelf {
                     var heading=Wrapped(K("Version ","버전 ")+note.Version,16,"Text");heading.FontWeight=FontWeights.SemiBold;
                     heading.Margin=new Thickness(0,note==plan.Notes[0]?2:20,0,0);page.Children.Add(heading);
                 }
-                AddGroup(page,note,"new",K("New","새로 생겼어요"));
-                AddGroup(page,note,"better",K("Easier to use","더 편해졌어요"));
-                AddGroup(page,note,"fixed",K("Fixed","고쳤어요"));
+                AddItems(page,note);
             }
             root.Children.Add(new ScrollViewer {Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false});
 
@@ -79,19 +77,25 @@ namespace LoveMyShelf {
             Loaded+=async delegate {
                 try {
                     long bytes=await AppUpdater.DownloadSizeAsync(plan,token);
-                    size.Text=bytes>0?K("Download size: ","내려받을 크기 ")+DetailsWindow.Size(bytes):K("Already downloaded","이미 받아 두었어요");
+                    size.Text=bytes>0?K("Download size: ","다운로드 용량 ")+DetailsWindow.Size(bytes):K("Already downloaded","이미 다운로드해 뒀어요");
                 } catch(OperationCanceledException) {}
                 catch(Exception) {size.Text="";}
             };
         }
 
-        void AddGroup(StackPanel page,ReleaseNote note,string group,string label) {
+        // Also used by the "Version and what's new" page in Guide & Options.
+        internal static void AddItems(StackPanel page,ReleaseNote note) {
+            AddGroup(page,note,"new",K("New","새로 생겼어요"));
+            AddGroup(page,note,"better",K("Easier to use","더 편해졌어요"));
+            AddGroup(page,note,"fixed",K("Fixed","고쳤어요"));
+        }
+        static void AddGroup(StackPanel page,ReleaseNote note,string group,string label) {
             var items=note.Items.Where(i=>i.Group==group).ToList();
             if(items.Count==0)return;
             var heading=Wrapped(label,13,"Subtle");heading.FontWeight=FontWeights.SemiBold;heading.Margin=new Thickness(0,14,0,2);page.Children.Add(heading);
             for(int i=0;i<items.Count;i++)page.Children.Add(Row(items[i],i<items.Count-1));
         }
-        UIElement Row(ReleaseItem item,bool line) {
+        static UIElement Row(ReleaseItem item,bool line) {
             var row=new Border {Padding=new Thickness(0,10,0,10),BorderThickness=new Thickness(0,0,0,line?1:0)};
             row.SetResourceReference(Border.BorderBrushProperty,"Line");
             var content=new DockPanel();row.Child=content;

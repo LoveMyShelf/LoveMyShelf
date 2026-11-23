@@ -62,7 +62,7 @@ namespace LoveMyShelf {
         internal GalleryWindow Home {get{return home;}}
         internal bool ForCrop {get{return forCrop;}}
         bool WantsCrop {get{return forCrop || !CurrentPhoto.HasCrop;}}
-        string CropLabel {get{return CurrentPhoto.HasCrop?L.T("Make another cover"):L.T("Make cover");}}
+        string CropLabel {get{return CurrentPhoto.HasCrop?L.T("Make one more cover"):L.T("Make cover");}}
         int index,shown=-1;
         bool fullscreen,original,hidden,motion,paused,sync,resumeAfterDrag,selectedMovie,largeVideo,draggingVideo,cachedCover;
         int playbackBrightness;
@@ -229,8 +229,22 @@ namespace LoveMyShelf {
             clearVoiceMenuButton.VerticalAlignment=VerticalAlignment.Center;
             LabelControl(clearVoiceMenuButton,L.T("Clear voice strength"));
             playbackButtons.Children.Add(clearVoiceMenuButton);
+            // A small camera: saves the scene on screen as a picture (/).
+            var camera=new System.Windows.Shapes.Path {Data=Geometry.Parse("M 2,5.5 L 5.5,5.5 L 7,3 L 11,3 L 12.5,5.5 L 16,5.5 L 16,15 L 2,15 Z M 12,10 A 3,3 0 1 1 6,10 A 3,3 0 1 1 12,10 Z"),
+                Width=18,Height=18,StrokeThickness=1.5,StrokeLineJoin=PenLineJoin.Round,Stretch=Stretch.None,IsHitTestVisible=false,SnapsToDevicePixels=true};
+            camera.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"Text");
+            var captureButton=UI.Btn("",CaptureFrame);captureButton.Content=camera;
+            captureButton.MinWidth=0;captureButton.Width=32;captureButton.Padding=new Thickness(0);captureButton.Margin=new Thickness(6,0,0,0);
+            captureButton.Focusable=false;captureButton.VerticalAlignment=VerticalAlignment.Center;
+            LabelControl(captureButton,L.T("Capture this scene (/)"));
+            playbackButtons.Children.Add(captureButton);
+            subtitleButton=UI.Btn(L.T("Subtitles"),OpenSubtitleExplorer);
+            subtitleButton.Margin=new Thickness(6,0,0,0);subtitleButton.Focusable=false;subtitleButton.VerticalAlignment=VerticalAlignment.Center;
+            subtitleButton.Visibility=Visibility.Collapsed;
+            LabelControl(subtitleButton,L.T("Open the subtitle explorer"));
+            playbackButtons.Children.Add(subtitleButton);
             // Speed has no box: C / X / Z like PotPlayer (see the key handler).
-            root.SizeChanged+=delegate {ApplyPlaybackBrightness();};
+            root.SizeChanged+=delegate {ApplyPlaybackBrightness();PlaceSubtitles();};
             seek.Style=(Style)Application.Current.Resources["PlaybackTimeline"];
             AutomationProperties.SetName(seek,L.T("Playback position"));transport.Children.Add(seek);
             seekPreview=new SeekPreview(ui,seek);
@@ -300,7 +314,7 @@ namespace LoveMyShelf {
             motionToggle.Visibility=Visibility.Collapsed;
             if(!forCrop)controls.Children.Add(motionToggle);
             Closed+=delegate {StopMotion();prepared.Clear();};
-            locate=UI.Btn(L.T("Locate original"),ChooseOriginal);locate.Visibility=Visibility.Collapsed;controls.Children.Add(locate);
+            locate=UI.Btn(L.T("Find the original again"),ChooseOriginal);locate.Visibility=Visibility.Collapsed;controls.Children.Add(locate);
             controls.Children.Add(UI.Btn(L.T("Close"),Close));
             if(!forCrop && gallery!=null) {
                 coverStrip.Chosen=ChooseSibling;
@@ -366,10 +380,17 @@ namespace LoveMyShelf {
                     case Key.V:
                         if(!motion || !clearVoiceButton.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleClearVoice();break;
+                    case Key.OemQuestion:case Key.Divide: // the / key, next to the arrow keys (and the one on the number pad)
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        CaptureFrame();break;
                     case Key.Tab:if(!fullscreen)SetHidden(false);return;default:return;
                 } e.Handled=true;
             };
             ticker.Tick+=delegate {Tick();};Loaded+=delegate {LoadCurrent(openCover);};
+            Closing+=(s,e)=>{
+                if(!ConfirmSubtitles(true)){e.Cancel=true;return;}
+                if(explorer!=null){explorer.Leaving=true;explorer.Close();}
+            };
             Closed+=delegate {
                 if(loading!=null)loading.Cancel();
                 ClearTransport();picture.Source=null;
@@ -430,6 +451,216 @@ namespace LoveMyShelf {
             }
             index=at;
             LoadCurrent(true);
+        }
+        // JPG quality for captures. Used inside only: no number like this is ever shown on screen or in the guide.
+        const int CaptureJpgQuality=95;
+        // Saves the scene on screen as a picture. Options choose the look (the video's own frame, or the size and
+        // E / W brightness on screen) and the file (PNG or JPG). The original is not touched.
+        void CaptureFrame() {
+            if(!motion)return;
+            try {
+                var prefs=home!=null?home.Settings:new Preferences();
+                string folder=prefs.CaptureFolder,extension=prefs.CaptureJpg?".jpg":".png";
+                System.IO.Directory.CreateDirectory(folder);
+                double ms=Position();
+                if(mpv!=null){double exact=mpv.Position;if(!Double.IsNaN(exact))ms=exact;}
+                var at=TimeSpan.FromMilliseconds(Math.Max(0,ms));
+                string stem=System.IO.Path.GetFileNameWithoutExtension(CurrentPhoto.Name);
+                if(stem.Length>120)stem=stem.Substring(0,120).TrimEnd();
+                stem+=String.Format(System.Globalization.CultureInfo.InvariantCulture,"_{0:00}-{1:00}-{2:00}.{3:000}",(int)at.TotalHours,at.Minutes,at.Seconds,at.Milliseconds);
+                string file=System.IO.Path.Combine(folder,stem+extension);
+                for(int i=2;System.IO.File.Exists(file);i++)file=System.IO.Path.Combine(folder,stem+" ("+i+")"+extension);
+                bool saved;
+                if(mpv!=null && !prefs.CaptureAsShown)saved=mpv.Screenshot(file,prefs.CaptureJpg?CaptureJpgQuality:0);
+                else {
+                    BitmapSource frame=mpv!=null?MpvFrame():ShownFrame();
+                    if(frame!=null && prefs.CaptureAsShown)frame=AsShown(frame);
+                    saved=frame!=null;
+                    if(saved) {
+                        BitmapEncoder encoder=prefs.CaptureJpg?(BitmapEncoder)new JpegBitmapEncoder {QualityLevel=CaptureJpgQuality}:new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(frame));
+                        using(var output=System.IO.File.Create(file))encoder.Save(output);
+                    }
+                }
+                ShowCornerNote(saved?L.F("Captured · {0}",System.IO.Path.GetFileName(file)):L.T("Couldn't capture this scene"));
+            } catch(Exception ex) {
+                if(ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is InvalidOperationException)
+                    ShowCornerNote(L.T("Couldn't capture this scene"));
+                else throw;
+            }
+        }
+        // The video's own frame from the mpv engine, through a temporary file that is removed at once.
+        BitmapSource MpvFrame() {
+            string temp=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"LoveMyShelf-"+Guid.NewGuid().ToString("N")+".png");
+            try {
+                if(!mpv.Screenshot(temp,0))return null;
+                var image=new BitmapImage();
+                image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.UriSource=new Uri(temp);image.EndInit();image.Freeze();
+                return image;
+            } finally {try{System.IO.File.Delete(temp);}catch(IOException){}catch(UnauthorizedAccessException){}}
+        }
+        // Without the mpv engine: the picture on screen (GIF, WebP) or the Windows video player's current frame.
+        BitmapSource ShownFrame() {
+            if(media!=null && media.NaturalVideoWidth>0) {
+                int width=media.NaturalVideoWidth,height=media.NaturalVideoHeight;
+                var visual=new DrawingVisual();
+                using(var dc=visual.RenderOpen())dc.DrawRectangle(new VisualBrush(media),null,new Rect(0,0,width,height));
+                var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+                target.Render(visual);return target;
+            }
+            return picture.Source as BitmapSource;
+        }
+        // The frame the way it looks now: the size the video has on screen (in real screen dots) with the E / W
+        // brightness on it. Buttons and the black bars around the video are not part of it.
+        BitmapSource AsShown(BitmapSource frame) {
+            double aspect=picture.Source!=null?MediaViewport.Aspect(picture):mpv!=null?mpv.Aspect:media==null?0:MediaViewport.Aspect(media);
+            if(aspect<=0)aspect=(double)frame.PixelWidth/frame.PixelHeight;
+            int width=frame.PixelWidth,height=frame.PixelHeight;
+            if(root.ActualWidth>0 && root.ActualHeight>0) {
+                var fit=MediaViewport.Fit(aspect,new Size(root.ActualWidth,Math.Max(0,root.ActualHeight-viewport.Margin.Bottom)));
+                var source=PresentationSource.FromVisual(this);
+                double scale=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformToDevice.M11:1;
+                if(fit.Width>=1 && fit.Height>=1){width=Math.Max(1,(int)Math.Round(fit.Width*scale));height=Math.Max(1,(int)Math.Round(fit.Height*scale));}
+            }
+            var visual=new DrawingVisual();
+            RenderOptions.SetBitmapScalingMode(visual,BitmapScalingMode.HighQuality);
+            using(var dc=visual.RenderOpen()) {
+                var area=new Rect(0,0,width,height);
+                dc.DrawImage(frame,area);
+                // The same white or black layer the large view lays over the video.
+                if(playbackBrightness!=0) {
+                    var cover=new SolidColorBrush(playbackBrightness>0?Colors.White:Colors.Black) {Opacity=Math.Abs(playbackBrightness)/100.0};
+                    dc.DrawRectangle(cover,null,area);
+                }
+            }
+            var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+            target.Render(visual);target.Freeze();
+            return target;
+        }
+        // ----- Subtitles -----
+        readonly Button subtitleButton;
+        SubtitleExplorer explorer;
+        string subtitleVideo;
+        bool subtitlesVisible=true;
+        internal SubtitleFile Subtitle {get;private set;}
+        internal bool CanSyncSubtitle {get {return motion && mpv!=null;}}
+        internal bool HasOwnSubtitle {get {return mpv!=null && mpv.HasOwnSubtitle;}}
+        internal double SubtitleClock {get {
+            if(mpv!=null){double now=mpv.Position;if(!Double.IsNaN(now) && !mpv.SeekPending)return now;}
+            return Position();
+        }}
+        internal bool SubtitlesVisible {
+            get {return subtitlesVisible;}
+            set {subtitlesVisible=value;if(mpv!=null)mpv.SubtitlesVisible=value;}
+        }
+        internal void SeekSubtitle(double ms) {if(motion)SeekTo(Math.Max(0,ms));}
+        void OpenSubtitleExplorer() {
+            if(explorer!=null){if(explorer.WindowState==WindowState.Minimized)explorer.WindowState=WindowState.Normal;explorer.Activate();return;}
+            explorer=new SubtitleExplorer(this);explorer.Show();
+        }
+        internal void ExplorerClosed(SubtitleExplorer closed) {
+            if(explorer!=closed)return;
+            if(home!=null)home.SaveSubtitleBounds(closed.Bounds);
+            explorer=null;
+        }
+        // The video is open: find its subtitle, or put the one being worked on back on screen.
+        void AttachSubtitle(string path,MpvPlayer player) {
+            if(!String.Equals(subtitleVideo,path,StringComparison.OrdinalIgnoreCase)) {
+                ConfirmSubtitles(false);
+                subtitleVideo=path;Subtitle=null;
+                string found=SubtitleFile.FindFor(path);
+                if(found!=null) {
+                    try {Subtitle=SubtitleFile.Load(found);}
+                    catch(Exception ex) {
+                        if(!(ex is IOException || ex is UnauthorizedAccessException || ex is System.IO.InvalidDataException || ex is FormatException || ex is OverflowException))throw;
+                        ShowCornerNote(L.T("Couldn't read the subtitle file"));
+                    }
+                }
+                if(explorer!=null)explorer.Fill(false);
+            }
+            player.SubtitlesVisible=subtitlesVisible;
+            RefreshSubtitle();
+            PlaceSubtitles();
+            if(explorer!=null)explorer.PlaybackChanged();
+        }
+        // mpv shows a temporary copy with the current times, so nothing on disk changes until Save.
+        internal void RefreshSubtitle() {
+            if(mpv==null || Subtitle==null)return;
+            string temp=null;
+            try {
+                string extension,text=Subtitle.PlayerText(out extension);
+                string folder=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"LoveMyShelf-subtitles");
+                System.IO.Directory.CreateDirectory(folder);
+                temp=System.IO.Path.Combine(folder,Guid.NewGuid().ToString("N")+extension);
+                System.IO.File.WriteAllText(temp,text,new System.Text.UTF8Encoding(true));
+                if(!mpv.ShowSubtitle(temp))ShowCornerNote(L.T("Couldn't show this subtitle"));
+            } catch(IOException) {ShowCornerNote(L.T("Couldn't show this subtitle"));}
+            catch(UnauthorizedAccessException) {ShowCornerNote(L.T("Couldn't show this subtitle"));}
+            finally {if(temp!=null)try {System.IO.File.Delete(temp);} catch(IOException) {} catch(UnauthorizedAccessException) {}}
+            PlaceSubtitles(); // ASS and plain subtitles are placed differently
+        }
+        string SubtitleBackups {get {
+            string data=home!=null?System.IO.Path.GetDirectoryName(home.Store.Root):
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf");
+            return System.IO.Path.Combine(data,"Subtitle backups");
+        }}
+        Window SubtitleDialogOwner {get {return explorer!=null && explorer.IsVisible?(Window)explorer:this;}}
+        internal bool SaveSubtitle() {
+            var file=Subtitle;
+            if(file==null || !file.Dirty)return true;
+            var owner=SubtitleDialogOwner;
+            int early=file.LinesBeforeZero;
+            if(early>0 && MessageBox.Show(owner,L.F("{0:N0} lines get pushed to before the video starts, so they will be saved at the very start of the video. Save anyway?",early),
+                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Warning,MessageBoxResult.Cancel)!=MessageBoxResult.OK)return false;
+            try {
+                try {Subtitle=file.Save(SubtitleBackups);}
+                catch(SubtitleChangedException) {
+                    if(MessageBox.Show(owner,L.T("Another program changed this file after the subtitle was opened. Overwrite it with what you see now?"),
+                        "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)return false;
+                    Subtitle=file.Save(SubtitleBackups,true);
+                }
+            } catch(Exception ex) {
+                if(!(ex is IOException || ex is UnauthorizedAccessException))throw;
+                MessageBox.Show(owner,L.T("Couldn't save the subtitle file. It may be read-only or in use by another program.")+"\n"+ex.Message,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return false;
+            }
+            RefreshSubtitle();
+            ShowCornerNote(L.T("Subtitle saved"));
+            return true;
+        }
+        // Before leaving a subtitle with changes. Returns false when the person wants to stay.
+        internal bool ConfirmSubtitles(bool canStay) {
+            var file=Subtitle;
+            if(file==null || !file.Dirty)return true;
+            var answer=MessageBox.Show(SubtitleDialogOwner,L.F("Save the changes to “{0}”?",System.IO.Path.GetFileName(file.Path)),"Love My Shelf",
+                canStay?MessageBoxButton.YesNoCancel:MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.Yes);
+            if(answer==MessageBoxResult.Cancel)return false;
+            if(answer==MessageBoxResult.Yes) {
+                if(SaveSubtitle())return true;
+                if(canStay)return false;
+            }
+            file.Revert();
+            RefreshSubtitle();
+            if(explorer!=null)explorer.Fill(true);
+            return true;
+        }
+        internal bool ChooseSubtitleFile(Window owner) {
+            if(!ConfirmSubtitles(true))return false;
+            var dialog=new Microsoft.Win32.OpenFileDialog {Title=L.T("Open subtitle file…"),
+                Filter=L.T("Subtitle files")+"|*.smi;*.sami;*.srt;*.ass;*.ssa;*.vtt"};
+            string video=CurrentPhoto.Original;
+            try {dialog.InitialDirectory=System.IO.Path.GetDirectoryName(Subtitle!=null?Subtitle.Path:video);} catch(ArgumentException) {}
+            if(dialog.ShowDialog(owner)!=true)return false;
+            try {
+                Subtitle=SubtitleFile.Load(dialog.FileName);
+                subtitleVideo=motion?video:subtitleVideo;
+                RefreshSubtitle();
+                return true;
+            } catch(Exception ex) {
+                if(!(ex is IOException || ex is UnauthorizedAccessException || ex is System.IO.InvalidDataException || ex is FormatException || ex is OverflowException))throw;
+                MessageBox.Show(owner,L.T("Couldn't read the subtitle file")+"\n"+ex.Message,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return false;
+            }
         }
         void ShowCornerNote(string text) {
             cornerNote.Text=text;cornerNote.BeginAnimation(OpacityProperty,null);cornerNote.Opacity=1;
@@ -624,6 +855,23 @@ namespace LoveMyShelf {
             panel.Visibility=visibility;
             if(!visible)seekPreview.Hide();
             FitPictureAbovePanel();
+            Dispatcher.BeginInvoke(new Action(PlaceSubtitles),DispatcherPriority.Loaded); // once the bar has its height
+        }
+        // In full screen the bar floats over the picture, so while it shows the subtitles sit just above it.
+        // mpv's window is exactly the picture, so everything is measured against it (steps measured on the bundled mpv).
+        // An ASS style sets its own bottom margin, so ASS counts from the very bottom of the picture to be safe.
+        void PlaceSubtitles() {
+            if(mpv==null)return;
+            const double gap=8,plainBottom=0.948,plainStep=0.00954,assStep=0.0097;
+            double position=100;
+            if(fullscreen && panel.Visibility==Visibility.Visible && panel.ActualHeight>0 && root.ActualHeight>0 && mpv.Aspect>0) {
+                double limit=root.ActualHeight-panel.ActualHeight-gap;
+                var frame=MediaViewport.Fit(mpv.Aspect,new Size(root.ActualWidth,root.ActualHeight));
+                bool ass=Subtitle!=null && Subtitle.Kind==SubtitleKind.Ass;
+                double bottom=ass?frame.Bottom:frame.Top+frame.Height*plainBottom;
+                if(bottom>limit)position=100-(bottom-limit)/(frame.Height*(ass?assStep:plainStep));
+            }
+            mpv.SubtitlePosition=(int)Math.Max(0,Math.Min(100,Math.Floor(position)));
         }
         // Windowed, the picture uses only the space above the bar so the two never overlap.
         void FitPictureAbovePanel() {
@@ -631,6 +879,7 @@ namespace LoveMyShelf {
             var margin=new Thickness(0,0,0,reserve);
             if(viewport.Margin!=margin){viewport.Margin=margin;brightnessLayer.Margin=margin;ApplyPlaybackBrightness();}
             PlaceCoverStrip();
+            PlaceSubtitles();
         }
         // A small rounded backing for text that sits over the picture, with steady-width digits.
         static Border Pill(TextBlock text,Thickness margin) {
@@ -659,6 +908,8 @@ namespace LoveMyShelf {
             if(seek.IsMouseCaptured)seek.ReleaseMouseCapture();
             duration=0;startMs=0;shown=-1;times=null;requests=null;videoIndex=null;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Collapsed;
+            subtitleButton.Visibility=Visibility.Collapsed;
+            if(explorer!=null)explorer.PlaybackChanged();
             ShowRecrop(false);
             editCover.Visibility=Visibility.Collapsed;
             ApplyPlaybackBrightness();
@@ -704,6 +955,7 @@ namespace LoveMyShelf {
                 double shownMs=mpv.Position;
                 if(!Double.IsNaN(shownMs) && Math.Abs(shownMs-startMs)>0.5){startMs=Math.Min(duration,shownMs);UpdateBar(startMs);}
             }
+            if(explorer!=null && motion)explorer.ShowTime(Position(),!paused);
             if(!motion || paused || draggingVideo)return;
             double ms=Position();UpdateBar(ms);
             if(requests!=null)requests.Ask(times.At(ms),false);
@@ -779,7 +1031,7 @@ namespace LoveMyShelf {
                 upscale.Content=L.T("Upscale");upscale.IsEnabled=true;upscale.Visibility=Visibility.Visible;
             } else upscale.Visibility=Visibility.Collapsed;
             upscale.ToolTip=photo.HasUpscale || stage!=UpscaleStage.None?null:
-                L.T("Enlarge 4× with AI");
+                L.T("AI enlarges it 4× and makes it sharper");
         }
         async void UpscaleCover() {
             var gallery=home;
@@ -791,7 +1043,7 @@ namespace LoveMyShelf {
             }
             gallery.Upscales.Enqueue(photo);
             status.VerticalAlignment=VerticalAlignment.Top;
-            status.Show(L.T("Upscaling has started"),L.T("AI is making this cover 4 times bigger and sharper. It runs in the background, so feel free to keep looking at other photos. We’ll let you know here when it’s done."),NoticeKind.Info,7);
+            status.Show(L.T("Upscaling has started"),L.T("AI is making this cover 4 times bigger and sharper. It runs by itself in the background, so you can look at other photos meanwhile. We’ll let you know here when it’s done."),NoticeKind.Info,7);
             UpdateUpscale();
         }
         void ChooseFrames() {
@@ -863,7 +1115,7 @@ namespace LoveMyShelf {
                 }
                 if(photo.Linked && photo.HasCrop){
                     if(!System.IO.File.Exists(photo.Original)){
-                        status.Text=L.T("Looking for the original…");status.VerticalAlignment=VerticalAlignment.Top;
+                        status.Text=L.T("Looking for the moved original…");status.VerticalAlignment=VerticalAlignment.Top;
                         try{SetPicture(Pictures.SavedPreview(photo));}catch(Exception){}
                     }
                     var store=home.Store;
@@ -896,8 +1148,13 @@ namespace LoveMyShelf {
                 if(token.IsCancellationRequested)return;
                 ClearTransport();toggle.IsEnabled=false;status.Warn(L.T("Could not open the original.\n").Trim(),ex.Message);
                 if(photo.HasCrop){
-                    try{SetPicture(CoverImages.TrimBlackBands(CoverImages.TryLoad(photo)??Pictures.SavedPreview(photo)));status.VerticalAlignment=VerticalAlignment.Top;status.Warn(L.T("The original was moved or renamed"),L.T("You are seeing the preview saved with the cover. Click Locate original and choose the file again to see it in full quality."));}catch(Exception){}
-                    if(photo.Linked)locate.Visibility=Visibility.Visible;
+                    bool driveAway=DriveLinks.DriveAway(photo.Original);
+                    try{
+                        SetPicture(CoverImages.TrimBlackBands(CoverImages.TryLoad(photo)??Pictures.SavedPreview(photo)));status.VerticalAlignment=VerticalAlignment.Top;
+                        if(driveAway)status.Warn(L.T("The drive with this file isn't connected"),L.T("Connect the drive again and it comes back by itself. It's fine even if the drive letter changes. The cover and the original are still there."));
+                        else status.Warn(L.T("The original was moved or renamed"),L.T("Right now you are seeing the small preview saved when the cover was made. Click [Find the original again] below and choose the moved file to see it in its original quality."));
+                    }catch(Exception){}
+                    if(photo.Linked && !driveAway)locate.Visibility=Visibility.Visible;
                 }
             }finally{
                 if(!token.IsCancellationRequested){holdStrip=false;PlaceCoverStrip();}
@@ -982,7 +1239,7 @@ namespace LoveMyShelf {
                     locate.Visibility=Visibility.Visible;
                 return;
             }
-            status.Warn(L.T("The saved cover file is missing."),L.T("It may have been moved or deleted from the cover folder. You can still view the original or make the cover again."));
+            status.Warn(L.T("The saved cover file can't be found."),L.T("The file may have been moved or deleted from the cover folder. You can still view the original, and you can make the cover again."));
             toggle.Content=L.T(AnimationFrames.Supports(photo.Original)?"Play original":"View original");
             toggle.IsEnabled=true;cachedCover=true;editCover.Visibility=Visibility.Visible;
             if(photo.Linked && !System.IO.File.Exists(photo.Original))locate.Visibility=Visibility.Visible;
@@ -1032,19 +1289,26 @@ namespace LoveMyShelf {
             if(motionPlayer!=null)motionPlayer.Stop();
         }
         async void ChooseOriginal(){
-            var dialog=new Microsoft.Win32.OpenFileDialog {Title=L.T("Select the original file"),FileName=items[index].Name};
+            var dialog=new Microsoft.Win32.OpenFileDialog {Title=L.T("Choose the original file you moved"),FileName=items[index].Name};
             if(dialog.ShowDialog(this)!=true)return;
             var photo=items[index];string path=dialog.FileName;locate.IsEnabled=false;
             try{
                 bool matches=await Task.Run(()=>OriginalLocator.TryChosen(photo,path,CancellationToken.None));
                 if(!IsVisible || items[index]!=photo)return;
+                // The file may have been edited since (tags added, for example). The person knows best, so ask instead of refusing.
+                if(!matches && MessageBox.Show(this,L.F("The file “{0}” is a little different from the file this cover was made from. It may have been edited since then. Connect this cover to this file anyway?",System.IO.Path.GetFileName(path)),
+                    "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes) {
+                    await Task.Run(()=>OriginalLocator.Link(photo,path));
+                    if(!IsVisible || items[index]!=photo)return;
+                    matches=true;
+                }
                 if(matches){
                     photo.Original=path;
                     var gallery=home;
                     if(gallery!=null)await gallery.MigrateLocatedCover(photo);
                     if(IsVisible && items[index]==photo)LoadCurrent(!original);
                 }
-                else status.Warn(L.T("This is not the original of this cover"),L.T("Choose the file you used when you made this cover."));
+                else status.Warn(L.T("This is not the original of this cover"),L.T("Choose the photo or video you used when you made this cover."));
             }catch(Exception ex){if(IsVisible && items[index]==photo)status.Warn(L.T("Something went wrong"),ex.Message);}
             finally{locate.IsEnabled=true;}
         }
@@ -1090,7 +1354,7 @@ namespace LoveMyShelf {
                 var orientation=await Task.Run(()=>VideoFrames.ReadOrientation(path,token),token);
                 token.ThrowIfCancellationRequested();
                 if(!orientation.NeedsNormalizedCopy && await PlaySource(path,token,orientation))return;
-                token.ThrowIfCancellationRequested();ClearTransport();toggle.IsEnabled=false;SetPicture(null);status.Text=L.T("Preparing a temporary file for playback…");
+                token.ThrowIfCancellationRequested();ClearTransport();toggle.IsEnabled=false;SetPicture(null);status.Text=L.T("Getting ready to play…");
                 var gallery=home;
                 string directory=gallery==null?System.IO.Path.GetTempPath():gallery.PlaybackDirectory;
                 copy=await Task.Run(()=>VideoFrames.PlayableCopy(path,directory,token),token);
@@ -1118,10 +1382,12 @@ namespace LoveMyShelf {
                 largeVideo=VideoFrames.IsHighResolution(player.PixelWidth,player.PixelHeight);
                 viewport.InvalidateMeasure();
                 StartTransport(length);ReadyMotion();
+                subtitleButton.Visibility=Visibility.Visible;
+                AttachSubtitle(path,player);
             };
             player.VideoChanged+=delegate {
                 if(mpv!=player)return;
-                viewport.InvalidateMeasure();ApplyPlaybackBrightness();
+                viewport.InvalidateMeasure();ApplyPlaybackBrightness();PlaceSubtitles();
             };
             mpv=player;mpvAudio=false;
             viewport.Children.Insert(0,player);
@@ -1199,6 +1465,10 @@ namespace LoveMyShelf {
             Activate();
             return true;
         }
-        void Navigate(int delta){int target=index+delta;if(target<0||target>=items.Count)return;index=target;LoadCurrent();}
+        void Navigate(int delta){
+            int target=index+delta;if(target<0||target>=items.Count)return;
+            if(!String.Equals(items[target].Original,subtitleVideo,StringComparison.OrdinalIgnoreCase) && !ConfirmSubtitles(true))return;
+            index=target;LoadCurrent();
+        }
     }
 }

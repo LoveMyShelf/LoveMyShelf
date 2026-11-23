@@ -52,11 +52,23 @@ namespace LoveMyShelf {
                 // Read at the tile's own size on screen, so large tiles stay sharp and small ones stay light.
                 var source=PresentationSource.FromVisual(row.Owner);
                 double scale=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformToDevice.M22:1;
-                int side=Math.Max(64,(int)Math.Ceiling(row.Height*scale));
+                int side=Math.Max(64,(int)Math.Ceiling((row.Height-row.Owner.TileNameHeight)*scale));
                 var owner=row.Owner;
-                var pending=TileImages.Load(photo,side,row.Number,()=>owner.CenterRow,token);
-                // Pictures already in memory appear in the same frame as the tile.
-                BitmapSource bitmap=pending.IsCompleted?pending.Result:await pending;
+                BitmapSource bitmap=null;
+                // A file another program is writing, a drive still waking up or a network hiccup usually passes in a moment.
+                for(int attempt=0;bitmap==null && attempt<3;attempt++) {
+                    if(attempt>0)await Task.Delay(attempt==1?700:2000,token);
+                    try {
+                        var pending=TileImages.Load(photo,side,row.Number,()=>owner.CenterRow,token);
+                        // Pictures already in memory appear in the same frame as the tile.
+                        bitmap=pending.IsCompleted?pending.Result:await pending;
+                    }
+                    catch(OperationCanceledException) {throw;}
+                    catch(Exception) {}
+                }
+                // Still no luck: the small copy saved with the cover is better than an empty tile.
+                if(bitmap==null && photo.HasCrop && !photo.ExcludedFromCollection && File.Exists(photo.Thumb))
+                    bitmap=await TileImages.LoadSavedCopy(photo,side,row.Number,()=>owner.CenterRow,token);
                 if(bitmap==null)throw new InvalidDataException();
                 if(!token.IsCancellationRequested) {image.Source=bitmap;if(loaded!=null)loaded();}
             } catch(OperationCanceledException) { }
@@ -102,6 +114,10 @@ namespace LoveMyShelf {
                     Padding=new Thickness(0),Margin=new Thickness(0.5),ToolTip=photo.Name,
                     Template=TileTemplate(), HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch };
                 ToolTipService.SetIsEnabled(tile,false);
+                if(row.Owner.TileNameHeight>0) {
+                    tile.SetValue(TileMark.NameProperty,NoticeLook.KeepWords(photo.Name));
+                    tile.SetValue(TileMark.NameHeightProperty,row.Owner.TileNameHeight-GalleryWindow.TileNamePadding);
+                }
                 UI.Use(tile,Control.BackgroundProperty,"TileBand");
                 AutomationProperties.SetName(tile,photo.Name);
                 row.Owner.TrackTile(tile,photo);
@@ -113,16 +129,16 @@ namespace LoveMyShelf {
                 if(photo.HasCrop) {
                     // With a GIF cover the names say JPG and GIF, so each choice is clear about what it touches.
                     bool both=photo.HasMotion;
-                    var collection=new MenuItem { Header=photo.ExcludedFromCollection?L.T(both?"Show the JPG and GIF covers again":"Show this cover again"):
-                        L.T(both?"Hide the JPG and GIF covers in Love My Shelf":"Hide this cover in Love My Shelf") };
+                    var collection=new MenuItem { Header=photo.ExcludedFromCollection?L.T(both?"Show both the JPG and GIF covers again":"Show this cover again"):
+                        L.T(both?"Hide both the JPG and GIF covers":"Hide this cover") };
                     collection.Click+=delegate { row.Owner.ChangeCollection(photo); };
                     menu.Items.Add(collection);
                     if(both) {
-                        var recycleGif=new MenuItem { Header=L.T("Move only the GIF cover file to the Recycle Bin") };
+                        var recycleGif=new MenuItem { Header=L.T("Move only the GIF cover to the Recycle Bin") };
                         recycleGif.Click+=delegate { row.Owner.RecycleMotion(photo); };
                         menu.Items.Add(recycleGif);
                     }
-                    var recycleCover=new MenuItem { Header=L.T(both?"Move the JPG and GIF cover files to the Recycle Bin":"Move this cover file to the Recycle Bin") };
+                    var recycleCover=new MenuItem { Header=L.T(both?"Move both the JPG and GIF covers to the Recycle Bin":"Move this cover file to the Recycle Bin") };
                     recycleCover.Click+=delegate { row.Owner.RecycleCover(photo); };
                     menu.Items.Add(recycleCover);
                     if(!row.Owner.ShowingAllCrops) {
@@ -145,7 +161,7 @@ namespace LoveMyShelf {
                     }
                     menu.Items.Add(new Separator());
                 }
-                var edit=new MenuItem { Header=photo.HasCrop?L.T("Make another cover"):L.T("Make cover") }; edit.Click+=delegate { row.Owner.Edit(photo); };
+                var edit=new MenuItem { Header=photo.HasCrop?L.T("Make one more cover"):L.T("Make cover") }; edit.Click+=delegate { row.Owner.Edit(photo); };
                 menu.Items.Add(edit);
                 var openDefault=new MenuItem {Header=L.T("Open with default app")};
                 openDefault.Click+=delegate {row.Owner.OpenInDefaultPlayer(photo);};
@@ -174,7 +190,7 @@ namespace LoveMyShelf {
                 }
                 if(!row.Owner.ShowingAllCrops) {
                     menu.Items.Add(new Separator());
-                    var remove=new MenuItem { Header=L.T("Move original to Recycle Bin"),InputGestureText="Delete" };
+                    var remove=new MenuItem { Header=L.T("Move the original file to the Recycle Bin"),InputGestureText="Delete" };
                     remove.Click+=delegate { row.Owner.RecycleOriginal(photo); };
                     menu.Items.Add(remove);
                 }
@@ -285,11 +301,35 @@ namespace LoveMyShelf {
         static ControlTemplate TileTemplate() {
             if(tileTemplate!=null) return tileTemplate;
             var root=new FrameworkElementFactory(typeof(Grid));
+            // The picture on top; the file name (when the option is on) in its own strip below, never over the picture.
+            var pictureRow=new FrameworkElementFactory(typeof(RowDefinition));
+            pictureRow.SetValue(RowDefinition.HeightProperty,new GridLength(1,GridUnitType.Star));
+            root.AppendChild(pictureRow);
+            var nameRow=new FrameworkElementFactory(typeof(RowDefinition));
+            nameRow.SetValue(RowDefinition.HeightProperty,GridLength.Auto);
+            root.AppendChild(nameRow);
             var border=new FrameworkElementFactory(typeof(Border));
             border.SetResourceReference(Border.BackgroundProperty,"TileBand");
             border.SetValue(Border.ClipToBoundsProperty,true);
             border.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
             root.AppendChild(border);
+            var fileName=new FrameworkElementFactory(typeof(TextBlock),"FileName");
+            fileName.SetValue(Grid.RowProperty,1);
+            fileName.SetValue(TextBlock.BackgroundProperty,Brushes.Transparent);
+            fileName.SetValue(FrameworkElement.MarginProperty,new Thickness(3,2,3,3));
+            fileName.SetValue(TextBlock.FontSizeProperty,GalleryWindow.TileNameFont);
+            fileName.SetValue(TextBlock.LineHeightProperty,GalleryWindow.TileNameLine);
+            fileName.SetValue(TextBlock.LineStackingStrategyProperty,LineStackingStrategy.BlockLineHeight);
+            fileName.SetValue(TextBlock.TextAlignmentProperty,TextAlignment.Center);
+            fileName.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
+            fileName.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);
+            fileName.SetResourceReference(TextBlock.ForegroundProperty,"Text");
+            fileName.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding {Path=new PropertyPath(TileMark.NameProperty),
+                RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+            foreach(var size in new[]{FrameworkElement.HeightProperty,FrameworkElement.MaxHeightProperty})
+                fileName.SetBinding(size,new System.Windows.Data.Binding {Path=new PropertyPath(TileMark.NameHeightProperty),
+                    RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+            root.AppendChild(fileName);
             // "2/5": this is the second of the original's five covers. Dark behind white reads on any picture, in both themes.
             var number=new FrameworkElementFactory(typeof(Border),"CoverNumber");
             number.SetValue(UIElement.IsHitTestVisibleProperty,false);
@@ -311,11 +351,13 @@ namespace LoveMyShelf {
             var family=new FrameworkElementFactory(typeof(Border),"CoverFamily");
             family.SetValue(UIElement.IsHitTestVisibleProperty,false);
             family.SetValue(UIElement.VisibilityProperty,Visibility.Collapsed);
+            family.SetValue(Grid.RowSpanProperty,2);
             family.SetValue(Border.BorderThicknessProperty,new Thickness(2));
             family.SetResourceReference(Border.BorderBrushProperty,"Accent");
             root.AppendChild(family);
             var outline=new FrameworkElementFactory(typeof(Border));
             outline.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            outline.SetValue(Grid.RowSpanProperty,2);
             outline.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));
             outline.SetValue(Border.BorderThicknessProperty,new TemplateBindingExtension(Control.BorderThicknessProperty));
             root.AppendChild(outline);
@@ -323,6 +365,9 @@ namespace LoveMyShelf {
             var noNumber=new Trigger {Property=TileMark.NumberProperty,Value=null};
             noNumber.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverNumber"));
             tileTemplate.Triggers.Add(noNumber);
+            var noName=new Trigger {Property=TileMark.NameProperty,Value=null};
+            noName.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"FileName"));
+            tileTemplate.Triggers.Add(noName);
             var lit=new Trigger {Property=TileMark.LitProperty,Value=true};
             lit.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Visible,"CoverFamily"));
             tileTemplate.Triggers.Add(lit);
@@ -335,6 +380,8 @@ namespace LoveMyShelf {
         static Brush Frozen(Color color) {var brush=new SolidColorBrush(color);brush.Freeze();return brush;}
         internal static readonly DependencyProperty NumberProperty=DependencyProperty.RegisterAttached("Number",typeof(string),typeof(TileMark));
         internal static readonly DependencyProperty LitProperty=DependencyProperty.RegisterAttached("Lit",typeof(bool),typeof(TileMark));
+        internal static readonly DependencyProperty NameProperty=DependencyProperty.RegisterAttached("Name",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty NameHeightProperty=DependencyProperty.RegisterAttached("NameHeight",typeof(double),typeof(TileMark),new PropertyMetadata(0.0));
     }
     // Marks a folder tile, so a drop can tell it moves files into that folder.
     internal sealed class FolderTarget {
@@ -426,6 +473,12 @@ namespace LoveMyShelf {
             var updated=settings.Copy();
             try {updated.Save(store.Root);} catch(Exception) {}
         }
+        // Where the subtitle explorer was left, for every window.
+        internal void SaveSubtitleBounds(string bounds) {
+            if(settings.SubtitleBounds==bounds)return;
+            foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.settings.SubtitleBounds=bounds;
+            try {settings.Copy().Save(store.Root);} catch(Exception) {}
+        }
         internal Album AllCropsAlbum {get {return allCrops;}}
         internal Album UnfinishedAlbum {get {return unfinished;}}
         int folderFilter;
@@ -445,7 +498,7 @@ namespace LoveMyShelf {
         internal GalleryWindow(GalleryStore store,Action<string,IntPtr> moveToRecycleBin,Func<Window,string> pickCoverFolder=null,bool another=false) {
             this.store=store;this.another=another;
             this.pickCoverFolder=pickCoverFolder??(owner=>UI.PickFolder(owner,
-                L.T("Choose the folder where Love My Shelf will save your cover files."),Preferences.SuggestedCoverParent,true));
+                L.T("Choose the folder where cover files will be saved."),Preferences.SuggestedCoverParent,true));
             settings=Preferences.Load(store.Root);L.Korean=settings.Korean;MotionWindow.UseDefaults(settings);
             if(!another)Task.Run(()=>MotionMaker.SweepPreviews()); // GIF preview files left behind by a sudden exit
             allCrops=new Album(CollectionKey,L.T("Cover collection"));
@@ -516,8 +569,8 @@ namespace LoveMyShelf {
                 if(folderList.Visibility==Visibility.Visible && !settings.TabScrollTipShown && IsLoaded) {
                     var updated=settings.Copy();updated.TabScrollTipShown=true;
                     try {updated.Save(store.Root);settings=updated;} catch(Exception) {return;}
-                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("Some folder tabs don’t fit"),
-                        L.T("Roll the mouse wheel over the tabs to move them sideways, or click ▾ to see every folder at once."),
+                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("Not all folder tabs are showing"),
+                        L.T("Roll the mouse wheel over the tabs and they move sideways. Click ▾ to see every folder at once."),
                         ()=>OpenFolderList(),NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
                 }
             };
@@ -674,8 +727,8 @@ namespace LoveMyShelf {
             ShowTree(settings.TreeOpen || treeIntro,false);
             if(treeIntro && !another)
                 ContentRendered+=delegate {
-                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The folder list moved to the tree on the left"),
-                        L.T("Your Love My Shelf folders, This PC and Quick access are all there, like File Explorer. The leftmost button at the top (Ctrl+T) opens and closes it."),
+                    Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The folder list moved to the folder tree on the left"),
+                        L.T("Your Love My Shelf folders, This PC and Quick access are all there. It is the same as File Explorer. Open and close it with the button at the very top left (Ctrl+T)."),
                         null,NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
                 };
             // The folders area and the photos share the rest, one above the other (which one is on top is an option).
@@ -750,13 +803,13 @@ namespace LoveMyShelf {
             FilesChanged+=ReloadAfterFileMove;
             Activated+=delegate {TakeOverSettings();};
             localize=delegate {
-                open.Content=L.T("Add folder");emptyAction.Content=L.T("Choose a folder…");
-                newWindow.Content=L.T("New window");newWindow.ToolTip=L.T("Open another Love My Shelf window to drag files between two folders")+" (Ctrl+N)";
+                open.Content=L.T("Add folder");emptyAction.Content=L.T("Select a folder…");
+                newWindow.Content=L.T("New window");newWindow.ToolTip=L.T("Open one more window and you can drag files between two folders")+" (Ctrl+N)";
                 AutomationProperties.SetName(newWindow,L.T("New window"));
                 guide.Content=L.T("Guide & Options");guide.ToolTip=L.T("Guide & Options")+" (F1)";
                 AutomationProperties.SetName(guide,L.T("Guide & Options"));AutomationProperties.SetName(open,L.T("Add folder"));
                 open.ToolTip=L.T("Add folder")+" (Ctrl+O)";
-                folderList.ToolTip=L.T("All folders · roll the mouse wheel over the tabs to move them sideways");AutomationProperties.SetName(folderList,L.T("All folders"));
+                folderList.ToolTip=L.T("All folders · rolling the wheel over the tabs also moves them sideways");AutomationProperties.SetName(folderList,L.T("All folders"));
                 updateTopBar();
                 searchHint.Text=L.T("Search names");AutomationProperties.SetName(search,L.T("Search names"));
                 treeButton.ToolTip=L.T("Folder tree")+" (Ctrl+T)";AutomationProperties.SetName(treeButton,L.T("Folder tree"));
@@ -764,7 +817,7 @@ namespace LoveMyShelf {
                 openCoverFolder.Content=L.T("Open cover folder");
                 allCropsButton.Content=L.T("Cover collection");unfinishedButton.Content=L.T("Unfinished cover collection");
                 var labels=new[]{"All","Unfinished","Finished"};
-                var names=new[]{"All items","Unfinished covers only","Finished covers only"};
+                var names=new[]{"All items","Only files without a cover","Only files with a cover"};
                 for(int i=0;i<filterButtons.Length;i++) {
                     filterButtons[i].Content=L.T(labels[i]);
                     filterButtons[i].ToolTip=L.T(names[i]);
@@ -784,8 +837,8 @@ namespace LoveMyShelf {
                 e.Effects=folder?DragDropEffects.Link:DragDropEffects.None;
                 if(folder && FolderTree.IsShelfRow(e.OriginalSource)) {
                     var over=FolderTree.EntryAt(e.OriginalSource);
-                    if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ShowDropHint(L.T("Let go to put it here in the list."));
-                    else ShowDropHint(L.F("Let go to add “{0}” to Love My Shelf.",Path.GetFileName(paths[0].TrimEnd('\\'))));
+                    if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ShowDropHint(L.T("Let go and it moves to this place in the list."));
+                    else ShowDropHint(L.F("Let go and the “{0}” folder is added to Love My Shelf.",Path.GetFileName(paths[0].TrimEnd('\\'))));
                 }
                 e.Handled=true;
             };
@@ -828,6 +881,7 @@ namespace LoveMyShelf {
                     OpenAnotherWindow(); e.Handled=true;
                 }
             };
+            WatchDrives();
             // The mouse's back button goes up too.
             PreviewMouseDown+=(s,e)=>{
                 if(e.ChangedButton==MouseButton.XButton1){GoBack();e.Handled=true;}
@@ -851,6 +905,8 @@ namespace LoveMyShelf {
                 AppUpdater.ReportStarted();
                 var sceneStore=store;var sceneToken=lifetime.Token;
                 Task.Run(()=>sceneStore.FillSceneTimes(sceneToken));
+                DrivesChangedSoon(0.3); // a drive may have a new letter since last time
+                TellIfUpdated();
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
                     var updated=settings.Copy();updated.MarqueeTipShown=true;
@@ -863,6 +919,16 @@ namespace LoveMyShelf {
                 if(settings.CheckUpdates)CheckForUpdate();
             };
         }
+        // The first start of a newer version: one small notice that leads to what changed.
+        void TellIfUpdated() {
+            if(settings.SeenVersion==AppInfo.Version)return;
+            string before=String.IsNullOrEmpty(settings.SeenVersion)?AppInfo.LastWithoutNotice:settings.SeenVersion;
+            var updated=settings.Copy();updated.SeenVersion=AppInfo.Version;
+            try {updated.Save(store.Root);settings=updated;} catch(Exception) {return;}
+            if(!AppInfo.IsNewer(AppInfo.Version,before))return;
+            Notify(L.F("Updated to version {0}",AppInfo.Version),L.T("Click here to see what changed."),
+                ()=>GuideWindow.Open(this,"news"),NoticeKind.Done,false,8);
+        }
         async void CheckForUpdate() {
             string newer=await AppInfo.NewerVersionAsync();
             if(newer==null || lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
@@ -870,13 +936,13 @@ namespace LoveMyShelf {
             if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             if(plan==null) {
                 Notify(L.F("Version {0} is out",newer),
-                    L.T("Click here to open the download page. Close Love My Shelf, then unzip the new ZIP over your Love My Shelf folder. Your covers and settings stay as they are."),
+                    L.T("Click here to open the download page. Get the new ZIP, close Love My Shelf, then unzip it over the folder you use now. Your covers and settings stay as they are."),
                     OpenReleasesPage,NoticeKind.Info);
                 return;
             }
             Notify(L.F("Version {0} is out",newer),
-                plan.Notes.Count>0?L.T("Click here to see what’s new and update."):
-                    L.T("Click here to update. You can keep using Love My Shelf while it downloads. Your covers and settings stay as they are."),
+                plan.Notes.Count>0?L.T("Click here to see what changed and update."):
+                    L.T("Click here to start the update. You can keep using Love My Shelf while it downloads, and your covers and settings stay as they are."),
                 ()=>ShowUpdateNews(plan),NoticeKind.Info,true);
         }
         void ShowUpdateNews(UpdatePlan plan) {
@@ -889,7 +955,7 @@ namespace LoveMyShelf {
             catch(Exception ex) {UI.Error(this,ex);}
         }
         async void DownloadUpdate(UpdatePlan plan) {
-            var working=Notify(L.T("Getting the update…"),L.T("You can keep using Love My Shelf. We’ll let you know here when it’s ready."),null,NoticeKind.Busy);
+            var working=Notify(L.T("Downloading the update…"),L.T("You can keep using it meanwhile. We’ll let you know here when it’s ready."),null,NoticeKind.Busy);
             try {
                 string stage=await Task.Run(()=>AppUpdater.Prepare(plan,lifetime.Token),lifetime.Token);
                 working.Dismiss();
@@ -898,24 +964,24 @@ namespace LoveMyShelf {
             catch(Exception) {
                 working.Dismiss();
                 if(!lifetime.IsCancellationRequested)
-                    Notify(L.T("Couldn’t get the update"),L.T("Nothing was changed. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                    Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
             }
         }
         void OfferRestart(string stage) {
-            Notify(L.T("The update is ready"),L.T("Click here to restart Love My Shelf with the new version. It only takes a moment."),
+            Notify(L.T("The update is ready"),L.T("Click here and Love My Shelf closes for a moment, then starts again as the new version."),
                 ()=>RestartForUpdate(stage),NoticeKind.Done,true);
         }
         void RestartForUpdate(string stage) {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
             if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
-                Notify(L.T("Still working on something"),L.T("Click here again when the work in progress is done, so nothing gets cut off."),
+                Notify(L.T("Some work is still in progress"),L.T("So that the work isn't cut off, click here again after it is done."),
                     ()=>RestartForUpdate(stage),NoticeKind.Info,true);
                 return;
             }
             foreach(var window in windows.OfType<GalleryWindow>())window.FinishPendingCovers();
             try {AppUpdater.StartApply(stage);}
             catch(Exception) {
-                Notify(L.T("Couldn’t get the update"),L.T("Nothing was changed. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
                 return;
             }
             Application.Current.Shutdown();
@@ -1129,7 +1195,7 @@ namespace LoveMyShelf {
                 if(Directory.Exists(path)){NavigateTo(path);return;}
                 if(File.Exists(path)){NavigateTo(Path.GetDirectoryName(path));return;}
             } catch(Exception) {}
-            Notify(L.T("Can’t find that place"),L.F("Windows can’t find “{0}”. Check the spelling and try again.",text.Trim()),null,NoticeKind.Warning);
+            Notify(L.T("Can’t find that place"),L.F("Can’t find the location “{0}”. Check the address and type it again.",text.Trim()),null,NoticeKind.Warning);
         }
         // ----- The folder tree (File Explorer's navigation pane) -----
         readonly Border treePanel=new Border();
@@ -1433,9 +1499,16 @@ namespace LoveMyShelf {
             bool changedStorage=settings.CoverDirectory!=updated.CoverDirectory;
             bool changedGrid=settings.GridGif!=updated.GridGif;
             bool changedFolders=settings.ShowSubfolders!=updated.ShowSubfolders;
+            bool changedNames=settings.TileNames!=updated.TileNames;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
             settings=updated;MotionWindow.UseDefaults(settings);
+            // Every open window shows names the same way and remembers where frames are saved.
+            foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this)) {
+                other.settings.CaptureDirectory=updated.CaptureDirectory;other.settings.CaptureAsShown=updated.CaptureAsShown;other.settings.CaptureJpg=updated.CaptureJpg;
+                if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
+            }
+            if(changedNames)LayoutRows();
             if(changedTheme)Themes.Apply(settings.Theme);
             if(changedLanguage) {
                 L.Korean=settings.Korean;localize();
@@ -1478,7 +1551,7 @@ namespace LoveMyShelf {
                     if(scan!=null)unfinishedScan=scan;
                     var scanToken=scan==null?CancellationToken.None:scan.Token;
                     Action<int> foundSoFar=n=>Dispatcher.BeginInvoke(new Action(()=>{
-                        if(version==refreshVersion)emptyHelp.Text=L.F("{0:N0} files without a cover found so far",n);
+                        if(version==refreshVersion)emptyHelp.Text=L.F("{0:N0} files without a cover found. Still looking.",n);
                     }));
                     List<Photo> saved;
                     try {
@@ -1546,23 +1619,25 @@ namespace LoveMyShelf {
         internal void ShowEmptyNote() {
             bool pending=ShowingPending,searching=search.Text.Trim().Length>0,foldedAway=FoldersFoldedAway;
             bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
-            emptyTitle.Text=folderUnavailable?L.T("This folder could not be opened"):
-                L.T(searching?"No names match your search":pending?"No unfinished covers here":coversOnly?"No covers yet":"No photos or videos in this folder");
-            emptyHelp.Text=folderUnavailable?L.T("Check the folder location and permissions, then press F5."):
-                L.T(searching?"Try another name, or clear the search.":
-                    ShowingUnfinished?"Files without a cover from your Love My Shelf folders and all the folders inside them appear here.":
-                    pending?"Change the folder filter to see all items.":
-                    coversOnly?"Open a local folder and make a cover to see it here.":"Choose another folder or add files and press F5.");
+            bool driveAway=folderUnavailable && active!=null && active.Source!=null && DriveLinks.DriveAway(active.Source);
+            emptyTitle.Text=driveAway?L.T("This folder's drive isn't connected"):folderUnavailable?L.T("This folder could not be opened"):
+                L.T(searching?"No search results":pending?"Every file has a cover":coversOnly?"No covers yet":"No photos or videos in this folder");
+            emptyHelp.Text=driveAway?L.T("Connect the drive again and this folder comes back by itself, together with its covers. It's fine even if the drive letter changes."):
+                folderUnavailable?L.T("Check that the folder is still in its place, then press F5. If you unplugged a phone or a USB drive, connect it again."):
+                L.T(searching?"Search with another name, or clear the search box.":
+                    ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to Love My Shelf and their subfolders, gather here.":
+                    pending?"Click [All] at the bottom left to see everything.":
+                    coversOnly?"Open a folder and make a cover, and it gathers here.":"Choose another folder, or put photos or videos in this folder and press F5.");
             // Nothing added yet: point to the folder tree, where folders are added (and open it).
             bool noFolders=store.VisibleAlbums().Count==0;
             if(foldedAway) {
-                emptyHelp.Text=L.F("Folders inside: {0:N0}. They are folded away right now.",subfolders.Count);
+                emptyHelp.Text=L.F("There are {0:N0} folders inside, but they are folded right now.",subfolders.Count);
                 emptyAction.Content=L.F("Show folders ({0:N0})",subfolders.Count);
             } else {
-                emptyAction.Content=L.T("Choose a folder…");
+                emptyAction.Content=L.T("Select a folder…");
                 if(noFolders && !folderUnavailable) {
                     emptyTitle.Text=L.T("Add a folder to Love My Shelf");
-                    emptyHelp.Text=L.T("In the folder tree on the left, right-click a folder and choose Add to Love My Shelf. You can also drag a folder from File Explorer onto this window.");
+                    emptyHelp.Text=L.T("In the folder tree on the left, right-click a folder and click [Add to Love My Shelf]. You can also drag a folder from File Explorer onto this window.");
                     if(treePanel.Visibility!=Visibility.Visible)ShowTree(true,false);
                 }
             }
@@ -1602,7 +1677,8 @@ namespace LoveMyShelf {
             scrollToTop=false;
             double width=Math.Max(200,grid.ActualWidth-SystemParameters.VerticalScrollBarWidth-2);
             columns=Math.Max(2,(int)Math.Floor(width/density));
-            double height=(width/columns-1)*16/9+1;
+            TileNameHeight=NameStripHeight(width/columns);
+            double height=(width/columns-1)*16/9+1+TileNameHeight; // the picture stays 9:16; the name strip is added below it
             rowHeight=height;cellWidth=width/columns;
             rows=new List<PhotoRow>();
             // Folder tiles come first, in rows of their own; the file rows follow (their numbers count the folder rows).
@@ -1631,6 +1707,110 @@ namespace LoveMyShelf {
                 double offset=(Math.Floor(firstTile/(double)columns)+folderRows)*height;
                 Dispatcher.BeginInvoke(new Action(()=>scroller.ScrollToVerticalOffset(offset)),DispatcherPriority.Loaded);
             }
+        }
+        // ---------- File names under the tiles ----------
+        internal const double TileNameFont=11.5,TileNameLine=16,TileNamePadding=5;
+        const int MostNameLines=12; // one very long name must not make every row a screen tall
+        internal double TileNameHeight {get;private set;}
+        bool wholeNamesFit;
+        double NameStripHeight(double cell) {
+            wholeNamesFit=false;
+            int mode=settings.TileNames;
+            if(mode<=0)return 0;
+            int lines=mode<3?mode:LongestNameLines(cell);
+            return lines*TileNameLine+TileNamePadding;
+        }
+        // Rows must all be the same height, so "whole name" makes room for the longest name on the list.
+        int LongestNameLines(double cell) {
+            var probe=new TextBlock {FontSize=TileNameFont,FontFamily=FontFamily,LineHeight=TileNameLine,
+                LineStackingStrategy=LineStackingStrategy.BlockLineHeight,TextWrapping=TextWrapping.Wrap};
+            double room=Math.Max(20,cell-1-6);
+            int most=1;
+            // The longest names are the ones that need the most lines; measuring a few hundred stays instant in huge folders.
+            foreach(string name in photos.Where(p=>p!=null).Select(p=>p.Name).OrderByDescending(n=>n.Length).Take(200)) {
+                probe.Text=NoticeLook.KeepWords(name);
+                probe.Measure(new Size(room,Double.PositiveInfinity));
+                most=Math.Max(most,(int)Math.Ceiling(probe.DesiredSize.Height/TileNameLine-0.01));
+            }
+            wholeNamesFit=most<=MostNameLines;
+            return Math.Min(most,MostNameLines);
+        }
+        // ---------- External drives coming and going ----------
+        static DispatcherTimer driveTimer;
+        static bool relinking,driveEvent;
+        void WatchDrives() {
+            SourceInitialized+=delegate {
+                var source=System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+                if(source!=null)source.AddHook(DeviceMessage);
+            };
+        }
+        static IntPtr DeviceMessage(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
+            const int DeviceChange=0x0219,Arrived=0x8000,Removed=0x8004;
+            if(message==DeviceChange) {
+                long kind=wParam.ToInt64();
+                if(kind==Arrived || kind==Removed){driveEvent=true;DrivesChangedSoon(1.5);} // Windows needs a moment to finish mounting
+            }
+            return IntPtr.Zero;
+        }
+        static void DrivesChangedSoon(double seconds) {
+            if(driveTimer==null) {
+                driveTimer=new DispatcherTimer();
+                driveTimer.Tick+=delegate {driveTimer.Stop();RelinkDrives();};
+            }
+            driveTimer.Stop();driveTimer.Interval=TimeSpan.FromSeconds(seconds);driveTimer.Start();
+        }
+        // Records must stay put while something is working on them.
+        static bool RecordsInUse() {
+            var windows=Application.Current.Windows.OfType<Window>().ToList();
+            return renamingFolder || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers || w.pendingFolders.Count>0) ||
+                windows.OfType<UpscaleToast>().Any(t=>t.IsWorking) ||
+                windows.Any(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow));
+        }
+        static async void RelinkDrives() {
+            if(relinking || Application.Current==null){if(relinking)DrivesChangedSoon(3);return;}
+            var galleries=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+            if(galleries.Count==0)return;
+            if(RecordsInUse()){DrivesChangedSoon(3);return;} // tried again once the video or editor is closed
+            bool device=driveEvent;driveEvent=false;
+            var records=galleries[0].store;
+            relinking=true;
+            try {
+                var result=await Task.Run(()=>DriveLinks.Run(records,DriveLayout.Current(),CancellationToken.None));
+                galleries=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+                if(result.Changed || device)foreach(var gallery in galleries)gallery.DrivesChanged(result);
+                if(result.Records+result.Files>0 && galleries.Count>0)
+                    galleries[0].Notify(L.T("Covers reconnected"),L.F("The drive letter or a file's location changed, so {0:N0} covers were reconnected. Your photo and video files were not touched at all.",Math.Max(result.Records,result.Files)),null,NoticeKind.Done,false,6);
+            } catch(Exception) {/* The records stay as they were and the next drive change tries again. */}
+            finally {relinking=false;}
+        }
+        void DrivesChanged(RelinkResult result) {
+            if(lifetime.IsCancellationRequested)return;
+            if(result.CoverDirectory!=null)settings.CoverDirectory=result.CoverDirectory;
+            Func<Album,Album> follow=a=>{
+                Tuple<string,string> moved;
+                return a!=null && a.Source!=null && result.Albums.TryGetValue(a.Folder,out moved)?new Album(moved.Item1,a.Name,moved.Item2):a;
+            };
+            var sources=result.Albums.Where(p=>File.Exists(Path.Combine(p.Value.Item1,"source.txt"))).ToList();
+            foreach(var stack in new[]{backStack,forwardStack})
+                for(int i=0;i<stack.Count;i++) {
+                    if(stack[i].StartsWith("@"))continue;
+                    string recordFolder=store.AlbumFolderOf(stack[i]);
+                    var hit=sources.FirstOrDefault(p=>String.Equals(p.Key,recordFolder,StringComparison.OrdinalIgnoreCase));
+                    if(hit.Value!=null)stack[i]=hit.Value.Item2;
+                }
+            if(active!=null && active.Source!=null && result.Albums.ContainsKey(active.Folder)) {
+                int view;bool hadView=folderFilters.TryGetValue(active.Folder,out view);
+                for(int i=0;i<trail.Count;i++)trail[i]=follow(trail[i]);
+                active=follow(active);
+                if(hadView)folderFilters[active.Folder]=view;
+                BuildPath();
+            }
+            if(result.Albums.Count>0)BuildTabs();
+            if(tree!=null && treePanel.Visibility==Visibility.Visible) {
+                if(result.Albums.Count>0){tree.Build();TreeSyncSoon();}
+                else tree.RefreshDrives();
+            }
+            ReloadKeepingPlace();
         }
         static ScrollViewer FindScroller(DependencyObject parent) {
             for(int i=0;i<VisualTreeHelper.GetChildrenCount(parent);i++) {
@@ -1661,7 +1841,7 @@ namespace LoveMyShelf {
         }
         internal static string SortName(PhotoSort sort) {
             return L.T(sort==PhotoSort.Modified?"Date modified":sort==PhotoSort.Size?"File size":sort==PhotoSort.Type?"File type":
-                sort==PhotoSort.CoverOrder?"Cover work order":"File name");
+                sort==PhotoSort.CoverOrder?"Cover creation order":"File name");
         }
         // Direction in words that fit the criterion, instead of "ascending / descending".
         internal static string DirectionName(PhotoSort sort,bool descending) {
@@ -1829,14 +2009,14 @@ namespace LoveMyShelf {
             Action makeGif=motion?(Action)(()=>ShowMakeGif(ActiveAppWindow(),updated)):null;
             string gifLine=motion?" "+L.T("Click here to make a GIF cover from this JPG cover."):"";
             if(added)
-                Notify(L.T("Added another cover"),L.T("Both covers are kept. The new cover joins the others in the order of the video’s scenes.")+gifLine,makeGif);
+                Notify(L.T("Made one more cover"),L.T("The earlier cover is still there. The new cover goes in the place that fits the order of the video’s scenes.")+gifLine,makeGif);
             else if(motion && !(showAfter && OpenCoverAfterSave))
                 // The large view has its own Make GIF button; the notice is for when it doesn't open.
                 Notify(L.T("Cover saved"),gifLine.Trim(),makeGif);
             if(showAfter && OpenCoverAfterSave)justSaved=updated;
             if(updated.SavedToFallback)
                 Notify(L.T("Saved in the cover folder instead"),
-                    L.T("Love My Shelf couldn’t write next to the original, so this cover went to your cover folder. This can happen with phones and some cloud folders."),
+                    L.T("This cover couldn't be saved where the original is, so it was saved in the cover folder. This can happen with phones and some cloud folders."),
                     null,NoticeKind.Warning);
             int index=photos.FindIndex(p=>p!=null && p.Folder==photo.Folder);
             if(index>=0)UpdatePhoto(index,updated);
@@ -1862,7 +2042,7 @@ namespace LoveMyShelf {
             // An edited GIF cover replaces the old file: it goes to the Recycle Bin and the new one takes its name.
             string old=photo.HasMotion?photo.MotionFile:null;
             var working=Notify(L.T("Making the GIF cover"),photo.Name+Environment.NewLine+
-                L.T("It runs in the background, so you can keep using Love My Shelf. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
+                L.T("It is made by itself in the background, so you can keep using Love My Shelf meanwhile. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
             try {
                 var place=settings.CoverPlace;string coverDirectory=settings.CoverDirectory;
                 var result=await Task.Run(()=>{
@@ -1886,9 +2066,9 @@ namespace LoveMyShelf {
                 if(ready!=null)ReplaceShown(ready);
                 // Tell the person when the original ran out before or after the cover's moment.
                 string shorter="";
-                if(result.Item1.Before<request.Before-0.05)shorter+=L.F("Only {0:0.#} s was available before the cover.",result.Item1.Before)+" ";
-                if(result.Item1.After<request.After-0.05)shorter+=L.F("Only {0:0.#} s was available after the cover.",result.Item1.After)+" ";
-                Notify(L.T("The GIF cover is ready"),shorter+L.T("Click here to go to the GIF cover’s large view."),
+                if(result.Item1.Before<request.Before-0.05)shorter+=L.F("The original had only {0:0.#} s before the cover, so only that much went in.",result.Item1.Before)+" ";
+                if(result.Item1.After<request.After-0.05)shorter+=L.F("The original had only {0:0.#} s after the cover, so only that much went in.",result.Item1.After)+" ";
+                Notify(L.T("The GIF cover is ready"),shorter+L.T("Click here to see the GIF cover large."),
                     ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,5);
             } catch(OperationCanceledException) {}
             catch(Exception ex) {
@@ -1908,7 +2088,7 @@ namespace LoveMyShelf {
             try {
                 foreach(var cover in GalleryStore.CoversOf(photo).Where(p=>p.ExcludedFromCollection && p.Folder!=photo.Folder))
                     store.SetCollectionExcluded(cover,false);
-                Notify(L.T("Hidden covers are back"),L.T("You can see them in Cover collection."),null);
+                Notify(L.T("Hidden covers show again"),L.T("You can see them in Cover collection."),null);
                 if(!ShowingAllCrops)ReloadKeepingPlace();
             } catch(Exception ex){UI.Error(this,ex);}
         }
@@ -1928,7 +2108,7 @@ namespace LoveMyShelf {
             ShowWithoutPending();
             var toast=new UpscaleToast(ActiveAppWindow(),
                 chosen.Count==1?L.T("Moved the cover to the Recycle Bin"):L.F("Moved {0:N0} covers to the Recycle Bin",chosen.Count),
-                L.T("Click here within 3 seconds to undo. The original stays in its folder."),
+                L.T("Click here within 3 seconds to undo. The original is still there."),
                 ()=>UndoCovers(pending),NoticeKind.Info,false,UndoSeconds);
             toast.Closed+=delegate {if(!toast.WasClicked)FinishCovers(pending);};
             toast.Show();
@@ -2058,7 +2238,7 @@ namespace LoveMyShelf {
                     string path=Path.Combine(source,Path.GetFileName(photo.Name));
                     if(!File.Exists(path))throw new FileNotFoundException(L.T("The original is missing from this folder."),path);
                     if(photo.HasCrop && !OriginalLocator.MatchesOriginal(photo,path,lifetime.Token))
-                        throw new IOException(L.T("This file does not match the saved original. Check it in File Explorer."));
+                        throw new IOException(L.T("The file in this place is different from the original. Check it in File Explorer."));
                     moveToRecycleBin(path,new System.Windows.Interop.WindowInteropHelper(this).Handle);
                     removed.Add(photo);
                 }catch(Exception ex){
@@ -2340,7 +2520,7 @@ namespace LoveMyShelf {
             MarkDropFolder(tile);
             if(tile is TreeViewItem)HoverUnfold((TreeViewItem)tile);
             ScrollTreeNearEdge(e);
-            if(tile!=null)ShowDropHint(L.F(copy?"Let go to copy {0:N0} into “{1}”.":"Let go to move {0:N0} into “{1}”.",originals.Length,Path.GetFileName(target)));
+            if(tile!=null)ShowDropHint(L.F(copy?"Let go and {0:N0} are copied into the “{1}” folder.":"Let go and {0:N0} move into the “{1}” folder.",originals.Length,Path.GetFileName(target)));
             else ShowDropHint(L.F(copy?"Let go to copy {0:N0} to “{1}”.":"Let go to move {0:N0} to “{1}”. Hold Ctrl to copy instead.",originals.Length,active.Name));
             if(!(tile is TreeViewItem))hoverRow=null;
         }
@@ -2372,7 +2552,7 @@ namespace LoveMyShelf {
         async void MoveOriginals(string[] originals,bool copy,Album target) {
             FinishPendingCovers();
             string folderName=target.Name;
-            var busy=Notify(L.T(copy?"Copying files…":"Moving files…"),L.F("{0:N0} files are going to “{1}”.",originals.Length,folderName),null,NoticeKind.Busy);
+            var busy=Notify(L.T(copy?"Copying files…":"Moving files…"),L.F("Sending {0:N0} files to the “{1}” folder.",originals.Length,folderName),null,NoticeKind.Busy);
             MoveReport report=null;Exception error=null;
             try {
                 report=await Task.Run(()=>Mover.RunDetailed(store,originals,target.Source,target.Folder,copy,folderName,AskConflict,RecycleForMove));
@@ -2383,8 +2563,8 @@ namespace LoveMyShelf {
             if(report.Moved.Count+report.Copied>0 && FilesChanged!=null)FilesChanged();
             string done=copy?L.F("Copied {0:N0} to “{1}”.",report.Copied,folderName):L.F("Moved {0:N0} to “{1}”.",report.Moved.Count,folderName);
             var lines=new List<string>();
-            if(report.Moved.Count>0)lines.Add(L.T("Press Ctrl+Z to put them back."));
-            if(report.Skipped>0)lines.Add(L.F("{0:N0} skipped because of the same name.",report.Skipped));
+            if(report.Moved.Count>0)lines.Add(L.T("You can undo with Ctrl+Z."));
+            if(report.Skipped>0)lines.Add(L.F("{0:N0} were skipped because the same name was there.",report.Skipped));
             if(report.AlreadyThere>0)lines.Add(L.F("{0:N0} were already in this folder.",report.AlreadyThere));
             if(report.Failed.Count==0) {
                 if(report.Moved.Count+report.Copied>0)Notify(copy?L.T("Copied"):L.T("Moved"),done+(lines.Count>0?Environment.NewLine+String.Join(" ",lines):""),null);
@@ -2405,13 +2585,13 @@ namespace LoveMyShelf {
             var busy=Notify(L.T("Putting the files back…"),"",null,NoticeKind.Busy);
             MoveReport report=null;Exception error=null;
             try {
-                report=await Task.Run(()=>Mover.UndoDetailed(store,last,L.T("the old folder"),AskConflict,RecycleForMove));
+                report=await Task.Run(()=>Mover.UndoDetailed(store,last,L.T("the original folder"),AskConflict,RecycleForMove));
             } catch(Exception ex) {error=ex;}
             finally {busy.Dismiss();}
             if(error!=null){Notify(L.T("Couldn’t put the files back"),error.Message,null,NoticeKind.Warning);return;}
             if(report.Moved.Count>0 && FilesChanged!=null)FilesChanged();
             if(report.Failed.Count>0)Notify(L.T("Some files couldn’t be put back"),String.Join(Environment.NewLine,report.Failed.Take(3)),null,NoticeKind.Warning);
-            else Notify(L.T("Put back"),L.F("{0:N0} files are back where they were.",report.Moved.Count),null);
+            else Notify(L.T("Put back"),L.F("{0:N0} files were put back in their original place.",report.Moved.Count),null);
         }
         // What a drag from this tile carries: every chosen tile when the dragged one is chosen, otherwise just that one.
         internal List<Photo> DragTargets(Photo photo) {
@@ -2427,7 +2607,7 @@ namespace LoveMyShelf {
             if(e!=null && e.CursorLeft>=0){var p=System.Windows.Forms.Cursor.Position;return new Point(p.X,p.Y);}
             return at.PointToScreen(new Point(at.ActualWidth/2,at.ActualHeight/2)); // opened from the keyboard
         }
-        internal string RangeHint {get {return L.T("Choose many: hold the right button and drag");}}
+        internal string RangeHint {get {return L.T("Select many: hold the right button and drag");}}
         internal void ShowFileMenu(Photo photo,ContextMenu own,FrameworkElement at,ContextMenuEventArgs e) {
             var targets=Targets(photo);
             var take=new ShellMenu.Takeovers {
@@ -2666,18 +2846,18 @@ namespace LoveMyShelf {
         readonly Border rangeHint=new Border {CornerRadius=new CornerRadius(12),Padding=new Thickness(12,5,6,5),BorderThickness=new Thickness(1),
             HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(12,12,24,12),Visibility=Visibility.Collapsed};
         void ShowRangeHint() {
-            marqueeHint.Text=L.T("Hold the right button and drag to choose many");
+            marqueeHint.Text=L.T("Hold the right button and drag to select many");
             rangeHint.Visibility=settings.MarqueeUses<3 && !rangeHintClosed && photos.Count>1?Visibility.Visible:Visibility.Collapsed;
         }
         void MarqueeTip() {
             if(settings.MarqueeUses>=3)return;
-            Notify(L.T("Choosing many at once"),L.T("Hold the right mouse button and drag over the tiles. Every tile the rectangle touches is chosen. (Starting on empty space, the left button works too.)"),null,NoticeKind.Info);
+            Notify(L.T("To select many at once"),L.T("Hold the right mouse button and drag over the tiles. Every tile the rectangle touches is selected. (Starting from an empty spot, the left button works too.)"),null,NoticeKind.Info);
         }
         // A tile was dragged with the left button and let go where nothing takes it: probably meant to choose a range.
         internal void NoteDragWithoutDrop() {
             if(settings.MarqueeUses>=3 || (DateTime.UtcNow-lastDragTip).TotalSeconds<60)return;
             lastDragTip=DateTime.UtcNow;
-            Notify(L.T("To choose a range, use the right button"),L.T("Hold the right mouse button and drag over the tiles. The left button moves files instead."),null,NoticeKind.Info);
+            Notify(L.T("To choose a range, use the right button"),L.T("Hold the right mouse button and drag over the tiles. Dragging with the left button moves the files."),null,NoticeKind.Info);
         }
 
         // ---------- Explorer state: selection, keys, search, rename, details ----------
@@ -2750,7 +2930,7 @@ namespace LoveMyShelf {
             shownTiles[photo.Folder]=tile;
             if(cutFolders.Contains(photo.Folder))tile.Opacity=0.45;
             tile.MouseEnter+=delegate {
-                ShowNameSoon(tile,photo.Name);
+                if(!(settings.TileNames==3 && wholeNamesFit))ShowNameSoon(tile,photo.Name); // already written in full under the tile
                 CoverSibling mark;LightCoverFamily(coverMarks.TryGetValue(photo.Folder,out mark)?mark.Family:null);
             };
             tile.MouseLeave+=delegate {if(nameTile==tile)HideName();LightCoverFamily(null);};
@@ -2997,7 +3177,7 @@ namespace LoveMyShelf {
             var menu=new ContextMenu();
             var withCovers=targets.Where(p=>p.HasCrop && !p.ExcludedFromCollection).ToList();
             if(withCovers.Count>0) {
-                var hide=new MenuItem {Header=L.F(withCovers.Any(p=>p.HasMotion)?"Hide {0:N0} covers (JPG and GIF) in Love My Shelf":"Hide {0:N0} covers in Love My Shelf",withCovers.Count)};
+                var hide=new MenuItem {Header=L.F(withCovers.Any(p=>p.HasMotion)?"Hide {0:N0} covers (both JPG and GIF)":"Hide {0:N0} covers",withCovers.Count)};
                 hide.Click+=delegate {ChangeCollections(withCovers);ClearSelection();};
                 menu.Items.Add(hide);
                 menu.Items.Add(new Separator());
@@ -3053,7 +3233,7 @@ namespace LoveMyShelf {
                     if(wasSelected)selected.Add(folder);
                     UpdatePhoto(i,renamed);
                 }
-                Notify(L.T("Renamed"),L.F("“{0}” is now “{1}”.",photo.Name,newName),null);
+                Notify(L.T("Renamed"),L.F("“{0}” → “{1}”",photo.Name,newName),null);
             } catch(Exception ex) {
                 Notify(L.T("Couldn’t rename"),ex.Message,null,NoticeKind.Warning);
             }
@@ -3071,7 +3251,7 @@ namespace LoveMyShelf {
             string from=Path.GetFullPath(path).TrimEnd('\\'),oldName=Path.GetFileName(from);
             var windows=Application.Current.Windows.OfType<Window>().ToList();
             if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
-                Notify(L.T("Still working on something"),L.T("Try renaming the folder when the work in progress is done."),null,NoticeKind.Info);return;
+                Notify(L.T("Some work is still in progress"),L.T("Rename the folder after the work in progress is done."),null,NoticeKind.Info);return;
             }
             // An open picture, video or editor is holding on to the records inside.
             var open=windows.FirstOrDefault(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow));
@@ -3088,7 +3268,7 @@ namespace LoveMyShelf {
             try {
                 string to=await Task.Run(()=>Renamer.RenameFolder(store,from,newName));
                 foreach(var gallery in galleries)if(!gallery.lifetime.IsCancellationRequested)gallery.FolderRenamed(from,to);
-                Notify(L.T("Renamed"),L.F("“{0}” is now “{1}”.",oldName,newName),null);
+                Notify(L.T("Renamed"),L.F("“{0}” → “{1}”",oldName,newName),null);
             } catch(Exception ex) {
                 Notify(L.T("Couldn’t rename"),ex.Message,null,NoticeKind.Warning);
             } finally {renamingFolder=false;}
@@ -3132,7 +3312,7 @@ namespace LoveMyShelf {
                 // A notice can be clicked while another window (the cover editor, Make GIF cover, a question) is open.
                 // Opening something on top of it would stack windows, so that window is brought forward instead.
                 var busy=BlockingWindow();
-                if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.T("Finish or close the window that is open, then click the notice again."),null,NoticeKind.Info);return;}
+                if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.T("Finish the work in the open window or close it, then click the notice again."),null,NoticeKind.Info);return;}
                 clicked();
             }),kind,keepOpen,seconds);
             toast.Show();
@@ -3144,7 +3324,7 @@ namespace LoveMyShelf {
         }
         void UpscaleFinished(Photo updated) {
             ReplaceShown(updated);
-            Notify(L.T("Upscaling finished"),updated.Name+Environment.NewLine+L.T("Click to compare and choose."),
+            Notify(L.T("Upscaling finished"),updated.Name+Environment.NewLine+L.T("Click here to compare it side by side with the original cover and choose the one you like."),
                 ()=>ShowPendingChoice(updated,ActiveAppWindow()));
         }
         void ReplaceShown(Photo updated) {

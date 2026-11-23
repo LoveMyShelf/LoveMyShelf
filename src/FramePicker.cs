@@ -35,7 +35,7 @@ namespace LoveMyShelf {
         readonly CancellationTokenSource lifetime=new CancellationTokenSource();
         readonly Canvas canvas=new Canvas();
         readonly ScrollViewer scroll;
-        readonly TextBlock count=UI.Text(L.T("Preparing frame list…"),11,true);
+        readonly TextBlock count=UI.Text(L.T("Preparing the scene list…"),11,true);
         readonly Stopwatch indexClock=new Stopwatch();
         readonly DispatcherTimer indexTimer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(1)};
         readonly Dictionary<int,Button> cells=new Dictionary<int,Button>();
@@ -59,6 +59,8 @@ namespace LoveMyShelf {
         int total,columns,leadingSlots,first=-1,end=-1;
         double? replacementOffset;
         double cellWidth,rowHeight;
+        // The list's height at the last layout, to tell where a scene was on screen before the window changed size.
+        double shownHeight;
         internal CropWindow SavedCrop { get; private set; }
         internal bool OpenFullList { get; private set; }
         internal Func<CropWindow,Task> CommitCover;
@@ -88,24 +90,24 @@ namespace LoveMyShelf {
             this.previewSide=previewSide;
             this.previous=previous;this.anchorTime=anchorTime;
             this.useNearby=useNearby && anchorTime.HasValue && VideoFrames.Supports(path);
-            UI.WindowSetup(this,L.T("Frame selection")); Owner=owner;ShowInTaskbar=false;
+            UI.WindowSetup(this,L.T("Choose a scene")); Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             Width=Math.Min(1000,SystemParameters.WorkArea.Width);Height=Math.Min(760,SystemParameters.WorkArea.Height);
             MinWidth=360;MinHeight=300;
             var root=new DockPanel();Content=root;
             root.Children.Add(FullScreen.TitleBar(this,startFull??FullScreen.IsFull(owner)));
             var head=UI.Bar(new Thickness(6,2,6,2));
-            if(this.useNearby)UI.Right(head,UI.Btn(L.T("All frames"),()=>{OpenFullList=true;DialogResult=false;}));
+            if(this.useNearby)UI.Right(head,UI.Btn(L.T("All scenes"),()=>{OpenFullList=true;DialogResult=false;}));
             var name=UI.Text(Path.GetFileName(path),12);name.TextTrimming=TextTrimming.CharacterEllipsis;head.Children.Add(name);
             DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
             var bar=UI.Bar(new Thickness(6,2,6,2));
             UI.Right(bar,UI.Btn(L.T("Cancel"),()=>DialogResult=false));
             brightnessNote.Margin=new Thickness(0,0,10,0);brightnessNote.VerticalAlignment=VerticalAlignment.Center;
             brightnessNote.Visibility=Visibility.Collapsed;UI.Right(bar,brightnessNote);
-            var label=UI.Text(L.T("Frame size"),12);DockPanel.SetDock(label,Dock.Left);bar.Children.Add(label);
+            var label=UI.Text(L.T("Scene size"),12);DockPanel.SetDock(label,Dock.Left);bar.Children.Add(label);
             var size=new DragSlider { Minimum=100,Maximum=580,TickFrequency=20,IsSnapToTickEnabled=true,
                 Value=preferredWidth,Width=110,Margin=new Thickness(5,0,10,0),VerticalAlignment=VerticalAlignment.Center };
-            AutomationProperties.SetName(size,L.T("Frame size"));
+            AutomationProperties.SetName(size,L.T("Scene size"));
             size.ValueChanged+=delegate {preferredWidth=size.Value;fitNeighbors=false;ScheduleLayout();};
             DockPanel.SetDock(size,Dock.Left);bar.Children.Add(size);count.TextTrimming=TextTrimming.CharacterEllipsis;bar.Children.Add(count);
             DockPanel.SetDock(bar,Dock.Bottom);root.Children.Add(bar);
@@ -131,11 +133,11 @@ namespace LoveMyShelf {
             bool decodingFrames;
             int scanned;
             if(useNearby)
-                count.Text=L.F("Reading frames near the paused time… ({0}s)",seconds);
+                count.Text=L.F("Loading the scenes around the paused moment… ({0}s)",seconds);
             else if(VideoFrames.TryIndexProgress(path,out decodingFrames,out scanned))
-                count.Text=L.F(decodingFrames?"Decoding frames for list… {0:N0} ({1}s)":"Reading frame times… {0:N0} ({1}s)",scanned,seconds);
+                count.Text=L.F(decodingFrames?"Preparing the scenes to show in the list… {0:N0} ({1}s)":"Reading scene times… {0:N0} ({1}s)",scanned,seconds);
             else
-                count.Text=L.F("Preparing frame list… ({0}s)",seconds);
+                count.Text=L.F("Preparing the scene list… ({0}s)",seconds);
         }
         void ScheduleLayout() {
             if(pendingLayout || closed)return;
@@ -155,16 +157,30 @@ namespace LoveMyShelf {
             bool resized=cols!=columns || Math.Abs(w-cellWidth)>0.5 || h!=rowHeight;
             if(resized || replacementOffset.HasValue) {
                 bool initial=columns==0;
-                int anchor=initial?Math.Max(0,previous):Math.Max(0,(int)(offset/rowHeight)*columns-leadingSlots);
                 bool replacing=replacementOffset.HasValue;
+                // The scene that stays where it is on screen when the tiles change size: the paused scene while any of
+                // it shows, otherwise the scene in the middle of the screen. Anchoring on the top row pushed the paused
+                // scene off the screen whenever the tiles grew.
+                int keep=Math.Max(0,previous);double place=0.5;
+                if(!initial && !replacing && rowHeight>0) {
+                    double seen=shownHeight>0?shownHeight:scroll.ViewportHeight;
+                    int row=previous>=0?(previous+leadingSlots)/columns:-1;
+                    if(row<0 || (row+1)*rowHeight<=offset || row*rowHeight>=offset+seen) {
+                        row=(int)((offset+seen/2)/rowHeight);
+                        keep=Math.Max(0,Math.Min(total-1,row*columns-leadingSlots+columns/2));
+                        row=(keep+leadingSlots)/columns;
+                    }
+                    place=Math.Max(0,Math.Min(1,((row+0.5)*rowHeight-offset)/seen));
+                }
                 replacementOffset=null;leadingSlots=pad;
                 columns=cols;cellWidth=w;rowHeight=h;
                 canvas.Height=Math.Ceiling((total+pad)/(double)cols)*h;
-                double top=replacing?offset:((Math.Min(total-1,anchor)+pad)/cols)*h;
+                double top=replacing?offset:((keep+pad)/cols+0.5)*h-place*scroll.ViewportHeight;
                 if(initial && previous>=0)top=(before+after+1)*h/2-scroll.ViewportHeight/2;
                 offset=Math.Max(0,Math.Min(top,Math.Max(0,canvas.Height-scroll.ViewportHeight)));
                 scroll.ScrollToVerticalOffset(offset);
             }
+            shownHeight=scroll.ViewportHeight;
             int start=Math.Max(0,Math.Max(0,(int)(offset/h)-1)*cols-pad);
             int stop=Math.Min(total,((int)Math.Ceiling((offset+scroll.ViewportHeight)/h)+1)*cols-pad);
             // Scrolled to the top or bottom of the scenes read so far: read more that way.
@@ -202,7 +218,7 @@ namespace LoveMyShelf {
         }
         void RequestMore(int direction) {
             extendWanted=direction;
-            count.Text=L.T("Reading more…");
+            count.Text=L.T("Loading more…");
             work.Set();
         }
         Button MakeTile(int index) {
@@ -213,7 +229,7 @@ namespace LoveMyShelf {
             // An empty tile is the same quiet band as the main grid, not a white flash.
             var holder=new Border();UI.Use(holder,Border.BackgroundProperty,"TileBand");
             string position=nearby==null?(index+1).ToString():Viewer.Stamp(nearby.Start(index));
-            string label=position;if(index==previous)label+=L.T(" · paused frame");
+            string label=position;if(index==previous)label+=L.T(" · paused scene");
             var number=UI.Text(label,11);number.HorizontalAlignment=HorizontalAlignment.Center;
             DockPanel.SetDock(number,Dock.Bottom);content.Children.Add(number);
             var image=new Image {Stretch=Stretch.Uniform};
@@ -221,7 +237,7 @@ namespace LoveMyShelf {
             var sheet=new Grid {HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             sheet.Children.Add(image);holder.Child=sheet;content.Children.Add(holder);tile.Tag=image;tile.Content=content;
             ApplyBrightness(tile);
-            AutomationProperties.SetName(tile,L.T("Frame ")+position);return tile;
+            AutomationProperties.SetName(tile,L.T("Scene ")+position);return tile;
         }
         void ApplyBrightness(Button tile) {
             var image=(Image)tile.Tag;var sheet=(Grid)image.Parent;
@@ -262,7 +278,7 @@ namespace LoveMyShelf {
                 }
             } catch(Exception ex) {
                 if(!closed)Dispatcher.Invoke(new Action(()=>{
-                    indexTimer.Stop();count.Text=L.T("Could not read the frames.");count.ToolTip=ex.Message;
+                    indexTimer.Stop();count.Text=L.T("Could not read the scenes.");count.ToolTip=ex.Message;
                 }));
             }
         }
@@ -341,7 +357,7 @@ namespace LoveMyShelf {
             } finally {reader.Dispose();}
         }
         static string RangeText(FrameTimes times) {
-            return L.F("{0}–{1} · {2:N0} frames",Viewer.Stamp(times.Start(0)),Viewer.Stamp(times.Start(times.Count-1)),times.Count);
+            return L.F("{0}–{1} · {2:N0} scenes",Viewer.Stamp(times.Start(0)),Viewer.Stamp(times.Start(times.Count-1)),times.Count);
         }
 
         void SetRange(FrameTimes times,bool local) {
@@ -374,7 +390,7 @@ namespace LoveMyShelf {
             requested=null;first=end=-1;
             previous=marked;total=times.Count;
             count.Text=local?RangeText(times):
-                L.F("{0:N0} frames",total);
+                L.F("{0:N0} scenes",total);
             ScheduleLayout();
         }
 

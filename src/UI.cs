@@ -172,6 +172,7 @@ namespace LoveMyShelf {
                         // Keep the app alive between this window and the main one.
                         app.ShutdownMode=ShutdownMode.OnExplicitShutdown;
                         new FirstRunWindow(prefs).ShowDialog();
+                        prefs.SeenVersion=AppInfo.Version; // a new person has nothing to be told about an update
                         try {Directory.CreateDirectory(root);prefs.Save(root);} catch(IOException) {} catch(UnauthorizedAccessException) {}
                         app.ShutdownMode=ShutdownMode.OnLastWindowClose;
                     }

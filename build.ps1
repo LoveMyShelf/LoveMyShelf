@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $framework)) {
     $framework = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319"
 }
 $references = @("System.dll", "System.Core.dll", "System.Data.dll", "System.Xml.dll", "System.Xml.Linq.dll", "System.Drawing.dll", "System.Windows.Forms.dll", "System.Xaml.dll", "WPF\PresentationCore.dll", "WPF\PresentationFramework.dll", "WPF\WindowsBase.dll")
-$arguments = @("/nologo", "/target:winexe", "/platform:anycpu", "/optimize+", "/codepage:65001", "/main:LoveMyShelf.Program", "/out:$compileTo", "/win32manifest:$source\app.manifest", "/resource:$source\Theme.xaml,LoveMyShelf.Theme.xaml")
+$arguments = @("/nologo", "/target:winexe", "/platform:anycpu", "/optimize+", "/codepage:65001", "/main:LoveMyShelf.Program", "/out:$compileTo", "/win32manifest:$source\app.manifest", "/resource:$source\Theme.xaml,LoveMyShelf.Theme.xaml", "/resource:$source\release-notes.xml,LoveMyShelf.release-notes.xml")
 foreach ($reference in $references) { $arguments += "/reference:" + (Join-Path $framework $reference) }
 # The Windows share window comes from Windows Runtime metadata that ships with Windows 10 and 11.
 $winmd = Join-Path $env:WINDIR "System32\WinMetadata"

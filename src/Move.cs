@@ -43,7 +43,7 @@ namespace LoveMyShelf {
                 if(!File.Exists(Path.Combine(folder,candidate)) && !Directory.Exists(Path.Combine(folder,candidate)) &&
                     (otherFolder==null || !File.Exists(Path.Combine(otherFolder,candidate))))return candidate;
             }
-            throw new IOException(L.T("Couldn't find a free name."));
+            throw new IOException(L.T("Couldn't find a name that can be used."));
         }
 
         // The record folders of one original: "p-<key>" and its extra covers "p-<key>-<id>".
@@ -82,7 +82,7 @@ namespace LoveMyShelf {
             foreach(string from in originals) {
                 string name=Path.GetFileName(from);
                 try {
-                    if(!File.Exists(from)){report.Failed.Add(name+" — "+L.T("The file is no longer there."));continue;}
+                    if(!File.Exists(from)){report.Failed.Add(name+" — "+L.T("The file is not in that place."));continue;}
                     string directory=Path.GetDirectoryName(from);
                     if(SameFolder(directory,targetSource)){report.AlreadyThere++;continue;}
                     string to=Path.Combine(targetSource,name);
@@ -144,7 +144,7 @@ namespace LoveMyShelf {
                 lock(SharedCoverFiles.MetadataLock) {
                     foreach(string record in records) {
                         string destination=Path.Combine(targetAlbum,Path.GetFileName(record));
-                        if(Directory.Exists(destination))throw new IOException(L.T("Love My Shelf still has records for an older file with that name. Press F5 and try again, or pick another name."));
+                        if(Directory.Exists(destination))throw new IOException(L.T("Records of an older file with that name are still left. Press F5 and try again, or use another name."));
                         Directory.Move(record,destination);
                         moved.Add(Tuple.Create(record,destination));
                     }
@@ -169,7 +169,7 @@ namespace LoveMyShelf {
         static void PutInPlace(string landing,string target,Action<string> recycle) {
             try {File.SetAttributes(landing,File.GetAttributes(landing)|FileAttributes.Hidden);} catch(Exception) {}
             recycle(target);
-            if(File.Exists(target))throw new IOException(L.T("The file already there couldn't be moved to the Recycle Bin."));
+            if(File.Exists(target))throw new IOException(L.T("The file that was already there couldn't be moved to the Recycle Bin. Nothing was changed."));
             File.Move(landing,target);
             try {File.SetAttributes(target,File.GetAttributes(target)&~FileAttributes.Hidden);} catch(Exception) {}
         }
@@ -303,12 +303,12 @@ namespace LoveMyShelf {
         readonly TextBlock same=UI.Text("",14);
         internal ConflictWindow(Window owner,ConflictInfo info) {
             this.info=info;
-            UI.WindowSetup(this,L.T("Same name"));Owner=owner;ShowInTaskbar=false;
+            UI.WindowSetup(this,L.T("There is a file with the same name"));Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;ResizeMode=ResizeMode.NoResize;
             Width=Math.Min(780,SystemParameters.WorkArea.Width);SizeToContent=SizeToContent.Height;
             var root=new DockPanel();root.Children.Add(new WindowTitleBar(this));
             var page=new StackPanel {Margin=new Thickness(22,16,22,20)};root.Children.Add(page);Content=root;
-            var title=UI.Text(NoticeLook.KeepWords(L.F("“{0}” is already in “{1}”.",info.Name,info.FolderName)),15);
+            var title=UI.Text(NoticeLook.KeepWords(L.F("The “{1}” folder already has a file named “{0}”.",info.Name,info.FolderName)),15);
             title.TextWrapping=TextWrapping.Wrap;page.Children.Add(title);
             if(info.Total>1) {
                 var counter=UI.Text(L.F("{0:N0} of {1:N0} files with the same name",info.Number,info.Total),12,true);
@@ -319,7 +319,7 @@ namespace LoveMyShelf {
             cards.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(12)});
             cards.ColumnDefinitions.Add(new ColumnDefinition());
             var paths=new[]{info.From,info.To};
-            var headings=new[]{L.T(info.Copy?"The file being copied":"The file being moved"),L.T("The file already there")};
+            var headings=new[]{L.T(info.Copy?"The file being copied":"The file being moved"),L.T("The existing file")};
             for(int side=0;side<2;side++) {
                 var card=Card(side,headings[side],paths[side]);
                 Grid.SetColumn(card,side*2);cards.Children.Add(card);
@@ -327,11 +327,11 @@ namespace LoveMyShelf {
             page.Children.Add(cards);
             same.TextWrapping=TextWrapping.Wrap;same.Margin=new Thickness(0,10,0,0);same.FontWeight=FontWeights.SemiBold;same.Visibility=Visibility.Collapsed;
             page.Children.Add(same);
-            var hint=UI.Text(NoticeLook.KeepWords(L.T("Replace puts the file that is there into the Recycle Bin first. Keep both gives this one a number after its name.")),12,true);
+            var hint=UI.Text(NoticeLook.KeepWords(L.T("[Replace] sends the file that was in that folder to the Recycle Bin first. [Keep both] adds a number after the name of the file being moved.")),12,true);
             hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,10,0,0);page.Children.Add(hint);
             CheckBox all=null;
             if(info.Total>info.Number) {
-                all=new CheckBox {Content=L.F("Do the same for the other {0:N0} too, without looking at them",info.Total-info.Number),Margin=new Thickness(0,12,0,0)};
+                all=new CheckBox {Content=L.F("Do the same for the other {0:N0} too, without asking",info.Total-info.Number),Margin=new Thickness(0,12,0,0)};
                 all.SetResourceReference(Control.ForegroundProperty,"Text");page.Children.Add(all);
             }
             var actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
@@ -341,7 +341,7 @@ namespace LoveMyShelf {
                 actions.Children.Add(button);
             };
             add(L.T(info.Copy?"Replace with the copied file":"Replace with the moved file"),ConflictChoice.Replace,false);
-            add(L.T("Keep the file that is there"),ConflictChoice.Skip,false);
+            add(L.T("Keep the existing file"),ConflictChoice.Skip,false);
             add(L.T("Keep both"),ConflictChoice.KeepBoth,true);
             page.Children.Add(actions);
             PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape){e.Handled=true;Close();}}; // Esc = keep the one that is there
@@ -375,7 +375,7 @@ namespace LoveMyShelf {
                 bool identical=await Task.Run(()=>FileFacts.SameBytes(info.From,info.To,token),token);
                 if(token.IsCancellationRequested || !identical)return;
                 Identical=true;
-                same.Text=L.T("These are exactly the same file.");same.Visibility=Visibility.Visible;
+                same.Text=L.T("These are exactly the same file. It makes no difference which one you keep.");same.Visibility=Visibility.Visible;
                 Facts.Add("same");
             } catch(OperationCanceledException) {}
             catch(Exception) {}
@@ -394,7 +394,7 @@ namespace LoveMyShelf {
             } else ((TextBlock)frame.Child).Text=L.T("This picture can't be shown.");
             var rows=details[side];rows.Children.Clear();
             var name=UI.Text(NoticeLook.KeepWords(System.IO.Path.GetFileName(mine.Path)),13);name.TextWrapping=TextWrapping.Wrap;rows.Children.Add(name);
-            if(mine.Missing){rows.Children.Add(UI.Text(L.T("The file is no longer there."),12,true));return;}
+            if(mine.Missing){rows.Children.Add(UI.Text(L.T("The file is not in that place."),12,true));return;}
             bool newer=mine.Modified>other.Modified.AddSeconds(1),larger=mine.Bytes>other.Bytes,sharper=mine.Pixels>other.Pixels && other.Pixels>0;
             Row(rows,L.T("Size"),Size(mine.Bytes),larger?L.T("Larger"):null);
             Row(rows,L.T("Date modified"),mine.Modified.ToString("g"),newer?L.T("Newer"):null);

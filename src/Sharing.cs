@@ -48,7 +48,7 @@ namespace LoveMyShelf {
                 else {
                     var list=new StringCollection();list.AddRange(files.ToArray());
                     System.Windows.Clipboard.SetFileDropList(list);
-                    owner.Notify(L.T("Copied"),L.T("Paste with Ctrl+V in a chat window or a folder."),null,NoticeKind.Done);
+                    owner.Notify(L.T("Copied"),L.T("Press Ctrl+V in a chat window or a folder to paste."),null,NoticeKind.Done);
                 }
             } catch(OperationCanceledException) {}
             catch(Exception ex) {owner.Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
@@ -77,7 +77,7 @@ namespace LoveMyShelf {
                 else {
                     var list=new StringCollection();list.AddRange(files.ToArray());
                     System.Windows.Clipboard.SetFileDropList(list);
-                    owner.Notify(L.T("Copied"),L.T("Paste with Ctrl+V in a chat window or a folder."),null,NoticeKind.Done);
+                    owner.Notify(L.T("Copied"),L.T("Press Ctrl+V in a chat window or a folder to paste."),null,NoticeKind.Done);
                 }
             } catch(OperationCanceledException) {}
             catch(Exception ex) {owner.Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
@@ -142,7 +142,7 @@ namespace LoveMyShelf {
             var files=new List<string>();
             if(content!=ShareContent.OriginalOnly) {
                 files.AddRange(Covers(photo));
-                if(files.Count==0 && content==ShareContent.CoverOnly)throw new FileNotFoundException(L.T("The saved cover file is missing."));
+                if(files.Count==0 && content==ShareContent.CoverOnly)throw new FileNotFoundException(L.T("The saved cover file can't be found."));
             }
             if(content!=ShareContent.CoverOnly) {
                 string original=photo.Original;
@@ -201,12 +201,12 @@ namespace LoveMyShelf {
             Width=Math.Min(440,SystemParameters.WorkArea.Width);SizeToContent=SizeToContent.Height;
             var root=new DockPanel();root.Children.Add(new WindowTitleBar(this));
             var page=new StackPanel {Margin=new Thickness(22,16,22,20)};root.Children.Add(page);Content=root;
-            var title=UI.Text(NoticeLook.KeepWords(bytes>0?L.F("This video is {0:0.#} MB. How should it go?",bytes/1048576.0):
-                L.F("Some videos are bigger than {0} MB. How should they go?",((GalleryWindow)owner).Settings.ShareLimitMB)),16);
+            var title=UI.Text(NoticeLook.KeepWords(bytes>0?L.F("This video is {0:0.#} MB. How should it be sent?",bytes/1048576.0):
+                L.F("Some videos are bigger than {0} MB. How should they be sent?",((GalleryWindow)owner).Settings.ShareLimitMB)),16);
             title.FontWeight=FontWeights.SemiBold;title.TextWrapping=TextWrapping.Wrap;page.Children.Add(title);
             var file=UI.Text(name,12,true);file.TextTrimming=TextTrimming.CharacterEllipsis;file.Margin=new Thickness(0,4,0,16);page.Children.Add(file);
             var whole=UI.Btn(L.T("Send it as it is"),()=>{WantsClip=false;DialogResult=true;});
-            var clip=UI.Btn(L.T("Only about 10 seconds around the cover"),()=>{WantsClip=true;DialogResult=true;},true);
+            var clip=UI.Btn(L.T("Send only 10 seconds around the cover scene"),()=>{WantsClip=true;DialogResult=true;},true);
             foreach(var button in new[]{clip,whole}) {
                 button.FontSize=14;button.MinHeight=38;button.Margin=new Thickness(0,0,0,8);
                 button.HorizontalContentAlignment=HorizontalAlignment.Left;page.Children.Add(button);
