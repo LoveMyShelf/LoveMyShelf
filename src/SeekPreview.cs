@@ -21,19 +21,25 @@ namespace LoveMyShelf {
         readonly DragSlider slider;
         readonly Canvas layer=new Canvas {IsHitTestVisible=false,ClipToBounds=true};
         readonly Grid card=new Grid {Visibility=Visibility.Collapsed};
-        readonly Image thumbnail=new Image {Stretch=Stretch.Fill};
+        readonly FramedImage thumbnail=new FramedImage {Stretch=Stretch.Fill};
         readonly OutlinedText time=new OutlinedText {FontSize=15,HorizontalAlignment=HorizontalAlignment.Center,
             VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,0,6)};
         internal FrameworkElement Card {get{return card;}}
         internal Image Picture {get{return thumbnail;}}
         internal string TimeText {get{return time.Text;}}
-        // The playback brightness (E/W): the picture sits on a white or black card at 1-|level|/100,
-        // the same as the video, the scene grid and saved covers. The time stays crisp.
+        // The playback brightness (E/W), drawn with the same curve as the video, the scene grid and covers (see Light).
+        // The time stays crisp.
+        int brightness;
         internal int Brightness {
+            set {brightness=value;ApplyBrightness();}
+        }
+        void ApplyBrightness() {thumbnail.Brightness=brightness;}
+        // The turn, zoom and place of the large view; null when it shows the picture plainly.
+        internal ViewFraming Framing {
             set {
-                int level=Math.Max(-100,Math.Min(100,value));
-                card.Background=level==0?null:level>0?Brushes.White:Brushes.Black;
-                thumbnail.Opacity=1-Math.Abs(level)/100.0;
+                thumbnail.Framing=value;ApplyBrightness();
+                var frame=thumbnail.Source as BitmapSource;
+                if(card.Visibility==Visibility.Visible && frame!=null)Show(shownSample,frame);
             }
         }
         // Pixels to read for a sharp picture at this display's scale.
@@ -146,8 +152,11 @@ namespace LoveMyShelf {
         void Show(long target,BitmapSource frame) {
             // Fits the largest box, and never takes more than about half of a small window.
             double boxWidth=Math.Min(MaxWidth,Math.Max(120,host.ActualWidth*0.45)),boxHeight=Math.Min(MaxHeight,Math.Max(90,host.ActualHeight*0.45));
-            double scale=Math.Min(boxWidth/frame.PixelWidth,boxHeight/frame.PixelHeight);
-            thumbnail.Width=Math.Round(frame.PixelWidth*scale);thumbnail.Height=Math.Round(frame.PixelHeight*scale);
+            // Turned or zoomed, the card has the shape of what the large view shows.
+            var framing=thumbnail.Framing;
+            double shapeWidth=framing!=null?framing.ShownWidth:frame.PixelWidth,shapeHeight=framing!=null?framing.ShownHeight:frame.PixelHeight;
+            double scale=Math.Min(boxWidth/shapeWidth,boxHeight/shapeHeight);
+            thumbnail.Width=Math.Round(shapeWidth*scale);thumbnail.Height=Math.Round(shapeHeight*scale);
             card.Width=thumbnail.Width;card.Height=thumbnail.Height;
             thumbnail.Source=frame;time.Text=Clock(target);shownSample=target;
             if(card.Visibility!=Visibility.Visible) {

@@ -42,7 +42,8 @@ Exact versions are in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md). .NET 
 | `GalleryWindow.cs` | main window, virtualized tile grid |
 | `FolderTree.cs`, `AddressBar.cs`, `FolderPane.cs`, `ShellMenu.cs` | folder tree, address bar, subfolder views, Windows right-click menu |
 | `TileImages.cs` | tile pictures (shell thumbnails, cover images) |
-| `Viewer.cs`, `MpvPlayer.cs`, `SeekPreview.cs`, `CoverStrip.cs` | large view, libmpv playback in a child window, seek-bar thumbnails, covers of one original |
+| `Viewer.cs`, `MpvPlayer.cs`, `SeekPreview.cs`, `ViewFraming.cs`, `CoverStrip.cs` | large view, libmpv playback in a child window, seek-bar thumbnails, carrying the view's turn and zoom into thumbnails and covers, covers of one original |
+| `SpeakerRouting.cs` | which speaker a video plays on, by the monitor its window is on |
 | `Subtitles.cs`, `SubtitleExplorer.cs` | reading and saving SMI/SRT/ASS/VTT, subtitle explorer and sync |
 | `Crop.cs`, `CoverImages.cs` | cover editor surface, rendering a crop from the original |
 | `FramePicker.cs`, `VideoFrames.cs` | video frame grid, FFmpeg frame reading |

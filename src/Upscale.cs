@@ -395,56 +395,112 @@ namespace LoveMyShelf {
         }
     }
 
-    // Shows the current cover and its upscaled version side by side. Wheel zoom and drag move both together.
+    // Shows the current cover and its upscaled version next to each other, as big as the screen allows: the two
+    // pictures fill the window from top to bottom and touch in the middle, and the names and buttons stand beside
+    // them instead of above and below. Wide covers are stacked instead, when that shows them bigger.
+    // Wheel zoom and drag move both together. It follows its owner into full screen, where nothing at all is
+    // above or below the pictures (the title bar only shows while the mouse is at the top).
     internal sealed class UpscaleChoiceWindow : Window {
         internal bool? ChoseUpscaled {get;private set;}
         readonly ScaleTransform zoom=new ScaleTransform();
         readonly TranslateTransform shift=new TranslateTransform();
         Point? dragFrom;
+        const double PanelWidth=210,Gap=4,TitleHeight=30;
+        readonly Grid stage=new Grid();
+        readonly Border[] frames=new Border[2];
+        readonly StackPanel[] panels=new StackPanel[2];
+        readonly WindowTitleBar titleBar;
+        double aspect=9/16.0; // width over height; the covers' own once the first one is read
+        bool full,stacked,fitted;
+        Rect work;
 
         internal UpscaleChoiceWindow(Window owner,Photo photo) {
             UI.WindowSetup(this,L.T("Choose a cover"));
-            if(owner!=null && owner.IsVisible){Owner=owner;WindowStartupLocation=WindowStartupLocation.CenterOwner;}
-            ShowInTaskbar=owner==null || !owner.IsVisible;
-            var area=SystemParameters.WorkArea;
-            Width=Math.Min(1100,area.Width);Height=Math.Min(860,area.Height);MinWidth=420;MinHeight=360;
+            bool owned=owner!=null && owner.IsVisible;
+            if(owned)Owner=owner;
+            ShowInTaskbar=!owned;
+            MinWidth=520;MinHeight=360;
+            // As tall as the work area of the monitor the owner is on.
+            work=SystemParameters.WorkArea;
+            if(owned) {
+                try {
+                    var screen=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(owner).Handle).WorkingArea;
+                    var source=PresentationSource.FromVisual(owner);
+                    Matrix toUnits=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformFromDevice:Matrix.Identity;
+                    var corner=toUnits.Transform(new Point(screen.Left,screen.Top));var size=toUnits.Transform(new Vector(screen.Width,screen.Height));
+                    if(size.X>200 && size.Y>200)work=new Rect(corner.X,corner.Y,size.X,size.Y);
+                } catch(Exception) {}
+            }
+            WindowStartupLocation=WindowStartupLocation.Manual;
+            Place();
             var transform=new TransformGroup();transform.Children.Add(zoom);transform.Children.Add(shift);
-            var windowContent=new DockPanel();
-            windowContent.Children.Add(new WindowTitleBar(this));
-            var root=new DockPanel {Margin=new Thickness(12,8,12,12)};
-            windowContent.Children.Add(root);Content=windowContent;
-            var hint=UI.Text(L.T("Zoom with the wheel and drag to move. The two pictures move together. Double-click to go back to how it was.")+" "+
-                L.T("The file you don't choose also stays in the cover folder."),12,true);
-            hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(2,0,2,8);
-            DockPanel.SetDock(hint,Dock.Top);root.Children.Add(hint);
-            var footer=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
-            var later=UI.Btn(L.T("Decide later"),Close);later.MinWidth=90;footer.Children.Add(later);
-            DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-            var columns=new Grid();
-            columns.ColumnDefinitions.Add(new ColumnDefinition());
-            columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(10)});
-            columns.ColumnDefinitions.Add(new ColumnDefinition());
-            root.Children.Add(columns);
+            var windowContent=new Grid();
+            windowContent.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            windowContent.RowDefinitions.Add(new RowDefinition());
+            titleBar=FullScreen.TitleBar(this,owned && FullScreen.IsFull(owner),escapeExits:false,changed:SetFull);
+            titleBar.VerticalAlignment=VerticalAlignment.Top;Panel.SetZIndex(titleBar,1);
+            Grid.SetRow(stage,1);windowContent.Children.Add(stage);windowContent.Children.Add(titleBar);
+            Content=windowContent;
+            stage.SetResourceReference(Panel.BackgroundProperty,"Paper");
+            // The pictures sit in the middle column(s) and rows; the stars around them share what is left.
+            stage.ColumnDefinitions.Add(new ColumnDefinition());
+            stage.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+            stage.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(Gap)});
+            stage.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+            stage.ColumnDefinitions.Add(new ColumnDefinition());
+            stage.RowDefinitions.Add(new RowDefinition());
+            stage.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            stage.RowDefinitions.Add(new RowDefinition {Height=new GridLength(Gap)});
+            stage.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            stage.RowDefinitions.Add(new RowDefinition());
             bool upscaledNow=photo.UpscaleChoice=="upscaled";
-            AddSide(columns,0,L.T("Original cover"),photo.CoverFile,transform,!upscaledNow,false);
-            AddSide(columns,2,L.T("Upscaled"),photo.UpscaleFile,transform,upscaledNow,true);
+            AddSide(0,L.T("Original cover"),photo.CoverFile,transform,!upscaledNow,false);
+            AddSide(1,L.T("Upscaled"),photo.UpscaleFile,transform,upscaledNow,true);
+            // How to move the pictures, and the way out without choosing, under the second name.
+            var hint=UI.Text(NoticeLook.KeepWords(L.T("Zoom with the wheel and drag to move. The two pictures move together. Double-click to go back to how it was.")+" "+
+                L.T("The file you don't choose also stays in the cover folder.")),12,true);
+            hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,26,0,0);hint.LineHeight=18;
+            panels[1].Children.Add(hint);
+            var later=UI.Btn(L.T("Decide later"),Close);later.MinHeight=30;later.HorizontalAlignment=HorizontalAlignment.Left;later.Margin=new Thickness(0,10,0,0);
+            panels[1].Children.Add(later);
+            stage.SizeChanged+=delegate {Arrange();};
             PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape){Close();e.Handled=true;}};
+            // In full screen the title bar stays out of the way until the mouse reaches the top edge.
+            PreviewMouseMove+=(s,e)=>{
+                if(!full)return;
+                bool near=e.GetPosition(this).Y<(titleBar.Visibility==Visibility.Visible?TitleHeight+8:6);
+                titleBar.Visibility=near || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
+            };
+            SetFull(false);
         }
-        void AddSide(Grid columns,int column,string title,string path,Transform transform,bool inUse,bool upscaled) {
-            var side=new DockPanel();
-            var header=new DockPanel {Margin=new Thickness(2,0,2,6)};
-            var name=UI.Text(title,14);name.FontWeight=FontWeights.SemiBold;
-            var size=UI.Text("",12,true);size.Margin=new Thickness(8,0,0,0);
-            header.Children.Add(name);header.Children.Add(size);
-            DockPanel.SetDock(header,Dock.Top);side.Children.Add(header);
+        // Windowed: the title bar has its own row. Full screen: the pictures take the whole window and the bar floats over them.
+        void SetFull(bool now) {
+            full=now;
+            Grid.SetRow(stage,full?0:1);Grid.SetRowSpan(stage,full?2:1);
+            titleBar.Visibility=full?Visibility.Collapsed:Visibility.Visible;
+        }
+        // The window's place when it is not full screen: the whole height of the work area, and wide enough for
+        // the two pictures at that height with a panel on each side.
+        void Place() {
+            double room=Math.Max(200,work.Height-TitleHeight);
+            double side=2*room*aspect+Gap+2*PanelWidth,stack=(room-Gap)/2*aspect+2*PanelWidth;
+            double wanted=Math.Min(room,(work.Width-2*PanelWidth-Gap)/2/aspect)>=Math.Min((room-Gap)/2,(work.Width-2*PanelWidth)/aspect)?side:stack;
+            Height=work.Height;Width=Math.Max(Math.Min(MinWidth,work.Width),Math.Min(work.Width,Math.Ceiling(wanted)));
+            Left=work.Left+(work.Width-Width)/2;Top=work.Top;
+        }
+        void AddSide(int index,string title,string path,Transform transform,bool inUse,bool upscaled) {
+            var panel=new StackPanel {Width=PanelWidth-28,VerticalAlignment=VerticalAlignment.Center};
+            var name=UI.Text(title,16);name.FontWeight=FontWeights.SemiBold;name.TextWrapping=TextWrapping.Wrap;
+            var size=UI.Text("",12,true);size.Margin=new Thickness(0,3,0,0);size.TextWrapping=TextWrapping.Wrap;
             var choose=UI.Btn(inUse?L.T("In use · keep using it"):L.T("Use this cover"),()=>{ChoseUpscaled=upscaled;DialogResult=true;},true);
-            choose.Margin=new Thickness(0,8,0,0);choose.MinHeight=30;
-            DockPanel.SetDock(choose,Dock.Bottom);side.Children.Add(choose);
+            choose.Margin=new Thickness(0,12,0,0);choose.MinHeight=34;choose.HorizontalAlignment=HorizontalAlignment.Left;
+            panel.Children.Add(name);panel.Children.Add(size);panel.Children.Add(choose);
+            panels[index]=panel;stage.Children.Add(panel);
             var image=new Image {Stretch=Stretch.Uniform,RenderTransform=transform};
             RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
             var frame=new Border {Background=Brushes.Black,ClipToBounds=true,Child=image,
-                BorderThickness=new Thickness(inUse?2:1),Cursor=Cursors.SizeAll};
-            frame.SetResourceReference(Border.BorderBrushProperty,inUse?"Accent":"Line");
+                BorderThickness=new Thickness(inUse?2:0),Cursor=Cursors.SizeAll,VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center};
+            frame.SetResourceReference(Border.BorderBrushProperty,"Accent");
             frame.MouseWheel+=(s,e)=>{Zoom(image,e.GetPosition(image),e.Delta>0?1.25:0.8);e.Handled=true;};
             frame.MouseLeftButtonDown+=(s,e)=>{
                 if(e.ClickCount==2){zoom.ScaleX=zoom.ScaleY=1;shift.X=shift.Y=0;return;}
@@ -456,9 +512,43 @@ namespace LoveMyShelf {
                 shift.X+=now.X-dragFrom.Value.X;shift.Y+=now.Y-dragFrom.Value.Y;dragFrom=now;
             };
             frame.MouseLeftButtonUp+=delegate {dragFrom=null;frame.ReleaseMouseCapture();};
-            side.Children.Add(frame);
-            Grid.SetColumn(side,column);columns.Children.Add(side);
-            LoadInto(image,size,path);
+            frames[index]=frame;stage.Children.Add(frame);
+            LoadInto(image,size,path,index==0);
+        }
+        // Side by side or one above the other, whichever shows the pictures bigger; then each picture gets exactly
+        // its own shape, so nothing is empty above or below it when the height is what limits it.
+        void Arrange() {
+            double width=stage.ActualWidth,height=stage.ActualHeight;
+            if(width<=0 || height<=0 || frames[1]==null)return;
+            double beside=Math.Min(height,(width-2*PanelWidth-Gap)/2/aspect);
+            double above=Math.Min((height-Gap)/2,(width-2*PanelWidth)/aspect);
+            stacked=above>beside+1;
+            double tall=Math.Max(40,Math.Floor(stacked?above:beside));
+            foreach(var frame in frames){frame.Height=tall;frame.Width=Math.Max(40,Math.Floor(tall*aspect));}
+            if(stacked) {
+                // Pictures in the middle, one over the other; each name stands to the right of its own picture.
+                Put(frames[0],1,1,1,3);Put(frames[1],3,1,1,3);
+                Put(panels[0],1,4,1,1);Put(panels[1],3,4,1,1);
+                foreach(var panel in panels){panel.HorizontalAlignment=HorizontalAlignment.Left;panel.Margin=new Thickness(14,0,14,0);}
+                Align(panels[0],TextAlignment.Left);
+            } else {
+                // Original on the left with its name to its left; upscaled on the right with its name to its right.
+                Put(frames[0],0,1,5,1);Put(frames[1],0,3,5,1);
+                Put(panels[0],0,0,5,1);Put(panels[1],0,4,5,1);
+                panels[0].HorizontalAlignment=HorizontalAlignment.Right;panels[0].Margin=new Thickness(14,0,14,0);
+                panels[1].HorizontalAlignment=HorizontalAlignment.Left;panels[1].Margin=new Thickness(14,0,14,0);
+                Align(panels[0],TextAlignment.Right);
+            }
+        }
+        static void Put(FrameworkElement element,int row,int column,int rows,int columns) {
+            Grid.SetRow(element,row);Grid.SetColumn(element,column);Grid.SetRowSpan(element,rows);Grid.SetColumnSpan(element,columns);
+        }
+        // The left panel's words and button lean toward its picture.
+        static void Align(StackPanel panel,TextAlignment side) {
+            foreach(var child in panel.Children) {
+                var text=child as TextBlock;if(text!=null)text.TextAlignment=side;
+                var button=child as Button;if(button!=null)button.HorizontalAlignment=side==TextAlignment.Right?HorizontalAlignment.Right:HorizontalAlignment.Left;
+            }
         }
         void Zoom(Image image,Point at,double factor) {
             double scale=Math.Max(1,Math.Min(10,zoom.ScaleX*factor));
@@ -466,7 +556,7 @@ namespace LoveMyShelf {
             shift.X+=at.X*(zoom.ScaleX-scale);shift.Y+=at.Y*(zoom.ScaleY-scale);
             zoom.ScaleX=zoom.ScaleY=scale;
         }
-        async void LoadInto(Image image,TextBlock size,string path) {
+        async void LoadInto(Image image,TextBlock size,string path,bool shapes) {
             try {
                 var bitmap=await Task.Run(()=>{
                     using(var file=File.Open(path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
@@ -476,6 +566,12 @@ namespace LoveMyShelf {
                 });
                 image.Source=bitmap;
                 size.Text=L.F("{0} × {1} px",bitmap.PixelWidth,bitmap.PixelHeight);
+                // The original cover's shape decides the layout (the upscaled one has the same shape).
+                if(shapes && bitmap.PixelWidth>0 && bitmap.PixelHeight>0) {
+                    aspect=bitmap.PixelWidth/(double)bitmap.PixelHeight;
+                    if(!fitted && !full && WindowState==WindowState.Normal){fitted=true;Place();}
+                    Arrange();
+                }
             } catch(Exception ex) {size.Text=ex.Message;}
         }
     }

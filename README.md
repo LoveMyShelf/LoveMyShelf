@@ -107,7 +107,6 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 - [이전 버전](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 - [개발자용: 소스에서 빌드하기와 코드 구성](docs/BUILDING.md)
 - 라이선스: [GPL-3.0](LICENSE). 함께 들어 있는 libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard는 각자의 라이선스를 따라요. 자세한 내용은 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)에 있어요.
-- 시연 영상 속 강아지 영상은 Pexels의 [Nothing Ahead](https://www.pexels.com/video/11622180/) 님 영상이고, [Pexels 라이선스](https://www.pexels.com/license/)에 따라 썼어요.
 
 ---
 
@@ -214,4 +213,3 @@ If you have a GitHub account, you can also write in [Issues](https://github.com/
 - [Earlier versions](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 - [For developers: building from source and code layout](docs/BUILDING.md)
 - License: [GPL-3.0](LICENSE). The bundled libmpv, FFmpeg, ONNX Runtime, Swin2SR and Pretendard follow their own licenses; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-- The dog video in the demos is by [Nothing Ahead](https://www.pexels.com/video/11622180/) on Pexels, used under the [Pexels License](https://www.pexels.com/license/).

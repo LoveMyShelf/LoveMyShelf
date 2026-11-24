@@ -28,6 +28,13 @@ namespace LoveMyShelf {
             FullScreen found;
             if(instances.TryGetValue(owner,out found) && !found.active)found.Set(true,false);
         }
+        // Where a full-screen window goes back to when it leaves full screen. False when it is not in full screen.
+        internal static bool Restore(Window owner,out Rect bounds,out bool maximized) {
+            FullScreen found;
+            bool full=instances.TryGetValue(owner,out found) && found.active;
+            bounds=full?found.oldBounds:Rect.Empty;maximized=full && found.oldState==WindowState.Maximized;
+            return full;
+        }
         public static bool IsFull(Window owner) { return owner.WindowStyle==WindowStyle.None && owner.ResizeMode==ResizeMode.NoResize; }
         public static WindowTitleBar TitleBar(Window window,bool start,Action<bool> remember=null,bool escapeExits=true,Action<bool> changed=null) {
             return new FullScreen(window,start,remember,escapeExits,changed).titleBar;
@@ -36,6 +43,11 @@ namespace LoveMyShelf {
             this.window=window;this.remember=remember;this.changed=changed;
             instances.Add(window,this);
             titleBar=new WindowTitleBar(window,()=>Set(!active,true));
+            titleBar.MaximizeFromFull=()=>{
+                if(!active)return;
+                oldState=WindowState.Maximized; // leaving full screen lands on a maximized window
+                Set(false,true);
+            };
             window.Loaded+=delegate { if(start && !active)Set(true,false); };
             window.PreviewKeyDown+=(s,e)=>{
                 if(e.Handled)return;

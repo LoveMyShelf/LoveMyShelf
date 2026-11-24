@@ -7,6 +7,58 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ---
 
+## 1.0.6 · 2026-11-25
+
+영상을 보면서 GIF 표지 구간을 바로 정하고, 돌리거나 확대한 화면 그대로 표지를 만들 수 있어요. 화면을 오른쪽 클릭하면 모든 조작이 키와 함께 한눈에 보여요.
+
+- **영상을 보면서 GIF 표지 구간 정하기:** 영상을 보다가 움짤로 만들고 싶은 곳이 나오면 시작할 곳에서 [ 키, 끝낼 곳에서 ] 키를 눌러요. 재생바에 그 구간이 파랗게 표시되고 그 구간만 되풀이해서 재생되니까, GIF 표지가 어떻게 움직일지 미리 볼 수 있어요. 그 상태로 평소처럼 표지를 만들면 GIF 표지 만들기 창이 정해 둔 구간으로 바로 열려요. 구간은 60초까지 정할 수 있고, \ 키(한국어 키보드의 ₩ 키)를 누르면 지워져요.
+- **오른쪽 클릭하면 열리는 조작 창:** 영상이나 사진을 크게 보다가 화면을 오른쪽 클릭하면 조작 창이 열려요. 재생, 장면 이동, 건너뛰기, 속도, 밝기, 회전, 확대, 소리, 자막까지 모든 조작이 키와 함께 적혀 있어서 키를 외우지 않아도 돼요. 버튼을 마우스로 눌러도 키와 똑같이 동작하고, 누르고 있으면 계속 이어져요. 재생바에 있던 장면 캡처, 자막, 목소리 또렷하게 버튼은 이 창으로 옮겨서 재생바가 짧고 깔끔해졌어요.
+- **영상 회전과 확대, 그 모습 그대로 표지까지:** O와 P로 화면을 왼쪽·오른쪽으로 돌리고(기본값 10도씩, 누르고 있으면 계속 돌고 90도마다 잠깐 멈춰요), 마우스 휠로 최대 8배까지 확대할 수 있어요. I를 누르면 각도, 크기, 위치가 모두 원래대로 돌아와요. 돌리거나 확대한 채로 표지 만들기를 누르면 장면 고르기, 표지, GIF 표지까지 같은 각도, 같은 크기, 같은 위치로 이어져요. 재생바의 작은 미리보기 그림도 지금 화면과 똑같이 보여요.
+- **밝기 방식 두 가지: 부드럽게 · 어두운 곳 보기:** 밝기를 올리면 화면 전체가 하얗게 뜨던 방식을 새 곡선으로 바꿨어요. 부드럽게(기본)는 얼굴을 은은하고 뽀얗게 밝혀 주고, 어두운 곳 보기는 어두운 부분만 크게 들어 올려서 아주 어두운 영상에서도 물체가 잘 구분돼요. R 키로 두 방식을 바로 바꿀 수 있고, 표지 만들기 화면에서도 똑같이 쓸 수 있어요. 다른 파일로 넘어가면 원래 밝기로 돌아와요.
+- **밖에서 만든 그림을 표지로:** 칸을 오른쪽 클릭하고 [밖에서 만든 그림을 표지로…]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 고르면, 그 그림으로 평소와 같은 표지 만들기 화면이 열려요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요. 고른 그림은 Love My Shelf가 사본을 따로 보관해 둬요.
+- **표지 순서 바꾸기:** 원본 하나에 표지가 두 장 이상 있으면, 표지를 오른쪽 클릭하고 [표지 순서]에서 앞으로, 뒤로, 맨 앞으로(첫 번째 표지) 옮길 수 있어요. 직접 옮긴 원본은 정한 순서를 그대로 지키고, [자동 순서로 되돌리기]를 누르면 영상 속 장면의 시간 순서로 돌아가요.
+- **파일 탐색기에서 [Love My Shelf로 열기]:** 파일 탐색기에서 사진이나 영상을 오른쪽 클릭하면 [Love My Shelf로 열기]가 나와요(Windows 11에서는 먼저 [더 많은 옵션 표시]를 누르거나 Shift+F10을 누르세요). 누르면 그 파일이 든 폴더가 열리고 그 파일이 바로 크게 보여요. Love My Shelf가 이미 켜져 있어도 돼요. 처음부터 켜져 있고, 설명서 겸 옵션의 [화면·언어·새 버전]에서 끌 수 있어요.
+- **모니터마다 다른 스피커:** 설명서 겸 옵션의 [크게 보기]에서 모니터마다 소리가 나올 스피커를 정할 수 있어요. 영상 창을 다른 모니터로 옮기면 1초쯤 뒤에 소리도 그 모니터의 스피커로 따라가고, 볼륨은 스피커마다 따로 기억해요.
+- **파일 정보 보기와 바로 휴지통으로:** 크게 보기에서 Tab을 누르면 파일 이름, 어느 드라이브의 어느 폴더에 있는지, 형식, 용량, 화질, fps 같은 정보가 왼쪽 위에 나와요. Delete를 누르면 지금 보는 원본 파일을 휴지통으로 보내고 다음 파일로 넘어가요. 잘못 보냈다면 Windows 휴지통에서 되살릴 수 있어요.
+- **자막 크기 조절과 같은 글꼴:** 자막이 Love My Shelf와 같은 글꼴로 표시돼요. 크기는 화면을 오른쪽 클릭하면 나오는 조작 창의 [자막 크기]에서 10%씩 바꾸거나, 설명서 겸 옵션의 [크게 보기]에서 고를 수 있어요. 바꾼 크기는 다음 영상에도 그대로 쓰여요.
+- **새로워진 GIF 표지 만들기 창:** 미리보기 왼쪽에는 지금 보는 것이 무엇인지 알려 주는 설명 칸이, 오른쪽에는 속도와 재생 방식 같은 선택이 나란히 놓였어요. 아래쪽 장면 띠는 훨씬 커졌고 그림을 가리던 검은 부분이 없어져서 장면이 또렷하게 보여요. 띠 위에서 마우스 휠을 굴리면 좌우로 빠르게 움직이고, 구간 바깥을 더블클릭하면 가까운 손잡이가 그 자리로 와요. 속도는 0.2배부터 4배까지 0.1배씩 바꿀 수 있고(X, C), V를 누르면 바로 2배가 돼요.
+- **GIF 표지 기본값: WebP · 화질 높게 · 1초에 30장 · 세로 1280픽셀:** GIF 표지가 처음부터 더 부드럽고 선명하게 만들어져요. 이미 쓰고 계신 분께는 한 번 알려 드리고, 새 기본값으로 한 번 만들어 보시길 권해요. 마음에 들지 않으면 설명서 겸 옵션의 [GIF 표지 만들기]에서 숫자를 직접 넣어 바꿀 수 있어요. 미리보기는 구간을 바꾸면 바로 나오고, 실제 파일은 [만들기]를 눌렀을 때 만들어요(뒤에서 알아서 만들게 바꿀 수도 있어요).
+- **표지를 만드는 동안 다른 창도 쓸 수 있어요:** 창을 두 개 켜 놓고 쓸 때, 한 창에서 표지를 만드는 동안에도 다른 폴더 창을 둘러보고 쓸 수 있어요. 영상을 보다가 표지를 추가해도 영상 창은 뒤에 그대로 있어서, 저장하고 나면 보던 곳부터 이어서 볼 수 있어요.
+- **영상 창이 지난번 자리와 크기 그대로:** 크게 보기 창이 동영상 플레이어처럼 지난번에 닫은 자리와 크기로 열려요. 폴더 창 위에 포개져 열리던 것도 고쳤어요.
+- **전체 화면에서도 최소화·최대화 버튼:** 전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. Love My Shelf의 모든 창이 같아요.
+- **폴더 창을 최소화하면 메모리를 덜 써요:** 영상만 볼 때는 폴더 창을 최소화해 보세요. 5초쯤 뒤에 칸에 보여 주려고 읽어 둔 그림들을 내려놓아서 메모리를 덜 써요. 영상을 보는 중이라면 화면을 오른쪽 클릭하고 [폴더 창 최소화]를 누르면 돼요.
+- **설정 숫자를 직접 입력:** 설명서 겸 옵션에서 숫자를 고르는 설정은 대부분 선택 칸들 아래에 [직접 입력] 칸이 생겼어요. 원하는 숫자를 넣고 Enter를 누르거나, − / +를 눌러 한 단계씩 바꿀 수 있어요. 넣을 수 있는 범위는 칸 아래에 적혀 있어요.
+- **업스케일링: 이름이 바뀌고 비교가 쉬워졌어요:** [선명하게 키우기]의 이름이 [업스케일링]으로 바뀌었어요. 원래 표지와 업스케일링한 표지가 창 위아래를 꽉 채워서 가운데에 맞붙어 보이니까 차이가 한눈에 보여요. 전체 화면으로 쓰는 중이면 비교 창도 전체 화면으로 열려요.
+- **표지에 장면 시간 표시:** 영상으로 만든 표지에 그 장면이 영상의 어디쯤인지(12:34처럼) 보여 줄 수 있어요. 설명서 겸 옵션의 [표지 만들기]에서 켜고 끌 수 있어요.
+- **바뀐 키: 목소리 또렷하게는 N, 2배속은 V:** 목소리 또렷하게를 켜고 끄는 키가 V에서 N으로 바뀌었어요. V는 이제 바로 2배 속도로 가는 키이고, 한 번 더 누르면 1배로 돌아와요. 모든 키는 크게 보기에서 화면을 오른쪽 클릭하면 볼 수 있어요.
+- **GIF 표지 장면 띠에 엉뚱한 장면이 보이던 문제:** GIF 표지 만들기의 장면 띠에서 표지 왼쪽 칸에 전혀 다른 장면이 나오고 바뀌지 않던 문제를 고쳤어요.
+
+---
+
+Set the GIF cover part right while watching a video, and make a cover just as the screen looks when turned or zoomed. Right-click the screen and every control shows at a glance with its key.
+
+- **Set the GIF cover part while watching a video:** While watching a video, when a place you want to make into a moving cover comes up, press the [ key where it starts and the ] key where it ends. The playback bar shows that part in blue and only that part plays again and again, so you can see in advance how the GIF cover will move. Make a cover as usual in that state, and the Make GIF cover window opens right on the part you set. A part can be up to 60 seconds, and the \ key clears it.
+- **A controls window that opens with a right-click:** While looking at a video or photo in the large view, right-click the screen and the controls window opens. Play, moving by scene, skipping, speed, brightness, rotation, zoom, sound and subtitles: every control is written there with its key, so you don't have to memorize the keys. Clicking a button with the mouse works just like the key, and holding it down keeps it going. The Capture scene, Subtitles and Clear voice buttons that were on the playback bar moved into this window, so the playback bar is short and tidy.
+- **Turn and zoom a video, and make the cover just as it looks:** Turn the screen left and right with O and P (10 degrees at a time by default; held down, it keeps turning and rests for a moment at every 90 degrees), and zoom in up to 8× with the mouse wheel. Press I and the angle, size and position all go back to normal. Click Make cover while it is turned or zoomed, and Choose a scene, the cover and even the GIF cover continue at the same angle, the same size and the same position. The small preview picture on the playback bar also looks just like the screen now.
+- **Two brightness styles: Soft · See in the dark:** Raising the brightness used to wash the whole screen out in white; it now uses a new curve. Soft (the default) brightens faces gently and softly, and See in the dark lifts only the dark parts a lot, so things can be told apart even in a very dark video. The R key switches between the two styles right away, and it works the same in the Make cover screen. Moving to another file returns to the original brightness.
+- **Use a picture made elsewhere as a cover:** Right-click a tile, click [Use a picture made elsewhere as a cover…], then pick a picture file (JPG, PNG, WebP or BMP), and the usual Make cover screen opens with that picture. A poster or a picture touched up in another program can be the cover of a video or photo. Love My Shelf keeps its own copy of the picture you picked.
+- **Change the order of covers:** When one original has two or more covers, right-click a cover and move it forward, back, or to the very front (the first cover) under [Cover order]. An original you arranged yourself keeps your order, and [Back to the automatic order] returns it to the order of the scenes in the video.
+- **[Open with Love My Shelf] in File Explorer:** Right-click a photo or video in File Explorer and [Open with Love My Shelf] is there (on Windows 11, click [Show more options] first, or press Shift+F10). Click it and the folder that holds the file opens with that file right in the large view. It works even when Love My Shelf is already running. It is on from the start, and you can turn it off under [Screen, language, updates] in Guide & Options.
+- **A different speaker for each monitor:** Under [Large view] in Guide & Options, you can set which speaker the sound comes from for each monitor. Move the video window to another monitor and about a second later the sound follows to that monitor's speaker, and the volume is remembered for each speaker.
+- **File information, and straight to the Recycle Bin:** In the large view, press Tab and the file name, which folder on which drive it is in, the format, the size, the picture quality, the fps and more show at the top left. Press Delete and the original file you are looking at goes to the Recycle Bin and the next file comes up. If that was a mistake, you can restore it from the Windows Recycle Bin.
+- **Subtitle size, and the same font:** Subtitles show in the same font as Love My Shelf. Change the size by 10% at a time with [Subtitle size] in the controls window that opens when you right-click the screen, or choose it under [Large view] in Guide & Options. The size you set is used for the next video too.
+- **A renewed Make GIF cover window:** To the left of the preview is a card that tells you what you are looking at, and to its right the choices such as speed and play style sit side by side. The scene strip at the bottom is much bigger and the black parts that covered the pictures are gone, so the scenes show clearly. Roll the mouse wheel over the strip to move left and right quickly, and double-click outside the part to bring the nearer handle there. The speed can be changed by 0.1× from 0.2× to 4× (X, C), and V goes straight to 2×.
+- **GIF cover defaults: WebP · high quality · 30 pictures a second · 1280 pixels tall:** GIF covers are made smoother and sharper from the start. If you were already using Love My Shelf, you are told once, and we suggest trying the new defaults once. If you don't like them, you can type your own numbers under [Making GIF covers] in Guide & Options. The preview shows as soon as you change the part, and the real file is made when you click [Make] (you can also have it made by itself in the background).
+- **Use other windows while making a cover:** When you use two windows, you can look around and use the other folder window even while a cover is being made in one. When you add a cover while watching a video, the video window stays behind as it was, so after saving you can go on watching from where you were.
+- **The video window opens where and as big as last time:** The large view opens at the place and size it was last closed at, like a video player. It also no longer opens stacked right on top of the folder window.
+- **Minimize and maximize buttons in full screen too:** Even in full screen, the minimize and maximize buttons at the top right can be clicked right away. Minimize and bring it back, and it returns in full screen as it was. Every Love My Shelf window works the same.
+- **Minimizing the folder window uses less memory:** When you watch only a video, try minimizing the folder window. About 5 seconds later it lets go of the pictures it had read to show in the tiles, so it uses less memory. While watching a video, right-click the screen and click [Minimize the folder window].
+- **Type the numbers of settings yourself:** Most settings in Guide & Options where you pick a number now have a [Type your own] box under the choices. Type the number you want and press Enter, or click − / + to change it one step at a time. The range you can enter is written under the box.
+- **Upscale: an easier comparison:** (The Korean name of this feature changed to 업스케일링.) The original cover and the upscaled cover fill the window from top to bottom and meet in the middle, so the difference shows at a glance. If you are using full screen, the comparison window opens in full screen too.
+- **Scene time on covers:** A cover made from a video can show where in the video its scene is (like 12:34). Turn it on or off under [Making a cover] in Guide & Options.
+- **Changed keys: Clear voice is N, 2× speed is V:** The key that turns Clear voice on and off changed from V to N. V now goes straight to 2× speed, and pressing it again returns to 1×. You can see every key by right-clicking the screen in the large view.
+- **Wrong scenes on the GIF cover scene strip:** Fixed the scene strip in Make GIF cover showing a completely different scene in the cells left of the cover and never correcting it.
+
 ## 1.0.5 · 2026-11-23
 
 자막 싱크를 앱 안에서 바로 맞추고, 외장 하드를 다시 연결해도 표지가 그대로 따라와요. 보던 장면도 키 하나로 캡처할 수 있어요.
@@ -64,7 +116,7 @@ Set subtitle sync right inside the app, and covers follow along even when you co
 - **Your video stays open** after you save a cover, at the same scene and still playing if it was.
 - **Brightness step:** choose how much one press of E or W changes. The default is 3.
 - **Hide and delete moved to the top of the menu,** with 3 seconds to undo a deleted cover.
-- **GIF quick preview:** now 0.1 seconds by default, and adjustable down to 0.03.
+- **GIF preview:** now 0.1 seconds by default, and adjustable down to 0.03.
 - **Fixed:** F not moving to the next scene in some videos, black bars on GIF covers, folding the tree changing the folder on the right, and second covers from the Unfinished collection not appearing right away.
 
 ---

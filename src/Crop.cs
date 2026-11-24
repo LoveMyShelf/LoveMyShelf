@@ -22,7 +22,14 @@ namespace LoveMyShelf {
         readonly bool snapEdges;
         readonly double wheelZoomFactor;
         public double Rotation { get; private set; }
-        internal int Brightness {get;private set;}
+        // The value saved with the cover: the level and its style (see Light). An old cover keeps its white or black
+        // sheet until the brightness or the style is changed here.
+        internal int Brightness {get {return Light.Encode(Level,style);}}
+        int style=Light.Soft;
+        // The -100..100 number on the slider.
+        internal int Level {get;private set;}
+        // Soft or See in the dark; an old cover's sheet counts as Soft on the button.
+        internal int LightStyle {get {return style==Light.Dark?Light.Dark:Light.Soft;}}
         Point last;
         internal event Action RotationChanged;
         internal event Action BrightnessChanged;
@@ -33,7 +40,7 @@ namespace LoveMyShelf {
             Reset();
             // Brightness carries over even for a new cover (from the video's playback brightness);
             // the turn and the framing only come from a saved cover.
-            Brightness=Math.Max(-100,Math.Min(100,brightness));
+            Level=Light.Level(brightness);style=Light.Style(brightness);
             if(saved.HasValue) {
                 Rotation=rotation;
                 ApplyFraction(saved.Value);
@@ -78,9 +85,14 @@ namespace LoveMyShelf {
             if(RotationChanged!=null) RotationChanged();
         }
         internal void SetBrightness(double value) {
-            int level=(int)Math.Round(value);
-            if(level==Brightness)return;
-            Brightness=level;InvalidateVisual();
+            int level=Light.Clamp((int)Math.Round(value));
+            if(level==Level)return;
+            Level=level;if(style==Light.Sheet)style=Light.Soft;InvalidateVisual();
+            if(BrightnessChanged!=null)BrightnessChanged();
+        }
+        // R: Soft and See in the dark take turns. The level stays.
+        internal void SwitchStyle() {
+            style=LightStyle==Light.Dark?Light.Soft:Light.Dark;InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
         }
         internal static double NormalizeRotation(double angle) {
@@ -258,7 +270,10 @@ namespace LoveMyShelf {
                     case Key.Up: case Key.Down: break;
                     case Key.E: case Key.W: case Key.Q:
                         if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Surface.SetBrightness(key==Key.Q?0:Math.Max(-100,Math.Min(100,Surface.Brightness+(key==Key.E?BrightnessStep:-BrightnessStep))));break;
+                        Surface.SetBrightness(key==Key.Q?0:Math.Max(-100,Math.Min(100,Surface.Level+(key==Key.E?BrightnessStep:-BrightnessStep))));break;
+                    case Key.R:
+                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
+                        Surface.SwitchStyle();break;
                     default:return;
                 }
                 e.Handled=true;
@@ -271,10 +286,13 @@ namespace LoveMyShelf {
             var value=UI.Text("",12);value.MinWidth=40;bar.Children.Add(value);
             var reset=RotationShortcut("0","Reset brightness to 0",()=>Surface.SetBrightness(0));
             UI.Right(bar,reset);
+            // R: the style in use (Soft or See in the dark); a click switches to the other.
+            var style=RotationShortcut("","Switch brightness style",()=>Surface.SwitchStyle());
+            UI.Right(bar,style);
             var slider=new DragSlider {Minimum=-100,Maximum=100,TickFrequency=1,IsSnapToTickEnabled=true,
                 SmallChange=1,LargeChange=10,IsMoveToPointEnabled=true,Margin=new Thickness(6,0,4,0)};
             AutomationProperties.SetName(slider,L.T("Brightness"));
-            Action update=()=>{slider.Value=Surface.Brightness;value.Text=Surface.Brightness.ToString("+0;-0;0");};
+            Action update=()=>{slider.Value=Surface.Level;value.Text=Surface.Level.ToString("+0;-0;0");style.Content="R  "+Light.StyleName(Surface.LightStyle);};
             Surface.BrightnessChanged+=update;update();
             slider.ValueChanged+=(s,e)=>Surface.SetBrightness(slider.Value);
             bar.Children.Add(slider);
@@ -289,7 +307,7 @@ namespace LoveMyShelf {
             if(saving || !save.IsEnabled || commitMotion==null)return;
             if(motionSource==null)return;
             var dialog=new MotionWindow(this,motionSource(),true);
-            if(dialog.ShowDialog()!=true)return;
+            if(CoverWork.Show(dialog)!=true)return;
             var request=dialog.Value;
             SaveCover(editor=>commitMotion(editor,request));
         }

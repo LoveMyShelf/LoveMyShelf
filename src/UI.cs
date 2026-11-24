@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -144,6 +145,18 @@ namespace LoveMyShelf {
         }
     }
     internal static class Program {
+        // A file sent from File Explorer before a folder window could show it.
+        internal static volatile string PendingPath;
+        // Called from the listening thread: the first folder window opens the file's folder and its large view.
+        internal static void OpenFromOutside(string path) {
+            var app=Application.Current;
+            if(app==null){PendingPath=path;return;}
+            app.Dispatcher.BeginInvoke(new Action(()=>{
+                var window=app.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
+                if(window==null){PendingPath=path;return;}
+                window.OpenExternalFile(path);
+            }));
+        }
         [STAThread] public static void Main(string[] args) {
             // The update helper: a copy of this program that swaps the files after the app has closed.
             if(args.Length==3 && args[0]==AppUpdater.ApplySwitch) {
@@ -158,15 +171,24 @@ namespace LoveMyShelf {
                 Environment.Exit(UpscaleEngine.RunChild(args[1],args[2]));
                 return;
             }
+            string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with Love My Shelf"
             bool first;
             using(var guard=new Mutex(true,AppUpdater.AppMutex,out first)) {
-                if(!first) { MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return; }
+                if(!first) {
+                    // Hand the file to the program that is already running instead of complaining.
+                    if(openPath!=null && ExplorerOpen.Send(openPath))return;
+                    MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return;
+                }
+                PendingPath=openPath;
+                ExplorerOpen.Listen(OpenFromOutside);
                 try {
                     var app=new Application();
                     using(Stream stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("LoveMyShelf.Theme.xaml"))
                         app.Resources=(ResourceDictionary)XamlReader.Load(stream);
                     UI.LoadFonts(app);
                     var prefs=Preferences.Load(root);
+                    // Keeps the File Explorer menu entry pointing at this copy (the folder may have moved).
+                    if(prefs.ExplorerMenu) {try {ExplorerOpen.Sync(prefs);} catch(Exception) {}}
                     Themes.Apply(prefs.Theme);
                     if(!prefs.LanguageChosen || !prefs.UsageNoticeShown) {
                         // Keep the app alive between this window and the main one.

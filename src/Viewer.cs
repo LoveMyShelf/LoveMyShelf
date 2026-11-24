@@ -66,6 +66,12 @@ namespace LoveMyShelf {
         int index,shown=-1;
         bool fullscreen,original,hidden,motion,paused,sync,resumeAfterDrag,selectedMovie,largeVideo,draggingVideo,cachedCover;
         int playbackBrightness;
+        int playbackStyle=Light.Soft; // R: Soft or See in the dark (see Light)
+        int PlaybackValue {get {return Light.Encode(playbackBrightness,playbackStyle);}}
+        // E / W / Q was pressed for this file (a 0 then means "back to normal"). Both start over with every new file.
+        bool brightnessChosen;string brightnessFile;
+        // The picture and the turning still as they came, before the brightness curve (see Light) is put on them.
+        BitmapSource pictureRaw,turnRaw;
         // The playback speed stays for every video opened while LoveMyShelf runs, not only in one viewer window.
         static double lastRate=1;
         double duration,startMs,rate=lastRate;
@@ -84,19 +90,36 @@ namespace LoveMyShelf {
         // Make cover from mpv playback lists the frames around the paused time first.
         internal bool CropNearby {get;private set;}
         // The brightness set with E/W while watching; the scene grid and the cover editor start from it.
-        internal int PlaybackBrightness {get {return playbackBrightness;}}
+        internal int PlaybackBrightness {get {return PlaybackValue;}}
+        internal bool BrightnessChosen {get {return brightnessChosen;}}
+        // The turn, zoom and place on screen, for the seek thumbnail, the scene list and the cover editor.
+        // Null when the picture is simply upright at its own size.
+        internal ViewFraming CurrentFraming {get {
+            double aspect=UprightAspect;
+            var area=ViewArea;
+            if((drawnTurn==0 && zoom==1) || aspect<=0 || area.Width<=0 || area.Height<=0)return null;
+            var upright=MediaViewport.Fit(aspect,area.Size);
+            var box=TurnedBox(upright.Size);
+            return new ViewFraming {Turn=drawnTurn>180?drawnTurn-360:drawnTurn,
+                PictureWidth=upright.Width*zoom,PictureHeight=upright.Height*zoom,PanX=pan.X,PanY=pan.Y,
+                ShownWidth=Math.Min(area.Width,box.Width*zoom),ShownHeight=Math.Min(area.Height,box.Height*zoom)};
+        }}
 
         sealed class MediaViewport : Panel {
             internal static double Aspect(UIElement element) {
                 var image=element as Image;
-                if(image!=null)return image.Source==null?0:image.Source.Width/image.Source.Height;
+                if(image!=null)return image.Source==null?0:Turned(image.Source.Width,image.Source.Height,image.LayoutTransform);
                 var native=element as MpvPlayer;
-                if(native!=null)return native.Aspect;
+                if(native!=null)return native.Fill?0:native.Aspect; // zoomed in, mpv has the whole view
                 var video=(MediaElement)element;
                 if(video.NaturalVideoWidth<=0 || video.NaturalVideoHeight<=0)return 0;
-                return Math.Abs(video.LayoutTransform.Value.M12)>0.5
-                    ? (double)video.NaturalVideoHeight/video.NaturalVideoWidth
-                    : (double)video.NaturalVideoWidth/video.NaturalVideoHeight;
+                return Turned(video.NaturalVideoWidth,video.NaturalVideoHeight,video.LayoutTransform);
+            }
+            // Width over height of the box around a picture turned by its layout transform (O / P, or a video's own orientation).
+            static double Turned(double width,double height,Transform turn) {
+                var m=turn==null?Matrix.Identity:turn.Value;
+                double w=Math.Abs(width*m.M11)+Math.Abs(height*m.M21),h=Math.Abs(width*m.M12)+Math.Abs(height*m.M22);
+                return h<=0?0:w/h;
             }
             // The whole picture always fits inside, like PotPlayer: black bars at the sides in a wide window,
             // above and below in a tall one (two windows side by side). Nothing is ever cut off.
@@ -176,17 +199,42 @@ namespace LoveMyShelf {
             // Nearly transparent rather than transparent, so it still receives clicks in the overlay window.
             var hit=new Border {Background=new SolidColorBrush(Color.FromArgb(1,0,0,0))};
             surfaceClick.Tick+=delegate {surfaceClick.Stop();};
+            turnSettle.Tick+=delegate {SettleTurn();};
+            turnReady.Tick+=delegate {EndTurnStill();};
+            RenderOptions.SetBitmapScalingMode(turnImage,BitmapScalingMode.HighQuality);
+            turnLayer.Children.Add(turnImage);ui.Children.Insert(0,turnLayer); // over the video, under everything else
+            // Part of the picture is past the edge: dragging moves it. Right-click: the controls with their keys.
             hit.MouseLeftButtonDown+=(s,e)=>{
+                if(PictureOverflows() && e.ClickCount==1){dragFrom=e.GetPosition(ui);panFrom=pan;hit.CaptureMouse();}
                 if(!motion)return;
                 surfaceClick.Stop();
                 if(e.ClickCount==2)SetPaused(!paused);
                 else if(e.ClickCount==1 && !fullscreen)surfaceClick.Start();
                 e.Handled=true;
             };
-
+            hit.MouseMove+=(s,e)=>{
+                if(!hit.IsMouseCaptured)return;
+                pan=panFrom+(e.GetPosition(ui)-dragFrom);ApplyZoom();
+            };
+            hit.MouseLeftButtonUp+=delegate {if(hit.IsMouseCaptured)hit.ReleaseMouseCapture();};
+            hit.MouseRightButtonUp+=(s,e)=>{ShowControls();e.Handled=true;};
+            PreviewMouseWheel+=Wheel;
             ui.Children.Add(hit);
             TextOptions.SetTextFormattingMode(cornerNote,TextFormattingMode.Ideal);
-            ui.Children.Add(cornerNote);
+            TextOptions.SetTextFormattingMode(infoText,TextFormattingMode.Ideal);
+            // The file information (Tab) sits at the top left with the short notes under it, so a note never moves it.
+            var corner=new StackPanel {HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top,IsHitTestVisible=false};
+            corner.Children.Add(infoText);corner.Children.Add(cornerNote);
+            ui.Children.Add(corner);
+            infoTimer.Tick+=delegate {RefreshInfo();};
+            holdTimer.Tick+=delegate {
+                holdTimer.Interval=TimeSpan.FromMilliseconds(90);
+                if(holdAction==null){holdTimer.Stop();return;}
+                holdRepeating=true;
+                try {holdAction();} finally {holdRepeating=false;}
+            };
+            fromCollection=gallery!=null && gallery.ShowingAllCrops;
+            Closed+=delegate {infoTimer.Stop();holdTimer.Stop();if(keyPanel!=null)keyPanel.IsOpen=false;};
             cornerNoteTimer.Tick+=delegate {
                 cornerNoteTimer.Stop();
                 var fade=new System.Windows.Media.Animation.DoubleAnimation(0,TimeSpan.FromMilliseconds(250));
@@ -213,40 +261,27 @@ namespace LoveMyShelf {
             if(gallery!=null)volume.Value=gallery.Settings.Volume; // the volume used last time
             volume.ValueChanged+=delegate {muted=false;ApplyAudio();}; // moving the bar turns the sound back on
             playbackButtons.Children.Add(volume);
-            // The check mark keeps its space when hidden, so the button doesn't change width.
+            // Clear voice, capture and the subtitle explorer have no button here: they are in the right-click
+            // controls (ShowControls) with their keys, so the bar stays short.
             clearVoice=gallery!=null && gallery.Settings.ClearVoice;
             if(gallery!=null)clearVoiceLevel=gallery.Settings.ClearVoiceLevel;
-            clearVoiceCheck=new TextBlock {Text="✓",Margin=new Thickness(0,0,4,0),Visibility=clearVoice?Visibility.Visible:Visibility.Hidden};
-            var clearVoiceLabel=new StackPanel {Orientation=Orientation.Horizontal};
-            clearVoiceLabel.Children.Add(clearVoiceCheck);clearVoiceLabel.Children.Add(new TextBlock {Text=L.T("Clear voice")});
-            clearVoiceButton=UI.Btn("",ToggleClearVoice);clearVoiceButton.Content=clearVoiceLabel;
-            clearVoiceButton.Focusable=false;clearVoiceButton.IsEnabled=false;clearVoiceButton.VerticalAlignment=VerticalAlignment.Center;
-            LabelControl(clearVoiceButton,L.T("Make voices easier to hear (V)"));
-            playbackButtons.Children.Add(clearVoiceButton);
-            clearVoiceMenuButton=UI.Btn("▾",ShowClearVoiceMenu);
-            clearVoiceMenuButton.MinWidth=0;clearVoiceMenuButton.Width=26;clearVoiceMenuButton.Padding=new Thickness(0);
-            clearVoiceMenuButton.Margin=new Thickness(2,0,0,0);clearVoiceMenuButton.Focusable=false;clearVoiceMenuButton.IsEnabled=false;
-            clearVoiceMenuButton.VerticalAlignment=VerticalAlignment.Center;
-            LabelControl(clearVoiceMenuButton,L.T("Clear voice strength"));
-            playbackButtons.Children.Add(clearVoiceMenuButton);
-            // A small camera: saves the scene on screen as a picture (/).
-            var camera=new System.Windows.Shapes.Path {Data=Geometry.Parse("M 2,5.5 L 5.5,5.5 L 7,3 L 11,3 L 12.5,5.5 L 16,5.5 L 16,15 L 2,15 Z M 12,10 A 3,3 0 1 1 6,10 A 3,3 0 1 1 12,10 Z"),
-                Width=18,Height=18,StrokeThickness=1.5,StrokeLineJoin=PenLineJoin.Round,Stretch=Stretch.None,IsHitTestVisible=false,SnapsToDevicePixels=true};
-            camera.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"Text");
-            var captureButton=UI.Btn("",CaptureFrame);captureButton.Content=camera;
-            captureButton.MinWidth=0;captureButton.Width=32;captureButton.Padding=new Thickness(0);captureButton.Margin=new Thickness(6,0,0,0);
-            captureButton.Focusable=false;captureButton.VerticalAlignment=VerticalAlignment.Center;
-            LabelControl(captureButton,L.T("Capture this scene (/)"));
-            playbackButtons.Children.Add(captureButton);
-            subtitleButton=UI.Btn(L.T("Subtitles"),OpenSubtitleExplorer);
-            subtitleButton.Margin=new Thickness(6,0,0,0);subtitleButton.Focusable=false;subtitleButton.VerticalAlignment=VerticalAlignment.Center;
-            subtitleButton.Visibility=Visibility.Collapsed;
-            LabelControl(subtitleButton,L.T("Open the subtitle explorer"));
-            playbackButtons.Children.Add(subtitleButton);
-            // Speed has no box: C / X / Z like PotPlayer (see the key handler).
-            root.SizeChanged+=delegate {ApplyPlaybackBrightness();PlaceSubtitles();};
+            if(gallery!=null) {
+                // The subtitle size is shared: one chosen here or in Guide & Options is used by the next video too.
+                subtitleSize=gallery.Settings.SubtitleScale;
+                Action follow=()=>{
+                    if(subtitleSize==gallery.Settings.SubtitleScale)return;
+                    subtitleSize=gallery.Settings.SubtitleScale;
+                    if(mpv!=null)mpv.SubtitleScale=subtitleSize/100.0;
+                };
+                gallery.SettingsChangedEvent+=follow;Closed+=delegate {gallery.SettingsChangedEvent-=follow;};
+            }
+            // Speed has no box: Z / X / C like PotPlayer (see the key handler).
+            root.SizeChanged+=delegate {ApplyZoom();}; // also brightness and subtitles, which follow the picture's place
             seek.Style=(Style)Application.Current.Resources["PlaybackTimeline"];
-            AutomationProperties.SetName(seek,L.T("Playback position"));transport.Children.Add(seek);
+            AutomationProperties.SetName(seek,L.T("Playback position"));
+            // The marks of the GIF cover part lie over the bar and never take a click from it.
+            var seekHost=new Grid();seekHost.Children.Add(seek);seekHost.Children.Add(partMarks);transport.Children.Add(seekHost);
+            seek.SizeChanged+=delegate {ShowPart();};
             seekPreview=new SeekPreview(ui,seek);
             seek.ValueChanged+=(s,e)=>{
                 if(sync || !motion)return;
@@ -340,7 +375,9 @@ namespace LoveMyShelf {
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 switch(key) {
                     case Key.F1:GuideWindow.Open(this,"large");break;
-                    case Key.Escape:Close();break;
+                    case Key.Escape:
+                        if(keyPanel!=null && keyPanel.IsOpen){keyPanel.IsOpen=false;break;} // the controls close first
+                        Close();break;
                     case Key.Left:case Key.Right:
                         // ← → skip by the chosen number of seconds; Shift + ← → skips one second.
                         if(!motion || (Keyboard.Modifiers!=ModifierKeys.None && Keyboard.Modifiers!=ModifierKeys.Shift) || draggingVideo || resumeAfterDrag)return;
@@ -353,10 +390,10 @@ namespace LoveMyShelf {
                         StepFrame(key==Key.D?-1:1);break;
                     case Key.E:case Key.W:case Key.Q:
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        int brightnessStep=home==null?3:home.Settings.BrightnessStep;
-                        playbackBrightness=key==Key.Q?0:Math.Max(-100,Math.Min(100,playbackBrightness+(key==Key.E?brightnessStep:-brightnessStep)));
-                        ApplyPlaybackBrightness();seekPreview.Brightness=playbackBrightness;
-                        ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0}",playbackBrightness));break;
+                        ChangeBrightness(key==Key.Q?0:key==Key.E?1:-1);break;
+                    case Key.R:
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
+                        SwitchBrightnessStyle();break;
                     case Key.Space:if(!e.IsRepeat){if(motion)SetPaused(!paused);else if(!WantsCrop)Primary();}break;
                     case Key.C:case Key.X:case Key.Z:
                         // Like PotPlayer: C faster, X slower by 0.1, Z back to normal.
@@ -378,24 +415,52 @@ namespace LoveMyShelf {
                         muted=!muted;ApplyAudio();
                         ShowCornerNote(muted?L.T("Sound off"):L.F("Volume {0}%",(int)volume.Value));break;
                     case Key.V:
-                        if(!motion || !clearVoiceButton.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        // Straight to 2×, and from 2× back to 1×: the same key as in Make GIF cover.
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        ToggleDoubleRate();break;
+                    case Key.N:
+                        if(!motion || !clearVoiceReady || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleClearVoice();break;
+                    case Key.O:case Key.P:
+                        // O turns the picture left and P right, a little at a time; held down, it keeps turning.
+                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
+                        Turn(key==Key.P?1:-1,e.IsRepeat);break;
+                    case Key.I:
+                        if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        ResetTurn();break;
+                    case Key.Delete:
+                        if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        RecycleCurrent();break;
+                    case Key.Tab:
+                        if(forCrop || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        ToggleInfo();break;
+                    case Key.OemOpenBrackets:case Key.OemCloseBrackets:
+                        // Like PotPlayer's A-B repeat: [ marks where the GIF cover's part starts, ] where it ends.
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        MarkPart(key==Key.OemOpenBrackets?1:2);break;
+                    case Key.Oem5:case Key.OemBackslash: // the \ key (the won sign on a Korean keyboard)
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        ClearPart();break;
                     case Key.OemQuestion:case Key.Divide: // the / key, next to the arrow keys (and the one on the number pad)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         CaptureFrame();break;
-                    case Key.Tab:if(!fullscreen)SetHidden(false);return;default:return;
+                    default:return;
                 } e.Handled=true;
             };
             ticker.Tick+=delegate {Tick();};Loaded+=delegate {LoadCurrent(openCover);};
             Closing+=(s,e)=>{
                 if(!ConfirmSubtitles(true)){e.Cancel=true;return;}
                 if(explorer!=null){explorer.Leaving=true;explorer.Close();}
+                // Like a video player: the next large view opens where this one was.
+                if(!forCrop && home!=null && IsLoaded){string place=ViewerPlacement.Write(this);if(place!=null)home.SaveViewerBounds(place);}
             };
             Closed+=delegate {
                 if(loading!=null)loading.Cancel();
-                ClearTransport();picture.Source=null;
-                if(home!=null)home.SaveAudio((int)Math.Round(volume.Value),clearVoice,clearVoiceLevel);
+                ClearTransport();picture.Source=null;pictureRaw=null;
+                speakerTimer.Stop();
+                if(home!=null)home.SaveAudio((int)Math.Round(volume.Value),clearVoice,clearVoiceLevel,speaker);
             };
+            speakerTimer.Tick+=delegate {CheckSpeaker();};
             ContentRendered+=delegate {Focus();};
         }
         // ----- The other covers of this original, in the space beside a tall cover -----
@@ -404,6 +469,16 @@ namespace LoveMyShelf {
         bool stripAwake=true,holdStrip;
         int stripRequest;
         System.Drawing.Point stripPointer;
+        // The covers of an original were put in another order in a folder window: this window follows.
+        internal void CoverOrderChanged() {
+            if(forCrop || home==null || !IsVisible || index<0 || index>=items.Count)return;
+            try {
+                var ranks=new Dictionary<string,double?>(StringComparer.OrdinalIgnoreCase);
+                foreach(var cover in GalleryStore.CoversOf(items[index]))ranks[cover.Folder]=cover.Rank;
+                foreach(var item in items){double? rank;if(item!=null && ranks.TryGetValue(item.Folder,out rank))item.Rank=rank;}
+            } catch(Exception) {}
+            if(cachedCover)RefreshCoverStrip(items[index]);
+        }
         async void RefreshCoverStrip(Photo photo) {
             if(forCrop || home==null)return;
             int request=++stripRequest;
@@ -452,12 +527,125 @@ namespace LoveMyShelf {
             index=at;
             LoadCurrent(true);
         }
+        // ----- The part for a GIF cover, marked while watching: [ start, ] end, \ clear -----
+        // With both ends set, that part plays again and again (what the GIF will show), a band on the playback bar
+        // shows it, and Make GIF cover opens on it instead of the usual second before and after the cover.
+        // It stays while this original is watched (also across View cover / Play original) and goes with the next file.
+        double? partStart,partEnd;
+        string partFile;
+        readonly Stopwatch partJump=new Stopwatch();
+        readonly Canvas partMarks=new Canvas {IsHitTestVisible=false,Height=0,VerticalAlignment=VerticalAlignment.Center};
+        bool PartIsHere {get {return partFile!=null && index>=0 && index<items.Count && String.Equals(partFile,items[index].Original,StringComparison.OrdinalIgnoreCase);}}
+        // Both ends, for the original they were marked in.
+        internal bool PartFor(string original,out double from,out double to) {
+            from=to=0;
+            if(partFile==null || !partStart.HasValue || !partEnd.HasValue || !String.Equals(partFile,original,StringComparison.OrdinalIgnoreCase))return false;
+            from=partStart.Value;to=partEnd.Value;return true;
+        }
+        // Make GIF cover asks for the part: the large view it was opened from (through Choose a scene and Make
+        // cover), or, opened from a folder window or a notice, any large view showing that original. A part that
+        // lies far from the cover's own moment was marked for something else and is left alone.
+        internal static Viewer GivePart(MotionSource source,Window owner) {
+            if(source==null || source.Path==null || Application.Current==null)return null;
+            Viewer mine=null;
+            for(var w=owner;w!=null && mine==null;w=w.Owner)mine=w as Viewer;
+            var asked=new List<Viewer>();
+            if(mine!=null)asked.Add(mine);
+            else foreach(Window window in Application.Current.Windows){var viewer=window as Viewer;if(viewer!=null)asked.Add(viewer);}
+            foreach(var viewer in asked) {
+                double from,to;
+                if(!viewer.PartFor(source.Path,out from,out to))continue;
+                if(source.Moment<from-PartNearMs || source.Moment>to+PartNearMs)continue;
+                source.PartStart=from;source.PartEnd=to;return viewer;
+            }
+            return null;
+        }
+        // The GIF cover was made from the part, so the next cover starts fresh.
+        internal void DropPart() {partStart=partEnd=null;partFile=null;partInside=false;partJump.Reset();ShowPart();}
+        // A part is at least a twentieth of a second (less can't be made into a GIF) and at most a minute.
+        const double PartNearMs=2000,PartLongestMs=60000;
+        void MarkPart(int which) {
+            if(!motion || duration<=1)return;
+            if(!PartIsHere){partStart=partEnd=null;}
+            double at=Position();
+            if(mpv!=null && !mpv.SeekPending){double exact=mpv.Position;if(!Double.IsNaN(exact))at=exact;}
+            at=Math.Max(0,Math.Min(duration,at));
+            // The two ends stay at least one scene apart; a mark on the wrong side of the other one starts a new part.
+            double gap=Math.Max(50,Scenes.StepMs);
+            bool tooLong=false;
+            if(which==1) {
+                partStart=at;
+                if(partEnd.HasValue && partEnd.Value-at>PartLongestMs){partEnd=null;tooLong=true;}
+                else if(partEnd.HasValue && partEnd.Value<at+gap)partEnd=null;
+            } else {
+                partEnd=at;
+                if(partStart.HasValue && at-partStart.Value>PartLongestMs){partStart=null;tooLong=true;}
+                else if(partStart.HasValue && partStart.Value>at-gap)partStart=null;
+            }
+            partFile=CurrentPhoto.Original;
+            partJump.Reset();
+            partInside=partStart.HasValue && partEnd.HasValue; // the mark is at one of its ends, so playing on stays in it
+            string longest=tooLong?L.F("A GIF cover part can be up to {0} s",(int)(PartLongestMs/1000))+" · ":"";
+            if(partStart.HasValue && partEnd.HasValue)
+                ShowCornerNote(L.F("GIF cover part {0} – {1} · {2:0.0} s",Stamp(partStart.Value),Stamp(partEnd.Value),(partEnd.Value-partStart.Value)/1000));
+            else if(which==1)ShowCornerNote(longest+L.F("GIF cover part starts at {0} · press ] where it ends",Stamp(at)));
+            else ShowCornerNote(longest+L.F("GIF cover part ends at {0} · press [ where it starts",Stamp(at)));
+            ShowPart();
+        }
+        void ClearPart() {
+            bool had=PartIsHere && (partStart.HasValue || partEnd.HasValue);
+            DropPart();
+            ShowCornerNote(had?L.T("GIF cover part cleared"):L.T("No GIF cover part is set · [ start, ] end"));
+        }
+        // While the part is being watched, playing out of it goes back to its start: past its end, or (a part that
+        // reaches the end of the file) around to the beginning. Skipping or dragging to another place leaves the
+        // part, so the rest of the video can still be watched without clearing it; skipping back in joins it again.
+        bool partInside;
+        const double PartLeadMs=250; // a seek may land on the picture just before the start
+        bool InPart(double ms,double from,double to) {return ms>=from-PartLeadMs && ms<to;}
+        void FollowPart(double ms) {
+            double from,to;
+            if(PartIsHere && PartFor(partFile,out from,out to))partInside=InPart(ms,from,to);
+        }
+        bool LoopPart(double ms) {
+            double from,to;
+            if(!PartIsHere || !PartFor(partFile,out from,out to)){partInside=false;return false;}
+            bool within=InPart(ms,from,to);
+            if(partJump.IsRunning) {
+                // On the way back to the start: the Windows player still reports the old place for a moment.
+                if(!within && partJump.ElapsedMilliseconds<1000)return true;
+                partJump.Reset();
+            }
+            if(within){partInside=true;return false;}
+            if(!partInside)return false;
+            partJump.Restart();
+            SeekTo(from);
+            return true;
+        }
+        // A band above the bar from the start to the end, with a tick at each mark (one tick while only one is set).
+        void ShowPart() {
+            partMarks.Children.Clear();
+            double width=seek.ActualWidth;
+            if(!motion || !PartIsHere || duration<=1 || width<=12)return;
+            const double thumb=10; // the bar's playhead: its middle runs from 5 to width-5
+            Func<double,double> x=ms=>thumb/2+Math.Max(0,Math.Min(1,ms/duration))*(width-thumb);
+            Action<double,double,double,double> box=(left,top,w,h)=>{
+                var shape=new System.Windows.Shapes.Rectangle {Width=Math.Max(1,w),Height=h};
+                shape.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,"Accent");
+                Canvas.SetLeft(shape,left);Canvas.SetTop(shape,top);partMarks.Children.Add(shape);
+            };
+            if(partStart.HasValue && partEnd.HasValue)box(x(partStart.Value),-10,x(partEnd.Value)-x(partStart.Value),3);
+            if(partStart.HasValue)box(x(partStart.Value)-1.5,-10,3,15);
+            if(partEnd.HasValue)box(x(partEnd.Value)-1.5,-10,3,15);
+        }
         // JPG quality for captures. Used inside only: no number like this is ever shown on screen or in the guide.
         const int CaptureJpgQuality=95;
         // Saves the scene on screen as a picture. Options choose the look (the video's own frame, or the size and
         // E / W brightness on screen) and the file (PNG or JPG). The original is not touched.
         void CaptureFrame() {
             if(!motion)return;
+            // The still is about to give way to the video at this angle: capture that, not the frame under it.
+            if(turnStillOn){captureAfterTurn=true;FinishTurn();return;}
             try {
                 var prefs=home!=null?home.Settings:new Preferences();
                 string folder=prefs.CaptureFolder,extension=prefs.CaptureJpg?".jpg":".png";
@@ -508,40 +696,56 @@ namespace LoveMyShelf {
                 var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
                 target.Render(visual);return target;
             }
-            return picture.Source as BitmapSource;
+            return pictureRaw;
         }
         // The frame the way it looks now: the size the video has on screen (in real screen dots) with the E / W
         // brightness on it. Buttons and the black bars around the video are not part of it.
         BitmapSource AsShown(BitmapSource frame) {
-            double aspect=picture.Source!=null?MediaViewport.Aspect(picture):mpv!=null?mpv.Aspect:media==null?0:MediaViewport.Aspect(media);
-            if(aspect<=0)aspect=(double)frame.PixelWidth/frame.PixelHeight;
+            // A GIF or WebP turned with O / P: mpv hands over its frame already turned, these come as they are in the file.
+            if(mpv==null && media==null && turn!=0)frame=TurnedFrame(frame,turn);
             int width=frame.PixelWidth,height=frame.PixelHeight;
-            if(root.ActualWidth>0 && root.ActualHeight>0) {
-                var fit=MediaViewport.Fit(aspect,new Size(root.ActualWidth,Math.Max(0,root.ActualHeight-viewport.Margin.Bottom)));
+            // Where the whole picture would be drawn, counted from the corner of the part that shows.
+            var whole=new Rect(0,0,width,height);
+            if(root.ActualWidth>0 && root.ActualHeight>0 && ShownAspect>0) {
+                Rect all=PictureRect(),shown=Rect.Intersect(all,ViewArea);
                 var source=PresentationSource.FromVisual(this);
                 double scale=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformToDevice.M11:1;
-                if(fit.Width>=1 && fit.Height>=1){width=Math.Max(1,(int)Math.Round(fit.Width*scale));height=Math.Max(1,(int)Math.Round(fit.Height*scale));}
+                if(!shown.IsEmpty && shown.Width>=1 && shown.Height>=1) {
+                    width=Math.Max(1,(int)Math.Round(shown.Width*scale));height=Math.Max(1,(int)Math.Round(shown.Height*scale));
+                    whole=new Rect((all.X-shown.X)*scale,(all.Y-shown.Y)*scale,all.Width*scale,all.Height*scale);
+                }
             }
             var visual=new DrawingVisual();
             RenderOptions.SetBitmapScalingMode(visual,BitmapScalingMode.HighQuality);
             using(var dc=visual.RenderOpen()) {
                 var area=new Rect(0,0,width,height);
-                dc.DrawImage(frame,area);
-                // The same white or black layer the large view lays over the video.
-                if(playbackBrightness!=0) {
+                dc.PushClip(new RectangleGeometry(area));
+                // The same brightness as on screen: the curve, or the Windows player's white or black layer.
+                dc.DrawImage(media==null?Light.Apply(frame,PlaybackValue):frame,whole);
+                if(media!=null && playbackBrightness!=0) {
                     var cover=new SolidColorBrush(playbackBrightness>0?Colors.White:Colors.Black) {Opacity=Math.Abs(playbackBrightness)/100.0};
                     dc.DrawRectangle(cover,null,area);
                 }
+                dc.Pop();
             }
             var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
             target.Render(visual);target.Freeze();
             return target;
         }
         // ----- Subtitles -----
-        readonly Button subtitleButton;
+        // subtitlesReady: a video is playing through mpv, so the subtitle explorer can open.
+        bool subtitlesReady;
         SubtitleExplorer explorer;
         string subtitleVideo;
         bool subtitlesVisible=true;
+        int subtitleSize=100; // percent
+        // direction 0 puts the size back to 100%.
+        void ChangeSubtitleSize(int direction) {
+            subtitleSize=direction==0?100:Math.Max(50,Math.Min(300,(int)Math.Round(subtitleSize/10.0)*10+direction*10));
+            if(mpv!=null)mpv.SubtitleScale=subtitleSize/100.0;
+            if(home!=null)home.SaveSubtitleSize(subtitleSize);
+            ShowCornerNote(L.F("Subtitle size {0}%",subtitleSize));
+        }
         internal SubtitleFile Subtitle {get;private set;}
         internal bool CanSyncSubtitle {get {return motion && mpv!=null;}}
         internal bool HasOwnSubtitle {get {return mpv!=null && mpv.HasOwnSubtitle;}}
@@ -662,6 +866,526 @@ namespace LoveMyShelf {
                 return false;
             }
         }
+        // ----- Turning (I / O / P) and zooming (wheel) the picture. Both start over with every file. -----
+        const double MaxZoom=8;
+        int turn;               // degrees clockwise, 0 to 359
+        int drawnTurn;          // the turn on screen: mpv gets a held key's turns a little apart
+        double mediaTurn;       // the Windows player's own correction for a video stored sideways
+        double zoom=1;          // against the upright picture's fit, so turning never changes the size
+        Vector pan,panFrom;     // how far the middle of the picture sits from the middle of the view
+        Point dragFrom;
+        DateTime turnRests;     // a held key rests a moment at every quarter turn, so it is easy to stop there
+        // While O / P are in use a video rests as a still picture, because mpv stutters rebuilding itself for every
+        // angle. The picture is turned instead; a moment after the last press the video takes over at that angle.
+        const double TurnCircle=0.96;      // the circle the picture turns in, against the short side of the view
+        bool turning;                      // keys are in use; the next press after this ends shrinks to the circle again
+        bool turnStillOn;                  // the still covers the video
+        bool turnWaiting;                  // the angle is settled and the still stays until mpv shows it
+        bool turnResume;                   // it was playing, so it plays on from the same scene
+        bool captureAfterTurn;
+        int stillTurn;                     // the turn already in the still (mpv hands its frames over turned)
+        readonly DispatcherTimer turnSettle=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(500)};
+        readonly DispatcherTimer turnReady=new DispatcherTimer();
+        readonly Canvas turnLayer=new Canvas {Background=Brushes.Black,ClipToBounds=true,IsHitTestVisible=false,Visibility=Visibility.Collapsed};
+        readonly Image turnImage=new Image {Stretch=Stretch.Fill,RenderTransformOrigin=new Point(0.5,0.5)};
+        // The room the picture has: the window without the bar under it.
+        Rect ViewArea {get {return new Rect(0,0,root.ActualWidth,Math.Max(0,root.ActualHeight-viewport.Margin.Bottom));}}
+        double ShownAspect {get {return picture.Source!=null?MediaViewport.Aspect(picture):mpv!=null?mpv.Aspect:media==null?0:MediaViewport.Aspect(media);}}
+        // Width over height before O / P.
+        double UprightAspect {get {
+            if(picture.Source!=null)return picture.Source.Height>0?picture.Source.Width/picture.Source.Height:0;
+            if(mpv!=null)return mpv.UprightAspect;
+            if(media==null || media.NaturalVideoWidth<=0 || media.NaturalVideoHeight<=0)return 0;
+            double aspect=(double)media.NaturalVideoWidth/media.NaturalVideoHeight;
+            return ((int)mediaTurn%180+180)%180==90?1/aspect:aspect;
+        }}
+        // The box around a picture of this upright size at the turn on screen.
+        Size TurnedBox(Size upright) {return TurnedBox(upright,drawnTurn);}
+        static Size TurnedBox(Size upright,int degrees) {
+            double angle=degrees*Math.PI/180,cos=Math.Abs(Math.Cos(angle)),sin=Math.Abs(Math.Sin(angle));
+            return new Size(upright.Width*cos+upright.Height*sin,upright.Width*sin+upright.Height*cos);
+        }
+        // Small enough that the picture's corners never reach the edge of the view, at any angle.
+        double CircleZoom() {
+            var area=ViewArea;
+            var upright=MediaViewport.Fit(UprightAspect,area.Size);
+            double across=Math.Sqrt(upright.Width*upright.Width+upright.Height*upright.Height);
+            return across<=0?1:Math.Min(1,TurnCircle*Math.Min(area.Width,area.Height)/across);
+        }
+        // Where the whole picture is, turned, zoomed and moved, before the edge of the view cuts it off.
+        Rect PictureRect() {
+            var area=ViewArea;
+            var box=TurnedBox(MediaViewport.Fit(UprightAspect,area.Size).Size);
+            double w=box.Width*zoom,h=box.Height*zoom;
+            return new Rect(area.Width/2+pan.X-w/2,area.Height/2+pan.Y-h/2,w,h);
+        }
+        bool PictureOverflows() {
+            var whole=PictureRect();var area=ViewArea;
+            return whole.Width>area.Width+0.5 || whole.Height>area.Height+0.5;
+        }
+        // The wheel goes down to where the whole turned picture fits in the view.
+        double LeastZoom() {
+            var area=ViewArea;
+            var box=TurnedBox(MediaViewport.Fit(UprightAspect,area.Size).Size);
+            if(box.Width<=0 || box.Height<=0)return 1;
+            return Math.Min(1,Math.Min(area.Width/box.Width,area.Height/box.Height));
+        }
+        void Turn(int direction,bool held) {
+            if(turning){turnSettle.Stop();turnSettle.Start();} // a held key resting at a quarter turn is still turning
+            if(held && DateTime.UtcNow<turnRests)return;
+            if(!turning)StartTurning();
+            turnSettle.Stop();turnSettle.Start();
+            int step=home==null?10:Math.Max(1,home.Settings.RotationStep);
+            int to=turn+direction*step;
+            // A quarter turn is never stepped over: the picture lands on it first.
+            int quarter=direction>0?(int)Math.Floor(turn/90.0)*90+90:(int)Math.Ceiling(turn/90.0)*90-90;
+            if(direction>0?to>=quarter:to<=quarter){to=quarter;turnRests=DateTime.UtcNow.AddMilliseconds(450);}
+            turn=((to%360)+360)%360;
+            ApplyTurn();
+            ShowCornerNote(turn==0?L.T("Rotation: normal"):L.F("Rotation {0}°",turn>180?turn-360:turn));
+        }
+        // I: the angle, the size and the place all go back. A turned video hides its rebuild behind the still here too.
+        void ResetTurn() {
+            if(drawnTurn!=0)HoldStill();
+            turnSettle.Stop();turning=false;turnWaiting=false;turnReady.Stop();
+            turn=0;zoom=1;pan=new Vector();
+            if(turnStillOn){drawnTurn=0;ApplyZoom();SettleTurn();}
+            else ShowTurn();
+            ShowCornerNote(L.T("Rotation: normal"));
+        }
+        // The first press: the picture goes to the middle, small enough to turn without touching the edges.
+        void StartTurning() {
+            turning=true;
+            HoldStill();
+            turnWaiting=false;turnReady.Stop();
+            zoom=CircleZoom();pan=new Vector();
+        }
+        // A video stops on this scene and shows it as a still. If the frame can't be had, it simply turns as a video.
+        void HoldStill() {
+            if(turnStillOn || mpv==null || !motion)return;
+            bool playing=!paused;
+            if(playing)SetPaused(true);
+            var frame=mpv.GrabFrame();
+            if(frame==null || !ShapeMatches((double)frame.PixelWidth/frame.PixelHeight,drawnTurn)) {
+                if(playing)SetPaused(false);
+                return;
+            }
+            stillTurn=drawnTurn;turnResume=playing;turnStillOn=true;
+            turnRaw=frame;turnImage.Source=Light.Apply(frame,PlaybackValue);turnLayer.Visibility=Visibility.Visible;
+        }
+        bool ShapeMatches(double aspect,int degrees) {
+            var box=TurnedBox(new Size(UprightAspect,1),degrees);
+            return box.Width>0 && box.Height>0 && Math.Abs(aspect/(box.Width/box.Height)-1)<0.03;
+        }
+        void ApplyTurn() {
+            if(turnStillOn){drawnTurn=turn;ApplyZoom();return;}
+            ShowTurn();
+        }
+        void ShowTurn() {
+            drawnTurn=turn;
+            picture.LayoutTransform=turn==0?Transform.Identity:new RotateTransform(turn);
+            if(media!=null)media.LayoutTransform=mediaTurn+turn==0?Transform.Identity:new RotateTransform(mediaTurn+turn);
+            if(mpv!=null)mpv.Turn=turn;
+            ApplyZoom();
+        }
+        // The angle is decided: mpv gets it once, behind the still, and the still leaves when mpv shows it.
+        void SettleTurn() {
+            turnSettle.Stop();turning=false;
+            if(!turnStillOn || mpv==null)return;
+            bool already=mpv.Turn==turn;
+            turnWaiting=true;drawnTurn=turn;mpv.Turn=turn;ApplyZoom();
+            turnReady.Stop();turnReady.Interval=TimeSpan.FromMilliseconds(already?60:1000);turnReady.Start();
+        }
+        // mpv reports the new shape a moment before it has drawn it.
+        void CheckTurnReady() {
+            if(!turnWaiting || !ShapeMatches(mpv.Aspect,mpv.Turn))return;
+            turnReady.Stop();turnReady.Interval=TimeSpan.FromMilliseconds(160);turnReady.Start();
+        }
+        void EndTurnStill() {
+            turnReady.Stop();
+            if(!turnStillOn)return;
+            turnWaiting=false;turnStillOn=false;
+            turnLayer.Visibility=Visibility.Collapsed;turnImage.Source=null;turnRaw=null;
+            bool resume=turnResume;turnResume=false;
+            if(captureAfterTurn){captureAfterTurn=false;CaptureFrame();}
+            if(resume)SetPaused(false);
+        }
+        void CancelTurn() {
+            turnSettle.Stop();turnReady.Stop();
+            turning=turnStillOn=turnWaiting=turnResume=captureAfterTurn=false;
+            turnLayer.Visibility=Visibility.Collapsed;turnImage.Source=null;turnRaw=null;
+        }
+        void PlaceTurnStill() {
+            if(!turnStillOn)return;
+            var area=ViewArea;
+            var box=TurnedBox(MediaViewport.Fit(UprightAspect,area.Size).Size,stillTurn);
+            double w=box.Width*zoom,h=box.Height*zoom;
+            turnLayer.Margin=new Thickness(0,0,0,viewport.Margin.Bottom);
+            turnImage.Width=w;turnImage.Height=h;
+            Canvas.SetLeft(turnImage,area.Width/2-w/2);Canvas.SetTop(turnImage,area.Height/2-h/2);
+            var place=new TransformGroup();
+            place.Children.Add(new RotateTransform(turn-stillTurn));place.Children.Add(new TranslateTransform(pan.X,pan.Y));
+            turnImage.RenderTransform=place;
+        }
+        // Before anything needs the angle to be final.
+        void FinishTurn() {if(turning)SettleTurn();}
+        // about: the spot (in the view) that stays where it is, usually the pointer; the middle when left out.
+        void SetZoom(double value,Point? about=null) {
+            var area=ViewArea;
+            // A picture made smaller at one angle may stay that small at another.
+            double least=Math.Min(zoom,LeastZoom());
+            value=Math.Max(least,Math.Min(MaxZoom,value));
+            if(value!=least && Math.Abs(value-1)<0.03)value=1;
+            var middle=new Point(area.Width/2,area.Height/2);
+            Vector fromPicture=(about??middle)-middle-pan;
+            pan=(about??middle)-middle-fromPicture*(value/zoom);
+            zoom=value;
+            ApplyZoom();
+            ShowCornerNote(zoom==1?L.T("Zoom: normal"):L.F("Zoom {0:0.0}×",zoom));
+        }
+        // Puts the zoom, the place and the turn on whatever shows the picture, and everything that follows its shape.
+        void ApplyZoom() {
+            var area=ViewArea;
+            var box=TurnedBox(MediaViewport.Fit(UprightAspect,area.Size).Size);
+            double w=box.Width*zoom,h=box.Height*zoom;
+            // The picture can be moved only as far as it sticks out of the view.
+            double roomX=Math.Max(0,(w-area.Width)/2),roomY=Math.Max(0,(h-area.Height)/2);
+            pan=new Vector(Math.Max(-roomX,Math.Min(roomX,pan.X)),Math.Max(-roomY,Math.Min(roomY,pan.Y)));
+            // Whatever shows the picture fits the turned box into the view by itself; this is the size on top of that.
+            var fit=MediaViewport.Fit(box.Height>0?box.Width/box.Height:0,area.Size);
+            double scale=fit.Width>0?w/fit.Width:1;
+            Transform view=Transform.Identity;
+            if(Math.Abs(scale-1)>0.0001 || pan.X!=0 || pan.Y!=0) {
+                var group=new TransformGroup();
+                group.Children.Add(new ScaleTransform(scale,scale));group.Children.Add(new TranslateTransform(pan.X,pan.Y));
+                view=group;
+            }
+            picture.RenderTransformOrigin=new Point(0.5,0.5);picture.RenderTransform=view;
+            if(media!=null){media.RenderTransformOrigin=new Point(0.5,0.5);media.RenderTransform=view;}
+            // While the still is being turned, mpv is left alone.
+            if(mpv!=null && (!turnStillOn || turnWaiting))mpv.SetView(scale,w>0?pan.X/w:0,h>0?pan.Y/h:0);
+            PlaceTurnStill();
+            viewport.InvalidateMeasure();
+            if(seekPreview!=null)seekPreview.Framing=CurrentFraming;
+            ApplyPlaybackBrightness();PlaceSubtitles();PlaceCoverStrip();
+        }
+        void Wheel(object sender,MouseWheelEventArgs e) {
+            if(e.Handled || ShownAspect<=0 || panel.IsMouseOver || coverStrip.IsMouseOver)return;
+            var cursor=System.Windows.Forms.Cursor.Position;
+            Point at;
+            try {at=root.PointFromScreen(new Point(cursor.X,cursor.Y));} catch(InvalidOperationException) {return;}
+            if(!ViewArea.Contains(at))return;
+            SetZoom(zoom*Math.Pow(1.2,e.Delta/120.0),at);
+            e.Handled=true;
+        }
+        // A picture turned by any angle, in the smallest box that holds it.
+        static BitmapSource TurnedFrame(BitmapSource frame,int degrees) {
+            double w=frame.PixelWidth,h=frame.PixelHeight,angle=degrees*Math.PI/180;
+            int width=Math.Max(1,(int)Math.Round(Math.Abs(w*Math.Cos(angle))+Math.Abs(h*Math.Sin(angle)))),
+                height=Math.Max(1,(int)Math.Round(Math.Abs(w*Math.Sin(angle))+Math.Abs(h*Math.Cos(angle))));
+            var visual=new DrawingVisual();
+            RenderOptions.SetBitmapScalingMode(visual,BitmapScalingMode.HighQuality);
+            using(var dc=visual.RenderOpen()) {
+                dc.PushTransform(new RotateTransform(degrees,width/2.0,height/2.0));
+                dc.DrawImage(frame,new Rect((width-w)/2,(height-h)/2,w,h));
+                dc.Pop();
+            }
+            var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+            target.Render(visual);target.Freeze();
+            return target;
+        }
+
+        // ----- File information (Tab), like a video player's: what anyone would want to know about the file -----
+        // Stays on for the next file and the next window, like the playback speed.
+        static bool infoOn;
+        readonly TextBlock infoText=new TextBlock {FontSize=13,Foreground=Brushes.White,Margin=new Thickness(16,12,16,0),
+            TextWrapping=TextWrapping.Wrap,MaxWidth=720,LineHeight=20,Visibility=Visibility.Collapsed,
+            Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=5,ShadowDepth=1,Direction=315,Opacity=0.95}};
+        readonly DispatcherTimer infoTimer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(1)};
+        static readonly Brush InfoLabel=Frozen(new SolidColorBrush(Color.FromRgb(0xA9,0xD6,0xFF)));
+        static Brush Frozen(Brush brush){brush.Freeze();return brush;}
+        // What does not change while the file shows, read once per file.
+        string infoPath,infoPlace,infoSize,speakerShown,speakerName;
+        void ToggleInfo() {infoOn=!infoOn;RefreshInfo();}
+        void RefreshInfo() {
+            if(!infoOn || forCrop || index<0 || index>=items.Count){infoText.Visibility=Visibility.Collapsed;infoTimer.Stop();return;}
+            var photo=items[index];
+            string path=photo.Original??"";
+            if(path!=infoPath) {
+                infoPath=path;infoPlace=PlaceText(path);infoSize="";
+                try {var file=new FileInfo(path);if(file.Exists)infoSize=SizeText(file.Length);} catch(Exception) {}
+            }
+            var lines=new List<Tuple<string,string>>();
+            lines.Add(Tuple.Create(L.T("File"),photo.Name??System.IO.Path.GetFileName(path)));
+            if(infoPlace.Length>0)lines.Add(Tuple.Create(L.T("Location"),infoPlace));
+            var format=new List<string>();
+            string extension=System.IO.Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
+            if(extension.Length>0)format.Add(extension);
+            if(infoSize.Length>0)format.Add(infoSize);
+            if(motion && duration>1)format.Add(LengthText(duration));
+            if(format.Count>0)lines.Add(Tuple.Create(L.T("Format"),String.Join(" · ",format)));
+            if(mpv!=null && motion) {
+                var video=new List<string>();
+                if(mpv.PixelWidth>0)video.Add(mpv.PixelWidth+"×"+mpv.PixelHeight);
+                double fps=Number(mpv.Read("container-fps"));
+                if(fps>0)video.Add(fps.ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)+"fps");
+                string codec=CodecName(mpv.Read("video-format"));
+                if(codec.Length>0)video.Add(codec);
+                // Left out when the player has no number for it.
+                double rate=Number(mpv.Read("video-bitrate"));
+                if(rate>0)video.Add(L.F("{0:N0}kbps",Math.Round(rate/1000)));
+                if(video.Count>0)lines.Add(Tuple.Create(L.T("Video"),String.Join(" · ",video)));
+                if(mpvAudio) {
+                    var sound=new List<string>();
+                    string audio=CodecName(mpv.Read("audio-codec-name"));
+                    if(audio.Length>0)sound.Add(audio);
+                    double hertz=Number(mpv.Read("audio-params/samplerate"));
+                    if(hertz>0)sound.Add((hertz/1000).ToString("0.#",System.Globalization.CultureInfo.InvariantCulture)+"kHz");
+                    double channels=Number(mpv.Read("audio-params/channel-count"));
+                    if(channels>0)sound.Add(L.F("{0} channels",(int)channels));
+                    double audioRate=Number(mpv.Read("audio-bitrate"));
+                    if(audioRate>0)sound.Add(L.F("{0:N0}kbps",Math.Round(audioRate/1000)));
+                    if(sound.Count>0)lines.Add(Tuple.Create(L.T("Sound"),String.Join(" · ",sound)));
+                }
+                var play=new List<string>();
+                string hardware=mpv.Read("hwdec-current");
+                if(hardware!=null)play.Add(L.T(hardware=="no" || hardware.Length==0?"Hardware acceleration off":"Hardware acceleration on"));
+                double dropped=Number(mpv.Read("frame-drop-count"));
+                if(dropped>=0)play.Add(L.F("Dropped frames {0:N0}",(int)dropped));
+                if(mpvAudio) {
+                    if(speakerShown!=speaker) {
+                        speakerShown=speaker;
+                        speakerName=speaker.Length==0?L.T("Windows default speaker"):speaker;
+                        if(speaker.Length>0) {
+                            var found=MpvPlayer.Speakers().Find(s=>s.Item1==speaker);
+                            if(found!=null)speakerName=found.Item2;
+                        }
+                    }
+                    play.Add(speakerName);
+                }
+                if(play.Count>0)lines.Add(Tuple.Create(L.T("Play"),String.Join(" · ",play)));
+            } else {
+                // A photo, a GIF or WebP, a cover, or the Windows player: the picture's own size, when it is known.
+                var size=new List<string>();
+                if(media!=null && media.NaturalVideoWidth>0)size.Add(media.NaturalVideoWidth+"×"+media.NaturalVideoHeight);
+                else if(!motion && !cachedCover && full!=null)size.Add(full.PixelWidth+"×"+full.PixelHeight);
+                if(motion && times!=null && times.Count>1)size.Add(L.F("{0:N0} frames",times.Count));
+                if(size.Count>0)lines.Add(Tuple.Create(L.T("Size"),String.Join(" · ",size)));
+                var cover=picture.Source as BitmapSource;
+                if(cachedCover && cover!=null && !motion)lines.Add(Tuple.Create(L.T("Cover"),cover.PixelWidth+"×"+cover.PixelHeight));
+            }
+            infoText.Inlines.Clear();
+            for(int i=0;i<lines.Count;i++) {
+                if(i>0)infoText.Inlines.Add(new LineBreak());
+                infoText.Inlines.Add(new Run(lines[i].Item1+"   ") {Foreground=InfoLabel});
+                infoText.Inlines.Add(new Run(lines[i].Item2));
+            }
+            infoText.Visibility=Visibility.Visible;
+            if(!infoTimer.IsEnabled)infoTimer.Start();
+        }
+        static double Number(string text) {
+            double value;
+            return Double.TryParse(text,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out value)?value:-1;
+        }
+        // "E: (drive name) › folder › folder inside": which drive and which folder the file is in.
+        static string PlaceText(string path) {
+            try {
+                string folder=System.IO.Path.GetDirectoryName(path);
+                if(String.IsNullOrEmpty(folder))return "";
+                string drive=System.IO.Path.GetPathRoot(folder)??"";
+                var parts=new List<string>();
+                string head=drive.TrimEnd('\\');
+                if(drive.Length>=2 && drive[1]==':') {
+                    try {string label=new DriveInfo(drive).VolumeLabel;if(!String.IsNullOrWhiteSpace(label))head+=" ("+label+")";}
+                    catch(Exception) {}
+                }
+                if(head.Length>0)parts.Add(head);
+                foreach(string part in folder.Substring(drive.Length).Split(new[]{'\\','/'},StringSplitOptions.RemoveEmptyEntries))parts.Add(part);
+                return String.Join(" › ",parts);
+            } catch(Exception) {return "";}
+        }
+        static string SizeText(long bytes) {
+            var inv=System.Globalization.CultureInfo.InvariantCulture;
+            if(bytes>=1L<<30)return (bytes/(double)(1L<<30)).ToString("0.##",inv)+"GB";
+            if(bytes>=1L<<20)return (bytes/(double)(1L<<20)).ToString(bytes>=100L<<20?"0":"0.#",inv)+"MB";
+            return Math.Max(1,(long)Math.Round(bytes/1024.0)).ToString(inv)+"KB";
+        }
+        static string LengthText(double ms) {
+            var t=TimeSpan.FromMilliseconds(ms);
+            return t.TotalHours>=1?String.Format("{0}:{1:00}:{2:00}",(int)t.TotalHours,t.Minutes,t.Seconds):String.Format("{0}:{1:00}",t.Minutes,t.Seconds);
+        }
+        // The short names people know. Anything else is shown as mpv names it, in capitals.
+        static string CodecName(string name) {
+            if(String.IsNullOrEmpty(name))return "";
+            switch(name.ToLowerInvariant()) {
+                case "h264":return "H.264";case "hevc":return "H.265 (HEVC)";case "av1":return "AV1";case "vp9":return "VP9";case "vp8":return "VP8";
+                case "mpeg4":return "MPEG-4";case "mpeg2video":return "MPEG-2";case "wmv3":return "WMV";case "vc1":return "VC-1";
+                case "aac":return "AAC";case "mp3":return "MP3";case "ac3":return "AC3";case "eac3":return "E-AC3";case "opus":return "Opus";
+                case "vorbis":return "Vorbis";case "flac":return "FLAC";case "dts":return "DTS";
+            }
+            return name.StartsWith("pcm_",StringComparison.OrdinalIgnoreCase)?"PCM":name.ToUpperInvariant();
+        }
+
+        // ----- The original to the Recycle Bin (Delete), then on to the next file -----
+        // Not from the "covers" collection, where the folder window doesn't delete originals either.
+        readonly bool fromCollection;
+        bool recycling;
+        bool CanRecycle {get {return !forCrop && home!=null && !fromCollection && index>=0 && index<items.Count && items[index].Linked && items is List<Photo>;}}
+        async void RecycleCurrent() {
+            if(recycling || !CanRecycle)return;
+            var photo=CurrentPhoto;
+            if(!ConfirmSubtitles(true))return;
+            recycling=true;
+            try {
+                // The player lets go of the file first. What reads the file in the background (the scene list,
+                // the playback bar's small pictures) stops a moment later, so it is tried a few times.
+                if(loading!=null)loading.Cancel();
+                ClearTransport();StopMotion();SetPicture(null);status.Text="";
+                string problem=null;
+                for(int attempt=0;attempt<4;attempt++) {
+                    if(attempt>0)await Task.Delay(350);
+                    if(!IsVisible)return;
+                    problem=home.RecycleFromViewer(photo,new WindowInteropHelper(this).Handle);
+                    if(problem==null || !System.IO.File.Exists(photo.Original))break;
+                }
+                if(!IsVisible)return;
+                if(problem!=null) {
+                    LoadCurrent();
+                    ShowCornerNote(L.T("Couldn't move it to the Recycle Bin")+" · "+problem);
+                    return;
+                }
+                // Every cover of that original leaves this window's list too.
+                var list=(List<Photo>)items;
+                int before=0;
+                for(int i=0;i<index;i++)if(GalleryWindow.SameOriginal(list[i],photo))before++;
+                list.RemoveAll(p=>GalleryWindow.SameOriginal(p,photo));
+                if(list.Count==0){Close();return;}
+                index=Math.Max(0,Math.Min(index-before,list.Count-1));
+                LoadCurrent();
+                ShowCornerNote(L.F("Moved to the Recycle Bin · {0}",photo.Name));
+            } finally {recycling=false;}
+        }
+
+        // ----- Right-click: every control with its key, to learn the keys or to use the mouse alone -----
+        System.Windows.Controls.Primitives.Popup keyPanel;
+        readonly DispatcherTimer holdTimer=new DispatcherTimer();
+        Action holdAction;
+        bool holdRepeating; // a held button repeats like a held key (it rests at a quarter turn too)
+        void ShowControls() {
+            if(keyPanel!=null)keyPanel.IsOpen=false;
+            var rows=new Grid();
+            rows.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});rows.ColumnDefinitions.Add(new ColumnDefinition());
+            var popup=new System.Windows.Controls.Primitives.Popup {AllowsTransparency=true,StaysOpen=false,
+                Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint,PlacementTarget=ui};
+            var live=new List<Action>(); // labels that follow what they show (on or off, the chosen strength)
+            Action refresh=()=>{foreach(var update in live)update();};
+            // A button that keeps going while it is held (stays): one press is one step, like one press of the key.
+            Func<string,Action,bool,Button> key=(label,act,stays)=>{
+                var button=new Button {Content=label,MinHeight=25,MinWidth=0,Padding=new Thickness(9,1,9,2),Margin=new Thickness(0,0,4,0),FontSize=12.5,Focusable=false};
+                if(stays) {
+                    button.ClickMode=ClickMode.Press;
+                    button.Click+=delegate {
+                        act();refresh();
+                        holdAction=()=>{if(button.IsPressed && popup.IsOpen){act();refresh();}else holdTimer.Stop();};
+                        holdTimer.Stop();holdTimer.Interval=TimeSpan.FromMilliseconds(420);holdTimer.Start();
+                    };
+                } else button.Click+=delegate {popup.IsOpen=false;act();};
+                return button;
+            };
+            Action<string,Button[]> row=(label,buttons)=>{
+                int at=rows.RowDefinitions.Count;
+                rows.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+                var name=UI.Text(label,12.5,true);name.Margin=new Thickness(0,0,12,0);
+                Grid.SetRow(name,at);rows.Children.Add(name);
+                var line=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,2,0,2)};
+                foreach(var button in buttons)line.Children.Add(button);
+                Grid.SetRow(line,at);Grid.SetColumn(line,1);rows.Children.Add(line);
+            };
+            Action rule=()=>{
+                int at=rows.RowDefinitions.Count;
+                rows.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+                var bar=new Border {Height=1,Margin=new Thickness(0,6,0,6)};bar.SetResourceReference(Border.BackgroundProperty,"Line");
+                Grid.SetRow(bar,at);Grid.SetColumnSpan(bar,2);rows.Children.Add(bar);
+            };
+            string reset=L.T("Reset");
+            if(motion) {
+                var pauseKey=key("",()=>SetPaused(!paused),true);
+                live.Add(()=>pauseKey.Content="Space  "+L.T(paused?"Play":"Pause"));
+                row(L.T("Play"),new[]{pauseKey,key("/  "+L.T("Capture scene"),CaptureFrame,true)});
+                row(L.T("Move by scene"),new[]{key("D  ◀",()=>StepFrame(-1),true),key("F  ▶",()=>StepFrame(1),true)});
+                var partFrom=key("[  "+L.T("Start"),()=>{if(!holdRepeating)MarkPart(1);},true);
+                var partTo=key("]  "+L.T("End"),()=>{if(!holdRepeating)MarkPart(2);},true);
+                var partOff=key("\\  "+L.T("Clear"),()=>{if(!holdRepeating)ClearPart();},true);
+                partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
+                live.Add(()=>partOff.IsEnabled=PartIsHere && (partStart.HasValue || partEnd.HasValue));
+                row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff});
+                row(L.T("Skip"),new[]{key("←  "+L.F("{0} s",skipSeconds),()=>Skip(-1,skipSeconds),true),key(L.F("{0} s",skipSeconds)+"  →",()=>Skip(1,skipSeconds),true)});
+                Action<double> speed=change=>{
+                    SetRate(change==0?1:Math.Max(0.2,Math.Min(4,Math.Round(rate+change,1))));
+                    ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
+                };
+                var twice=key("",()=>{if(!holdRepeating)ToggleDoubleRate();},true);
+                live.Add(()=>twice.Content=(Math.Abs(rate-2)<0.001?"✓ ":"")+"V  "+L.T("2×"));
+                twice.ToolTip=L.T("2× speed. Press again for 1×");
+                row(L.T("Playback speed"),new[]{key("Z  "+reset,()=>speed(0),true),key("X  "+L.T("Slower"),()=>speed(-0.1),true),key("C  "+L.T("Faster"),()=>speed(0.1),true),twice});
+                // Shows the style in use; a click switches to the other one, and the controls stay open.
+                var style=key("",()=>{if(!holdRepeating)SwitchBrightnessStyle();},true);
+                live.Add(()=>style.Content="R  "+Light.StyleName(playbackStyle));
+                style.ToolTip=L.T("Switch brightness style");
+                row(L.T("Brightness"),new[]{key("Q  "+reset,()=>ChangeBrightness(0),true),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
+                    key("E  "+L.T("Brighter"),()=>ChangeBrightness(1),true),style});
+            }
+            row(L.T("Rotation"),new[]{key("I  "+reset,ResetTurn,true),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
+            row(L.T("Zoom (wheel)"),new[]{key(reset,()=>SetZoom(1),true),key("−  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("+  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
+            if(motion && volume.IsEnabled) {
+                Action<int> louder=direction=>{
+                    muted=false;
+                    volume.Value=Math.Max(0,Math.Min(100,Math.Round(volume.Value/5)*5+direction*5));
+                    ApplyAudio();ShowCornerNote(L.F("Volume {0}%",(int)volume.Value));
+                };
+                var mute=key("",()=>{muted=!muted;ApplyAudio();ShowCornerNote(muted?L.T("Sound off"):L.F("Volume {0}%",(int)volume.Value));},true);
+                live.Add(()=>mute.Content="M  "+L.T(muted?"Turn on":"Turn off"));
+                row(L.T("Sound"),new[]{mute,key("↓  "+L.T("Quieter"),()=>louder(-1),true),key("↑  "+L.T("Louder"),()=>louder(1),true)});
+            }
+            if(motion && clearVoiceReady) {
+                var voice=key("",ToggleClearVoice,true);
+                live.Add(()=>voice.Content="N  "+L.T(clearVoice?"Turn off":"Turn on"));
+                var levels=new List<Button> {voice};
+                for(int i=0;i<ClearVoiceLevels.Length;i++) {
+                    int level=i;
+                    var choice=key("",()=>ChooseClearVoiceLevel(level),true);
+                    live.Add(()=>choice.Content=(clearVoice && clearVoiceLevel==level?"✓ ":"")+L.T(ClearVoiceLevels[level]));
+                    levels.Add(choice);
+                }
+                row(L.T("Clear voice"),levels.ToArray());
+            }
+            if(motion && subtitlesReady && !forCrop)row(L.T("Subtitles"),new[]{key(L.T("Open the subtitle explorer"),OpenSubtitleExplorer,false)});
+            if(motion && mpv!=null && (Subtitle!=null || HasOwnSubtitle))
+                row(L.T("Subtitle size"),new[]{key(reset,()=>ChangeSubtitleSize(0),true),key("−  "+L.T("Smaller"),()=>ChangeSubtitleSize(-1),true),key("+  "+L.T("Bigger"),()=>ChangeSubtitleSize(1),true)});
+            if(!forCrop) {
+                var back=key("K  ◀ "+L.T("Previous"),()=>Navigate(-1),false);back.IsEnabled=index>0;
+                var forward=key("L  "+L.T("Next")+" ▶",()=>Navigate(1),false);forward.IsEnabled=index<items.Count-1;
+                row(L.T("File"),new[]{back,forward,key("Tab  "+L.T("File info"),ToggleInfo,false)});
+                var more=new List<Button>();
+                if(home!=null && index<items.Count && items[index].Linked)more.Add(key(L.T("Open file location"),()=>home.ShowInExplorer(CurrentPhoto,false),false));
+                // Watching only the video: the folder window can go down from here, and it gives its memory back while it is down.
+                if(home!=null && home.IsVisible && home.WindowState!=WindowState.Minimized)more.Add(key(L.T("Minimize the folder window"),GalleryWindow.MinimizeAll,false));
+                if(more.Count>0)row("",more.ToArray());
+                if(CanRecycle) {
+                    rule();
+                    row("",new[]{key("Delete  "+L.T("Move the original file to the Recycle Bin"),RecycleCurrent,false)});
+                }
+            }
+            refresh();
+            var card=new Border {Child=rows,CornerRadius=new CornerRadius(8),Padding=new Thickness(12,9,10,9),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,8,8),
+                Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=8,ShadowDepth=2,Direction=270,Opacity=0.35}};
+            card.SetResourceReference(Border.BackgroundProperty,"Paper");card.SetResourceReference(Border.BorderBrushProperty,"Line");
+            card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
+            popup.Child=card;
+            popup.Closed+=delegate {holdTimer.Stop();if(keyPanel==popup)keyPanel=null;};
+            keyPanel=popup;popup.IsOpen=true;
+        }
+
         void ShowCornerNote(string text) {
             cornerNote.Text=text;cornerNote.BeginAnimation(OpacityProperty,null);cornerNote.Opacity=1;
             cornerNote.Visibility=Visibility.Visible;cornerNoteTimer.Stop();cornerNoteTimer.Start();
@@ -669,35 +1393,23 @@ namespace LoveMyShelf {
         static void LabelControl(Control control,string label) {
             AutomationProperties.SetName(control,label);control.ToolTip=label;
         }
-        readonly Button clearVoiceButton;
-        readonly TextBlock clearVoiceCheck;
-        readonly Button clearVoiceMenuButton;
         static readonly string[] ClearVoiceLevels={"Gentle","Normal","Strong"};
-        bool clearVoice,clearVoiceMenuOpen;
+        // clearVoiceReady: this video plays with sound through mpv, so Clear voice can be used.
+        bool clearVoice,clearVoiceReady;
         int clearVoiceLevel=1;
+        void ToggleDoubleRate() {
+            SetRate(Math.Abs(rate-2)<0.001?1:2);
+            ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
+        }
         void ToggleClearVoice() {
             if(mpv==null || !mpv.SetClearVoice(!clearVoice,clearVoiceLevel)) {
                 ShowCornerNote(L.T("Clear voice isn't available for this video"));
                 return;
             }
             clearVoice=!clearVoice;
-            clearVoiceCheck.Visibility=clearVoice?Visibility.Visible:Visibility.Hidden;
             ShowCornerNote(clearVoice?L.F("Clear voice: {0}",L.T(ClearVoiceLevels[clearVoiceLevel])):L.T("Clear voice off"));
         }
-        // Built fresh so the check mark shows the current level. Choosing a level also turns the feature on.
-        void ShowClearVoiceMenu() {
-            var menu=new ContextMenu {PlacementTarget=clearVoiceMenuButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Top};
-            for(int i=0;i<ClearVoiceLevels.Length;i++) {
-                int level=i;
-                var item=new MenuItem {Header=L.T(ClearVoiceLevels[i]),IsChecked=clearVoiceLevel==i};
-                item.Click+=delegate {ChooseClearVoiceLevel(level);};
-                menu.Items.Add(item);
-            }
-            // In full screen the bar stays up while the menu is open, even with the pointer on the menu.
-            menu.Closed+=delegate {clearVoiceMenuOpen=false;RefreshFullscreenControls();};
-            clearVoiceMenuOpen=true;
-            menu.IsOpen=true;
-        }
+        // Choosing a level also turns the feature on.
         void ChooseClearVoiceLevel(int level) {
             if(!clearVoice || level!=clearVoiceLevel) { // the same level again would only interrupt the sound
                 if(mpv==null || !mpv.SetClearVoice(true,level)) {
@@ -705,7 +1417,6 @@ namespace LoveMyShelf {
                     return;
                 }
                 clearVoice=true;clearVoiceLevel=level;
-                clearVoiceCheck.Visibility=Visibility.Visible;
             }
             ShowCornerNote(L.F("Clear voice: {0}",L.T(ClearVoiceLevels[level])));
         }
@@ -718,6 +1429,33 @@ namespace LoveMyShelf {
             if(media==null)return;
             media.Volume=level/100;
         }
+        // ----- The sound follows the monitor this window is on (Guide & Options picks a speaker per monitor) -----
+        readonly DispatcherTimer speakerTimer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(400)};
+        string speaker="",speakerWaiting; // "" is the Windows default
+        string WantedSpeaker(MpvPlayer player) {
+            if(home==null)return "";
+            return SpeakerRouting.For(home.Settings,new System.Windows.Interop.WindowInteropHelper(this).Handle,player.HasAudioDevice);
+        }
+        // Also notices a speaker being unplugged or plugged back in, and a changed choice in the options.
+        void CheckSpeaker() {
+            if(mpv==null){speakerTimer.Stop();speakerWaiting=null;return;}
+            if(WindowState==WindowState.Minimized)return; // a minimized window sits off every monitor
+            string wanted=WantedSpeaker(mpv);
+            if(wanted==speaker){speakerWaiting=null;return;}
+            // Only after two checks in a row, so dragging a window across a monitor doesn't switch on the way.
+            if(wanted!=speakerWaiting){speakerWaiting=wanted;return;}
+            speakerWaiting=null;UseSpeaker(wanted);
+        }
+        void UseSpeaker(string next) {
+            if(next==speaker)return;
+            if(home!=null)home.SaveAudio((int)Math.Round(volume.Value),clearVoice,clearVoiceLevel,speaker);
+            speaker=next;
+            if(mpv!=null)mpv.AudioDevice=next;
+            if(home==null)return;
+            bool wasMuted=muted;
+            volume.Value=home.Settings.VolumeFor(next);
+            muted=wasMuted;ApplyAudio();
+        }
         readonly TaskCompletionSource<bool> firstPicture=new TaskCompletionSource<bool>();
         // Completes when the first picture is on screen.
         internal Task FirstPicture {get {return firstPicture.Task;}}
@@ -725,20 +1463,40 @@ namespace LoveMyShelf {
         internal Action<Photo> EditLater;
         void SetPicture(BitmapSource frame) {
             if(frame!=null)Dispatcher.BeginInvoke(new Action(()=>firstPicture.TrySetResult(true)),DispatcherPriority.ContextIdle);
-            picture.Source=frame;
+            pictureRaw=frame;picture.Source=frame;
             viewport.InvalidateMeasure();
             ApplyPlaybackBrightness();
         }
+        // The mpv engine bends its own colors (its "gamma"), a GIF or WebP gets the curve on each frame, and the
+        // still shown while turning gets it too. Only the Windows player, which can't, still gets the white or black layer.
+        // E / W / Q (and their buttons): +1 brighter, -1 darker, 0 back to normal.
+        void ChangeBrightness(int direction) {
+            int step=home==null?3:home.Settings.BrightnessStep;
+            playbackBrightness=direction==0?0:Math.Max(-100,Math.Min(100,playbackBrightness+direction*step));brightnessChosen=true;
+            ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
+            ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0} · {1}",playbackBrightness,Light.StyleName(playbackStyle)));
+        }
+        // R: Soft and See in the dark take turns. The level stays.
+        void SwitchBrightnessStyle() {
+            playbackStyle=playbackStyle==Light.Dark?Light.Soft:Light.Dark;brightnessChosen=true;
+            ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
+            ShowCornerNote(L.F("Brightness style: {0}",Light.StyleName(playbackStyle)));
+        }
         void ApplyPlaybackBrightness() {
-            int level=playbackBrightness;
-            if(!motion || level==0){brightnessLayer.Visibility=Visibility.Collapsed;return;}
-            double aspect=picture.Source!=null?MediaViewport.Aspect(picture):mpv!=null?mpv.Aspect:media==null?0:MediaViewport.Aspect(media);
-            if(aspect<=0 || root.ActualWidth<=0 || root.ActualHeight<=0){
+            int value=motion?PlaybackValue:0,level=Light.Level(value);
+            if(mpv!=null)mpv.Brightness=value;
+            if(pictureRaw!=null)picture.Source=Light.Apply(pictureRaw,value);
+            if(turnRaw!=null)turnImage.Source=Light.Apply(turnRaw,value);
+            if(media==null || level==0){brightnessLayer.Visibility=Visibility.Collapsed;return;}
+            if(ShownAspect<=0 || root.ActualWidth<=0 || root.ActualHeight<=0){
                 brightnessLayer.Visibility=Visibility.Collapsed;return;
             }
-            double room=Math.Max(0,root.ActualHeight-viewport.Margin.Bottom);
-            var fit=MediaViewport.Fit(aspect,new Size(root.ActualWidth,room));
-            brightnessLayer.Width=fit.Width;brightnessLayer.Height=fit.Height;
+            // Exactly over the part of the picture that shows (it can be zoomed in and moved).
+            var shown=Rect.Intersect(PictureRect(),ViewArea);
+            if(shown.IsEmpty){brightnessLayer.Visibility=Visibility.Collapsed;return;}
+            brightnessLayer.HorizontalAlignment=HorizontalAlignment.Left;brightnessLayer.VerticalAlignment=VerticalAlignment.Top;
+            brightnessLayer.Margin=new Thickness(shown.X,shown.Y,0,0);
+            brightnessLayer.Width=shown.Width;brightnessLayer.Height=shown.Height;
             brightnessLayer.Background=level>0?Brushes.White:Brushes.Black;
             brightnessLayer.Opacity=Math.Abs(level)/100.0;brightnessLayer.Visibility=Visibility.Visible;
         }
@@ -755,6 +1513,7 @@ namespace LoveMyShelf {
         }
         void StepFrame(int direction) {
             if(draggingVideo || resumeAfterDrag)return;
+            FinishTurn();
             SetPaused(true);
             var timing=times;
             if(Native && videoIndex!=null && videoIndex.Status==TaskStatus.RanToCompletion)timing=videoIndex.Result;
@@ -819,6 +1578,7 @@ namespace LoveMyShelf {
                     overlay.MouseLeave+=delegate {RefreshFullscreenControls();};
                     overlay.Activated+=delegate {RefreshFullscreenControls();};
                     overlay.Deactivated+=delegate {RefreshFullscreenControls();};
+                    overlay.PreviewMouseWheel+=Wheel;
                 }
                 if(overlay.Content!=ui){root.Children.Remove(ui);overlay.Content=ui;}
                 overlay.Open();
@@ -842,7 +1602,7 @@ namespace LoveMyShelf {
             double bottomZone=Math.Max(bottomDistance,panel.ActualHeight);
             bool nearPanel=inside && ActualHeight-pointer.Y<=bottomZone;
             titleBar.Visibility=nearTitle || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
-            SetPanelVisible(nearPanel || panel.IsMouseCaptureWithin || clearVoiceMenuOpen);
+            SetPanelVisible(nearPanel || panel.IsMouseCaptureWithin);
         }
         void SetHidden(bool hide) {
             hidden=hide;
@@ -866,7 +1626,8 @@ namespace LoveMyShelf {
             double position=100;
             if(fullscreen && panel.Visibility==Visibility.Visible && panel.ActualHeight>0 && root.ActualHeight>0 && mpv.Aspect>0) {
                 double limit=root.ActualHeight-panel.ActualHeight-gap;
-                var frame=MediaViewport.Fit(mpv.Aspect,new Size(root.ActualWidth,root.ActualHeight));
+                // Zoomed in, mpv's window is the whole view, so the subtitles count from its bottom.
+                var frame=mpv.Fill?new Rect(0,0,root.ActualWidth,root.ActualHeight):MediaViewport.Fit(mpv.Aspect,new Size(root.ActualWidth,root.ActualHeight));
                 bool ass=Subtitle!=null && Subtitle.Kind==SubtitleKind.Ass;
                 double bottom=ass?frame.Bottom:frame.Top+frame.Height*plainBottom;
                 if(bottom>limit)position=100-(bottom-limit)/(frame.Height*(ass?assStep:plainStep));
@@ -877,7 +1638,7 @@ namespace LoveMyShelf {
         void FitPictureAbovePanel() {
             double reserve=!fullscreen && panel.Visibility==Visibility.Visible?panel.ActualHeight:0;
             var margin=new Thickness(0,0,0,reserve);
-            if(viewport.Margin!=margin){viewport.Margin=margin;brightnessLayer.Margin=margin;ApplyPlaybackBrightness();}
+            if(viewport.Margin!=margin){viewport.Margin=margin;ApplyZoom();}
             PlaceCoverStrip();
             PlaceSubtitles();
         }
@@ -902,13 +1663,15 @@ namespace LoveMyShelf {
             return new string(chars);
         }
         void ClearTransport() {
+            CancelTurn();
             seekPreview.Clear();
             ticker.Stop();surfaceClick.Stop();clock.Reset();
             motion=false;paused=false;selectedMovie=false;resumeAfterDrag=false;largeVideo=false;draggingVideo=false;
             if(seek.IsMouseCaptured)seek.ReleaseMouseCapture();
             duration=0;startMs=0;shown=-1;times=null;requests=null;videoIndex=null;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Collapsed;
-            subtitleButton.Visibility=Visibility.Collapsed;
+            ShowPart();
+            subtitlesReady=false;clearVoiceReady=false;
             if(explorer!=null)explorer.PlaybackChanged();
             ShowRecrop(false);
             editCover.Visibility=Visibility.Collapsed;
@@ -923,10 +1686,12 @@ namespace LoveMyShelf {
             sync=true;seek.Maximum=duration;seek.Value=0;sync=false;pause.Content=L.T("Pause");pause.IsEnabled=true;seek.IsEnabled=true;
             ticker.Interval=TimeSpan.FromMilliseconds(largeVideo?100:30);
             volume.IsEnabled=(media!=null && media.HasAudio) || (mpv!=null && mpvAudio);
-            clearVoiceButton.IsEnabled=clearVoiceMenuButton.IsEnabled=mpv!=null && mpvAudio;
+            clearVoiceReady=mpv!=null && mpvAudio;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Visible;
             ReserveWidth(time,Widest(Stamp(duration)+" / "+Stamp(duration)));
             clock.Restart();ticker.Start();UpdateBar(0);
+            partInside=false;partJump.Reset(); // playing starts outside the part until it is reached or skipped into
+            ShowPart();
             ApplyPlaybackBrightness();
             if(resumeMs.HasValue){
                 double from=resumeMs.Value;resumeMs=null;
@@ -958,10 +1723,13 @@ namespace LoveMyShelf {
             if(explorer!=null && motion)explorer.ShowTime(Position(),!paused);
             if(!motion || paused || draggingVideo)return;
             double ms=Position();UpdateBar(ms);
+            if(LoopPart(ms))return;
             if(requests!=null)requests.Ask(times.At(ms),false);
         }
         void SeekTo(double ms,double? nativeMs=null) {
+            FinishTurn();
             ms=Math.Min(Math.Max(0,ms),duration);startMs=ms;clock.Restart();
+            FollowPart(ms);
             if(media!=null){
                 if(largeVideo && paused)media.ScrubbingEnabled=true;
                 media.Position=TimeSpan.FromMilliseconds(Math.Min(duration,nativeMs??ms));
@@ -971,6 +1739,7 @@ namespace LoveMyShelf {
             UpdateBar(ms);
         }
         void SetPaused(bool value){
+            if(turnStillOn){turnResume=!value;return;} // the video waits under the still; this is what it does afterwards
             if(!motion || paused==value)return;
             if(value){
                 if(media!=null)media.Pause();
@@ -996,6 +1765,7 @@ namespace LoveMyShelf {
             }
         }
         void StartCrop(){
+            if(home!=null && !home.CoverWorkFree(this))return;
             if(!AnimationFrames.Supports(CurrentPhoto.Original)){
                 if(EditLater!=null){var photo=CurrentPhoto;var later=EditLater;Close();later(photo);return;}
                 DialogResult=true;return;
@@ -1050,7 +1820,8 @@ namespace LoveMyShelf {
             var gallery=home;
             if(gallery==null)return;
             seekPreview.Hide();
-            bool resume=motion && !paused;
+            FinishTurn();
+            bool resume=motion && (turnStillOn?turnResume:!paused);
             if(resume)SetPaused(true);
             CropNearby=mpv!=null;
             CropTime=Native?Position():(double?)null;
@@ -1093,8 +1864,15 @@ namespace LoveMyShelf {
         }
         async void LoadCurrent(bool? showCover=null) {
             if(loading!=null)loading.Cancel();ClearTransport();
+            turn=0;zoom=1;pan=new Vector();mediaTurn=0;ShowTurn(); // every file starts upright and at its own size
+            // ...and at its own brightness. Going back and forth between the cover and the video keeps it.
+            if(items[index].Original!=brightnessFile) {
+                brightnessFile=items[index].Original;playbackBrightness=0;playbackStyle=Light.Soft;brightnessChosen=false;seekPreview.Brightness=0;
+            }
+            if(partFile!=null && !PartIsHere)DropPart(); // a part belongs to the file it was marked in
             var current=new CancellationTokenSource();loading=current;var token=current.Token;
             Photo photo=items[index];
+            RefreshInfo();
             if(!forCrop)Title=photo.Name; // only the file name, like the folder windows
             var gallery=home;
             bool selected=!WantsCrop && (showCover??(gallery==null || gallery.Settings.ShowCover(photo.Original)));
@@ -1250,7 +2028,7 @@ namespace LoveMyShelf {
             toggle.IsEnabled=true;status.Text="";
             UpdateUpscale();
             RefreshCoverStrip(photo);
-            if(!forCrop && photo.HasCrop && MotionMaker.Supports(photo.Original)) {
+            if(!forCrop && photo.HasCrop && !photo.IsOutside && MotionMaker.Supports(photo.Original)) {
                 // A cover that has a GIF already: edit that GIF (same part and choices) instead of making a new one.
                 makeGif.Content=L.T(photo.HasMotion?"Edit GIF cover":"Make GIF cover");
                 makeGif.Visibility=Visibility.Visible;
@@ -1382,14 +2160,22 @@ namespace LoveMyShelf {
                 largeVideo=VideoFrames.IsHighResolution(player.PixelWidth,player.PixelHeight);
                 viewport.InvalidateMeasure();
                 StartTransport(length);ReadyMotion();
-                subtitleButton.Visibility=Visibility.Visible;
+                subtitlesReady=true;
                 AttachSubtitle(path,player);
+                if(home!=null && !forCrop)home.TipMinimize();
             };
             player.VideoChanged+=delegate {
                 if(mpv!=player)return;
-                viewport.InvalidateMeasure();ApplyPlaybackBrightness();PlaceSubtitles();
+                ApplyZoom(); // the picture's shape may have changed (a turn): fit, brightness and subtitles again
+                CheckTurnReady();
             };
             mpv=player;mpvAudio=false;
+            // Picked before playback starts, so the first moment of sound doesn't come from the wrong speaker.
+            if(home!=null)UseSpeaker(SpeakerRouting.For(home.Settings,new System.Windows.Interop.WindowInteropHelper(this).Handle,
+                device=>MpvPlayer.Speakers().Exists(s=>s.Item1==device)));
+            player.AudioDevice=speaker;
+            player.SubtitleScale=subtitleSize/100.0;
+            speakerWaiting=null;speakerTimer.Start();
             viewport.Children.Insert(0,player);
             UseOverlay(true);
             try{
@@ -1407,9 +2193,8 @@ namespace LoveMyShelf {
             player.MediaOpened+=delegate {
                 if(token.IsCancellationRequested||media!=player)return;
                 if(!player.NaturalDuration.HasTimeSpan || !player.HasVideo){done.TrySetResult(false);return;}
-                double rotation=orientation.NativeCorrection(player.NaturalVideoWidth,player.NaturalVideoHeight);
-                if(rotation!=0)player.LayoutTransform=new RotateTransform(rotation);
-                viewport.InvalidateMeasure();
+                mediaTurn=orientation.NativeCorrection(player.NaturalVideoWidth,player.NaturalVideoHeight);
+                ApplyTurn();
                 largeVideo=VideoFrames.IsHighResolution(player.NaturalVideoWidth,player.NaturalVideoHeight);
                 if(largeVideo)player.ScrubbingEnabled=false;
                 StartTransport(player.NaturalDuration.TimeSpan.TotalMilliseconds);ReadyMotion();
@@ -1450,6 +2235,13 @@ namespace LoveMyShelf {
             }
             // Full screen is set when the window loads (after its own starting choice).
             Loaded+=delegate {if(full)FullScreen.Enter(this);else FullScreen.Leave(this);};
+        }
+        // Opens at a place of its own (see ViewerPlacement). full: start in full screen or not; null keeps the starting choice.
+        internal void PlaceAt(Rect box,bool maximized,bool? full) {
+            WindowStartupLocation=WindowStartupLocation.Manual;
+            Left=box.Left;Top=box.Top;Width=Math.Max(MinWidth,box.Width);Height=Math.Max(MinHeight,box.Height);
+            WindowState=maximized?WindowState.Maximized:WindowState.Normal;
+            if(full!=null)Loaded+=delegate {if(full.Value)FullScreen.Enter(this);else FullScreen.Leave(this);};
         }
         // The "GIF cover is ready" notice: shows that cover in this large view instead of opening another one.
         internal bool ShowCoverHere(Photo photo) {

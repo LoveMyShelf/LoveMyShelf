@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml.Linq;
 
 namespace LoveMyShelf {
@@ -37,34 +39,54 @@ namespace LoveMyShelf {
         public CoverPlace CoverPlace;
         public ThemeMode Theme;
         public bool CheckUpdates=true;
+        public bool ExplorerMenu=true;   // on unless turned off; "Open with Love My Shelf" in File Explorer's right-click menu
         public GifPlayback GridGif=GifPlayback.Hover;
         public ShareContent Share;
         // Discord's free upload limit went from 10 MB to 20 MB in August 2026.
         public int ShareLimitMB=20;
-        public int GifStripSeconds=10;
+        public int GifStripSeconds=4;
         // Starting choices in Make GIF cover (the window remembers changes until LoveMyShelf closes).
-        public int GifFormat;            // 0 GIF, 1 WebP, 2 MP4
-        public int GifQuality=1;         // 0 high, 1 normal, 2 smaller file
-        public int GifFps=15;
-        public int GifHeight=960;
+        // The defaults changed on 2026-11-24 (see MoveToNewGifDefaults): WebP, high, 30 a second, 1280 px,
+        // 1 s before and after, a 4 s strip, the real file only when asked, the preview every 0.05 s.
+        public int GifFormat=1;          // 0 GIF, 1 WebP, 2 MP4
+        public int GifQuality;           // 0 high, 1 normal, 2 smaller file
+        public int GifFps=30;
+        public int GifHeight=1280;
+        // True for one start: the options file was written before the defaults changed, so a notice says they did.
+        internal bool GifDefaultsChanged;
         public int SceneStepMs=200;      // scene step: milliseconds between scenes everywhere a scene is picked (what used to be "frames")
-        public int GifPreviewStepMs=100; // Make GIF cover's quick preview only: milliseconds between the scenes it reads
-        public int GifSideTenths=15;    // seconds before and after the cover's moment, in tenths
+        public int GifPreviewStepMs=50;  // Make GIF cover's preview only: milliseconds between the scenes it reads
+        public int GifSideTenths=10;    // seconds before and after the cover's moment, in tenths
+        // Make GIF cover's preview. Each person picks how it works (Guide & Options → Making GIF covers).
+        public bool GifAutoMake;         // true: the real file is made in the background after every change; false: only when asked
+        public int GifMakeDelayMs=700;   // how long the handles must rest before the real file starts being made
+        public int WebpEffort;           // 0 smallest file (slow), 1 faster, 2 fastest (bigger file)
+        public int SubtitleScale=100;    // subtitle size in the large view, in percent
         internal static string SuggestedCoverParent {get {return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);}}
         public PhotoSort Sort;
         public int SkipSeconds=5;
         public int BrightnessStep=3;     // how much one press of E or W changes the brightness
+        public int RotationStep=10;      // how many degrees one press of O or P turns the picture in the large view
         public int TileNames;            // file names under the tiles: 0 none, 1 one line, 2 two lines, 3 the whole name
+        public bool CoverTimes;          // show where a cover's scene is in the video ("12:34") on its tile
         public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
         public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
         public bool CaptureJpg;          // false: PNG; true: JPG
         public string SeenVersion="";    // the version last started, for the one small "updated" notice
         public string SubtitleBounds=""; // where the subtitle explorer was last: left,top,width,height
+        public string ViewerBounds="";   // where the large view closed last was: left,top,width,height,maximized (0 or 1)
         internal const string CaptureFolderName="Love My Shelf 캡처";
         internal string CaptureFolder {get {
             return String.IsNullOrWhiteSpace(CaptureDirectory)?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),CaptureFolderName):CaptureDirectory;
         }}
-        public int Volume=100;
+        public int Volume=100;           // the Windows default speaker's volume, and the start for a speaker not used yet
+        // The speaker for each monitor (by the monitor's ID), and the volume last used on each speaker.
+        public Dictionary<string,SpeakerChoice> MonitorSpeakers=new Dictionary<string,SpeakerChoice>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string,int> SpeakerVolumes=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+        internal int VolumeFor(string speaker) {
+            int value;
+            return !String.IsNullOrEmpty(speaker) && SpeakerVolumes.TryGetValue(speaker,out value)?value:Volume;
+        }
         public bool ClearVoice;
         public int ClearVoiceLevel=1;   // 0 gentle, 1 normal, 2 strong
         public bool SnapEdges=true;
@@ -87,7 +109,7 @@ namespace LoveMyShelf {
                 var editor=xml.Element("editor")??xml.Element("photos")??xml.Element("motion")??xml;
                 string place=(string)xml.Attribute("coverPlace"),gif=(string)xml.Attribute("gridGif"),share=(string)xml.Attribute("share");
                 string theme=(string)xml.Attribute("theme");
-                return new Preferences {
+                var loaded=new Preferences {
                     Korean=(string)xml.Attribute("language")=="ko",
                     LanguageChosen=xml.Attribute("language")!=null,
                     UsageNoticeShown=(string)xml.Attribute("usageNotice")=="shown",
@@ -105,18 +127,23 @@ namespace LoveMyShelf {
                     CoverDirectory=(string)xml.Attribute("coverDirectory")??"",
                     CoverPlace=place=="beside"?CoverPlace.BesideOriginal:place=="subfolder"?CoverPlace.Subfolder:CoverPlace.CoverFolder,
                     CheckUpdates=(string)xml.Attribute("checkUpdates")!="false",
+                    ExplorerMenu=(string)xml.Attribute("explorerMenu")!="off",
                     Theme=theme=="light"?ThemeMode.Light:theme=="dark"?ThemeMode.Dark:ThemeMode.System,
                     GridGif=gif=="never"?GifPlayback.Never:gif=="always"?GifPlayback.Always:GifPlayback.Hover,
                     Share=share=="cover"?ShareContent.CoverOnly:share=="original"?ShareContent.OriginalOnly:ShareContent.CoverAndOriginal,
                     ShareLimitMB=ReadNumber(xml,"shareLimitMB",1,2000,20),
-                    GifStripSeconds=ReadNumber(xml,"gifStrip",2,120,10),
-                    GifFormat=IndexOr(new[]{"gif","webp","mp4"},(string)xml.Attribute("gifFormat"),0),
-                    GifQuality=IndexOr(new[]{"high","normal","small"},(string)xml.Attribute("gifQuality"),1),
-                    GifFps=ReadNumber(xml,"gifFps",5,60,15),
-                    GifHeight=ReadNumber(xml,"gifHeight",240,2160,960),
-                    GifSideTenths=ReadNumber(xml,"gifSide",1,300,15),
+                    GifStripSeconds=ReadNumber(xml,"gifStrip",2,120,4),
+                    GifFormat=IndexOr(new[]{"gif","webp","mp4"},(string)xml.Attribute("gifFormat"),1),
+                    GifQuality=IndexOr(new[]{"high","normal","small"},(string)xml.Attribute("gifQuality"),0),
+                    GifFps=ReadNumber(xml,"gifFps",5,60,30),
+                    GifHeight=ReadNumber(xml,"gifHeight",240,2160,1280),
+                    GifSideTenths=ReadNumber(xml,"gifSide",1,300,10),
                     SceneStepMs=ReadNumber(xml,"sceneStep",30,2000,200),
                     GifPreviewStepMs=ReadPreviewStep(xml),
+                    GifAutoMake=(string)xml.Attribute("gifReal")=="auto",
+                    GifMakeDelayMs=ReadNumber(xml,"gifMakeDelay",200,10000,700),
+                    WebpEffort=ReadNumber(xml,"webpEffort",0,2,0),
+                    SubtitleScale=ReadNumber(xml,"subtitleSize",40,400,100),
                     OpenPhotoOriginal=(string)xml.Attribute("largePhoto")=="original",
                     OpenMotionOriginal=(string)xml.Attribute("largeMotion")=="original",
                     OpenByDoubleClick=(string)xml.Attribute("openLarge")==null?DefaultOpenByDoubleClick:(string)xml.Attribute("openLarge")=="double",
@@ -124,21 +151,41 @@ namespace LoveMyShelf {
                     Descending=direction==null?sort=="date":direction=="desc",
                     SkipSeconds=ReadNumber(xml,"skipSeconds",1,300,5),
                     BrightnessStep=ReadNumber(xml,"brightnessStep",1,20,3),
+                    RotationStep=ReadNumber(xml,"turnDegrees",1,45,10),
                     TileNames=ReadNumber(xml,"tileNames",0,3,0),
+                    CoverTimes=(string)xml.Attribute("coverTimes")=="true",
                     CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
                     CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
                     CaptureJpg=(string)xml.Attribute("captureFormat")=="jpg",
                     SeenVersion=(string)xml.Attribute("seenVersion")??"",
                     SubtitleBounds=(string)xml.Attribute("subtitleBounds")??"",
+                    ViewerBounds=(string)xml.Attribute("viewerBounds")??"",
                     Volume=ReadNumber(xml,"volume",0,100,100),
+                    MonitorSpeakers=ReadMonitorSpeakers(xml),
+                    SpeakerVolumes=ReadSpeakerVolumes(xml),
                     ClearVoice=(string)xml.Attribute("clearVoice")=="true",
                     ClearVoiceLevel=ReadNumber(xml,"clearVoiceLevel",0,2,1),
                     SnapEdges=(string)editor.Attribute("snapEdges")!="false",
                     WheelZoomPercent=ReadNumber(editor,"wheelZoomPercent",1,50,7),
                     PinTopOnWheel=(string)editor.Attribute("pinTop")!="false"
                 };
+                if(xml.Attribute("gifDefaults")==null)loaded.MoveToNewGifDefaults();
+                return loaded;
             } catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Xml.XmlException) {}
             return new Preferences();
+        }
+        // An options file from before the GIF cover defaults changed. A value still at its old default moves to the
+        // new one, once; a value the person had changed to something else stays. (The real file only being made
+        // when asked needs no step here: a file without "gifReal" already reads that way.)
+        void MoveToNewGifDefaults() {
+            if(GifFormat==0)GifFormat=1;
+            if(GifQuality==1)GifQuality=0;
+            if(GifFps==15)GifFps=30;
+            if(GifHeight==960)GifHeight=1280;
+            if(GifSideTenths==15)GifSideTenths=10;
+            if(GifStripSeconds==10)GifStripSeconds=4;
+            if(GifPreviewStepMs==100)GifPreviewStepMs=50;
+            GifDefaultsChanged=true;
         }
         static int IndexOr(string[] names,string value,int fallback) {
             int index=Array.IndexOf(names,value);return index>=0?index:fallback;
@@ -147,12 +194,46 @@ namespace LoveMyShelf {
             int value;
             return Int32.TryParse((string)xml.Attribute(name),out value) && value>=min && value<=max?value:fallback;
         }
-        // 0.2 s was the old default. It moves to 0.1 s once; files saved since carry the mark, so a later choice of 0.2 s stays.
+        // 0.2 s was the first default. It moved to 0.1 s once; files saved since carry the mark, so a later choice of 0.2 s stays.
+        // (0.1 s then moved to 0.05 s with the other GIF defaults: MoveToNewGifDefaults.)
         static int ReadPreviewStep(XElement xml) {
-            int value=ReadNumber(xml,"gifPreviewStep",30,2000,100);
+            int value=ReadNumber(xml,"gifPreviewStep",30,2000,50);
             return value==200 && xml.Attribute("gifPreviewDefault")==null?100:value;
         }
-        internal Preferences Copy() {return (Preferences)MemberwiseClone();}
+        static Dictionary<string,SpeakerChoice> ReadMonitorSpeakers(XElement xml) {
+            var result=new Dictionary<string,SpeakerChoice>(StringComparer.OrdinalIgnoreCase);
+            var group=xml.Element("speakers");
+            if(group==null)return result;
+            foreach(var item in group.Elements("monitor")) {
+                string id=(string)item.Attribute("id"),device=(string)item.Attribute("device");
+                if(!String.IsNullOrEmpty(id) && !String.IsNullOrEmpty(device))
+                    result[id]=new SpeakerChoice {Device=device,Name=(string)item.Attribute("name")??device};
+            }
+            return result;
+        }
+        static Dictionary<string,int> ReadSpeakerVolumes(XElement xml) {
+            var result=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+            var group=xml.Element("speakers");
+            if(group==null)return result;
+            foreach(var item in group.Elements("volume")) {
+                string device=(string)item.Attribute("device");
+                int value;
+                if(!String.IsNullOrEmpty(device) && Int32.TryParse((string)item.Attribute("value"),out value) && value>=0 && value<=100)result[device]=value;
+            }
+            return result;
+        }
+        XElement SpeakersXml() {
+            if(MonitorSpeakers.Count==0 && SpeakerVolumes.Count==0)return null;
+            return new XElement("speakers",
+                MonitorSpeakers.OrderBy(m=>m.Key,StringComparer.OrdinalIgnoreCase).Select(m=>new XElement("monitor",new XAttribute("id",m.Key),new XAttribute("device",m.Value.Device),new XAttribute("name",m.Value.Name??m.Value.Device))),
+                SpeakerVolumes.OrderBy(v=>v.Key,StringComparer.OrdinalIgnoreCase).Select(v=>new XElement("volume",new XAttribute("device",v.Key),new XAttribute("value",v.Value))));
+        }
+        internal Preferences Copy() {
+            var copy=(Preferences)MemberwiseClone();
+            copy.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
+            copy.SpeakerVolumes=new Dictionary<string,int>(SpeakerVolumes,StringComparer.OrdinalIgnoreCase);
+            return copy;
+        }
         internal bool SameAs(Preferences other) {return ToXml().ToString()==other.ToXml().ToString();}
         public void Save(string root) {
             string target=Path.Combine(root,"options.xml");
@@ -173,18 +254,22 @@ namespace LoveMyShelf {
                     new XAttribute("coverDirectory",CoverDirectory),
                     new XAttribute("coverPlace",CoverPlace==CoverPlace.BesideOriginal?"beside":CoverPlace==CoverPlace.Subfolder?"subfolder":"folder"),
                     new XAttribute("checkUpdates",CheckUpdates?"true":"false"),
+                    ExplorerMenu?null:new XAttribute("explorerMenu","off"),
                     new XAttribute("theme",Theme==ThemeMode.Light?"light":Theme==ThemeMode.Dark?"dark":"system"),
                     new XAttribute("gridGif",GridGif==GifPlayback.Never?"never":GridGif==GifPlayback.Always?"always":"hover"),
                     new XAttribute("share",Share==ShareContent.CoverOnly?"cover":Share==ShareContent.OriginalOnly?"original":"both"),
                     new XAttribute("shareLimitMB",ShareLimitMB),new XAttribute("gifStrip",GifStripSeconds),
                     new XAttribute("gifFormat",new[]{"gif","webp","mp4"}[Math.Max(0,Math.Min(2,GifFormat))]),
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),
-                    new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),
+                    new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),new XAttribute("gifDefaults",2),
+                    new XAttribute("gifReal",GifAutoMake?"auto":"ask"),new XAttribute("gifMakeDelay",GifMakeDelayMs),
+                    WebpEffort==0?null:new XAttribute("webpEffort",WebpEffort),SubtitleScale==100?null:new XAttribute("subtitleSize",SubtitleScale),
                     new XAttribute("largePhoto",OpenPhotoOriginal?"original":"cover"),
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("tileNames",TileNames),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    SpeakersXml(),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }

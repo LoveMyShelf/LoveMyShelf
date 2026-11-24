@@ -79,6 +79,9 @@ namespace LoveMyShelf {
                 }
             }
         }
+        // While every folder window is minimized the tiles let go of their pictures, and take them back afterwards.
+        internal void Rest() {Fill(null);}
+        internal void Wake() {var row=DataContext as PhotoRow;if(row!=null && displayed!=row)Fill(row);}
         void Fill(PhotoRow row) {
             if(displayed!=null) displayed.Changed-=UpdateCell;
             displayed=row;
@@ -163,6 +166,34 @@ namespace LoveMyShelf {
                 }
                 var edit=new MenuItem { Header=photo.HasCrop?L.T("Make one more cover"):L.T("Make cover") }; edit.Click+=delegate { row.Owner.Edit(photo); };
                 menu.Items.Add(edit);
+                if(photo.Linked) {
+                    var outside=new MenuItem {Header=L.T("Use a picture made elsewhere as a cover…")};
+                    outside.Click+=delegate {row.Owner.AddOutsideCover(photo);};
+                    menu.Items.Add(outside);
+                }
+                if(photo.HasCrop && !photo.ExcludedFromCollection) {
+                    // Offered when this original has two or more shown covers; checked when the menu opens.
+                    var order=new MenuItem {Header=L.T("Cover order"),Visibility=Visibility.Collapsed};
+                    var forward=new MenuItem {Header=L.T("Move forward")};forward.Click+=delegate {row.Owner.MoveCover(photo,-1);};
+                    var back=new MenuItem {Header=L.T("Move back")};back.Click+=delegate {row.Owner.MoveCover(photo,1);};
+                    var front=new MenuItem {Header=L.T("Move to the very front (the first cover)")};front.Click+=delegate {row.Owner.MoveCover(photo,Int32.MinValue);};
+                    var automatic=new MenuItem {Header=L.T("Back to the automatic order")};automatic.Click+=delegate {row.Owner.MoveCover(photo,0);};
+                    order.Items.Add(forward);order.Items.Add(back);order.Items.Add(front);order.Items.Add(new Separator());order.Items.Add(automatic);
+                    menu.Items.Add(order);
+                    menu.Opened+=delegate {
+                        int at=-1,total=0;bool arranged=false;
+                        try {
+                            var all=GalleryStore.CoversOf(photo);
+                            arranged=all.Any(p=>p.HasCrop && !p.ExcludedFromCollection && p.Rank.HasValue);
+                            var shown=GalleryStore.InCoverOrder(all.Where(p=>p.HasCrop && !p.ExcludedFromCollection));
+                            total=shown.Count;
+                            at=shown.FindIndex(p=>String.Equals(p.Folder,photo.Folder,StringComparison.OrdinalIgnoreCase));
+                        } catch(Exception) {}
+                        order.Visibility=total>1 && at>=0?Visibility.Visible:Visibility.Collapsed;
+                        forward.IsEnabled=front.IsEnabled=at>0;back.IsEnabled=at>=0 && at<total-1;
+                        automatic.IsEnabled=arranged;
+                    };
+                }
                 var openDefault=new MenuItem {Header=L.T("Open with default app")};
                 openDefault.Click+=delegate {row.Owner.OpenInDefaultPlayer(photo);};
                 menu.Items.Add(openDefault);
@@ -183,7 +214,7 @@ namespace LoveMyShelf {
                 info.Click+=delegate {row.Owner.ShowDetails(photo);};
                 menu.Items.Add(info);
                 ShareTiles.AddMenu(menu,row.Owner,photo);
-                if(photo.HasCrop && MotionMaker.Supports(photo.Original)) {
+                if(photo.HasCrop && !photo.IsOutside && MotionMaker.Supports(photo.Original)) {
                     var gif=new MenuItem {Header=L.T("Make GIF cover")};
                     gif.Click+=delegate {row.Owner.ShowMakeGif(row.Owner,photo);};
                     menu.Items.Add(gif);
@@ -347,6 +378,23 @@ namespace LoveMyShelf {
                 RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
             number.AppendChild(digits);
             root.AppendChild(number);
+            // "12:34": where this cover's scene is in the video (an option, off unless chosen). Bottom left, away from the number.
+            var time=new FrameworkElementFactory(typeof(Border),"CoverTime");
+            time.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            time.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);
+            time.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Bottom);
+            time.SetValue(FrameworkElement.MarginProperty,new Thickness(5,0,0,5));
+            time.SetValue(Border.PaddingProperty,new Thickness(5,1,5,2));
+            time.SetValue(Border.CornerRadiusProperty,new CornerRadius(6));
+            time.SetValue(Border.BackgroundProperty,TileMark.NumberBack);
+            var clock=new FrameworkElementFactory(typeof(TextBlock));
+            clock.SetValue(TextBlock.FontSizeProperty,11.0);
+            clock.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);
+            clock.SetValue(TextBlock.ForegroundProperty,Brushes.White);
+            clock.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding {Path=new PropertyPath(TileMark.TimeProperty),
+                RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+            time.AppendChild(clock);
+            root.AppendChild(time);
             // Every cover of the original under the mouse gets this outline.
             var family=new FrameworkElementFactory(typeof(Border),"CoverFamily");
             family.SetValue(UIElement.IsHitTestVisibleProperty,false);
@@ -365,6 +413,9 @@ namespace LoveMyShelf {
             var noNumber=new Trigger {Property=TileMark.NumberProperty,Value=null};
             noNumber.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverNumber"));
             tileTemplate.Triggers.Add(noNumber);
+            var noTime=new Trigger {Property=TileMark.TimeProperty,Value=null};
+            noTime.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverTime"));
+            tileTemplate.Triggers.Add(noTime);
             var noName=new Trigger {Property=TileMark.NameProperty,Value=null};
             noName.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"FileName"));
             tileTemplate.Triggers.Add(noName);
@@ -379,6 +430,7 @@ namespace LoveMyShelf {
         internal static readonly Brush NumberBack=Frozen(Color.FromArgb(0xCC,0,0,0));
         static Brush Frozen(Color color) {var brush=new SolidColorBrush(color);brush.Freeze();return brush;}
         internal static readonly DependencyProperty NumberProperty=DependencyProperty.RegisterAttached("Number",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty TimeProperty=DependencyProperty.RegisterAttached("Time",typeof(string),typeof(TileMark));
         internal static readonly DependencyProperty LitProperty=DependencyProperty.RegisterAttached("Lit",typeof(bool),typeof(TileMark));
         internal static readonly DependencyProperty NameProperty=DependencyProperty.RegisterAttached("Name",typeof(string),typeof(TileMark));
         internal static readonly DependencyProperty NameHeightProperty=DependencyProperty.RegisterAttached("NameHeight",typeof(double),typeof(TileMark),new PropertyMetadata(0.0));
@@ -465,18 +517,101 @@ namespace LoveMyShelf {
         internal Preferences Settings { get { return settings; } }
         // The large view's volume and Clear voice, kept for the next video (like PotPlayer). Every window learns
         // them, so another window's later save doesn't put the old values back.
-        internal void SaveAudio(int value,bool clearVoice,int clearVoiceLevel) {
+        // The volume belongs to the speaker it was set on; an empty speaker is the Windows default.
+        internal void SaveAudio(int value,bool clearVoice,int clearVoiceLevel,string speaker) {
             value=Math.Max(0,Math.Min(100,value));
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
-            if(settings.Volume==value && settings.ClearVoice==clearVoice && settings.ClearVoiceLevel==clearVoiceLevel)return;
-            foreach(var w in windows){w.settings.Volume=value;w.settings.ClearVoice=clearVoice;w.settings.ClearVoiceLevel=clearVoiceLevel;}
+            if(settings.VolumeFor(speaker)==value && settings.ClearVoice==clearVoice && settings.ClearVoiceLevel==clearVoiceLevel)return;
+            foreach(var w in windows) {
+                if(String.IsNullOrEmpty(speaker))w.settings.Volume=value;else w.settings.SpeakerVolumes[speaker]=value;
+                w.settings.ClearVoice=clearVoice;w.settings.ClearVoiceLevel=clearVoiceLevel;
+            }
             var updated=settings.Copy();
             try {updated.Save(store.Root);} catch(Exception) {}
+        }
+        // The subtitle size chosen in a large view, for every window and the next video.
+        internal void SaveSubtitleSize(int percent) {
+            if(settings.SubtitleScale==percent)return;
+            foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.settings.SubtitleScale=percent;
+            try {settings.Copy().Save(store.Root);} catch(Exception) {}
+        }
+
+        // ----- Memory given back while the folder windows are minimized -----
+        // Watching a video with the folder window down is like File Explorer closed and a video player open: the
+        // tiles' pictures aren't needed, so they are let go a few seconds after the last folder window goes down and
+        // read again when one comes back. Nothing is let go while a folder window is on screen, and nothing is said about it.
+        static DispatcherTimer restTimer; // made by the first folder window, on its own thread
+        static bool resting,minimizeTipShown;
+        static DispatcherTimer MakeRestTimer() {
+            var timer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(5)};
+            timer.Tick+=delegate {timer.Stop();Rest();};
+            return timer;
+        }
+        void WatchRest() {
+            if(restTimer==null)restTimer=MakeRestTimer();
+            StateChanged+=delegate {
+                restTimer.Stop();
+                if(WindowState==WindowState.Minimized)restTimer.Start();else WakeUp();
+            };
+        }
+        static void Rest() {
+            if(resting || Application.Current==null)return;
+            var windows=Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w.IsVisible).ToList();
+            if(windows.Count==0 || windows.Any(w=>w.WindowState!=WindowState.Minimized))return;
+            // A window working on a cover (the editor, Make GIF cover and so on) still uses the pictures.
+            if(BlockingWindow()!=null)return;
+            foreach(var window in windows) {
+                window.CurrentReflow=null;
+                EachTileRow(window.grid,row=>row.Rest());
+            }
+            TileCache.Clear();MotionFrames.ClearCache();
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode=System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();
+            resting=true;
+        }
+        // Quietly: the tiles on screen just take their pictures back.
+        static void WakeUp() {
+            if(!resting)return;
+            resting=false;
+            foreach(var window in Application.Current.Windows.OfType<GalleryWindow>())EachTileRow(window.grid,row=>row.Wake());
+        }
+        static void EachTileRow(DependencyObject parent,Action<TileRow> act) {
+            for(int i=0;i<VisualTreeHelper.GetChildrenCount(parent);i++) {
+                var child=VisualTreeHelper.GetChild(parent,i);
+                var row=child as TileRow;
+                if(row!=null)act(row);else EachTileRow(child,act);
+            }
+        }
+        internal static void MinimizeAll() {
+            foreach(var window in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w.IsVisible).ToList())window.WindowState=WindowState.Minimized;
+        }
+        // Said once, to someone who used Love My Shelf before the GIF cover defaults changed (Preferences.MoveToNewGifDefaults).
+        // The options are saved right away, so the file carries the new mark and this is not said again.
+        void TellGifDefaultsChanged() {
+            if(!settings.GifDefaultsChanged)return;
+            foreach(var window in Application.Current.Windows.OfType<GalleryWindow>())window.settings.GifDefaultsChanged=false;
+            try {settings.Copy().Save(store.Root);} catch(Exception) {return;}
+            Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The GIF cover defaults have changed"),
+                L.T("GIF covers are now made as WebP, at high picture quality, 30 pictures a second and 1280 pixels tall. They are much smoother and sharper than before, so try making one. If you don't like it, you can change it any time, and you can type in the numbers you want. Click here to open those settings."),
+                ()=>GuideWindow.Open(this,"gif","gifFormat"),NoticeKind.Info,true)),DispatcherPriority.ApplicationIdle);
+        }
+        // Said once each time Love My Shelf runs, when a video opens while a folder window is still up.
+        internal void TipMinimize() {
+            if(minimizeTipShown || !IsVisible || WindowState==WindowState.Minimized)return;
+            minimizeTipShown=true;
+            Notify(L.T("Watching only the video?"),L.T("Minimize the folder window and Love My Shelf uses less memory. Click here to minimize it right now."),
+                MinimizeAll,NoticeKind.Info,false,8);
         }
         // Where the subtitle explorer was left, for every window.
         internal void SaveSubtitleBounds(string bounds) {
             if(settings.SubtitleBounds==bounds)return;
             foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.settings.SubtitleBounds=bounds;
+            try {settings.Copy().Save(store.Root);} catch(Exception) {}
+        }
+        // Where the large view closed last was, for every window.
+        internal void SaveViewerBounds(string bounds) {
+            if(settings.ViewerBounds==bounds)return;
+            foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.settings.ViewerBounds=bounds;
             try {settings.Copy().Save(store.Root);} catch(Exception) {}
         }
         internal Album AllCropsAlbum {get {return allCrops;}}
@@ -793,6 +928,12 @@ namespace LoveMyShelf {
             grid.SizeChanged+=delegate {resizeTimer.Stop();resizeTimer.Start();};
             Upscales.Finished+=UpscaleFinished;
             Upscales.Failed+=(photo,message)=>Notify(L.T("Upscaling failed"),photo.Name+Environment.NewLine+message,null,NoticeKind.Warning);
+            // A cover started from a large view of this window saves through this window, so it has to finish first.
+            Closing+=(s,e)=>{
+                if(!CoverWork.BelongsTo(this))return;
+                e.Cancel=true;CoverWork.Front();
+                Notify(L.T("Please finish the cover first"),L.T("A cover you started from this window is still open. Save or close it, then close this window."),null,NoticeKind.Info);
+            };
             Closed+=delegate {
                 FinishPendingCovers();
                 resizeTimer.Stop();refreshVersion++;lifetime.Cancel();Upscales.Stop();
@@ -801,6 +942,7 @@ namespace LoveMyShelf {
                 foreach(var view in Application.Current.Windows.OfType<Viewer>().Where(v=>v.Home==this).ToList())view.Close();
             };
             FilesChanged+=ReloadAfterFileMove;
+            WatchRest();
             Activated+=delegate {TakeOverSettings();};
             localize=delegate {
                 open.Content=L.T("Add folder");emptyAction.Content=L.T("Select a folder…");
@@ -903,10 +1045,15 @@ namespace LoveMyShelf {
                 if(coverSetupShown || another)return; // the first window already did this
                 coverSetupShown=true;
                 AppUpdater.ReportStarted();
+                // Started with a file from File Explorer's "Open with Love My Shelf".
+                string outside=Program.PendingPath;Program.PendingPath=null;
+                if(outside!=null)OpenExternalFile(outside);
                 var sceneStore=store;var sceneToken=lifetime.Token;
-                Task.Run(()=>sceneStore.FillSceneTimes(sceneToken));
+                bool sceneSingles=settings.CoverTimes;
+                Task.Run(()=>sceneStore.FillSceneTimes(sceneToken,sceneSingles));
                 DrivesChangedSoon(0.3); // a drive may have a new letter since last time
                 TellIfUpdated();
+                TellGifDefaultsChanged();
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
                     var updated=settings.Copy();updated.MarqueeTipShown=true;
@@ -1500,15 +1647,25 @@ namespace LoveMyShelf {
             bool changedGrid=settings.GridGif!=updated.GridGif;
             bool changedFolders=settings.ShowSubfolders!=updated.ShowSubfolders;
             bool changedNames=settings.TileNames!=updated.TileNames;
+            bool changedTimes=settings.CoverTimes!=updated.CoverTimes;
+            bool changedExplorer=settings.ExplorerMenu!=updated.ExplorerMenu;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
             settings=updated;MotionWindow.UseDefaults(settings);
+            if(changedExplorer || (updated.ExplorerMenu && changedLanguage)) {
+                try {ExplorerOpen.Sync(updated);} catch(Exception ex) {UI.Error(this,ex);}
+            }
             // Every open window shows names the same way and remembers where frames are saved.
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this)) {
                 other.settings.CaptureDirectory=updated.CaptureDirectory;other.settings.CaptureAsShown=updated.CaptureAsShown;other.settings.CaptureJpg=updated.CaptureJpg;
+                other.settings.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(updated.MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
+                other.settings.SubtitleScale=updated.SubtitleScale;other.settings.GifAutoMake=updated.GifAutoMake;other.settings.GifMakeDelayMs=updated.GifMakeDelayMs;
+                other.settings.WebpEffort=updated.WebpEffort;
                 if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
+                if(changedTimes){other.settings.CoverTimes=updated.CoverTimes;other.CoverMarksSoon();}
             }
             if(changedNames)LayoutRows();
+            if(changedTimes)CoverMarksSoon();
             if(changedTheme)Themes.Apply(settings.Theme);
             if(changedLanguage) {
                 L.Korean=settings.Korean;localize();
@@ -1894,17 +2051,36 @@ namespace LoveMyShelf {
         PhotoRow MakeRow(int start,double height) {
             return new PhotoRow { Owner=this,Columns=columns,Height=height,Number=folderRows+start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
         }
+        // One cover at a time: asking for another brings the open one forward.
+        internal bool CoverWorkFree(Window from) {
+            if(CoverWork.CanStart(from))return true;
+            CoverWork.Front();
+            Notify(L.T("You’re already making a cover"),L.T("You can make one cover at a time. Please finish the cover that’s open first."),null,NoticeKind.Info);
+            return false;
+        }
+        void TellFileInCoverWork() {
+            CoverWork.Front();
+            Notify(L.T("This file is being used for a cover"),L.T("Save or close the cover first, then try again."),null,NoticeKind.Info);
+        }
+        // Leaves out the original the open cover is being made from, and says so.
+        List<Photo> WithoutCoverWork(IEnumerable<Photo> targets) {
+            var all=targets.ToList();
+            var free=all.Where(p=>!CoverWork.Holds(p)).ToList();
+            if(free.Count<all.Count)TellFileInCoverWork();
+            return free;
+        }
         internal bool EditFrames(Viewer playback) {
+            if(!CoverWorkFree(playback))return false;
             FinishPendingCovers();
             if(!EnsureCoverFolder(playback))return false;
             Photo photo=playback.CurrentPhoto;
             string path=photo.Original;
             try {
                 var picker=CreateFramePicker(playback,path,photo,playback.CropNearby);
-                bool? saved=picker.ShowDialog();
+                bool? saved=CoverWork.Show(picker,photo,this,path);
                 if(picker.OpenFullList) {
                     picker=CreateFramePicker(playback,path,photo,false);
-                    saved=picker.ShowDialog();
+                    saved=CoverWork.Show(picker,photo,this,path);
                 }
                 return saved==true;
             } catch(Exception ex){if(!lifetime.IsCancellationRequested)UI.Error(playback,ex);return false;}
@@ -1912,7 +2088,8 @@ namespace LoveMyShelf {
         FramePicker CreateFramePicker(Viewer playback,string path,Photo photo,bool nearby) {
             var picker=new FramePicker(playback,path,photo,playback.CropFrame,playback.CropTime,
                 settings.SnapEdges,settings.WheelZoomPercent,nearby,FullScreen.IsFull(this),Preferences.EditorPreviewSide);
-            picker.Brightness=playback.PlaybackBrightness;picker.SkipSeconds=settings.SkipSeconds;picker.BrightnessStep=settings.BrightnessStep;
+            picker.Brightness=playback.PlaybackBrightness;picker.BrightnessChosen=playback.BrightnessChosen;picker.SkipSeconds=settings.SkipSeconds;picker.BrightnessStep=settings.BrightnessStep;
+            picker.Framing=playback.CurrentFraming;
             var target=AddTarget(photo,path);
             // While watching, the video stays open behind the editor and is simply there again after saving.
             // A video opened only to make a cover closes and shows the new cover instead.
@@ -1929,20 +2106,97 @@ namespace LoveMyShelf {
             };
             return picker;
         }
-        CropWindow CreateCropEditor(Window owner,Photo photo,BitmapSource preview) {
-            return new CropWindow(owner,preview,photo.Name,photo.HasCrop?(Rect?)photo.Crop:null,photo.Rotation,
-                settings.SnapEdges,settings.WheelZoomPercent,brightness:photo.Brightness) {BrightnessStep=settings.BrightnessStep};
+        // fresh: start with no framing, rotation or brightness of the photo's cover (it was cut from a different picture).
+        CropWindow CreateCropEditor(Window owner,Photo photo,BitmapSource preview,bool fresh=false) {
+            return new CropWindow(owner,preview,photo.Name,photo.HasCrop && !fresh?(Rect?)photo.Crop:null,fresh?0:photo.Rotation,
+                settings.SnapEdges,settings.WheelZoomPercent,brightness:fresh?0:photo.Brightness) {BrightnessStep=settings.BrightnessStep};
+        }
+        // A cover cut from a picture made somewhere else (a poster, a picture edited in another program).
+        // It belongs to the original like any other cover; a copy of the picture is kept so the cover can be edited later.
+        internal async void AddOutsideCover(Photo photo) {
+            if(!photo.Linked || !CoverWorkFree(this))return;
+            FinishPendingCovers();
+            try {
+                if(!EnsureCoverFolder(this))return;
+                var pick=new Microsoft.Win32.OpenFileDialog {Title=L.T("Choose a picture to use as a cover"),CheckFileExists=true,
+                    Filter=L.T("Pictures")+" (JPG, PNG, WebP, BMP)|*.jpg;*.jpeg;*.jfif;*.png;*.webp;*.bmp"};
+                if(pick.ShowDialog(this)!=true)return;
+                string picture=pick.FileName;
+                var preview=await Task.Run(()=>Pictures.Load(picture,Preferences.EditorPreviewSide),lifetime.Token);
+                if(lifetime.IsCancellationRequested || !CoverWorkFree(this))return;
+                // The original may have been moved since its covers were made (Cover collection lists it at its old place).
+                if(photo.HasCrop) {
+                    photo.Original=await Task.Run(()=>OriginalLocator.Resolve(store,photo,lifetime.Token));
+                    if(lifetime.IsCancellationRequested || !CoverWorkFree(this))return;
+                }
+                var dialog=new CropWindow(this,preview,photo.Name,null,0,settings.SnapEdges,settings.WheelZoomPercent) {BrightnessStep=settings.BrightnessStep};
+                dialog.Title=L.T("Cover from a picture made elsewhere");
+                Photo target=OutsideTarget(photo);
+                dialog.CommitCover=editor=>SaveCrop(target,editor,0,picture:picture);
+                dialog.AfterCommit=()=>OpenSavedOver(null,dialog);
+                CoverWork.Show(dialog,photo,this);
+                ShowJustSaved();
+            } catch(OperationCanceledException){}
+            catch(Exception ex){if(!lifetime.IsCancellationRequested)Notify(L.T("Couldn’t use this picture as a cover"),ex.Message,null,NoticeKind.Warning);}
+        }
+        // Where the cover from an outside picture is saved: the original's own record when it has no cover yet, a new record otherwise.
+        Photo OutsideTarget(Photo photo) {
+            if(!photo.HasCrop)return photo;
+            string folder=Path.Combine(Path.GetDirectoryName(photo.Folder),GalleryStore.RecordBase(photo)+"-"+Guid.NewGuid().ToString("N").Substring(0,10));
+            return new Photo {Folder=folder,Name=photo.Name,Original=photo.Original,Linked=true,Order=photo.Order};
+        }
+        // Moves a cover among the covers of its original. steps: -1 forward, 1 back, Int32.MinValue to the front, 0 back to the automatic order.
+        internal void MoveCover(Photo photo,int steps) {
+            if(CoverWork.Holds(photo)){TellFileInCoverWork();return;}
+            FinishPendingCovers();
+            try {
+                if(steps==0)GalleryStore.ForgetArrangement(photo);
+                else if(!GalleryStore.ArrangeCover(photo,steps))return;
+                // Every window showing these covers puts them in the new order in place; nothing is read again from the folders.
+                foreach(var window in Application.Current.Windows.OfType<GalleryWindow>())window.ApplyCoverOrder(photo);
+                foreach(var viewer in Application.Current.Windows.OfType<Viewer>())viewer.CoverOrderChanged();
+            } catch(Exception ex){Notify(L.T("Couldn’t change the cover order"),ex.Message,null,NoticeKind.Warning);}
+        }
+        void ApplyCoverOrder(Photo moved) {
+            if(rows==null || active==null || photos.Count==0)return;
+            string family=GalleryStore.CoverFamily(moved);
+            var slots=new List<int>();
+            for(int i=0;i<photos.Count;i++)
+                if(photos[i]!=null && String.Equals(GalleryStore.CoverFamily(photos[i]),family,StringComparison.OrdinalIgnoreCase))slots.Add(i);
+            if(slots.Count<2)return;
+            Dictionary<string,double?> ranks;
+            try {ranks=GalleryStore.CoversOf(moved).ToDictionary(p=>p.Folder,p=>p.Rank,StringComparer.OrdinalIgnoreCase);}
+            catch(Exception) {return;}
+            var before=slots.Select(i=>photos[i]).ToList();
+            foreach(var p in before){double? rank;p.Rank=ranks.TryGetValue(p.Folder,out rank)?rank:null;}
+            var ordered=GalleryStore.InCoverOrder(before);
+            if(ordered.SequenceEqual(before)){CoverMarksSoon();return;}
+            string focused=focusIndex>=0 && focusIndex<photos.Count && photos[focusIndex]!=null?photos[focusIndex].Folder:null;
+            string anchored=anchorIndex>=0 && anchorIndex<photos.Count && photos[anchorIndex]!=null?photos[anchorIndex].Folder:null;
+            var reflow=CaptureReflow();
+            for(int k=0;k<slots.Count;k++)photos[slots[k]]=ordered[k];
+            if(focused!=null)focusIndex=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,focused,StringComparison.OrdinalIgnoreCase));
+            if(anchored!=null)anchorIndex=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,anchored,StringComparison.OrdinalIgnoreCase));
+            ShowPhotos(reflow);
+            RefreshSelection();
         }
         internal async Task<Photo> EditSavedCover(Viewer viewer,Photo photo) {
+            if(!CoverWorkFree(viewer))return null;
             if(!EnsureCoverFolder(viewer))return null;
             try {
                 var preview=await Task.Run(()=>{
                     var token=lifetime.Token;
+                    // A cover cut from an outside picture is edited from the kept copy of that picture, not from the original.
+                    if(photo.IsOutside) {
+                        if(!File.Exists(photo.PictureFile))throw new FileNotFoundException(L.T("The picture this cover was made from can’t be found, so the cover can’t be edited. You can add the picture again as a new cover."),photo.PictureFile);
+                        return Pictures.Load(photo.PictureFile,Preferences.EditorPreviewSide);
+                    }
                     string path=OriginalLocator.Resolve(store,photo,token);
                     return AnimationFrames.Supports(path)?AnimationFrames.SavedFrame(path,photo,Preferences.EditorPreviewSide,token):
                         Pictures.Load(path,Preferences.EditorPreviewSide);
                 },lifetime.Token);
                 if(!viewer.IsVisible || viewer.CurrentPhoto!=photo || lifetime.IsCancellationRequested)return null;
+                if(!CoverWorkFree(viewer))return null; // another cover was opened while this one was loading
                 var dialog=CreateCropEditor(viewer,photo,preview);
                 dialog.Title=L.T("Edit cover");
                 Rect startingCrop=dialog.Surface.Fraction;
@@ -1950,9 +2204,9 @@ namespace LoveMyShelf {
                 dialog.CommitCover=async editor=>{
                     // Keep the saved coordinates if the preview size introduced rounding and the crop did not move.
                     Rect crop=editor.Surface.Fraction==startingCrop?photo.Crop:editor.Surface.Fraction;
-                    updated=await SaveCrop(photo,editor,null,crop,showAfter:false);
+                    updated=await SaveCrop(photo,editor,null,crop,showAfter:false,picture:photo.PictureFile);
                 };
-                if(MotionMaker.Supports(photo.Original))
+                if(!photo.IsOutside && MotionMaker.Supports(photo.Original))
                     dialog.EnableMotion(async (editor,request)=>{
                         Rect crop=editor.Surface.Fraction==startingCrop?photo.Crop:editor.Surface.Fraction;
                         updated=await SaveCrop(photo,editor,null,crop,false,false);
@@ -1960,30 +2214,32 @@ namespace LoveMyShelf {
                     },()=>new MotionSource {Path=photo.Original,Moment=MotionSource.MomentOf(photo.Original,photo.FrameTime,photo.FrameIndex),
                         Crop=dialog.Surface.Fraction,Rotation=dialog.Surface.Rotation,Brightness=dialog.Surface.Brightness,
                         Still=Pictures.RenderRotatedCover(dialog.Surface.Source,dialog.Surface.Fraction,dialog.Surface.Rotation,540,960,dialog.Surface.Brightness)});
-                return dialog.ShowDialog()==true?updated:null;
+                return CoverWork.Show(dialog,photo,this)==true?updated:null;
             } catch(OperationCanceledException){return null;}
             catch(Exception ex){if(viewer.IsVisible && viewer.CurrentPhoto==photo)UI.Error(viewer,ex);return null;}
         }
         public async void Edit(Photo photo) {
+            if(!CoverWorkFree(this))return;
             FinishPendingCovers();
             try {
                 if(!EnsureCoverFolder(this))return;
                 if(AnimationFrames.Supports(photo.Original)) {
-                    new Viewer(this,new[]{photo},0,true).ShowDialog();
+                    CoverWork.Show(new Viewer(this,new[]{photo},0,true),photo,this);
                     ShowJustSaved();
                     return;
                 }
                 if(photo.Linked && photo.HasCrop) {
                     photo.Original=await Task.Run(()=>OriginalLocator.Resolve(store,photo,lifetime.Token));
                     if(lifetime.IsCancellationRequested)return;
+                    if(!CoverWorkFree(this))return; // another cover was opened while this one was loading
                 }
                 var preview=Pictures.Load(photo.Original,Preferences.EditorPreviewSide);
-                var dialog=CreateCropEditor(this,photo,preview);
+                var dialog=CreateCropEditor(this,photo,preview,photo.IsOutside);
                 // A photo that already has a cover gets another one; the editor starts from the existing composition.
                 var target=AddTarget(photo);
                 dialog.CommitCover=editor=>SaveCrop(target,editor,photo.FrameIndex);
                 dialog.AfterCommit=()=>OpenSavedOver(null,dialog);
-                dialog.ShowDialog();
+                CoverWork.Show(dialog,photo,this);
                 ShowJustSaved();
             } catch(OperationCanceledException){} catch(Exception ex){if(!lifetime.IsCancellationRequested)UI.Error(this,ex);}
         }
@@ -1993,7 +2249,8 @@ namespace LoveMyShelf {
         Photo justSaved;
         // offerMotion: a video/GIF/WebP cover can offer Make GIF. showAfter: open the large view afterwards
         // (off when editing from a large view, which then shows the new cover itself).
-        async Task<Photo> SaveCrop(Photo photo,CropWindow dialog,int? frame,Rect? savedCrop=null,bool offerMotion=true,bool showAfter=true) {
+        // picture: the outside picture the cover is cut from (null for a cover made from the original).
+        async Task<Photo> SaveCrop(Photo photo,CropWindow dialog,int? frame,Rect? savedCrop=null,bool offerMotion=true,bool showAfter=true,string picture=null) {
             var preview=dialog.Surface.Source;
             var crop=savedCrop??dialog.Surface.Fraction;
             double rotation=dialog.Surface.Rotation;
@@ -2003,12 +2260,14 @@ namespace LoveMyShelf {
             int brightness=dialog.Surface.Brightness;
             var place=settings.CoverPlace;
             Photo updated=await Task.Run(()=>store.Reframe(photo,preview,crop,frame,rotation,frameTime,offset,
-                CoverOutputMode.Native,0,lifetime.Token,directory,brightness,place));
+                CoverOutputMode.Native,0,lifetime.Token,directory,brightness,place,picture));
             bool added=!photo.HasCrop && GalleryStore.RecordBase(photo)!=Path.GetFileName(photo.Folder);
-            bool motion=offerMotion && MotionMaker.Supports(updated.Original);
+            bool motion=offerMotion && picture==null && MotionMaker.Supports(updated.Original);
             Action makeGif=motion?(Action)(()=>ShowMakeGif(ActiveAppWindow(),updated)):null;
             string gifLine=motion?" "+L.T("Click here to make a GIF cover from this JPG cover."):"";
-            if(added)
+            if(picture!=null && !photo.HasCrop)
+                Notify(L.T("Added the picture as a cover"),added?L.T("The earlier covers are still there. To change the order, right-click a cover and choose Cover order."):L.T("To cut it differently later, open the cover and click Edit cover."),null);
+            else if(added)
                 Notify(L.T("Made one more cover"),L.T("The earlier cover is still there. The new cover goes in the place that fits the order of the video’s scenes.")+gifLine,makeGif);
             else if(motion && !(showAfter && OpenCoverAfterSave))
                 // The large view has its own Make GIF button; the notice is for when it doesn't open.
@@ -2025,7 +2284,8 @@ namespace LoveMyShelf {
         }
         // Make GIF for a cover that is already saved: same crop, rotation and brightness.
         internal void ShowMakeGif(Window owner,Photo photo) {
-            if(!photo.HasCrop || !MotionMaker.Supports(photo.Original))return;
+            if(!photo.HasCrop || photo.IsOutside || !MotionMaker.Supports(photo.Original))return;
+            if(!CoverWorkFree(owner))return;
             try {
                 string original=photo.Original;
                 if(photo.Linked && !File.Exists(original))original=OriginalLocator.Resolve(store,photo,lifetime.Token);
@@ -2034,7 +2294,7 @@ namespace LoveMyShelf {
                 try {if(photo.CoverFile!=null && File.Exists(photo.CoverFile))source.Still=Pictures.Load(photo.CoverFile,960);} catch(Exception) {}
                 // A cover that already has a GIF: Edit GIF cover, starting from the part and choices it was made with.
                 var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false,photo.HasMotion,photo.HasMotion?photo.MotionSettings:null);
-                if(dialog.ShowDialog()==true)MakeMotion(photo,dialog.Value);
+                if(CoverWork.Show(dialog,photo,this,original)==true)MakeMotion(photo,dialog.Value);
             } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
         }
         // Makes the GIF (or WebP/MP4) in the background and links it to the cover when done.
@@ -2101,7 +2361,7 @@ namespace LoveMyShelf {
         const double UndoSeconds=3;
         internal void RecycleCover(Photo photo) {RecycleCovers(new[]{photo});}
         internal void RecycleCovers(IEnumerable<Photo> covers) {
-            var chosen=covers.Where(p=>p.HasCrop && pendingFolders.Add(p.Folder)).ToList();
+            var chosen=WithoutCoverWork(covers).Where(p=>p.HasCrop && pendingFolders.Add(p.Folder)).ToList();
             if(chosen.Count==0)return;
             var pending=new PendingCovers {Covers=chosen};
             pendingDeletes.Add(pending);
@@ -2192,6 +2452,7 @@ namespace LoveMyShelf {
         // Sends only the GIF cover file to the Recycle Bin. The JPG cover stays; the record keeps the GIF's path,
         // so restoring the file from the Recycle Bin brings the GIF cover back.
         internal void RecycleMotion(Photo photo) {
+            if(CoverWork.Holds(photo)){TellFileInCoverWork();return;}
             try {
                 if(!photo.HasMotion)return;
                 moveToRecycleBin(photo.MotionFile,new System.Windows.Interop.WindowInteropHelper(this).Handle);
@@ -2222,6 +2483,7 @@ namespace LoveMyShelf {
         // Sends originals to the Recycle Bin. Every tile of an original (its extra covers too) leaves the list at once.
         internal void RecycleOriginals(IEnumerable<Photo> targets) {
             if(ShowingAllCrops)return;
+            targets=WithoutCoverWork(targets);
             FinishPendingCovers();
             var removed=new List<Photo>();
             foreach(var photo in targets.Where(p=>p.Linked && photos.Contains(p)).ToList()) {
@@ -2345,7 +2607,23 @@ namespace LoveMyShelf {
             photos.Insert(place,cover);
             ShowPhotos(reflow);
         }
-        static bool SameOriginal(Photo a,Photo b) {
+        // Delete in a large view: the file that view shows goes to the Recycle Bin, and its tiles leave every
+        // folder window. It works after this window has moved on to another folder too. Returns what went wrong, or null.
+        internal string RecycleFromViewer(Photo photo,IntPtr owner) {
+            if(CoverWork.Holds(photo))return L.T("This file is being used for a cover");
+            try {
+                FinishPendingCovers();
+                string path=photo.Original;
+                if(String.IsNullOrEmpty(path) || !File.Exists(path))return L.T("The original file is unavailable.");
+                if(photo.HasCrop && !OriginalLocator.MatchesOriginal(photo,path,lifetime.Token))
+                    return L.T("The file in this place is different from the original. Check it in File Explorer.");
+                moveToRecycleBin(path,owner);
+            } catch(Exception ex) {return ex.Message;}
+            foreach(var window in Application.Current.Windows.OfType<GalleryWindow>().ToList())
+                try {if(window.rows!=null)window.RemoveTiles(p=>SameOriginal(photo,p));} catch(Exception) {}
+            return null;
+        }
+        internal static bool SameOriginal(Photo a,Photo b) {
             return String.Equals(a.Name,b.Name,StringComparison.OrdinalIgnoreCase) &&
                 String.Equals(Path.GetDirectoryName(a.Folder),Path.GetDirectoryName(b.Folder),StringComparison.OrdinalIgnoreCase);
         }
@@ -2550,6 +2828,11 @@ namespace LoveMyShelf {
             Dispatcher.Invoke(new Action(()=>moveToRecycleBin(path,new System.Windows.Interop.WindowInteropHelper(this).Handle)));
         }
         async void MoveOriginals(string[] originals,bool copy,Album target) {
+            if(!copy && originals.Any(CoverWork.HoldsPath)) {
+                originals=originals.Where(p=>!CoverWork.HoldsPath(p)).ToArray();
+                TellFileInCoverWork();
+                if(originals.Length==0)return;
+            }
             FinishPendingCovers();
             string folderName=target.Name;
             var busy=Notify(L.T(copy?"Copying files…":"Moving files…"),L.F("Sending {0:N0} files to the “{1}” folder.",originals.Length,folderName),null,NoticeKind.Busy);
@@ -2580,8 +2863,11 @@ namespace LoveMyShelf {
             List<Tuple<string,string>> last;
             lock(moveHistory) {
                 if(moveHistory.Count==0)return;
-                last=moveHistory[moveHistory.Count-1];moveHistory.RemoveAt(moveHistory.Count-1);
+                last=moveHistory[moveHistory.Count-1];
+                if(last.Any(m=>CoverWork.HoldsPath(m.Item1) || CoverWork.HoldsPath(m.Item2)))last=null; // stays in the history for later
+                else moveHistory.RemoveAt(moveHistory.Count-1);
             }
+            if(last==null){TellFileInCoverWork();return;}
             var busy=Notify(L.T("Putting the files back…"),"",null,NoticeKind.Busy);
             MoveReport report=null;Exception error=null;
             try {
@@ -2945,8 +3231,18 @@ namespace LoveMyShelf {
         readonly Dictionary<string,List<Photo>> coverFamilies=new Dictionary<string,List<Photo>>(StringComparer.OrdinalIgnoreCase);
         string litFamily;
         bool coverMarksQueued;
+        readonly Dictionary<string,string> coverTimes=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        internal static string SceneClock(double ms) {
+            long seconds=(long)Math.Floor(Math.Max(0,ms)/1000);
+            return seconds>=3600?String.Format("{0}:{1:00}:{2:00}",seconds/3600,seconds/60%60,seconds%60):String.Format("{0}:{1:00}",seconds/60,seconds%60);
+        }
         void UpdateCoverMarks() {
-            coverMarks.Clear();coverFamilies.Clear();
+            coverMarks.Clear();coverFamilies.Clear();coverTimes.Clear();
+            if(settings.CoverTimes) {
+                // Only covers made here from a video have a scene time worth showing; a cover from an outside picture has none.
+                foreach(var p in photos.Where(p=>p!=null && p.HasCrop && !p.ExcludedFromCollection && !p.IsOutside && p.SceneMs.HasValue && VideoFrames.Supports(p.Original)))
+                    coverTimes[p.Folder]=SceneClock(p.SceneMs.Value);
+            }
             foreach(var group in photos.Where(p=>p!=null && p.HasCrop && !p.ExcludedFromCollection).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)) {
                 var covers=GalleryStore.InCoverOrder(group);
                 if(covers.Count<2)continue;
@@ -2967,6 +3263,8 @@ namespace LoveMyShelf {
             CoverSibling mark;
             bool has=coverMarks.TryGetValue(folder,out mark);
             tile.SetValue(TileMark.NumberProperty,has?mark.Number+"/"+mark.Total:null);
+            string clockText;
+            tile.SetValue(TileMark.TimeProperty,coverTimes.TryGetValue(folder,out clockText)?clockText:null);
             tile.SetValue(TileMark.LitProperty,has && String.Equals(mark.Family,litFamily,StringComparison.OrdinalIgnoreCase));
         }
         void LightCoverFamily(string family) {
@@ -3213,6 +3511,7 @@ namespace LoveMyShelf {
         // Renames the original and its covers; every tile of it keeps its slot with the new name.
         internal async void RenameOriginal(Photo photo) {
             if(!photo.Linked)return;
+            if(CoverWork.Holds(photo)){TellFileInCoverWork();return;}
             var dialog=new RenameWindow(this,photo.Name);
             if(dialog.ShowDialog()!=true || dialog.NewName==photo.Name)return;
             FinishPendingCovers();
@@ -3319,6 +3618,7 @@ namespace LoveMyShelf {
             return toast;
         }
         static Window BlockingWindow() {
+            if(CoverWork.Top!=null)return CoverWork.Top;
             return Application.Current.Windows.OfType<Window>().FirstOrDefault(w=>w.IsVisible &&
                 !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is Viewer) && !(w is GuideWindow) && !(w is VideoOverlay));
         }
@@ -3334,14 +3634,16 @@ namespace LoveMyShelf {
         }
         // Shows the two versions side by side. Returns the photo as recorded after the choice.
         internal async Task<Photo> ShowUpscaleChoice(Window owner,Photo photo) {
-            if(choosingUpscale)return photo;
+            if(choosingUpscale || !CoverWorkFree(owner??this))return photo;
             choosingUpscale=true;
             try {
                 Photo current=await Task.Run(()=>GalleryStore.Read(photo.Folder,photo.Linked?photo.Original:null));
                 if(lifetime.IsCancellationRequested)return photo;
                 if(!current.HasUpscale)return current;
-                var dialog=new UpscaleChoiceWindow(owner!=null && owner.IsVisible?owner:this,current);
-                if(dialog.ShowDialog()!=true || dialog.ChoseUpscaled==null)return current;
+                if(!CoverWorkFree(owner??this))return current; // another cover was opened while this one was loading
+                Window from=owner!=null && owner.IsVisible?owner:this;
+                var dialog=new UpscaleChoiceWindow(from,current);
+                if(CoverWork.Show(dialog,current,this,null,from)!=true || dialog.ChoseUpscaled==null)return current;
                 bool upscaled=dialog.ChoseUpscaled.Value;
                 var chosen=await Task.Run(()=>GalleryStore.ChooseUpscale(current,upscaled));
                 if(!lifetime.IsCancellationRequested)ReplaceShown(chosen);
@@ -3350,6 +3652,28 @@ namespace LoveMyShelf {
             finally{choosingUpscale=false;}
         }
         async void ShowPendingChoice(Photo photo,Window owner=null) {await ShowUpscaleChoice(owner??this,photo);}
+        // "Open with Love My Shelf" from File Explorer: shows the file's folder, then opens the file large, like a
+        // photo viewer or video player does. A folder is just shown.
+        internal void OpenExternalFile(string path) {
+            try {
+                string full=Path.GetFullPath(path);
+                if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;
+                Activate();
+                if(Directory.Exists(full)){NavigateTo(full);return;}
+                if(!File.Exists(full))return;
+                NavigateTo(Path.GetDirectoryName(full));
+                // The folder is read in the background; open the file as soon as its tile is there.
+                int tries=0;
+                var wait=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(150)};
+                wait.Tick+=delegate {
+                    tries++;
+                    var found=photos.FirstOrDefault(p=>p!=null && p.Original!=null && String.Equals(p.Original,full,StringComparison.OrdinalIgnoreCase));
+                    if(found!=null){wait.Stop();OpenPhoto(found);}
+                    else if(tries>100 || lifetime.IsCancellationRequested)wait.Stop();
+                };
+                wait.Start();
+            } catch(Exception ex) {UI.Error(this,ex);}
+        }
         internal void OpenPhoto(Photo photo,bool? cover) {
             // The first click after an upscale finishes shows the comparison instead.
             if(cover==null && photo.UpscalePending){ShowPendingChoice(photo);return;}
@@ -3358,19 +3682,17 @@ namespace LoveMyShelf {
             OpenViewer(items,index,cover);
         }
         // Opens a large view as a window of its own, like a video player opened from File Explorer: any number
-        // can be open, and the folder window stays usable. A new one takes the place, size and full screen of
-        // the large view opened last. Make cover from it closes it and opens the editor here.
+        // can be open, and the folder window stays usable. The first one opens where the last large view was left,
+        // and one opened while others show opens beside them (see ViewerPlacement), so they don't pile up.
+        // Make cover from it closes it and opens the editor here.
         Viewer OpenViewer(IList<Photo> items,int index,bool? cover,Window placeLike=null) {
             var viewer=new Viewer(this,items,index,false,cover);
-            var like=placeLike??LastViewer();
-            if(like!=null)viewer.PlaceLike(like);
+            if(placeLike!=null)viewer.PlaceLike(placeLike);
+            else try {ViewerPlacement.Place(viewer,this,settings.ViewerBounds);} catch(Exception) {}
             viewer.EditLater=p=>Edit(p);
             viewer.Closed+=delegate {ShowJustSaved();};
             viewer.Show();
             return viewer;
-        }
-        Viewer LastViewer() {
-            return Application.Current.Windows.OfType<Viewer>().LastOrDefault(v=>v.IsVisible && !v.ForCrop && v.WindowState!=WindowState.Minimized);
         }
         // The "GIF cover is ready" notice: shows that cover large, playing its GIF, in a new large view.
         // Skips it when the cover was removed or remade meanwhile.

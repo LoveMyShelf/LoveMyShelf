@@ -88,6 +88,8 @@ namespace LoveMyShelf {
         static void Remove(LinkedListNode<Entry> node) {
             order.Remove(node);entries.Remove(node.Value.Key);bytes-=node.Value.Bytes;
         }
+        // Lets go of every picture (while every folder window is minimized); they are read again when needed.
+        internal static void Clear() {order.Clear();entries.Clear();bytes=0;}
     }
 
     // A small set of worker threads. The waiting job closest to the middle of the visible rows runs next;

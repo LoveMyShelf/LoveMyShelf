@@ -70,14 +70,19 @@ namespace LoveMyShelf {
         // Seconds the arrow keys skip in the cover editor (the large view's setting).
         internal int SkipSeconds=5;
         internal int BrightnessStep=3;
+        // How the video looked while watching (turn, zoom, place): the scenes show that way and a cover starts from it.
+        // Null when it was simply upright at its own size.
+        internal ViewFraming Framing;
         // The playback brightness (-100..100) the video was watched with: the scenes show with it and a cover starts from it.
         int brightness;
+        // True when E / W / Q was pressed while watching this video, so a 0 there means "back to normal", not "not set".
+        internal bool BrightnessChosen;
         readonly TextBlock brightnessNote=UI.Text("",11,true);
         internal int Brightness {
             get {return brightness;}
             set {
-                brightness=Math.Max(-100,Math.Min(100,value));
-                brightnessNote.Text=brightness==0?"":L.F("Brightness {0:+0;-0}",brightness);
+                brightness=value; // a Light value: the level and the style (Soft or See in the dark)
+                brightnessNote.Text=brightness==0?"":L.F("Brightness {0:+0;-0} · {1}",Light.Level(brightness),Light.StyleName(Light.Style(brightness)));
                 brightnessNote.Visibility=brightness==0?Visibility.Collapsed:Visibility.Visible;
                 foreach(var tile in cells.Values)ApplyBrightness(tile);
             }
@@ -197,7 +202,9 @@ namespace LoveMyShelf {
                 canvas.Children.Remove(cells[i]);cells.Remove(i);
             }
             double dpi=PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice.M11;
-            int side=Math.Max(1,(int)Math.Ceiling(w*dpi));
+            // A zoomed-in scene reads a sharper picture, up to twice the tile.
+            double sharper=Framing==null?1:Math.Max(1,Math.Min(2,Framing.Magnify));
+            int side=Math.Max(1,(int)Math.Ceiling(w*dpi*sharper));
             for(int i=cellStart;i<cellStop;i++) {
                 Button tile;
                 if(!cells.TryGetValue(i,out tile)) {
@@ -232,17 +239,14 @@ namespace LoveMyShelf {
             string label=position;if(index==previous)label+=L.T(" · paused scene");
             var number=UI.Text(label,11);number.HorizontalAlignment=HorizontalAlignment.Center;
             DockPanel.SetDock(number,Dock.Bottom);content.Children.Add(number);
-            var image=new Image {Stretch=Stretch.Uniform};
-            // The picture sits on a white or black sheet the size of the picture, as covers do (Pictures.DrawCover).
+            var image=new FramedImage {Stretch=Stretch.Uniform,Framing=Framing};
             var sheet=new Grid {HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             sheet.Children.Add(image);holder.Child=sheet;content.Children.Add(holder);tile.Tag=image;tile.Content=content;
             ApplyBrightness(tile);
             AutomationProperties.SetName(tile,L.T("Scene ")+position);return tile;
         }
         void ApplyBrightness(Button tile) {
-            var image=(Image)tile.Tag;var sheet=(Grid)image.Parent;
-            sheet.Background=brightness==0?null:brightness>0?Brushes.White:Brushes.Black;
-            image.Opacity=1-Math.Abs(brightness)/100.0;
+            ((FramedImage)tile.Tag).Brightness=brightness; // the same curve as the video (see Light)
         }
         async void EditFrame(int index) {
             if(!scroll.IsEnabled)return;
@@ -254,17 +258,22 @@ namespace LoveMyShelf {
                 var image=await Task.Run(()=>current==null?AnimationFrames.Still(path,index,previewSide):
                     VideoFrames.AtTime(path,current.Start(index),current.TimestampOffset(index),previewSide,token));
                 if(closed)return;
-                Rect? saved=photo!=null && photo.HasCrop?(Rect?)photo.Crop:null;
-                // Brightness changed while watching wins; otherwise the saved cover's own brightness.
-                var editor=new CropWindow(this,image,photo.Name,saved,photo.Rotation,snapEdges,wheelZoomPercent,previewSide,
-                    brightness!=0?brightness:photo.Brightness);
+                // A cover cut from an outside picture says nothing about how to frame this video.
+                bool own=photo!=null && !photo.IsOutside;
+                Rect? saved=own && photo.HasCrop?(Rect?)photo.Crop:null;
+                // Turned or zoomed while watching: the cover starts just as it looked, ahead of the saved cover's framing.
+                double rotation=own?photo.Rotation:0;
+                if(Framing!=null){rotation=Framing.Turn;saved=Framing.CoverFrame(image.PixelWidth,image.PixelHeight);}
+                // Brightness set while watching this video (E / W / Q, even back to 0) wins; otherwise the saved cover's own.
+                var editor=new CropWindow(this,image,photo.Name,saved,rotation,snapEdges,wheelZoomPercent,previewSide,
+                    BrightnessChosen?brightness:own?photo.Brightness:0);
                 editor.CommitCover=CommitCover;editor.AfterCommit=AfterCommit;editor.SkipSeconds=SkipSeconds;editor.BrightnessStep=BrightnessStep;
                 editor.AddFrameControls(path,index,frameCount,current);
                 if(CommitMotion!=null && MotionMaker.Supports(path))
                     editor.EnableMotion(CommitMotion,()=>new MotionSource {Path=path,Moment=MotionSource.MomentOf(path,editor.FrameTime,editor.FrameIndex),
                         Crop=editor.Surface.Fraction,Rotation=editor.Surface.Rotation,Brightness=editor.Surface.Brightness,
                         Still=Pictures.RenderRotatedCover(editor.Surface.Source,editor.Surface.Fraction,editor.Surface.Rotation,540,960,editor.Surface.Brightness)});
-                if(editor.ShowDialog()==true) {SavedCrop=editor;DialogResult=true;}
+                if(CoverWork.Show(editor)==true) {SavedCrop=editor;DialogResult=true;}
                 else if(!editor.BackToFrames) DialogResult=false;
             } catch(Exception ex){if(!closed)UI.Error(this,ex);}
             finally {if(!closed)scroll.IsEnabled=true;}

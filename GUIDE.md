@@ -105,7 +105,7 @@ It works as soon as you extract the ZIP. The FFmpeg tools it needs are in the `t
 2. Click **Make cover** and the scenes before and after the paused spot appear in a list.
 3. The **Scene size** slider changes the size of the pictures in the list. Click **All scenes** to see the scenes of the whole video.
 4. Click the scene you want and the Make cover screen opens with that scene.
-5. In the Make cover screen too, **Previous scene** and **Next scene** (**D** and **F**) let you compare with the scenes right next to it. The keys are the same as in the large view: **←** and **→** skip by the seconds you set (1 second with Shift), and **E**, **W** and **Q** are brighter, darker and reset. Fit it in the frame just as with a photo and click **Save cover**.
+5. In the Make cover screen too, **Previous scene** and **Next scene** (**D** and **F**) let you compare with the scenes right next to it. The keys are the same as in the large view: **←** and **→** skip by the seconds you set (1 second with Shift), **Q**, **W** and **E** are reset, darker and brighter, and **R** switches the brightness style. Fit it in the frame just as with a photo and click **Save cover**.
 
 Tip: pressing **D** or **F** during playback pauses and moves one scene back or forward. It is handy to find the exact scene and then click **Make cover**.
 
@@ -116,7 +116,10 @@ Tip: pressing **D** or **F** during playback pauses and moves one scene back or 
 - Inside the large view, **View cover** and **View original** switch between the two.
 - **Edit cover** opens the Make cover screen with the framing you saved. Good when you want to change only a little. For a video, the scene you saved opens.
 - **Add cover** in the large view (or **Make one more cover** when you right-click a tile) makes one more cover from the same original. Use it when you want another scene or another framing. The covers you made before stay as they are. In the folder view, that many tiles show side by side. A video's new cover goes in the place that fits the time order of the scenes in the video. These tiles are all made from the same original, so Delete (the original goes to the Recycle Bin and all of that original's tiles disappear), Rename, moving to another folder and Open file location apply once to the one original, whichever tile you use. **Cover collection** also shows one tile for each cover.
+- **A cover from a picture made elsewhere**: right-click a tile and choose **Use a picture made elsewhere as a cover…**, then pick a picture file (JPG, PNG, WebP or BMP). The same Make cover screen opens with that picture, so you can cut, turn and brighten it in the same way. A poster or a picture you edited in another program can become the cover of a video or photo like this. Love My Shelf keeps its own copy of the picture you picked, so you can move or delete your picture file afterwards and **Edit cover** still works. When you move the cover to the Recycle Bin, the finished cover file goes to the Recycle Bin and the kept copy is removed with it. A cover made this way has no scene in the video, so **Make GIF cover** doesn't appear for it.
+- **Changing the order of covers**: when one original has two or more covers, right-click a cover and open **Cover order**: **Move forward**, **Move back**, **Move to the very front (the first cover)** and **Back to the automatic order**. Once you move a cover yourself, that original keeps your order, and a cover you make later goes to the end.
 - Right-click a tile and click **Open with default app** to open it in the program set as the default in Windows.
+- The other way round, right-click a photo or video in File Explorer and click **Open with Love My Shelf**: the folder that holds the file opens with that file right in the large view (on Windows 11, click **Show more options** first, or press **Shift+F10**). It is on from the start, and you can turn it off in **Guide & Options → Screen, language, updates**.
 
 ### JPG covers and GIF covers
 
@@ -126,12 +129,18 @@ A still cover is called a **JPG cover**, and a moving cover is called a **GIF co
 
 A cover made from a video, GIF or WebP can also be made into a short moving cover that uses the same frame, rotation and brightness. Start from **Make GIF cover** in the Make cover screen (next to Save cover), **Make GIF cover** in the large view (next to Upscale), or a tile's right-click menu.
 
-1. At the bottom of the window you see the **scene strip**, with the cover's scene (white mark) in the middle. How much the strip shows at first is set in **Guide & Options → Making GIF covers** (default 10 seconds).
+You can also set the part in advance while watching the video. In the large view, press **[** where it starts and **]** where it ends (the same buttons are under **GIF cover part** in the right-click controls window): only that part plays again and again, and when you then make a cover as usual from a scene inside the part, the window below opens on that part instead of 1 second before and after the cover (when the cover's scene is more than 2 seconds away from the part, it opens as usual). **\\** clears the part.
+
+1. At the bottom of the window you see the **scene strip**, with the cover's scene (white mark) in the middle. How much the strip shows at first is set in **Guide & Options → Making GIF covers** (default 4 seconds).
 2. Drag the two blue **handles** to the start and the end. Click <b>‹</b> / <b>›</b> at **Start** and **End** under the strip, or press **←** / **→**, to move one scene at a time (**←** / **→** move the handle you last held). One scene is the **scene step** in **Guide & Options → Scenes from videos** (default 0.2 seconds). Handles also move one scene at a time when you drag them.
-3. Drag the pictures in the strip sideways to see other parts of the video. Drag a handle to the end of the strip and the strip moves along. Click **Back to the cover** to return to the cover's scene. There is no limit on the length.
-4. Choose the **Speed** (0.5× to 2×) and the **Play style** (**Loop**, **Back and forth**, which goes to the end and comes back in reverse, or **Backward**).
-5. The **Preview** at the top is the file that will actually be made, so it is exactly what will be saved. While it is being made, the progress shows, and a thin line on the strip shows where it is playing now. Click the preview or press **Space** to pause and play again. Under the strip are the length, the number of pictures, the actual size (width × height) and the file size (shown in orange when it is very big). While you move the handles, a **Quick preview** appears first. Its default is 0.1 seconds apart, and it can be lowered to 0.03 seconds in **Guide & Options → Making GIF covers**. If the part you chose is long and would need more than 400 scenes, only the quick preview widens the spacing a little.
-6. Under **More choices** you can choose the smoothness (pictures per second), the height, the picture quality (High, Normal, Low) and the file type (GIF, WebP, MP4). The values selected at first when the window opens (file type, picture quality, smoothness, height, and how much before and after the cover) are set in **Guide & Options → Making GIF covers**. Click **Make** (in the Make cover screen, **Save JPG cover and make GIF cover**) and the file made for the preview is saved right away.
+3. Drag the pictures in the strip sideways, or roll the mouse wheel over the strip, to see other parts of the video. Each notch of the wheel moves a quarter of the strip: down goes later, up goes earlier. The handles stay where they are. Drag a handle to the end of the strip and the strip moves along. Click **Back to the cover** to return to the cover's scene. There is no limit on the length.
+4. Choose the **Speed** (0.2× to 4×. **−** / **+** or **X** / **C** change it by 0.1× at a time, and holding one keeps it changing. **Z** is the original speed, and **V** goes straight to 2× and back to 1× when pressed again) and the **Play style** (**Loop**, **Back and forth**, which goes to the end and comes back in reverse, or **Backward**).
+5. When you change the part, the **preview** shows at the top right away. The preview is scenes taken from the original at wide intervals (0.05 seconds apart by default), so it looks a little choppier and less sharp than the real file. The card on the left of the preview says what you are looking at now. A small arrow under the strip's pictures points to where it is playing now. Click the preview or press **Space** to pause and play again. The length, the number of pictures, the size (width × height) and the file size show too (a rough value like ‘about 3 MB’). To see how it will be saved first, click **See how the real file looks** on the card. Then the **real file** is made and plays as it is in the preview's place, with its progress and its exact size. For 3 seconds long, 30 pictures a second and 1080 pixels tall, MP4 takes about 1 second, GIF about 2 to 3 seconds, and WebP about 5 seconds.
+6. On the right of the preview you can choose the speed and the play style, the smoothness (pictures per second), the height, the picture quality (High, Normal, Low) and the file type (GIF, WebP, MP4) (in a narrow window they move down under the strip, and the last four are under **More choices**). The values selected at first when the window opens (file type, picture quality, smoothness, height, and how much before and after the cover) are set in **Guide & Options → Making GIF covers**. Click **Make** (in the Make cover screen, **Save JPG cover and make GIF cover**) and, if the real file is already made, that file is saved right away; if not yet, it is made in the background and saved.
+7. How the preview works is yours to choose. Click **Change how the preview works** on the card, or in **Guide & Options → Making GIF covers** choose ① whether the real file is made only when **Make** is clicked (the default) or by itself in the background once the part is set (then, when you let go of the handle and wait a moment, the preview changes to the real file) ② when it is made by itself, how long to wait after you let go of the handle (0.7 seconds by default) ③ the spacing of the preview's scenes (0.05 seconds by default) ④ how carefully WebP is compressed (Carefully about 5 seconds · 1.9 MB / Quickly about 3 seconds · 2.0 MB / Very quickly about 2 seconds · 2.6 MB, for the same example as above).
+8. Choosing a height bigger than the original does not stretch it. For example, if the cover is 1080 pixels tall in the original, it is made 1080 pixels tall even if you choose 1280, and then a line under the height says so.
+
+If the window before it is in full screen, the Make GIF cover window opens in full screen too. **F11** or the full screen button at the top right changes it.
 
 Both the JPG cover and the GIF cover are saved. A tile shows the JPG cover first, and the GIF cover moves when you point at it (you can change this in **Guide & Options → Making GIF covers**). In the large view it plays automatically, and **View JPG cover** and **View GIF cover** switch between the two.
 
@@ -145,7 +154,7 @@ None of the three has sound. The sizes below are for a cover 3 seconds long, at 
   - It moves like a GIF on Discord too. It is the best for keeping and viewing inside Love My Shelf.
 - **MP4**: a video format. Of the three, its size is the smallest (about 0.8 MB) and its picture quality is the best. But it is treated as a video, not a picture, so depending on where you post it, it may get a play button or play once and stop.
 
-If you're not sure, choose GIF; if you'll keep them in Love My Shelf or post on Discord, WebP; if you're fine with it going up as a video, MP4.
+If you're not sure, choose WebP (it is selected at first); if you'll post it where WebP doesn't move, GIF; if you're fine with it going up as a video, MP4.
 
 ### Large view and playback
 
@@ -155,28 +164,44 @@ If you're not sure, choose GIF; if you'll keep them in Love My Shelf or post on 
 | **Space** | Play / pause |
 | **←** / **→** | Skip back / forward (default 5 seconds; you can change it in Guide & Options) |
 | **D** / **F** | Pause and go one scene back / forward |
-| **E** / **W** | Brighter / darker (default 3 at a time; you can change it in **Guide & Options → Scenes from videos**) |
-| **Q** | Back to the original brightness |
-| **C** / **X** / **Z** | 0.1× faster / 0.1× slower / original speed |
+| **Q** / **W** / **E** | Back to the original brightness / darker / brighter (default 3 at a time; you can change it in **Guide & Options → Scenes from videos**). Moving to another file returns it to the original brightness. |
+| **R** | Switch the brightness style: Soft (the usual one, brightens faces gently and softly) / See in the dark (lifts only the dark parts a lot, so things are easy to tell apart even in a very dark video) |
+| **Z** / **X** / **C** | Original speed / 0.1× slower / 0.1× faster |
+| **V** | Straight to 2× speed (press again to return to 1×) |
+| **I** / **O** / **P** | Rotation back to normal / turn left / turn right (default 10° at a time; you can choose from 1° to 45° in **Guide & Options → Scenes from videos**. Hold the key and it keeps turning, resting a moment at every 90°. **I** puts the angle, size and place all back) |
+| **Mouse wheel** | Zoom in / out (up to 8×. A turned picture can zoom out until all of it fits. If part of it is past the edge of the screen, drag to move it into view) |
 | **↑** / **↓** | Volume up / down by 5 (the next video starts at that volume too) |
 | **M** | Sound off / on |
-| **V** | Clear voice on / off (it stays on for the next video too; choose Gentle, Normal or Strong from the ▾ next to the button) |
+| **N** | Clear voice on / off (it stays on for the next video too; choose Gentle, Normal or Strong in the controls window that opens when you right-click the screen) |
 | **/** | Capture this scene (at first it is saved as a PNG in the `Pictures\Love My Shelf 캡처` folder. The folder, whether to save the video's original frame or just what the screen shows now, and PNG or JPG can be changed in **Guide & Options → Scenes from videos**) |
+| **[** / **]** / **\\** | Start / end / clear the GIF cover part (once both the start and the end are set, the playback bar shows the part in blue and only that part plays again and again. Make a cover from a scene inside the part in this state and the **Make GIF cover** window opens on that part. A part can be up to 60 seconds, and it is cleared when you make a GIF cover from it or move to another file) |
+| **Tab** | Show / hide the file information (the file name, which drive and folder it is in, format, size, picture quality, fps and so on) |
+| **Delete** | Move the original file you are looking at to the Recycle Bin and go on to the next file |
+| **Right-click** | Open the controls window (every control is listed with its key, and you can click it to use it right away) |
 | **F11** | Full screen on / off |
 | **Esc** | Close the large view |
 
-- The playback bar at the bottom has the playback position and the **Volume**. **C** / **X** change the speed by 0.1× (0.2× to 4×), and **Z** returns to 1×.
+- The playback bar at the bottom has the playback position and the **Volume**. **X** / **C** change the speed by 0.1× (0.2× to 4×), and **Z** returns to 1×.
+- **Right-click** the screen and the controls window opens. Every control is listed with its key, such as moving by scene (D, F), brightness (Q, W, E, R) and rotation (I, O, P), so you can look here when you can't remember a key. Clicking a button with the mouse does the same thing, and holding it down keeps it going. Capturing a scene, the subtitle explorer, Clear voice and Open file location are here too.
+- Press **O** or **P** and a video stops on that scene and becomes a small picture that never touches the edges of the screen at any angle. About 0.5 seconds after you let go, it plays on from the same scene at that angle. Set the angle first, then adjust the size with the wheel.
+- Rotation and zoom stay only while you look at that file. When you go on to the next file they return to normal. The seek-bar thumbnail looks just like the screen, and if you click **Make cover** like this, the scene list and the cover (GIF covers too) continue at the same angle, size and place.
+- Press **Delete** and the file goes to the Recycle Bin right away, with no confirmation window. If you sent it by mistake, you can restore it from the Windows Recycle Bin. A large view opened from **Cover collection** doesn't delete originals.
 - When you change the playback speed, brightness or volume with keys, a value like ‘Playback speed 1.1×’ shows briefly at the top left of the screen, as in PotPlayer.
+- In **Guide & Options → Large view** you can choose which speaker each monitor's sound comes from. Move a video window to another monitor and, about a second later, its sound follows to that monitor's speaker. The volume is remembered separately for each speaker. If the chosen speaker is unplugged, the sound comes from the Windows default speaker.
 - Point at the playback bar and the scene at that spot appears as a small picture with its time. Click to go to that spot.
 - In windowed mode the playback bar is always below the video, as in PotPlayer, so it doesn't cover the video. In full screen, move the mouse to the very bottom and the playback bar and buttons appear over the video; move it to the very top and the title bar appears.
 - **Double-click** the video to pause or play again.
 - The large view fills the window from top to bottom. A wide photo may look a little cut off at the sides. The black bars at the top and bottom of a saved cover don't show.
+- In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was; maximize leaves full screen and becomes a maximized window. This is the same in every Love My Shelf window.
+- When you watch only a video, try minimizing the folder window. About 5 seconds later it lets go of the pictures it had read to show in the tiles, so Love My Shelf uses less memory. While watching a video, right-click the screen and click **Minimize the folder window**. Bring the folder window back and only the pictures of the tiles on screen are read again.
 
 ### Subtitles and sync
 
 If there is a subtitle file (SMI, SRT, ASS, VTT) with the same name as the video, it shows automatically. If one file has both Korean and English, Korean shows first. In full screen, while the playback bar is showing, the subtitles move up above the playback bar so they aren't covered.
 
-1. Click **Subtitles** under the video to open the subtitle explorer.
+Subtitles show in the same font as Love My Shelf. A font or size written inside an SMI or SRT file is not followed (colors are kept), and ASS subtitles show in the fonts their maker chose. Change the subtitle size by 10% at a time (50 to 300%) with **Subtitle size** in the controls window that opens when you right-click the screen, or choose it in **Guide & Options → Large view**. The size you set is used for the next video too.
+
+1. Right-click the video screen and click **Open the subtitle explorer**.
 2. Pause at the moment a line of speech starts.
 3. Click the subtitle line for that speech once. One click only selects the line, and the video doesn't move.
 4. Click **Sync to the selected line** and the sync of the whole subtitle is set.
@@ -202,14 +227,14 @@ If a saved cover is less than 1920 pixels tall, an **Upscale** button appears in
 1. Click **Upscale** and an AI model (Swin2SR) enlarges the cover 4 times and makes it sharper. It runs by itself in the background, so you can keep using the program meanwhile.
 2. The button shows the progress, like <b>Upscaling 40%</b>. On a laptop CPU, one small cover takes from 30 seconds to a few minutes.
 3. When it's done, a notice appears at the bottom right. Click the notice, or click that cover's tile once, and the compare window opens.
-4. The original cover and the upscaled cover show side by side. Zoom with the wheel and drag to move, and the two pictures move together. Double-click to go back to how it was.
-5. Click **Use this cover** under the one you like. Click **Decide later** to put off the decision.
+4. The original cover and the upscaled cover fill the window from top to bottom and touch in the middle (wide covers are stacked one above the other). If you are using full screen, the compare window opens in full screen too, with nothing above or below the pictures; the title bar appears when you move the mouse to the top. Zoom with the wheel and drag to move, and the two pictures move together. Double-click to go back to how it was.
+5. Click **Use this cover** beside the one you like. Click **Decide later** to put off the decision.
 
 Both JPG files stay where the cover is saved. The upscaled file's name ends in `-upscaled.jpg`. Click **Compare upscale** to open the compare window again and change your choice any time. If you make the cover again, the link to the upscaled file is broken, but the file isn't deleted.
 
 ### Tidying up
 
-- **When one original has several covers**: a number like **2/5** shows at the bottom right of the tile. It means the second of 5 covers. Covers of the same original always stay together even when you sort or shuffle, with number 1 on the left. A video's covers are placed in the time order of their scenes in the video, regardless of the order you made them. Point at a cover and all the covers made from the same original get a colored outline. In the large view, when there is empty space on the right of the screen, the other covers of the same original appear small; click one to switch to it. In full screen they hide when the mouse stays still and come back when it moves.
+- **When one original has several covers**: a number like **2/5** shows at the bottom right of the tile. It means the second of 5 covers. Covers of the same original always stay together even when you sort or shuffle, with number 1 on the left. Covers from pictures made elsewhere come first, in the order you added them, and then a video's covers are placed in the time order of their scenes in the video, regardless of the order you made them. An original whose covers you arranged yourself keeps your order. Point at a cover and all the covers made from the same original get a colored outline. In the large view, when there is empty space on the right of the screen, the other covers of the same original appear small; click one to switch to it. In full screen they hide when the mouse stays still and come back when it moves.
 - **Hide this cover**: leaves the file as it is and only stops showing it in Love My Shelf. It leaves **Cover collection**, and the tile in the folder view shows the original (the tile of a cover you made as one more disappears from the folder view). Click **Show this cover again** to bring it back. If you hid another cover of the same original, **Show hidden covers again** appears when you right-click the tile in the folder view.
 - **Move this cover file to the Recycle Bin**: sends the cover JPG (together with the upscaled file and the GIF cover, if there are any) to the Windows Recycle Bin and removes it from the list. The original stays as it is. If there is a GIF cover too, the item's name changes to **Move both the JPG and GIF covers to the Recycle Bin**, and one more item appears: **Move only the GIF cover to the Recycle Bin**. If you send only the GIF cover, the JPG cover stays, and restoring the GIF file from the Recycle Bin connects it again. Hide and show also apply to both covers, so their names change to **Hide both the JPG and GIF covers** and **Show both the JPG and GIF covers again**.
 - **If you deleted a cover by mistake**: when you send a cover to the Recycle Bin, a notice shows at the bottom right for 3 seconds. Click the notice within that time and the cover comes right back. Keep the mouse over the notice and it waits without disappearing.
@@ -231,15 +256,15 @@ Love My Shelf never uploads anything to the internet itself. It only hands the f
 ### What you can set in Guide & Options
 
 - **Browsing files**: whether the folders go above or below the photos, the folder view, the sort order of the tiles (File name, Date modified, File size, File type, Cover creation order) and which end comes first, and whether to show file names under the tiles (No name, One line, Two lines, Whole name). The sort is the same setting as the **Sort** button at the bottom right.
-- **Making a cover**: whether the frame sticks to the photo's edges, how much one wheel step zooms (3, 5, 7, 10 or 15%), and whether the top line of the frame stays fixed when you zoom with the wheel.
+- **Making a cover**: whether covers show their scene time (where the scene is in the video, like 12:34), whether the frame sticks to the photo's edges, how much one wheel step zooms (3, 5, 7, 10 or 15%), and whether the top line of the frame stays fixed when you zoom with the wheel.
 - **Saving covers**: where covers are saved (① Gather them in one cover folder ② Save it in the same folder as the original ③ Make a ‘Love My Shelf 표지’ folder inside the original's folder and save it there) and the cover folder. Even with ② or ③, if the place can't be saved to, the cover is saved in the cover folder instead and you get a notice. Even if you change this setting, covers already made are not moved.
 - **Scenes from videos**: how far the ← and → keys skip (3, 5, 10 or 30 s), how much the E and W keys change the brightness, the scene step, the folder for captured pictures, what a captured picture looks like (the video's original frame / just as it looks on screen now), and the kind of file for captured pictures (PNG / JPG).
-- **Making GIF covers**: the starting file format, picture quality, pictures per second, height, how much before and after the cover at first, how much the scene strip shows at first, the quick preview spacing, and whether GIF covers move in the tiles.
-- **Large view**: whether a double-click or one click opens it, and whether the cover or the original shows first when you open a photo tile or a video, GIF or WebP tile.
+- **Making GIF covers**: the starting file format, picture quality, pictures per second, height, how much before and after the cover at first, how much the scene strip shows at first, when the real file is made, how long to wait after you let go of the handle, the spacing of the preview's scenes, how carefully WebP is compressed, and whether GIF covers move in the tiles.
+- **Large view**: whether a double-click or one click opens it, and whether the cover or the original shows first when you open a photo tile or a video, GIF or WebP tile, the subtitle size (70 to 200%), and the speaker for each monitor.
 - **Sharing**: what Copy, Share and dragging send, and above which size (10, 20, 50 or 100 MB) it asks before sending a video.
 - **Screen, language, updates**: light or dark screen, 한국어 or English, new version notices.
 
-A value you typed in as a number in an older version (for example 12 seconds) stays as it is, and shows like ‘Now 12 seconds (a value you typed in earlier)’.
+Most settings that choose a number have a **Type your own** card under their choices. Enter the number you want and click **Apply** or press **Enter**. **−** / **+** change it one step at a time; hold one and it keeps changing, and it is saved when you let go. The range you can enter is written under the box, and a number outside it is set to the nearest value and you are told so. While a value you typed is in use, the card shows something like ‘✓ Type your own · now 0.07 s’.
 
 ### Where are my files?
 

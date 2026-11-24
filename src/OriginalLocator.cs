@@ -264,6 +264,11 @@ namespace LoveMyShelf {
             var saved=Read(photo.Folder);
             string previous=saved==null?photo.Original:saved.Path;
             if(saved!=null && Matches(saved,previous))return previous;
+            // A cover cut from an outside picture doesn't look like its original, so it is never searched for by its looks.
+            if(saved==null && photo.IsOutside) {
+                if(File.Exists(previous))return previous;
+                throw new FileNotFoundException(L.T("Could not locate the original file."),previous);
+            }
             byte[] thumb=saved==null?File.ReadAllBytes(photo.Thumb):null;
             if(saved==null && File.Exists(previous) && CropMatches(photo,previous,thumb,token)){
                 Remember(photo,previous);return previous;
@@ -299,6 +304,8 @@ namespace LoveMyShelf {
         }
         internal static bool MatchesOriginal(Photo photo,string path,CancellationToken token) {
             var saved=Read(photo.Folder);
+            // Without its saved facts, a cover cut from an outside picture can't vouch for any file: the cover doesn't look like its original.
+            if(saved==null && photo.IsOutside)return false;
             return saved!=null?Matches(saved,path) || EditedInPlace(saved,path):CropMatches(photo,path,File.ReadAllBytes(photo.Thumb),token);
         }
         internal static bool TryChosen(Photo photo,string path,CancellationToken token) {

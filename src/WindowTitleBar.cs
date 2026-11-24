@@ -23,11 +23,18 @@ namespace LoveMyShelf {
             SetDock(this,Dock.Top);
             close=AddButton(()=>window.Close());
             if(toggleFullscreen!=null)fullscreen=AddButton(toggleFullscreen);
+            // Both work in full screen too: minimize goes straight down (and comes back in full screen),
+            // maximize leaves full screen for a maximized window in one click.
             maximize=AddButton(()=>{
+                if(FullScreen.IsFull(window) && MaximizeFromFull!=null){MaximizeFromFull();return;}
                 if(window.WindowState==WindowState.Maximized)SystemCommands.RestoreWindow(window);
                 else SystemCommands.MaximizeWindow(window);
             });
-            minimize=AddButton(()=>SystemCommands.MinimizeWindow(window));
+            minimize=AddButton(()=>{
+                // A full-screen window has no frame, so it is minimized directly instead of through the system menu.
+                if(FullScreen.IsFull(window))window.WindowState=WindowState.Minimized;
+                else SystemCommands.MinimizeWindow(window);
+            });
 
             var title=UI.Text("",12);
             title.Margin=new Thickness(12,0,8,0);
@@ -39,6 +46,8 @@ namespace LoveMyShelf {
             Update();
         }
 
+        // Set by FullScreen: leaves full screen and maximizes the window.
+        internal Action MaximizeFromFull;
         Button AddButton(Action action) {
             var button=UI.Btn("",action);
             button.Style=(Style)Application.Current.Resources["TitleBarButton"];
@@ -70,7 +79,8 @@ namespace LoveMyShelf {
                 ?"M 1,4 H 4 V 1 M 9,1 V 4 H 12 M 1,9 H 4 V 12 M 9,12 V 9 H 12"
                 :"M 1,5 V 1 H 5 M 8,1 H 12 V 5 M 12,8 V 12 H 8 M 5,12 H 1 V 8",
                 "Toggle full screen (F11)");
-            maximize.IsEnabled=minimize.IsEnabled=!full;
+            // Without FullScreen behind it, a full-screen-looking window can't be maximized from here.
+            maximize.IsEnabled=!full || MaximizeFromFull!=null;
         }
     }
 }

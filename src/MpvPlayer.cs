@@ -78,6 +78,16 @@ namespace LoveMyShelf {
             Option("keep-open","no");Option("idle","yes");Option("audio-display","no");
             Option("background-color","#000000");Option("force-window","no");
             Option("sub-auto","no"); // Love My Shelf finds and reads subtitle files itself (see Subtitles.cs)
+            Option("audio-device",audioDevice);
+            // Subtitles use Love My Shelf's own font (the fonts folder beside the exe), so they match the rest of the
+            // program. ASS subtitles keep the fonts their maker chose. A player that doesn't know these keeps its own font.
+            string fonts=System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"fonts");
+            if(System.IO.File.Exists(System.IO.Path.Combine(fonts,"Pretendard-Bold.otf"))) {
+                mpv_set_option_string(handle,Utf8("sub-fonts-dir"),Utf8(fonts));
+                mpv_set_option_string(handle,Utf8("sub-font"),Utf8("Pretendard"));
+                mpv_set_option_string(handle,Utf8("sub-bold"),Utf8("yes"));
+            }
+            mpv_set_option_string(handle,Utf8("sub-scale"),Utf8(subtitleScale.ToString("0.###",Inv)));
             Check(mpv_initialize(handle),"initialize");
             events.Start();
             Command("loadfile",path,"replace");
@@ -139,15 +149,71 @@ namespace LoveMyShelf {
         }
         void ReadVideo() {
             long width,height,rotate;
-            if(mpv_get_property(handle,Utf8("video-params/dw"),FormatInt64,out width)<0 ||
-               mpv_get_property(handle,Utf8("video-params/dh"),FormatInt64,out height)<0 || width<=0 || height<=0)return;
-            if(mpv_get_property(handle,Utf8("video-params/rotate"),FormatInt64,out rotate)<0)rotate=0;
+            // The picture as it leaves mpv's filters: a turn that is not a quarter turn is done there and changes
+            // the size, while a quarter turn is left to the screen and only reported.
+            string from="video-out-params";
+            if(!ReadSize(from,out width,out height)) {
+                from="video-params";
+                if(!ReadSize(from,out width,out height))return;
+            }
+            if(mpv_get_property(handle,Utf8(from+"/rotate"),FormatInt64,out rotate)<0)rotate=0;
             Aspect=rotate%180==90?(double)height/width:(double)width/height;
             PixelWidth=(int)(rotate%180==90?height:width);PixelHeight=(int)(rotate%180==90?width:height);
+            if(uprightAspect<=0 && turn==0)uprightAspect=Aspect; // kept: a late report can still carry an older turn
             if(VideoChanged!=null)VideoChanged();
+        }
+        bool ReadSize(string from,out long width,out long height) {
+            height=0;
+            return mpv_get_property(handle,Utf8(from+"/dw"),FormatInt64,out width)>=0 &&
+                mpv_get_property(handle,Utf8(from+"/dh"),FormatInt64,out height)>=0 && width>0 && height>0;
         }
         public int PixelWidth {get;private set;}
         public int PixelHeight {get;private set;}
+        // Degrees clockwise, on top of the video's own orientation. Only quarter turns work while the frames stay
+        // on the graphics card, so any other angle brings them to memory first (heavier, but it turns).
+        // Switching that costs a stutter, so it happens once when the picture first tilts and stays through the
+        // quarter turns on the way, until the picture is upright again.
+        int turn;
+        bool copying;
+        double uprightAspect;
+        // Width over height before any O / P turn.
+        internal double UprightAspect {get {return uprightAspect>0?uprightAspect:Aspect;}}
+        internal int Turn {get {return turn;} set {
+            if(value==turn)return;
+            turn=value;
+            if(value%90!=0 && !copying){copying=true;Property("hwdec","auto-copy-safe");}
+            else if(value==0 && copying){copying=false;Property("hwdec","auto-safe");}
+            Property("video-rotate",value.ToString(Inv));
+        }}
+        // The E / W brightness (a Light value: level and style) as a small shader on the video, the same curve as
+        // everywhere else. It is not in screenshot-raw / screenshot "video": those pictures get the curve from Light afterwards.
+        int brightness;bool shaderOn;
+        internal int Brightness {set {
+            if(value==brightness || handle==IntPtr.Zero)return;
+            brightness=value;
+            if(value==0) {
+                if(shaderOn){shaderOn=false;Property("glsl-shaders","");}
+                return;
+            }
+            Property("glsl-shader-opts",Light.MpvOptions(value));
+            if(!shaderOn) {
+                try {Property("glsl-shaders",Light.MpvShader());shaderOn=true;}
+                catch(System.IO.IOException) {} catch(UnauthorizedAccessException) {}
+            }
+        }}
+        // Turned or resized, the player's window is the whole view instead of just the picture, and mpv itself
+        // sizes and moves the picture inside it. A window that changed size with every step would flicker.
+        // zoom: how big the picture is against mpv's own fit (below 1 is smaller). panX and panY are fractions of that size.
+        bool zoomed;
+        internal bool Fill {get {return zoomed || turn!=0;}}
+        string view="";
+        internal void SetView(double zoom,double panX,double panY) {
+            zoomed=Math.Abs(zoom-1)>0.0001;
+            string scale=Math.Log(Math.Max(0.01,zoom),2).ToString("0.####",Inv),x=panX.ToString("0.#####",Inv),y=panY.ToString("0.#####",Inv);
+            if(view==scale+"|"+x+"|"+y)return;
+            view=scale+"|"+x+"|"+y;
+            Property("video-zoom",scale);Property("video-pan-x",x);Property("video-pan-y",y);
+        }
         void Fail(string message) {
             if(closed)return;
             closed=true;events.Stop();
@@ -166,8 +232,10 @@ namespace LoveMyShelf {
         }
         // Diagnostics, such as "hwdec-current" or "frame-drop-count".
         internal string Read(string name) {
-            if(handle==IntPtr.Zero)return null;
-            IntPtr text=mpv_get_property_string(handle,Utf8(name));
+            return handle==IntPtr.Zero?null:ReadFrom(handle,name);
+        }
+        static string ReadFrom(IntPtr ctx,string name) {
+            IntPtr text=mpv_get_property_string(ctx,Utf8(name));
             if(text==IntPtr.Zero)return null;
             try {
                 int length=0;
@@ -175,6 +243,42 @@ namespace LoveMyShelf {
                 var bytes=new byte[length];Marshal.Copy(text,bytes,0,length);
                 return Encoding.UTF8.GetString(bytes);
             } finally {mpv_free(text);}
+        }
+        // The frame on screen, straight from memory (4K took under 0.05 s when measured), already at the player's turn.
+        // Null if it can't be had. Used to hold the picture still while it is being turned.
+        internal BitmapSource GrabFrame() {return Grab(handle);}
+        // The decoder's picture at the current time, from any mpv instance (the GIF strip's hidden ones too).
+        internal static BitmapSource Grab(IntPtr handle) {
+            if(handle==IntPtr.Zero)return null;
+            byte[] name=Utf8("screenshot-raw"),mode=Utf8("video");
+            var pinName=GCHandle.Alloc(name,GCHandleType.Pinned);var pinMode=GCHandle.Alloc(mode,GCHandleType.Pinned);
+            IntPtr node=Marshal.AllocHGlobal(16);
+            try {
+                if(mpv_command_ret(handle,new[]{pinName.AddrOfPinnedObject(),pinMode.AddrOfPinnedObject(),IntPtr.Zero},node)<0)return null;
+                try {
+                    IntPtr list=Marshal.ReadIntPtr(node);
+                    int count=Marshal.ReadInt32(list);
+                    IntPtr values=Marshal.ReadIntPtr(list,8),keys=Marshal.ReadIntPtr(list,16),data=IntPtr.Zero;
+                    long width=0,height=0,stride=0,size=0;string format=null;
+                    for(int i=0;i<count;i++) {
+                        string key=Marshal.PtrToStringAnsi(Marshal.ReadIntPtr(keys,i*IntPtr.Size));
+                        IntPtr value=values+i*16;
+                        if(key=="w")width=Marshal.ReadInt64(value);
+                        else if(key=="h")height=Marshal.ReadInt64(value);
+                        else if(key=="stride")stride=Marshal.ReadInt64(value);
+                        else if(key=="format")format=Marshal.PtrToStringAnsi(Marshal.ReadIntPtr(value));
+                        else if(key=="data") {
+                            IntPtr bytes=Marshal.ReadIntPtr(value);
+                            data=Marshal.ReadIntPtr(bytes);size=Marshal.ReadInt64(bytes,8);
+                        }
+                    }
+                    if(format!="bgr0" || data==IntPtr.Zero || width<=0 || height<=0 || stride<width*4 || size<stride*height)return null;
+                    var frame=BitmapSource.Create((int)width,(int)height,96,96,PixelFormats.Bgr32,null,data,(int)(stride*height),(int)stride);
+                    frame.Freeze();
+                    return frame;
+                } finally {mpv_free_node_contents(node);}
+            } catch(OutOfMemoryException) {return null;}
+            finally {Marshal.FreeHGlobal(node);pinName.Free();pinMode.Free();}
         }
         // The video's own picture at full size, as a PNG or (when the name ends in .jpg) a JPG of the given quality.
         // Light PNG compression keeps playback from stalling on 4K frames.
@@ -199,6 +303,12 @@ namespace LoveMyShelf {
             if(value==subtitlePosition)return;
             subtitlePosition=value;Property("sub-pos",value.ToString(Inv));
         }}
+        // 1 is the usual size. It can be set before the player starts and changed while it plays.
+        double subtitleScale=1;
+        internal double SubtitleScale {set {
+            subtitleScale=Math.Max(0.4,Math.Min(4,value));
+            Property("sub-scale",subtitleScale.ToString("0.###",Inv));
+        }}
         // A subtitle track inside the video file itself.
         internal bool HasOwnSubtitle {get {
             int count;
@@ -210,6 +320,44 @@ namespace LoveMyShelf {
         public bool Paused {set {Property("pause",value?"yes":"no");}}
         public double Volume {set {Property("volume",Math.Max(0,Math.Min(100,value)).ToString("0.###",Inv));}}
         public double Speed {set {Property("speed",value.ToString("0.###",Inv));}}
+        // The speaker to play on; empty is the Windows default. mpv moves the sound over while playing.
+        string audioDevice="auto";
+        internal string AudioDevice {set {
+            audioDevice=String.IsNullOrEmpty(value)?"auto":value;
+            Property("audio-device",audioDevice);
+        }}
+        internal bool HasAudioDevice(string device) {
+            int count;
+            if(!Int32.TryParse(Read("audio-device-list/count"),out count))return false;
+            for(int i=0;i<count;i++)if(Read("audio-device-list/"+i+"/name")==device)return true;
+            return false;
+        }
+        // The speakers Windows has now, with their names. Each is (device, name).
+        static List<Tuple<string,string>> speakers;
+        static DateTime speakersRead;
+        internal static List<Tuple<string,string>> Speakers() {
+            if(speakers!=null && (DateTime.UtcNow-speakersRead).TotalSeconds<3)return speakers;
+            var list=new List<Tuple<string,string>>();
+            if(Available) {
+                IntPtr ctx=mpv_create();
+                if(ctx!=IntPtr.Zero) {
+                    try {
+                        foreach(var name in new[]{"config","terminal","load-scripts","ytdl"})mpv_set_option_string(ctx,Utf8(name),Utf8("no"));
+                        if(mpv_initialize(ctx)>=0) {
+                            int count;
+                            if(Int32.TryParse(ReadFrom(ctx,"audio-device-list/count"),out count))
+                                for(int i=0;i<count;i++) {
+                                    string device=ReadFrom(ctx,"audio-device-list/"+i+"/name");
+                                    if(device==null || !device.StartsWith("wasapi/",StringComparison.Ordinal))continue;
+                                    list.Add(Tuple.Create(device,ReadFrom(ctx,"audio-device-list/"+i+"/description")??device));
+                                }
+                        }
+                    } finally {mpv_terminate_destroy(ctx);}
+                }
+            }
+            speakers=list;speakersRead=DateTime.UtcNow;
+            return list;
+        }
         // Clear voice: trims low rumble, lifts the range that carries speech, and raises quiet speech.
         // The level (gentle, normal, strong) sets how far quiet speech may be raised.
         static readonly string[] ClearVoiceRaise={"3","6.25","12.5"};
@@ -271,6 +419,8 @@ namespace LoveMyShelf {
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern int mpv_get_property(IntPtr ctx,byte[] name,int format,out double data);
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern int mpv_get_property(IntPtr ctx,byte[] name,int format,out long data);
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern int mpv_command(IntPtr ctx,IntPtr[] args);
+        [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern int mpv_command_ret(IntPtr ctx,IntPtr[] args,IntPtr result);
+        [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern void mpv_free_node_contents(IntPtr node);
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern IntPtr mpv_get_property_string(IntPtr ctx,byte[] name);
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern void mpv_free(IntPtr data);
         [DllImport(Library,CallingConvention=CallingConvention.Cdecl)] static extern IntPtr mpv_wait_event(IntPtr ctx,double timeout);
@@ -344,6 +494,10 @@ namespace LoveMyShelf {
                     token.ThrowIfCancellationRequested();
                     throw new TimeoutException("Thumbnail seek timed out.");
                 }
+                // The renderer can still hold the last read's picture right after a quick seek (a scene from the
+                // other side of the GIF strip, kept for good as the exact one). The exact picture is therefore
+                // taken from the decoder itself, which always has the picture at the new time.
+                if(exact)return Smaller(MpvPlayer.Grab(handle),maxSide);
                 // The new frame reaches the renderer shortly after the seek finishes.
                 var deadline=DateTime.UtcNow.AddMilliseconds(300);
                 while((mpv_render_context_update(render)&1)==0 && DateTime.UtcNow<deadline)Thread.Sleep(4);
@@ -366,6 +520,15 @@ namespace LoveMyShelf {
                     Marshal.FreeHGlobal(raw);Marshal.FreeHGlobal(size);Marshal.FreeHGlobal(format);Marshal.FreeHGlobal(strideBox);
                 }
             }
+        }
+
+        static BitmapSource Smaller(BitmapSource full,int maxSide) {
+            if(full==null)throw new InvalidOperationException("mpv could not hand over the picture.");
+            double scale=Math.Min(1,Math.Min(maxSide/(double)full.PixelWidth,maxSide/(double)full.PixelHeight));
+            if(scale>=1)return full;
+            var small=new WriteableBitmap(new TransformedBitmap(full,new ScaleTransform(scale,scale)));
+            small.Freeze();
+            return small;
         }
 
         public void Dispose() {

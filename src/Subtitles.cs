@@ -128,7 +128,7 @@ namespace LoveMyShelf {
                 }
                 string body=Raw.Substring(from,last-from);
                 string text=Plain(body);
-                AllCues.Add(new SubtitleCue {Start=start,End=end,TextOffset=from,TextLength=last-from,RawText=body,Text=text,OriginalText=text,PlayerText=body.Replace("\r\n","\n")});
+                AllCues.Add(new SubtitleCue {Start=start,End=end,TextOffset=from,TextLength=last-from,RawText=body,Text=text,OriginalText=text,PlayerText=OwnFont(body.Replace("\r\n","\n"))});
             }
             Finish();
         }
@@ -228,8 +228,13 @@ namespace LoveMyShelf {
         static string SmiPlayerText(string body) {
             string text=BreakTag.Replace(body.Replace("\r","").Replace("\n"," "),"\n");
             text=Regex.Replace(text,@"</?(?!(?:font|b|i|u)\b)[a-z][^>]*>","",RegexOptions.IgnoreCase);
-            return String.Join("\n",WebUtility.HtmlDecode(text).Split('\n').Select(l=>l.Replace('\u00A0',' ').Trim()).Where(l=>l.Length>0));
+            return String.Join("\n",WebUtility.HtmlDecode(OwnFont(text)).Split('\n').Select(l=>l.Replace('\u00A0',' ').Trim()).Where(l=>l.Length>0));
         }
+        // A font name or size written in the subtitle is left out on screen (the file keeps it), so every subtitle
+        // shows in Love My Shelf's font at the size the person chose. Colors stay.
+        static readonly Regex FontTag=new Regex(@"<font\b[^>]*>",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
+        static readonly Regex FontLook=new Regex(@"\s+(?:face|size)\s*=\s*(?:""[^""]*""|'[^']*'|[^\s>]+)",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
+        static string OwnFont(string text) {return FontTag.Replace(text,m=>FontLook.Replace(m.Value,""));}
 
         // ----- Changing -----
         void Remember() {
@@ -252,7 +257,7 @@ namespace LoveMyShelf {
         }
         void ApplyText(SubtitleCue cue,string text) {
             cue.Text=text;cue.Edited=text!=cue.OriginalText;
-            if(!cue.Edited){cue.PlayerText=Kind==SubtitleKind.Smi?SmiPlayerText(cue.RawText):cue.RawText.Replace("\r\n","\n");return;}
+            if(!cue.Edited){cue.PlayerText=Kind==SubtitleKind.Smi?SmiPlayerText(cue.RawText):OwnFont(cue.RawText.Replace("\r\n","\n"));return;}
             cue.PlayerText=text;
         }
         string EncodedText(SubtitleCue cue) {

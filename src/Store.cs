@@ -78,12 +78,15 @@ namespace LoveMyShelf {
             double w=source.PixelWidth,h=source.PixelHeight;
             dc.PushTransform(new MatrixTransform(CoverTransform(w,h,fraction,rotation,destination)));
             var bounds=new Rect(0,0,w,h);
-            if(brightness!=0) {
-                dc.DrawRectangle(brightness>0?Brushes.White:Brushes.Black,null,bounds);
-                dc.PushOpacity(1-Math.Abs(brightness)/100.0);
+            // A cover saved before the brightness curve keeps its white or black sheet (see Light).
+            bool sheet=Light.IsLegacy(brightness);
+            if(sheet) {
+                int level=Light.Level(brightness);
+                dc.DrawRectangle(level>0?Brushes.White:Brushes.Black,null,bounds);
+                dc.PushOpacity(1-Math.Abs(level)/100.0);
             }
-            dc.DrawImage(source,bounds);
-            if(brightness!=0)dc.Pop();
+            dc.DrawImage(Light.Apply(source,brightness),bounds);
+            if(sheet)dc.Pop();
             dc.Pop();
         }
         internal static BitmapSource RenderRotatedCover(BitmapSource source,Rect fraction,double rotation,int width,int height,int brightness=0) {
@@ -174,7 +177,14 @@ namespace LoveMyShelf {
         // Where the cover's scene is in the video, for ordering only. Covers picked from the full frame list are
         // decoded by frame number, so this stays apart from FrameTime and never changes which picture is read.
         internal double? SavedSceneMs;
-        internal double? SceneMs {get {return FrameTime??SavedSceneMs??(FrameIndex<=0?(double?)0:null);}}
+        internal double? SceneMs {get {return Picture!=null?null:FrameTime??SavedSceneMs??(FrameIndex<=0?(double?)0:null);}}
+        // A cover cut from a picture made outside Love My Shelf: the name of the copy kept in the record folder.
+        // It has no scene, so it has no scene time and no GIF cover, and Edit cover opens this copy instead of the original.
+        internal string Picture;
+        internal bool IsOutside {get {return Picture!=null;}}
+        internal string PictureFile {get {return Picture==null?null:Path.Combine(Folder,Picture);}}
+        // The place the person gave this cover among the covers of its original (null: the automatic order).
+        internal double? Rank;
         public bool HasCrop { get { return !Crop.IsEmpty; } }
         // A saved cover record exists but could not be read: the tile has no crop, yet the work was done.
         internal bool RecordDamaged;
@@ -308,16 +318,21 @@ namespace LoveMyShelf {
         }
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
-            int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs) {
+            int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs,
+            string picture=null,double? rank=null) {
             new XElement("photo",new XAttribute("name",name),new XAttribute("original",original),
                 new XAttribute("thumb",thumb), new XAttribute("order",order),new XAttribute("coverCreated",coverCreated),new XAttribute("frame",frameIndex),
                 new XAttribute("x",Num(crop.X)),new XAttribute("y",Num(crop.Y)),
                 new XAttribute("w",Num(crop.Width)),new XAttribute("h",Num(crop.Height)),
                 rotation==0?null:new XAttribute("rotation",Num(rotation)),
-                brightness==0?null:new XAttribute("brightness",brightness),
+                // "brightness": the old white or black sheet; "soft" and "light" (See in the dark): the curves (see Light).
+                // Older versions ignore "soft" and "light".
+                brightness==0?null:new XAttribute(Light.Style(brightness)==Light.Sheet?"brightness":Light.Style(brightness)==Light.Dark?"light":"soft",Light.Level(brightness)),
                 frameTime.HasValue?new XAttribute("frameTimeMs",Num(frameTime.Value)):null,
                 frameTimeOffset>0?new XAttribute("frameTimeOffset",frameTimeOffset):null,
                 sceneMs.HasValue?new XAttribute("sceneMs",Num(sceneMs.Value)):null,
+                picture==null?null:new XAttribute("picture",picture),
+                rank.HasValue?new XAttribute("rank",Num(rank.Value)):null,
                 coverFile==null?null:new XAttribute("coverFile",coverFile),
                 coverFile==null?null:new XAttribute("coverFileTicks",File.GetLastWriteTimeUtc(coverFile).Ticks)).Save(path);
         }
@@ -345,11 +360,22 @@ namespace LoveMyShelf {
                 sceneMs=(double?)n.Attribute("sceneMs");
                 if(sceneMs.HasValue && (Double.IsNaN(sceneMs.Value) || Double.IsInfinity(sceneMs.Value) || sceneMs.Value<0))sceneMs=null;
             } catch(FormatException) {}
+            double? rank=null;
+            try {
+                rank=(double?)n.Attribute("rank");
+                if(rank.HasValue && (Double.IsNaN(rank.Value) || Double.IsInfinity(rank.Value)))rank=null;
+            } catch(FormatException) {}
+            string picture=(string)n.Attribute("picture");
+            if(picture!=null) {
+                try {picture=Path.GetFileName(picture);} catch(ArgumentException) {picture=null;}
+                if(String.IsNullOrEmpty(picture))picture=null;
+            }
             return new Photo { Folder=folder,Name=(string)n.Attribute("name"), Crop=r,Order=(long)n.Attribute("order"),
-                SavedSceneMs=sceneMs,
+                SavedSceneMs=sceneMs,Picture=picture,Rank=rank,
                 CoverCreated=coverCreated,
                 Rotation=CropSurface.NormalizeRotation(rotation),
-                Brightness=Math.Max(-100,Math.Min(100,(int?)n.Attribute("brightness")??0)),
+                Brightness=n.Attribute("soft")!=null?Light.Encode((int)n.Attribute("soft"),Light.Soft):
+                    n.Attribute("light")!=null?Light.Encode((int)n.Attribute("light"),Light.Dark):Light.Legacy((int?)n.Attribute("brightness")??0),
                 FrameIndex=(int?)n.Attribute("frame")??0,
                 FrameTime=frameTime,FrameTimeOffset=frameTimeOffset,
                 ExcludedFromCollection=File.Exists(Path.Combine(folder,ExclusionFile)),
@@ -604,24 +630,98 @@ namespace LoveMyShelf {
         }
         // Identifies the original a cover belongs to, in any view.
         internal static string CoverFamily(Photo photo) {return Path.Combine(Path.GetDirectoryName(photo.Folder),RecordBase(photo));}
-        // By where each scene is in the video, then by when the cover was made.
-        // Until every scene time of an original is known, its covers keep the order they were made in.
+        // Automatic order: covers cut from outside pictures first (in the order they were added), then the covers made
+        // here by where each scene is in the video, then by when the cover was made.
+        // Until every scene time of an original is known, its covers made here keep the order they were made in.
+        // Once the person has arranged the covers of an original, that order stays and newer covers follow at the end.
         // A hidden main tile (it shows the original) leads.
         internal static List<Photo> InCoverOrder(IEnumerable<Photo> covers) {
             var list=covers.ToList();
-            bool scenes=list.Where(p=>p.HasCrop).All(p=>p.SceneMs.HasValue);
+            // A hidden cover's place doesn't count (the folder view lists hidden covers too, other views don't).
+            Func<Photo,bool> placed=p=>p.HasCrop && !p.ExcludedFromCollection && p.Rank.HasValue;
+            bool arranged=list.Any(placed);
+            bool scenes=list.Where(p=>p.HasCrop && !p.IsOutside).All(p=>p.SceneMs.HasValue);
             return list.OrderBy(p=>p.HasCrop && !p.ExcludedFromCollection?1:0)
-                .ThenBy(p=>scenes && p.HasCrop?p.SceneMs.Value:0)
+                .ThenBy(p=>!p.HasCrop?0:arranged?(placed(p)?0:1):(p.IsOutside?0:1))
+                .ThenBy(p=>arranged && placed(p)?p.Rank.Value:0)
+                .ThenBy(p=>!arranged && scenes && p.HasCrop && !p.IsOutside?p.SceneMs.Value:0)
                 .ThenBy(p=>p.CoverCreated).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        // Moves a cover among the shown covers of its original and remembers the whole order.
+        // steps: -1 one place forward, +1 one place back, Int32.MinValue to the very front (it becomes the first cover).
+        // Returns false when the cover is already there.
+        internal static bool ArrangeCover(Photo cover,int steps) {
+            lock(SharedCoverFiles.MetadataLock) {
+                var all=CoversOf(cover);
+                var shown=InCoverOrder(all.Where(p=>p.HasCrop && !p.ExcludedFromCollection));
+                int from=shown.FindIndex(p=>String.Equals(p.Folder,cover.Folder,StringComparison.OrdinalIgnoreCase));
+                if(from<0)return false;
+                int to=steps==Int32.MinValue?0:Math.Max(0,Math.Min(shown.Count-1,from+steps));
+                if(to==from)return false;
+                var moved=shown[from];shown.RemoveAt(from);shown.Insert(to,moved);
+                var ranks=shown.Select((p,i)=>Tuple.Create(p.Folder,(double?)(i+1))).ToList();
+                // A hidden cover forgets its place: shown again later, it follows the arranged ones instead of sharing a place.
+                ranks.AddRange(all.Where(p=>p.HasCrop && p.ExcludedFromCollection && p.Rank.HasValue).Select(p=>Tuple.Create(p.Folder,(double?)null)));
+                WriteRanks(ranks);
+                return true;
+            }
+        }
+        // Back to the automatic order: every cover of the original forgets the place it was given.
+        internal static void ForgetArrangement(Photo cover) {
+            lock(SharedCoverFiles.MetadataLock) {
+                WriteRanks(CoversOf(cover).Where(p=>p.Rank.HasValue).Select(p=>Tuple.Create(p.Folder,(double?)null)).ToList());
+            }
+        }
+        // Every record is written to a spare file first and only then swapped in, so a failure part-way
+        // (a full disk, for example) leaves the old order as it was. If a swap fails (a record is locked),
+        // the records already swapped are put back from their backups.
+        static void WriteRanks(List<Tuple<string,double?>> ranks) {
+            var parts=new List<Tuple<string,string>>();
+            var swapped=new List<Tuple<string,string>>(); // backup, record
+            try {
+                foreach(var item in ranks) {
+                    string metadata=Path.Combine(item.Item1,"photo.xml");
+                    string part=Path.Combine(item.Item1,"meta-"+Guid.NewGuid().ToString("N")+".tmp");
+                    var xml=XElement.Load(metadata);
+                    xml.SetAttributeValue("rank",item.Item2.HasValue?Num(item.Item2.Value):null);
+                    xml.Save(part);
+                    parts.Add(Tuple.Create(part,metadata));
+                }
+                try {
+                    foreach(var pair in parts) {
+                        string backup=pair.Item1+".old";
+                        File.Replace(pair.Item1,pair.Item2,backup);
+                        swapped.Add(Tuple.Create(backup,pair.Item2));
+                    }
+                } catch {
+                    foreach(var done in swapped)try {File.Copy(done.Item1,done.Item2,true);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                    throw;
+                }
+            } finally {
+                foreach(var pair in parts)try {File.Delete(pair.Item1);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                foreach(var done in swapped)try {File.Delete(done.Item1);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+            }
+        }
+        // The place a record has right now on disk. A window that has been open for a while may still hold an older one.
+        static double? CurrentRank(string folder,double? known) {
+            try {
+                string metadata=Path.Combine(folder,"photo.xml");
+                lock(SharedCoverFiles.MetadataLock) {
+                    if(!File.Exists(metadata))return known;
+                    double? rank=(double?)XElement.Load(metadata).Attribute("rank");
+                    return rank.HasValue && (Double.IsNaN(rank.Value) || Double.IsInfinity(rank.Value))?null:rank;
+                }
+            } catch(Exception) {return known;}
         }
         // Older covers picked from the full frame list have only a frame number. Their scene time is worked out
         // once in the background and kept in the record; the new order shows the next time the folder is read.
-        internal void FillSceneTimes(System.Threading.CancellationToken token) {
+        // single: also for an original with one cover (when scene times are shown on the tiles).
+        internal void FillSceneTimes(System.Threading.CancellationToken token,bool single=false) {
             try {
                 int skipped;
                 foreach(var family in SavedCovers(out skipped).GroupBy(p=>CoverFamily(p),StringComparer.OrdinalIgnoreCase)) {
-                    if(family.Count()<2)continue;
-                    foreach(var cover in family.Where(p=>p.HasCrop && !p.SceneMs.HasValue)) {
+                    if(family.Count()<2 && !single)continue;
+                    foreach(var cover in family.Where(p=>p.HasCrop && !p.IsOutside && !p.SceneMs.HasValue)) {
                         token.ThrowIfCancellationRequested();
                         try {
                             if(File.Exists(cover.Original))SaveSceneTime(cover,MotionMaker.MomentOf(cover,cover.Original));
@@ -651,8 +751,10 @@ namespace LoveMyShelf {
         }
         internal static Photo NewCoverRecord(Photo photo,string original) {
             string folder=Path.Combine(Path.GetDirectoryName(photo.Folder),RecordBase(photo)+"-"+Guid.NewGuid().ToString("N").Substring(0,10));
+            // A cover cut from an outside picture has no scene of its own to pass on.
             return new Photo {Folder=folder,Name=photo.Name,Original=original,Linked=true,Order=photo.Order,
-                FrameIndex=photo.FrameIndex,FrameTime=photo.FrameTime,FrameTimeOffset=photo.FrameTimeOffset};
+                FrameIndex=photo.IsOutside?0:photo.FrameIndex,FrameTime=photo.IsOutside?null:photo.FrameTime,
+                FrameTimeOffset=photo.IsOutside?0:photo.FrameTimeOffset};
         }
         // When an original's first cover (its main record "p-<key>") is gone but other covers of it remain,
         // the next shown one in scene order takes the first place: its record folder "p-<key>-<id>" is renamed to "p-<key>".
@@ -753,7 +855,9 @@ namespace LoveMyShelf {
         }
         internal Photo Reframe(Photo old,BitmapSource preview,Rect crop,int? frameIndex,double rotation,
             double? frameTime,int frameTimeOffset,CoverOutputMode mode,int maxHeight,System.Threading.CancellationToken token,
-            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder) {
+            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null) {
+            // picture: a picture made outside Love My Shelf that the cover is cut from, instead of the original.
+            // The original stays the file the cover belongs to, so where the cover is saved and how it is found again don't change.
             if(coverDirectory!=null){mode=CoverOutputMode.Native;maxHeight=0;}
             bool native=mode==CoverOutputMode.Native;
             int selectedFrame=frameIndex??old.FrameIndex;
@@ -761,15 +865,22 @@ namespace LoveMyShelf {
             int selectedOffset=frameIndex.HasValue?frameTimeOffset:old.FrameTimeOffset;
             var source=preview;
             string original=old.Original;
-            if(native) {
+            bool originalAway=false;
+            if(picture!=null) {
+                selectedFrame=0;selectedTime=null;selectedOffset=0;
+                // Editing such a cover works while the original's drive is unplugged: the picture is all it needs.
+                try {original=OriginalLocator.Resolve(this,old,token);}
+                catch(FileNotFoundException) {if(!old.HasCrop)throw;originalAway=true;}
+                source=Pictures.Load(picture);
+            } else if(native) {
                 original=OriginalLocator.Resolve(this,old,token);
                 source=AnimationFrames.Supports(original)?
                     AnimationFrames.SavedFrame(original,new Photo {FrameIndex=selectedFrame,FrameTime=selectedTime,FrameTimeOffset=selectedOffset},0,token):
                     Pictures.Load(original);
             }
             token.ThrowIfCancellationRequested();
-            double? sceneMs=selectedTime.HasValue?null:selectedFrame==old.FrameIndex?old.SavedSceneMs:null;
-            if(!selectedTime.HasValue && !sceneMs.HasValue && selectedFrame>0 && AnimationFrames.Supports(original)) {
+            double? sceneMs=picture!=null || selectedTime.HasValue?null:selectedFrame==old.FrameIndex?old.SavedSceneMs:null;
+            if(picture==null && !selectedTime.HasValue && !sceneMs.HasValue && selectedFrame>0 && AnimationFrames.Supports(original)) {
                 try {sceneMs=MotionMaker.MomentOf(new Photo {FrameIndex=selectedFrame},original);}
                 catch(OperationCanceledException) {throw;} catch(Exception) {}
             }
@@ -781,14 +892,36 @@ namespace LoveMyShelf {
             string coverFile=null;
             Photo previous=old;
             bool fellBack=false;
+            // The outside picture is copied into the record folder once; later edits of the cover reuse that copy.
+            string pictureName=null,pictureCopy=null;
             try {
+                if(picture!=null) {
+                    if(String.Equals(Path.GetDirectoryName(Path.GetFullPath(picture)),Path.GetFullPath(old.Folder),StringComparison.OrdinalIgnoreCase))
+                        pictureName=Path.GetFileName(picture);
+                    else {
+                        pictureName="outside-"+id+Path.GetExtension(picture).ToLowerInvariant();
+                        pictureCopy=Path.Combine(old.Folder,pictureName);
+                        File.Copy(picture,pictureCopy);
+                        File.SetAttributes(pictureCopy,FileAttributes.Normal);
+                    }
+                }
                 if(coverDirectory==null) {
                     Pictures.Thumbnail(preview,crop,newThumb,rotation,brightness);
                     using(var output=File.Create(display))CoverImages.Save(source,crop,rotation,output,maxHeight,native,token,brightness);
                 } else {
-                    if(old.Linked)OriginalLocator.Remember(old,original,required:true);
+                    if(old.Linked && !originalAway)OriginalLocator.Remember(old,original,required:true);
                     string folderTarget=SharedCoverFiles.TargetFolder(place,coverDirectory,original,old.Linked);
-                    bool beside=folderTarget!=coverDirectory && place==CoverPlace.BesideOriginal;
+                    bool besideEarlier=false;
+                    if(originalAway) {
+                        // The edited cover goes where the cover it replaces is, or to the cover folder.
+                        string earlier=old.CoverFile==null?null:Path.GetDirectoryName(old.CoverFile);
+                        bool there=earlier!=null && Directory.Exists(earlier);
+                        folderTarget=there?earlier:coverDirectory;
+                        // It keeps the kind of name the replaced cover had, so a cover beside its original is still known as a cover.
+                        besideEarlier=there && SharedCoverFiles.IsBesideCover(old.CoverFile);
+                        if(!there && place!=CoverPlace.CoverFolder)fellBack=true;
+                    }
+                    bool beside=originalAway?besideEarlier:folderTarget!=coverDirectory && place==CoverPlace.BesideOriginal;
                     try {
                         coverFile=SharedCoverFiles.Write(folderTarget,old.Name,old.Folder,id,source,crop,rotation,token,brightness,beside:beside);
                     } catch(Exception ex) {
@@ -802,7 +935,7 @@ namespace LoveMyShelf {
                 token.ThrowIfCancellationRequested();
                 long coverCreated=old.CoverCreated>0?old.CoverCreated:DateTime.UtcNow.Ticks;
                 WriteMeta(part,old.Name,Path.GetFileName(old.Original),thumb,crop,old.Order,coverCreated,selectedFrame,
-                    rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs);
+                    rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs,pictureName,CurrentRank(old.Folder,old.Rank));
                 string target=Path.Combine(old.Folder,"photo.xml");
                 lock(SharedCoverFiles.MetadataLock) {
                     if(File.Exists(target)) {
@@ -813,9 +946,14 @@ namespace LoveMyShelf {
             } catch {
                 File.Delete(part); File.Delete(newThumb); File.Delete(display);
                 if(coverFile!=null)File.Delete(coverFile);
+                if(pictureCopy!=null)try {File.Delete(pictureCopy);} catch(IOException) {} catch(UnauthorizedAccessException) {}
                 throw;
             }
             SharedCoverFiles.RemoveSuperseded(previous);
+            // A cover remade from something else leaves no stray copy of the picture it used before.
+            if(old.Picture!=null && !String.Equals(old.Picture,pictureName,StringComparison.OrdinalIgnoreCase)) {
+                try {File.Delete(old.PictureFile);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+            }
             if(old.Thumb!=null) {
                 try { File.Delete(old.Thumb);File.Delete(old.LegacyImage); }
                 catch(IOException) { } catch(UnauthorizedAccessException) { }
