@@ -39,6 +39,12 @@ namespace LoveMyShelf {
         public CoverPlace CoverPlace;
         public ThemeMode Theme;
         public bool CheckUpdates=true;
+        // Files dropped on another drive without Ctrl or Shift: 0 ask, 1 copy (as File Explorer does), 2 move.
+        public int DropAcross;
+        // After a file is copied to another place, read the copy back and compare it with the original (takes about twice as long).
+        public bool VerifyCopies;
+        // How many times the notice that points at the queue button in the bottom bar has been shown (it stops after 3).
+        public int QueueTips;
         public bool ExplorerMenu=true;   // on unless turned off; "Open with Love My Shelf" in File Explorer's right-click menu
         public GifPlayback GridGif=GifPlayback.Hover;
         public ShareContent Share;
@@ -68,6 +74,7 @@ namespace LoveMyShelf {
         public int BrightnessStep=3;     // how much one press of E or W changes the brightness
         public int RotationStep=10;      // how many degrees one press of O or P turns the picture in the large view
         public int TileNames;            // file names under the tiles: 0 none, 1 one line, 2 two lines, 3 the whole name
+        public bool GifHoverSound=true;  // pointing at a tile also plays the sound of an MP4 cover made with sound
         public bool CoverTimes;          // show where a cover's scene is in the video ("12:34") on its tile
         public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
         public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
@@ -89,6 +96,8 @@ namespace LoveMyShelf {
         }
         public bool ClearVoice;
         public int ClearVoiceLevel=1;   // 0 gentle, 1 normal, 2 strong
+        // The large view's keys the person changed in Advanced (action id → key); empty means all defaults. See ViewerKeys.
+        public Dictionary<string,System.Windows.Input.Key> Shortcuts=new Dictionary<string,System.Windows.Input.Key>(StringComparer.Ordinal);
         public bool SnapEdges=true;
         public int WheelZoomPercent=7;
         public bool PinTopOnWheel=true;
@@ -128,6 +137,9 @@ namespace LoveMyShelf {
                     CoverPlace=place=="beside"?CoverPlace.BesideOriginal:place=="subfolder"?CoverPlace.Subfolder:CoverPlace.CoverFolder,
                     CheckUpdates=(string)xml.Attribute("checkUpdates")!="false",
                     ExplorerMenu=(string)xml.Attribute("explorerMenu")!="off",
+                    DropAcross=IndexOr(new[]{"ask","copy","move"},(string)xml.Attribute("dropAcross"),0),
+                    VerifyCopies=(string)xml.Attribute("verifyCopies")=="on",
+                    QueueTips=ReadNumber(xml,"queueTips",0,100,0),
                     Theme=theme=="light"?ThemeMode.Light:theme=="dark"?ThemeMode.Dark:ThemeMode.System,
                     GridGif=gif=="never"?GifPlayback.Never:gif=="always"?GifPlayback.Always:GifPlayback.Hover,
                     Share=share=="cover"?ShareContent.CoverOnly:share=="original"?ShareContent.OriginalOnly:ShareContent.CoverAndOriginal,
@@ -154,6 +166,7 @@ namespace LoveMyShelf {
                     RotationStep=ReadNumber(xml,"turnDegrees",1,45,10),
                     TileNames=ReadNumber(xml,"tileNames",0,3,0),
                     CoverTimes=(string)xml.Attribute("coverTimes")=="true",
+                    GifHoverSound=(string)xml.Attribute("gifHoverSound")!="off",
                     CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
                     CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
                     CaptureJpg=(string)xml.Attribute("captureFormat")=="jpg",
@@ -165,6 +178,7 @@ namespace LoveMyShelf {
                     SpeakerVolumes=ReadSpeakerVolumes(xml),
                     ClearVoice=(string)xml.Attribute("clearVoice")=="true",
                     ClearVoiceLevel=ReadNumber(xml,"clearVoiceLevel",0,2,1),
+                    Shortcuts=ViewerKeys.Read(xml),
                     SnapEdges=(string)editor.Attribute("snapEdges")!="false",
                     WheelZoomPercent=ReadNumber(editor,"wheelZoomPercent",1,50,7),
                     PinTopOnWheel=(string)editor.Attribute("pinTop")!="false"
@@ -232,6 +246,7 @@ namespace LoveMyShelf {
             var copy=(Preferences)MemberwiseClone();
             copy.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
             copy.SpeakerVolumes=new Dictionary<string,int>(SpeakerVolumes,StringComparer.OrdinalIgnoreCase);
+            copy.Shortcuts=new Dictionary<string,System.Windows.Input.Key>(Shortcuts,StringComparer.Ordinal);
             return copy;
         }
         internal bool SameAs(Preferences other) {return ToXml().ToString()==other.ToXml().ToString();}
@@ -255,6 +270,8 @@ namespace LoveMyShelf {
                     new XAttribute("coverPlace",CoverPlace==CoverPlace.BesideOriginal?"beside":CoverPlace==CoverPlace.Subfolder?"subfolder":"folder"),
                     new XAttribute("checkUpdates",CheckUpdates?"true":"false"),
                     ExplorerMenu?null:new XAttribute("explorerMenu","off"),
+                    DropAcross==0?null:new XAttribute("dropAcross",DropAcross==2?"move":"copy"),
+                    VerifyCopies?new XAttribute("verifyCopies","on"):null,QueueTips==0?null:new XAttribute("queueTips",QueueTips),
                     new XAttribute("theme",Theme==ThemeMode.Light?"light":Theme==ThemeMode.Dark?"dark":"system"),
                     new XAttribute("gridGif",GridGif==GifPlayback.Never?"never":GridGif==GifPlayback.Always?"always":"hover"),
                     new XAttribute("share",Share==ShareContent.CoverOnly?"cover":Share==ShareContent.OriginalOnly?"original":"both"),
@@ -268,8 +285,8 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
-                    SpeakersXml(),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    SpeakersXml(),ViewerKeys.Xml(Shortcuts),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }

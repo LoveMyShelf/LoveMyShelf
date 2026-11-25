@@ -146,12 +146,19 @@ namespace LoveMyShelf {
         readonly ShapeFn shape;
         readonly ReleaseFn releaseEnv,releaseStatus,releaseMemoryInfo,releaseSession,releaseValue,releaseShape,releaseOptions;
         IntPtr env,options,session,memory;
-        readonly IntPtr inputName=Marshal.StringToHGlobalAnsi("pixel_values"),outputName=Marshal.StringToHGlobalAnsi("reconstruction");
+        readonly IntPtr inputName,outputName;
+        readonly IntPtr[] outputNames;
 
         T Fn<T>(int index) where T:class {
             return (T)(object)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(api,index*IntPtr.Size),typeof(T));
         }
-        internal OnnxSession(string library,string model,int threads) {
+        // input and outputs: the names in the model (the upscaling model's when left out).
+        internal OnnxSession(string library,string model,int threads,string input="pixel_values",string[] outputs=null) {
+            inputName=Marshal.StringToHGlobalAnsi(input);
+            outputs=outputs??new[]{"reconstruction"};
+            outputNames=new IntPtr[outputs.Length];
+            for(int i=0;i<outputs.Length;i++)outputNames[i]=Marshal.StringToHGlobalAnsi(outputs[i]);
+            outputName=outputNames[0];
             IntPtr module=LoadLibraryEx(library,IntPtr.Zero,AlteredSearchPath);
             if(module==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder.")+" ("+Marshal.GetLastWin32Error()+")");
             IntPtr getBase=GetProcAddress(module,"OrtGetApiBase");
@@ -202,6 +209,35 @@ namespace LoveMyShelf {
             } finally {
                 if(info!=IntPtr.Zero)releaseShape(info);
                 if(outputs[0]!=IntPtr.Zero)releaseValue(outputs[0]);
+                if(tensor!=IntPtr.Zero)releaseValue(tensor);
+                handle.Free();
+            }
+        }
+        // Any input shape, every output of the model as flat floats in the order the names were given.
+        internal float[][] RunAll(float[] input,long[] inputShape) {
+            var handle=GCHandle.Alloc(input,GCHandleType.Pinned);
+            IntPtr tensor=IntPtr.Zero;
+            var outputs=new IntPtr[outputNames.Length];
+            try {
+                Check(createTensor(memory,handle.AddrOfPinnedObject(),(UIntPtr)(input.Length*4),inputShape,(UIntPtr)inputShape.Length,1,out tensor));
+                Check(run(session,IntPtr.Zero,new[]{inputName},new[]{tensor},(UIntPtr)1,outputNames,(UIntPtr)outputNames.Length,outputs));
+                var results=new float[outputs.Length][];
+                for(int i=0;i<outputs.Length;i++) {
+                    IntPtr info=IntPtr.Zero;
+                    try {
+                        Check(shape(outputs[i],out info));
+                        UIntPtr count;Check(dimCount(info,out count));
+                        var size=new long[(int)count];Check(dims(info,size,count));
+                        long total=1;foreach(long d in size)total*=d;
+                        if(total<=0 || total>Int32.MaxValue/4)throw new InvalidDataException("output size");
+                        IntPtr data;Check(getData(outputs[i],out data));
+                        results[i]=new float[(int)total];
+                        Marshal.Copy(data,results[i],0,(int)total);
+                    } finally {if(info!=IntPtr.Zero)releaseShape(info);}
+                }
+                return results;
+            } finally {
+                foreach(IntPtr o in outputs)if(o!=IntPtr.Zero)releaseValue(o);
                 if(tensor!=IntPtr.Zero)releaseValue(tensor);
                 handle.Free();
             }

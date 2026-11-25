@@ -9,10 +9,12 @@ namespace LoveMyShelf {
     // E / W brightness, one rule for every place that shows it: the large view (mpv), the seek-bar thumbnail,
     // the scene list, the cover editor, saved covers and GIF covers. R switches between two styles:
     //  - Soft (the usual one): a thin white veil and the middle tones (faces) lifted, highlights kept. Gentle on
-    //    the blocks a video's compression leaves in the dark.
+    //    the blocks a video's compression leaves in the dark. Brighter is 1-(1-x)^n with n=3^k: +63 is n=2
+    //    (what +100 was before 1.0.7), +100 is n=3. It never goes past white and never turns back.
     //  - See in the dark: a gamma curve that lifts the dark parts a lot, but eases off just above black so the
     //    compression blocks there aren't blown up. +100 is gamma 3.5.
-    // Covers saved before these used a white or black sheet laid over the picture ("Sheet"). They keep that look.
+    //  - Milky (the first one, R's third choice): a white or black sheet laid over the picture ("Sheet"),
+    //    x·(1-k)+k brighter, x·(1-k) darker; +100 is all white. Covers saved before the curves used it too.
     // A value carries both: the -100..100 level, plus 1000 (Sheet) or 2000 (See in the dark) away from zero.
     internal static class Light {
         internal const int Soft=0,Sheet=1,Dark=2;
@@ -32,20 +34,25 @@ namespace LoveMyShelf {
             int a=Math.Abs(value),level=a>2000?a-2000:a>1000?a-1000:a;
             return value<0?-level:level;
         }
-        internal static string StyleName(int style) {return L.T(style==Dark?"See in the dark":"Soft");}
+        internal static string StyleName(int style) {return L.T(style==Dark?"See in the dark":style==Sheet?"Milky":"Soft");}
+        // R: Soft -> See in the dark -> Milky -> Soft.
+        internal static int NextStyle(int style) {return style==Soft?Dark:style==Dark?Sheet:Soft;}
 
         // The curve on one color, 0..1 in and out: first a gamma that eases off near black (p, toe),
-        // then the middle tones lifted or lowered (c), then a thin veil (b).
-        struct Curve {internal double P,E,C,B;}
+        // then the middle tones lifted (s, Soft brighter) or lowered (c, Soft darker), then a veil (b) or a dark
+        // sheet (d): out = b + (1-b-d)·f.
+        struct Curve {internal double P,E,S,C,B,D;}
         static Curve CurveOf(int value) {
-            var c=new Curve {P=1,E=0,C=0,B=0};
+            var c=new Curve {P=1,E=0,S=1,C=0,B=0,D=0};
             int level=Level(value);double k=level/100.0;
-            if(Style(value)==Dark) {
+            if(Style(value)==Sheet) {
+                if(k>0)c.B=k;else c.D=-k;
+            } else if(Style(value)==Dark) {
                 if(k>0){c.P=Math.Pow(3.5,-k);c.E=Toe;}
                 else c.P=Math.Pow(2,-k);
             } else {
-                c.C=k;                       // x + k·x(1-x): never past white, never below black
-                if(k>0)c.B=VeilMost*k;
+                if(k>0){c.S=Math.Pow(3,k);c.B=VeilMost*k;}  // 1-(1-x)^s
+                else c.C=k;                  // x + k·x(1-x): never below black
             }
             return c;
         }
@@ -55,8 +62,9 @@ namespace LoveMyShelf {
                 double floor=Math.Pow(c.E/(1+c.E),c.P);
                 f=(Math.Pow((x+c.E)/(1+c.E),c.P)-floor)/(1-floor);
             }
+            if(c.S!=1)f=1-Math.Pow(1-f,c.S);
             f+=c.C*f*(1-f);
-            return c.B+(1-c.B)*f;
+            return c.B+(1-c.B-c.D)*f;
         }
         // 0..255 in, 0..255 out, rounded the same way FFmpeg's filter below rounds.
         internal static byte[] Table(int value) {
@@ -68,10 +76,7 @@ namespace LoveMyShelf {
         internal static string Filter(int value) {
             if(value==0)return null;
             string channel;
-            if(IsLegacy(value)) {
-                int level=Level(value);double k=Math.Abs(level)/100.0;
-                channel=level>0?"val*"+N(1-k)+"+"+N(255*k):"val*"+N(1-k);
-            } else {
+            {
                 // Written without commas (pow is exp·log), so it needs no escaping inside the filter chain.
                 var c=CurveOf(value);
                 string f="(val/255)";
@@ -80,8 +85,9 @@ namespace LoveMyShelf {
                     string inside=c.E>0?"((val/255+"+N(c.E)+")/"+N(1+c.E)+")":"(val/255+0.000001)";
                     f="((exp("+N(c.P)+"*log"+inside+")-"+N(floor)+")/"+N(1-floor)+")";
                 }
+                if(c.S!=1)f="(1-exp("+N(c.S)+"*log(abs(1.000001-"+f+"))))"; // abs: FFmpeg also asks for 256
                 string s=c.C==0?f:"("+f+"+"+N(c.C)+"*"+f+"*(1-"+f+"))";
-                channel="255*("+N(c.B)+"+"+N(1-c.B)+"*"+s+")+0.5";
+                channel="255*("+N(c.B)+"+"+N(1-c.B-c.D)+"*"+s+")+0.5";
             }
             return "lutrgb=r='"+channel+"':g='"+channel+"':b='"+channel+"'";
         }
@@ -91,14 +97,14 @@ namespace LoveMyShelf {
         // with its four numbers changed through glsl-shader-opts. Written once to the temp folder.
         internal static string MpvOptions(int value) {
             var c=CurveOf(value);
-            return "lms_p="+N(c.P)+",lms_e="+N(c.E)+",lms_c="+N(c.C)+",lms_b="+N(c.B);
+            return "lms_p="+N(c.P)+",lms_e="+N(c.E)+",lms_s="+N(c.S)+",lms_c="+N(c.C)+",lms_b="+N(c.B)+",lms_d="+N(c.D);
         }
         static string shaderFile;
         internal static string MpvShader() {
             if(shaderFile!=null && File.Exists(shaderFile))return shaderFile;
             string folder=Path.Combine(Path.GetTempPath(),"LoveMyShelf");
             Directory.CreateDirectory(folder);
-            string file=Path.Combine(folder,"brightness-1.glsl");
+            string file=Path.Combine(folder,"brightness-3.glsl");
             if(!File.Exists(file))File.WriteAllText(file,ShaderText);
             return shaderFile=file;
         }
@@ -109,32 +115,41 @@ namespace LoveMyShelf {
 //!PARAM lms_e
 //!TYPE float
 0.0
+//!PARAM lms_s
+//!TYPE float
+1.0
 //!PARAM lms_c
 //!TYPE float
 0.0
 //!PARAM lms_b
 //!TYPE float
 0.0
+//!PARAM lms_d
+//!TYPE float
+0.0
 //!HOOK MAIN
 //!BIND HOOKED
 //!DESC Love My Shelf brightness
+// pow never gets 0: some GPUs turn pow(0, y) into NaN.
 vec4 hook() {
     vec4 color = HOOKED_texOff(0);
     vec3 f = clamp(color.rgb, 0.0, 1.0);
     if (lms_p != 1.0) {
-        float floorValue = pow(lms_e / (1.0 + lms_e), lms_p);
-        f = (pow((f + lms_e) / (1.0 + lms_e), vec3(lms_p)) - floorValue) / (1.0 - floorValue);
+        float floorValue = lms_e > 0.0 ? pow(lms_e / (1.0 + lms_e), lms_p) : 0.0;
+        f = (pow(max((f + lms_e) / (1.0 + lms_e), vec3(1e-6)), vec3(lms_p)) - floorValue) / (1.0 - floorValue);
+    }
+    if (lms_s != 1.0) {
+        f = 1.0 - pow(max(1.0 - f, vec3(1e-6)), vec3(lms_s));
     }
     f = f + lms_c * f * (1.0 - f);
-    color.rgb = lms_b + (1.0 - lms_b) * f;
+    color.rgb = lms_b + (1.0 - lms_b - lms_d) * f;
     return color;
 }
 ";
 
-        // The picture with the curve on its colors (transparent pixels left alone). Sheet values and 0 return it
-        // as it is: those are drawn by the caller. The last few results are kept, since the cover editor redraws on every move.
+        // The picture with the curve on its colors (transparent pixels left alone). 0 returns it as it is. The last few results are kept, since the cover editor redraws on every move.
         internal static BitmapSource Apply(BitmapSource source,int value) {
-            if(source==null || value==0 || IsLegacy(value))return source;
+            if(source==null || value==0)return source;
             lock(recent) {
                 foreach(var kept in recent)
                     if(kept.Value==value && kept.Source.Target==source)return kept.Result;

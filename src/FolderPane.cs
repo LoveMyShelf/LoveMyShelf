@@ -207,14 +207,37 @@ namespace LoveMyShelf {
             ToolTipService.SetInitialShowDelay(button,900);
             System.Windows.Automation.AutomationProperties.SetName(button,name);
             if(chosen.Contains(path))button.SetResourceReference(Control.BackgroundProperty,"Raised");
+            bool narrowOnUp=false;
             // Like File Explorer: one click chooses, two clicks open (or one click opens, per Options > Large view).
             button.PreviewMouseLeftButtonDown+=(s,e)=>{
                 if(e.ClickCount==2){e.Handled=true;owner.EnterFolder(path);return;}
                 if(owner.Settings.OpenByDoubleClick) {
+                    // Pressing one of several chosen folders keeps them all chosen, so they can be dragged together;
+                    // it becomes the only chosen one when the button is let go without a drag.
+                    narrowOnUp=chosen.Count>1 && chosen.Contains(path) && (Keyboard.Modifiers&ModifierKeys.Control)==0;
+                    if(narrowOnUp)return;
                     if((Keyboard.Modifiers&ModifierKeys.Control)==0)chosen.Clear();
                     if(!chosen.Add(path))chosen.Remove(path);
                     Paint();
                 }
+            };
+            button.PreviewMouseLeftButtonUp+=delegate {
+                if(!narrowOnUp)return;
+                narrowOnUp=false;chosen.Clear();chosen.Add(path);Paint();
+            };
+            // Dragging a folder tile onto another window, a folder tile or the folder tree sends the folder there
+            // (every chosen folder when this one is chosen), through the file queue.
+            Point pressedAt=new Point();bool pressed=false;
+            button.PreviewMouseLeftButtonDown+=(s,e)=>{pressedAt=e.GetPosition(button);pressed=e.ClickCount==1;};
+            button.PreviewMouseLeftButtonUp+=delegate {pressed=false;};
+            button.PreviewMouseMove+=(s,e)=>{
+                if(!pressed || e.LeftButton!=MouseButtonState.Pressed){pressed=false;return;}
+                var now=e.GetPosition(button);
+                if(Math.Abs(now.X-pressedAt.X)<SystemParameters.MinimumHorizontalDragDistance+2 && Math.Abs(now.Y-pressedAt.Y)<SystemParameters.MinimumVerticalDragDistance+2)return;
+                pressed=false;narrowOnUp=false;
+                var folders=chosen.Contains(path) && chosen.Count>1?chosen.ToList():new List<string>{path};
+                try {DragDrop.DoDragDrop(button,new DataObject(GalleryWindow.MoveFormat,String.Join("\n",folders)),DragDropEffects.Copy|DragDropEffects.Link);}
+                catch(System.Runtime.InteropServices.COMException) {}
             };
             button.Click+=delegate {if(!owner.Settings.OpenByDoubleClick)owner.EnterFolder(path);};
             button.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){owner.EnterFolder(path);e.Handled=true;}};

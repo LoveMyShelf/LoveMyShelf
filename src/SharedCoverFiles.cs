@@ -102,7 +102,7 @@ namespace LoveMyShelf {
             try {
                 if(File.GetLastWriteTimeUtc(photo.CoverFile).Ticks==photo.CoverFileTicks)
                     File.Delete(photo.CoverFile);
-            } catch(IOException) {} catch(UnauthorizedAccessException) {}
+            } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
         }
     }
 }

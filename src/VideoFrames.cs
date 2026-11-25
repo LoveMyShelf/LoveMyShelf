@@ -39,6 +39,8 @@ namespace LoveMyShelf {
         readonly List<double> keyframes;
         public readonly double Duration;
         public int Count {get{return starts.Length;}}
+        // The file's own start time in seconds (FFprobe's start_time) when the whole list was made; 0 for most files.
+        internal double Origin;
         public FrameTimes(double[] starts,double duration,List<double> keyframes=null) {
             this.starts=starts;Duration=duration;this.keyframes=keyframes;
         }
@@ -66,6 +68,18 @@ namespace LoveMyShelf {
             int first=i;
             while(first>0 && starts[first-1]==starts[i])first--;
             return i-first;
+        }
+        // The pictures from fromMs up to (not including) toMs, as their own list that ends at toMs (like Nearby).
+        // Null when none are there or this list is already thinned.
+        internal FrameTimes Slice(double fromMs,double toMs) {
+            if(Thinned || starts.Length==0)return null;
+            int a=Array.BinarySearch(starts,fromMs);if(a<0)a=~a;else while(a>0 && starts[a-1]==fromMs)a--;
+            int b=Array.BinarySearch(starts,toMs);if(b<0)b=~b;else while(b>0 && starts[b-1]==toMs)b--;
+            if(b<=a)return null;
+            // Pictures sharing one time stay together, so each keeps its place among them (TimestampOffset).
+            while(a>0 && starts[a-1]==starts[a])a--;
+            var part=new double[b-a];Array.Copy(starts,a,part,0,b-a);
+            return new FrameTimes(part,toMs,keyframes);
         }
         public double Start(int i){return starts[i];}
         public int TimestampOffset(int i) {
@@ -189,10 +203,96 @@ namespace LoveMyShelf {
             return result;
         }
 
+        // The scene times from radius before center up to radius after it.
+        // Quickest first: the list the large view already made while playing, then the stored times of the
+        // video's packets (nothing decoded), and only when those look wrong, decoding the whole stretch.
         internal static FrameTimes Nearby(string path,double center,CancellationToken token,int radius=2000) {
+            token.ThrowIfCancellationRequested();
+            double from=Math.Max(0,center-radius),end=center+radius+1;
+            // Only files starting at 0: for the others (TS recordings and the like) the lists didn't match in tests.
+            var known=Known(path);
+            if(known!=null && known.Origin==0) {
+                var part=known.Slice(from,end);
+                if(part==null)throw new InvalidDataException(L.T("Could not read the video's scene times."));
+                return part;
+            }
+            return NearbyPackets(path,from,end,token)??NearbyDecoded(path,from,end,token);
+        }
+        // The whole scene list, when it is already made for this very file (same size and time).
+        static FrameTimes Known(string path) {
+            try {
+                var info=new FileInfo(path);long ticks=info.LastWriteTimeUtc.Ticks,bytes=info.Length;
+                lock(cache) {
+                    var hit=cache.Find(e=>e.Path==path && e.Ticks==ticks && e.Bytes==bytes);
+                    return hit==null?null:hit.Times;
+                }
+            } catch(IOException) {return null;}
+            catch(UnauthorizedAccessException) {return null;}
+        }
+        // Scene times from the packets' own times, read without decoding (well under a second even in 4K).
+        // Null whenever they may not match the decoded pictures one for one, since the scene reader counts pictures:
+        // interlaced video (two packets per picture), times missing, repeated or out of order, or more packets than
+        // the frame rate allows.
+        static FrameTimes NearbyPackets(string path,double from,double end,CancellationToken token) {
+            try {
+                double origin=0,fps=0;string field=null;
+                using(var p=Run("ffprobe","-v error -select_streams V:0 -show_entries format=start_time:stream=avg_frame_rate,field_order -of default=nw=1 "+Quote(path)))
+                using(token.Register(()=>Stop(p))) {
+                    string line;
+                    while((line=p.StandardOutput.ReadLine())!=null) {
+                        if(line.StartsWith("start_time=")){double v=Number(line.Substring(11));if(!Double.IsNaN(v) && !Double.IsInfinity(v))origin=v;}
+                        else if(line.StartsWith("field_order="))field=line.Substring(12).Trim();
+                        else if(line.StartsWith("avg_frame_rate=")) {
+                            string[] parts=line.Substring(15).Split('/');
+                            double top=Number(parts[0]),bottom=parts.Length>1?Number(parts[1]):1;
+                            if(top>0 && bottom>0 && !Double.IsInfinity(top))fps=top/bottom;
+                        }
+                    }
+                    p.WaitForExit();token.ThrowIfCancellationRequested();
+                    if(p.ExitCode!=0)return null;
+                }
+                // Files that don't start at 0 (TS recordings and the like) gave other lists than decoding in tests.
+                if(origin!=0 || (field!=null && field!="progressive" && field!="unknown"))return null;
+                // A margin both ways: packets come in decoding order, so pictures shown just before the end
+                // may be stored after it. Near the start it reads from the very beginning, since a cut file's first
+                // pictures can be stored before 0.
+                string interval=(from>2000?Seconds(from-2000):"")+"%"+Seconds(end+2000);
+                var starts=new List<double>();
+                using(var p=Run("ffprobe","-v error -select_streams V:0 -read_intervals "+interval+
+                    " -show_entries packet=pts_time,flags -of compact=p=1:nk=0 "+Quote(path)))
+                using(token.Register(()=>Stop(p))) {
+                    string line;bool broken=false;
+                    while((line=p.StandardOutput.ReadLine())!=null) {
+                        token.ThrowIfCancellationRequested();
+                        if(!line.StartsWith("packet"))continue;
+                        double pts=Double.NaN;bool discard=false;
+                        foreach(string part in line.Split('|')) {
+                            if(part.StartsWith("pts_time="))pts=Number(part.Substring(9));
+                            else if(part.StartsWith("flags="))discard=part.IndexOf('D',6)>=0;
+                        }
+                        if(discard)continue;
+                        if(Double.IsNaN(pts) || Double.IsInfinity(pts)){broken=true;continue;}
+                        double ms=(pts-origin)*1000;
+                        if(ms>=from && ms<end)starts.Add(ms);
+                    }
+                    p.WaitForExit();token.ThrowIfCancellationRequested();
+                    if(p.ExitCode!=0 || broken || starts.Count==0)return null;
+                }
+                starts.Sort();
+                for(int i=1;i<starts.Count;i++)if(starts[i]<=starts[i-1])return null;
+                if(fps>0) {
+                    double gap=1000/fps,span=starts[starts.Count-1]-starts[0]+gap;
+                    if(starts.Count>span/gap*1.25+2)return null;
+                }
+                return new FrameTimes(starts.ToArray(),end);
+            } catch(IOException) {token.ThrowIfCancellationRequested();return null;}
+            catch(System.ComponentModel.Win32Exception) {token.ThrowIfCancellationRequested();return null;}
+        }
+        static FrameTimes NearbyDecoded(string path,double from,double end,CancellationToken token) {
+            token.ThrowIfCancellationRequested();
             var starts=new List<double>();
-            double millisPerTick=0,end=center+radius+1;
-            string seek=Seconds(Math.Max(0,center-radius));
+            double millisPerTick=0;
+            string seek=Seconds(from);
             // Keep the timestamps on the same zero-based timeline as the image reader.
             // The wrapped-frame encoder avoids pixel hashing and image encoding.
             using(var p=Run("ffmpeg","-v error -nostdin -copyts -start_at_zero -ss "+seek+" -noautorotate -i "+Quote(path)+
@@ -295,7 +395,7 @@ namespace LoveMyShelf {
             bool fastSeek=!decode && origin==0 && codec=="vp9" && IsHighResolution(width,height) &&
                 String.Equals(Path.GetExtension(path),".mkv",StringComparison.OrdinalIgnoreCase);
             if(fastSeek)keyframes.Sort();
-            return new FrameTimes(starts,duration,fastSeek?keyframes:null);
+            return new FrameTimes(starts,duration,fastSeek?keyframes:null) {Origin=origin};
         }
         internal static bool IsHighResolution(int width,int height) {return (long)width*height>=8000000;}
         public static BitmapSource First(string path,int maxSide) {

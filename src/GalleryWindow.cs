@@ -170,6 +170,7 @@ namespace LoveMyShelf {
                     var outside=new MenuItem {Header=L.T("Use a picture made elsewhere as a cover…")};
                     outside.Click+=delegate {row.Owner.AddOutsideCover(photo);};
                     menu.Items.Add(outside);
+                    row.Owner.AddTagItems(menu,new List<Photo>{photo});
                 }
                 if(photo.HasCrop && !photo.ExcludedFromCollection) {
                     // Offered when this original has two or more shown covers; checked when the menu opens.
@@ -239,7 +240,7 @@ namespace LoveMyShelf {
                 };
                 Action loaded=null;
                 var mode=row.Owner.Settings.GridGif;
-                if(photo.HasMotion && mode!=GifPlayback.Never)loaded=AttachMotion(tile,image,photo,mode,row.Height,pending.Token);
+                if(photo.HasMotion && mode!=GifPlayback.Never)loaded=AttachMotion(tile,image,photo,mode,row.Height,pending.Token,row.Owner);
                 ShareTiles.AttachDrag(tile,row.Owner,photo);
                 var reflow=allowReflow?row.Owner.CurrentReflow:null;
                 var kept=reflow!=null && !photo.HasMotion?reflow.ImageFor(photo):null;
@@ -308,24 +309,65 @@ namespace LoveMyShelf {
         }
         // Moves GIF covers in the grid: on hover, or always while the tile is on screen.
         // Returns what to run once the still has loaded.
-        static Action AttachMotion(Button tile,Image image,Photo photo,GifPlayback mode,double height,CancellationToken token) {
+        static Action AttachMotion(Button tile,Image image,Photo photo,GifPlayback mode,double height,CancellationToken token,GalleryWindow owner) {
             var player=new FramePlayer(image);
-            bool hovering=false,ready=false;
+            bool hovering=false,ready=false,pressed=false,unplayable=false;
             int side=(int)Math.Max(160,Math.Min(720,height*1.5));
             Action start=async ()=>{
-                if(player.Playing || !ready)return;
+                if(player.Playing || !ready || TileSound.PlayingFor(tile))return;
                 try {
                     var frames=await MotionFrames.LoadCoverAsync(photo,side,token);
                     if(token.IsCancellationRequested || !tile.IsLoaded || (mode==GifPlayback.Hover && !hovering))return;
+                    // The video took over meanwhile: the pictures start when it stops (see below).
+                    if(TileSound.PlayingFor(tile) || player.Playing)return;
                     player.Start(frames);
                 } catch(Exception) {}
             };
+            // An MP4 cover plays as a video while the mouse is on its tile: its sound (an option, on unless turned off)
+            // stays with the picture, and it plays to the end however long it is. GIF and WebP covers, and MP4 covers in
+            // tiles the mouse isn't on ([Always move]), are shown picture by picture as before.
+            bool video=TileSound.IsVideo(photo),hasSound=TileSound.Has(photo);
+            Action play=()=>{
+                if(!video || unplayable || !ready || !hovering || pressed || TileSound.PlayingFor(tile) || !File.Exists(photo.MotionFile))return;
+                // A video playing in a large view keeps the speakers to itself.
+                bool silent=!hasSound || !owner.Settings.GifHoverSound ||
+                    Application.Current.Windows.OfType<Viewer>().Any(v=>v.IsVisible && v.WindowState!=WindowState.Minimized);
+                double top=0,bottom=1;
+                CoverImages.VisibleRows(photo.Crop,photo.Rotation,out top,out bottom);
+                ImageSource still=null;bool showing=false;
+                TileSound.Play(tile,photo.MotionFile,owner.Settings.Volume,silent,top,bottom,
+                    moving=>{
+                        // The mouse left before the file opened: nothing to show, and the file is let go.
+                        if(!hovering || !tile.IsLoaded){TileSound.Stop(tile);return;}
+                        player.Hold=true; // the picture-by-picture player (if it runs) waits while the video shows
+                        still=image.Source;showing=true;image.Source=moving;
+                    },
+                    ()=>{
+                        if(showing)image.Source=still;
+                        showing=false;player.Hold=false;
+                        // [Always move]: the pictures go on (or begin) once the video is out of the way.
+                        if(mode==GifPlayback.Always && tile.IsLoaded && !player.Playing)tile.Dispatcher.BeginInvoke(new Action(()=>start()));
+                    },
+                    ()=>{unplayable=true;if(hovering)start();}); // Windows can't play it: picture by picture, without sound
+            };
+            if(video) {
+                // A click may be about to rename, move or delete the file (also from the menu it opens): the video lets go
+                // of the file and the tile stays still until the mouse comes back to it.
+                tile.PreviewMouseDown+=delegate {pressed=true;TileSound.Stop(tile);};
+                tile.MouseEnter+=delegate {pressed=false;hovering=true;play();};
+                tile.MouseLeave+=delegate {hovering=false;TileSound.Stop(tile);};
+                tile.Unloaded+=delegate {TileSound.Stop(tile);};
+            }
             if(mode==GifPlayback.Hover) {
-                tile.MouseEnter+=delegate {hovering=true;start();};
+                tile.MouseEnter+=delegate {hovering=true;if(!video || unplayable)start();};
                 tile.MouseLeave+=delegate {hovering=false;player.Stop();};
             }
             tile.Unloaded+=delegate {player.Stop();};
-            return ()=>{ready=true;if(mode==GifPlayback.Always || hovering)start();};
+            return ()=>{
+                ready=true;
+                if(video && !unplayable && hovering)play();
+                if(mode==GifPlayback.Always || (hovering && (!video || unplayable)))start();
+            };
         }
         static ControlTemplate tileTemplate;
         // A tile: the picture and a selection outline drawn from the button's own border settings.
@@ -514,6 +556,12 @@ namespace LoveMyShelf {
         Album allCrops,unfinished;
         public bool ShowingAllCrops { get { return active==allCrops; } }
         bool ShowingUnfinished { get { return active==unfinished; } }
+        // A tag's view: every original that carries the tag, from all folders (like the unfinished collection, they live in their own folders).
+        internal const string TagKey="@tag:";
+        bool ShowingTag {get {return active!=null && active.Source==null && active.Folder.StartsWith(TagKey,StringComparison.Ordinal);}}
+        string ShownTag {get {return ShowingTag?active.Folder.Substring(TagKey.Length):null;}}
+        static Album TagAlbum(string tag) {return new Album(TagKey+tag,"#"+tag);}
+        Button tagsButton;
         internal Preferences Settings { get { return settings; } }
         // The large view's volume and Clear voice, kept for the next video (like PotPlayer). Every window learns
         // them, so another window's later save doesn't put the old values back.
@@ -634,7 +682,7 @@ namespace LoveMyShelf {
             this.store=store;this.another=another;
             this.pickCoverFolder=pickCoverFolder??(owner=>UI.PickFolder(owner,
                 L.T("Choose the folder where cover files will be saved."),Preferences.SuggestedCoverParent,true));
-            settings=Preferences.Load(store.Root);L.Korean=settings.Korean;MotionWindow.UseDefaults(settings);
+            settings=Preferences.Load(store.Root);L.Korean=settings.Korean;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
             if(!another)Task.Run(()=>MotionMaker.SweepPreviews()); // GIF preview files left behind by a sudden exit
             allCrops=new Album(CollectionKey,L.T("Cover collection"));
             unfinished=new Album(UnfinishedKey,L.T("Unfinished cover collection"));
@@ -650,6 +698,11 @@ namespace LoveMyShelf {
             unfinishedButton.Margin=new Thickness(4,0,0,0);
             var collections=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             collections.Children.Add(allCropsButton);collections.Children.Add(unfinishedButton);
+            tagsButton=UI.Btn(L.T("Tags"),()=>OpenTagMenu());tagsButton.Margin=new Thickness(4,0,0,0);
+            collections.Children.Add(tagsButton);
+            // A tag's view and a search (which also finds tags) show what the tags say right now.
+            Action tagsChanged=()=>Dispatcher.BeginInvoke(new Action(()=>{if(ShowingTag || search.Text.Trim().Length>0)Refresh();}));
+            Tags.Changed+=tagsChanged;Closed+=delegate {Tags.Changed-=tagsChanged;};
             // The two collections can't be hidden, so their right-click menu only opens them in a new window.
             foreach(var pair in new[]{Tuple.Create(allCropsButton,CollectionKey),Tuple.Create(unfinishedButton,UnfinishedKey)}) {
                 string key=pair.Item2;
@@ -727,7 +780,7 @@ namespace LoveMyShelf {
                 Tuple.Create("M 15,9 L 3.5,9 M 8,4 L 3,9 L 8,14","Back","Alt+←",(Action)(()=>GoBack())),
                 Tuple.Create("M 3,9 L 14.5,9 M 10,4 L 15,9 L 10,14","Forward","Alt+→",(Action)(()=>GoForward())),
                 Tuple.Create("M 9,15 L 9,3.5 M 4,8 L 9,3 L 14,8","Up to the folder above","Alt+↑",(Action)(()=>GoUpFolder())),
-                Tuple.Create("M 14.5,9 A 5.5,5.5 0 1 1 12.8,5 M 13,1.8 L 13,5.3 L 9.5,5.3","Refresh","F5",(Action)(()=>{Refresh();StartCoverMigration();}))}) {
+                Tuple.Create("M 14.5,9 A 5.5,5.5 0 1 1 12.8,5 M 13,1.8 L 13,5.3 L 9.5,5.3","Refresh","F5",(Action)(()=>{Refresh();StartCoverMigration();DrivesChangedSoon(0.3);}))}) {
                 var action=made.Item4;var button=UI.Btn("",()=>action());button.Content=LineIcon(made.Item1);
                 button.Padding=new Thickness(7,4,7,4);button.VerticalAlignment=VerticalAlignment.Center;button.Margin=new Thickness(0,0,4,0);
                 button.BorderThickness=new Thickness(0);button.Background=Brushes.Transparent;
@@ -770,6 +823,10 @@ namespace LoveMyShelf {
             var modeFile=Path.Combine(store.Root,"windowed");
             // Explorer keys run before the fullscreen keys so Esc first clears a selection.
             PreviewKeyDown+=ExplorerKeys;
+            // A tile's sound never outlives the moment: any key, leaving the window or closing it stops it.
+            // (Also for keys another handler already used up, such as Ctrl+Z or Delete: those are the ones that touch files.)
+            AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler((s,e)=>TileSound.Stop()),true);
+            Deactivated+=delegate {TileSound.Stop();};Closed+=delegate {TileSound.Stop();};
             var titleBar=FullScreen.TitleBar(this,!another && !File.Exists(modeFile),full=>{
                 if(another)return;
                 try { if(full) File.Delete(modeFile); else File.WriteAllText(modeFile,""); }
@@ -780,7 +837,9 @@ namespace LoveMyShelf {
             // Sort works like File Explorer: one button, the choices open upward, Shuffle is the last one.
             sortButton=UI.Btn("",OpenSortMenu);
             var openCoverFolder=UI.Btn("",OpenCoverFolder);
-            foreach(var button in new[]{openCoverFolder,sortButton,sizing}) {
+            queueButton=UI.Btn("",()=>TransferWindow.ShowQueue(true));queueButton.Visibility=Visibility.Collapsed;
+            AutomationProperties.SetName(queueButton,L.P("File queue","파일 대기열"));
+            foreach(var button in new[]{queueButton,openCoverFolder,sortButton,sizing}) {
                 button.Margin=new Thickness(3,0,0,0);footerControls.Children.Add(button);
             }
             footerStatus.Children.Add(filter);
@@ -815,6 +874,7 @@ namespace LoveMyShelf {
                     FooterLabel(sizing,"Cover size","▦",level>=1);
                     allCropsButton.Content=L.T(level>=2?"O set":"Cover collection");
                     unfinishedButton.Content=L.T(level>=2?"X set":"Unfinished cover collection");
+                    tagsButton.Content=level>=2?"#":L.T("Tags");
                     filterButtons[1].Content=level>=2?"X":L.T("Unfinished");
                     filterButtons[2].Content=level>=2?"O":L.T("Finished");
                     filterButtons[1].MinWidth=filterButtons[2].MinWidth=level>=2?38:58;
@@ -838,6 +898,7 @@ namespace LoveMyShelf {
                 allCropsButton.ToolTip=L.T("Cover collection");AutomationProperties.SetName(allCropsButton,L.T("Cover collection"));
                 unfinishedButton.ToolTip=L.T("Unfinished cover collection");AutomationProperties.SetName(unfinishedButton,L.T("Unfinished cover collection"));
                 openCoverFolder.ToolTip=L.T("Open cover folder");AutomationProperties.SetName(openCoverFolder,L.T("Open cover folder"));
+                tagsButton.ToolTip=ShowingTag?"#"+ShownTag:L.T("Tags");AutomationProperties.SetName(tagsButton,L.T("Tags"));
             };
             footer.SizeChanged+=delegate {updateFooter();};
             // The folder tree on the left, with an edge that can be dragged to make it wider or narrower.
@@ -930,6 +991,15 @@ namespace LoveMyShelf {
             Upscales.Failed+=(photo,message)=>Notify(L.T("Upscaling failed"),photo.Name+Environment.NewLine+message,null,NoticeKind.Warning);
             // A cover started from a large view of this window saves through this window, so it has to finish first.
             Closing+=(s,e)=>{
+                // The last folder window ends the program, and with it whatever the file queue is still sending.
+                if(!CoverWork.BelongsTo(this) && TransferQueue.Busy && !Application.Current.Windows.OfType<GalleryWindow>().Any(w=>w!=this && w.IsVisible)) {
+                    TransferWindow.ShowQueue(false);
+                    var answer=MessageBox.Show(this,L.P("Files are still being sent, or are waiting to be sent.\n\nIf you close now, the queue stops where it is and is kept. The next time you start Love My Shelf, the unfinished jobs are in the file queue, and [Go on] continues them from where they stopped. Every file that has not been sent yet stays whole where it is.\n\nClose now?",
+                        "아직 보내고 있거나 기다리는 파일이 있어요.\n\n지금 닫으면 대기열을 그 자리에서 멈춰 두고 보관해요. 다음에 Love My Shelf를 켜면 끝내지 못한 작업이 파일 대기열에 남아 있고, [이어서]를 누르면 멈춘 곳부터 계속해요. 아직 보내지 않은 파일은 원래 자리에 온전히 남아 있어요.\n\n지금 닫을까요?"),
+                        "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No);
+                    if(answer!=MessageBoxResult.Yes){e.Cancel=true;return;}
+                    TransferQueue.Shutdown();
+                }
                 if(!CoverWork.BelongsTo(this))return;
                 e.Cancel=true;CoverWork.Front();
                 Notify(L.T("Please finish the cover first"),L.T("A cover you started from this window is still open. Save or close it, then close this window."),null,NoticeKind.Info);
@@ -938,10 +1008,19 @@ namespace LoveMyShelf {
                 FinishPendingCovers();
                 resizeTimer.Stop();refreshVersion++;lifetime.Cancel();Upscales.Stop();
                 FilesChanged-=ReloadAfterFileMove;
+                TransferQueue.Tick-=ShowQueueButton;
+                if(!Application.Current.Windows.OfType<GalleryWindow>().Any(w=>w!=this && w.IsVisible))TransferWindow.CloseQueue();
                 // Large views are windows of their own now; they close with the folder window they came from.
                 foreach(var view in Application.Current.Windows.OfType<Viewer>().Where(v=>v.Home==this).ToList())view.Close();
             };
             FilesChanged+=ReloadAfterFileMove;
+            var recycleBin=moveToRecycleBin;
+            TransferQueue.Start(store.Root,job=>BindTransfer(job,store,recycleBin));
+            TransferWindow.ClosedWhileWorking-=TellQueueGoesOn;TransferWindow.ClosedWhileWorking+=TellQueueGoesOn;
+            if(!another)Loaded+=delegate {TellLeftoverQueue();};
+            TransferQueue.Hold=()=>relinking;
+            TransferQueue.FilesMoved-=TellFilesMoved;TransferQueue.FilesMoved+=TellFilesMoved;
+            TransferQueue.Tick+=ShowQueueButton;
             WatchRest();
             Activated+=delegate {TakeOverSettings();};
             localize=delegate {
@@ -999,7 +1078,7 @@ namespace LoveMyShelf {
                 }
             };
             PreviewKeyDown+=(s,e)=>{
-                if(e.Key==Key.F5) {Refresh();StartCoverMigration();e.Handled=true;}
+                if(e.Key==Key.F5) {Refresh();StartCoverMigration();DrivesChangedSoon(0.3);e.Handled=true;} // F5 also looks again for files renamed or moved outside
                 else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.O) {
                     PickFolder(); e.Handled=true;
                 }
@@ -1031,13 +1110,14 @@ namespace LoveMyShelf {
             };
             var albums=store.VisibleAlbums(); string lastFile=Path.Combine(store.Root,"last.txt");
             string last=File.Exists(lastFile)?File.ReadAllText(lastFile):"";
-            var initial=last==CollectionKey?allCrops:last==UnfinishedKey?unfinished:(albums.FirstOrDefault(a=>Path.GetFileName(a.Folder)==last)??albums.FirstOrDefault()??
+            var initial=last==CollectionKey?allCrops:last==UnfinishedKey?unfinished:last.StartsWith(TagKey,StringComparison.Ordinal) && last.Length>TagKey.Length?TagAlbum(last.Substring(TagKey.Length)):(albums.FirstOrDefault(a=>Path.GetFileName(a.Folder)==last)??albums.FirstOrDefault()??
                 allCrops);
             // On cold start the constructor runs before WPF installs its UI synchronization context.
             Loaded+=delegate {
                 if(active!=null)return;
                 // A window opened with "Open in new window" starts on that folder.
                 Album start=startFolder==null?null:startFolder==CollectionKey?allCrops:startFolder==UnfinishedKey?unfinished:
+                    startFolder.StartsWith(TagKey,StringComparison.Ordinal) && startFolder.Length>TagKey.Length?TagAlbum(startFolder.Substring(TagKey.Length)):
                     store.Albums().FirstOrDefault(a=>a.Source!=null && String.Equals(a.Folder,startFolder,StringComparison.OrdinalIgnoreCase));
                 Select(start??initial);
             };
@@ -1053,6 +1133,7 @@ namespace LoveMyShelf {
                 Task.Run(()=>sceneStore.FillSceneTimes(sceneToken,sceneSingles));
                 DrivesChangedSoon(0.3); // a drive may have a new letter since last time
                 TellIfUpdated();
+                TellIfUpdateUndone();
                 TellGifDefaultsChanged();
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
@@ -1076,12 +1157,26 @@ namespace LoveMyShelf {
             Notify(L.F("Updated to version {0}",AppInfo.Version),L.T("Click here to see what changed."),
                 ()=>GuideWindow.Open(this,"news"),NoticeKind.Done,false,8);
         }
+        // An update that could not be finished put the version before it back. Said once, at the next start,
+        // with the way that still works: the ZIP from the download page.
+        static string undoneUpdate; // one for all the folder windows
+        void TellIfUpdateUndone() {
+            undoneUpdate=AppUpdater.UndoneUpdate();
+            if(undoneUpdate==null)return;
+            Notify(L.PF("Couldn’t update to the new version ({0})","새 버전({0})으로 업데이트하지 못했어요",undoneUpdate),
+                L.P("The update couldn’t be finished, so the version you were using was put back. Your covers and settings are as they were.",
+                    "업데이트를 마치지 못해서 쓰던 버전으로 되돌려 두었어요. 만든 표지와 설정은 그대로예요.")+Environment.NewLine+
+                L.P("Click here to open the download page. Get the new ZIP, close Love My Shelf, then unzip it over the folder you use now.",
+                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 Love My Shelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
+                OpenReleasesPage,NoticeKind.Warning,true);
+        }
         async void CheckForUpdate() {
             string newer=await AppInfo.NewerVersionAsync();
             if(newer==null || lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             var plan=await AppUpdater.LoadAsync(newer);
             if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             if(plan==null) {
+                if(newer==undoneUpdate)return; // just told, with the same way out
                 Notify(L.F("Version {0} is out",newer),
                     L.T("Click here to open the download page. Get the new ZIP, close Love My Shelf, then unzip it over the folder you use now. Your covers and settings stay as they are."),
                     OpenReleasesPage,NoticeKind.Info);
@@ -1120,7 +1215,8 @@ namespace LoveMyShelf {
         }
         void RestartForUpdate(string stage) {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
-            if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+            if(TransferQueue.Busy || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+                if(TransferQueue.Busy)TransferWindow.ShowQueue(false);
                 Notify(L.T("Some work is still in progress"),L.T("So that the work isn't cut off, click here again after it is done."),
                     ()=>RestartForUpdate(stage),NoticeKind.Info,true);
                 return;
@@ -1262,13 +1358,15 @@ namespace LoveMyShelf {
             UI.Use(allCropsButton,Control.BorderBrushProperty,ShowingAllCrops?"Accent":"Line");
             UI.Use(unfinishedButton,Control.ForegroundProperty,ShowingUnfinished?"Accent":"Text");
             UI.Use(unfinishedButton,Control.BorderBrushProperty,ShowingUnfinished?"Accent":"Line");
+            UI.Use(tagsButton,Control.ForegroundProperty,ShowingTag?"Accent":"Text");
+            UI.Use(tagsButton,Control.BorderBrushProperty,ShowingTag?"Accent":"Line");
             filter.Visibility=active.Source==null?Visibility.Collapsed:Visibility.Visible;
             if(updateFooter!=null)updateFooter();
             int view;
             folderFilter=folderFilters.TryGetValue(active.Folder,out view)?view:0;
             filterButtons[folderFilter].IsChecked=true;
             BuildTabs();
-            try { File.WriteAllText(Path.Combine(store.Root,"last.txt"),Path.GetFileName(trail[0].Folder)); } catch(IOException) { }
+            try { File.WriteAllText(Path.Combine(store.Root,"last.txt"),trail[0].Source==null?trail[0].Folder:Path.GetFileName(trail[0].Folder)); } catch(IOException) { }
             Refresh();
             if(grid.Items.Count>0) grid.ScrollIntoView(grid.Items[0]);
         }
@@ -1297,7 +1395,8 @@ namespace LoveMyShelf {
         void GoToLocation(string key) {
             historyMove=true;
             try {
-                if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
+                if(key.StartsWith("@"+TagKey,StringComparison.Ordinal))Select(TagAlbum(key.Substring(1+TagKey.Length)));
+                else if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
                 else if(Directory.Exists(key))NavigateTo(key);
             } finally {historyMove=false;}
         }
@@ -1651,7 +1750,7 @@ namespace LoveMyShelf {
             bool changedExplorer=settings.ExplorerMenu!=updated.ExplorerMenu;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
-            settings=updated;MotionWindow.UseDefaults(settings);
+            settings=updated;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
             if(changedExplorer || (updated.ExplorerMenu && changedLanguage)) {
                 try {ExplorerOpen.Sync(updated);} catch(Exception ex) {UI.Error(this,ex);}
             }
@@ -1661,6 +1760,7 @@ namespace LoveMyShelf {
                 other.settings.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(updated.MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
                 other.settings.SubtitleScale=updated.SubtitleScale;other.settings.GifAutoMake=updated.GifAutoMake;other.settings.GifMakeDelayMs=updated.GifMakeDelayMs;
                 other.settings.WebpEffort=updated.WebpEffort;
+                other.settings.Shortcuts=new Dictionary<string,System.Windows.Input.Key>(updated.Shortcuts,StringComparer.Ordinal);
                 if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
                 if(changedTimes){other.settings.CoverTimes=updated.CoverTimes;other.CoverMarksSoon();}
             }
@@ -1695,11 +1795,12 @@ namespace LoveMyShelf {
             int skipped=0; folderUnavailable=false;
             var folders=new List<Tuple<string,int>>();
             try {
-                if(ShowingAllCrops || ShowingUnfinished) {
+                if(ShowingAllCrops || ShowingUnfinished || ShowingTag) {
                     bool pending=ShowingUnfinished;
+                    string tag=ShownTag;
                     photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
                     canShuffle=false;
-                    emptyTitle.Text=L.T("Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
+                    emptyTitle.Text=L.T(tag!=null?"Loading…":"Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
                     count.Text="";count.ToolTip=null;
                     var sort=settings.Sort;
                     bool descending=settings.Descending;
@@ -1712,7 +1813,7 @@ namespace LoveMyShelf {
                     }));
                     List<Photo> saved;
                     try {
-                        saved=await Task.Run(()=>pending?GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped,scanToken,foundSoFar),sort,descending):
+                        saved=await Task.Run(()=>tag!=null?store.Tagged(tag,out skipped,sort,descending):pending?GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped,scanToken,foundSoFar),sort,descending):
                             store.AllCrops(out skipped,sort,descending));
                     } finally {
                         if(scan!=null) {
@@ -1750,7 +1851,14 @@ namespace LoveMyShelf {
             catch(IOException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             catch(UnauthorizedAccessException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             string query=search.Text.Trim();
-            if(query.Length>0)photos=photos.Where(p=>p!=null && p.Name.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
+            // The search box finds file names and tags alike; "#word" looks at tags only.
+            if(query.Length>0) {
+                bool tagsOnly=query.StartsWith("#");
+                string word=query.TrimStart('#').Trim();
+                bool anyTags=Tags.Any;
+                photos=photos.Where(p=>p!=null && ((!tagsOnly && p.Name.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0) ||
+                    (anyTags && word.Length>0 && p.Linked && Tags.Of(p).Any(t=>t.IndexOf(word,StringComparison.OrdinalIgnoreCase)>=0)))).ToList();
+            }
             if(query.Length>0)folders=folders.Where(f=>Path.GetFileName(f.Item1).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
             subfolders=folders;
             ClearSelection();
@@ -1778,10 +1886,11 @@ namespace LoveMyShelf {
             bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
             bool driveAway=folderUnavailable && active!=null && active.Source!=null && DriveLinks.DriveAway(active.Source);
             emptyTitle.Text=driveAway?L.T("This folder's drive isn't connected"):folderUnavailable?L.T("This folder could not be opened"):
-                L.T(searching?"No search results":pending?"Every file has a cover":coversOnly?"No covers yet":"No photos or videos in this folder");
+                L.T(searching?"No search results":ShowingTag?"No files with this tag can be shown":pending?"Every file has a cover":coversOnly?"No covers yet":"No photos or videos in this folder");
             emptyHelp.Text=driveAway?L.T("Connect the drive again and this folder comes back by itself, together with its covers. It's fine even if the drive letter changes."):
                 folderUnavailable?L.T("Check that the folder is still in its place, then press F5. If you unplugged a phone or a USB drive, connect it again."):
                 L.T(searching?"Search with another name, or clear the search box.":
+                    ShowingTag?"Files on a drive that isn't connected come back when the drive is connected again. To put this tag on a file, right-click the file and click [Tags…].":
                     ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to Love My Shelf and their subfolders, gather here.":
                     pending?"Click [All] at the bottom left to see everything.":
                     coversOnly?"Open a folder and make a cover, and it gathers here.":"Choose another folder, or put photos or videos in this folder and press F5.");
@@ -1919,9 +2028,9 @@ namespace LoveMyShelf {
         // Records must stay put while something is working on them.
         static bool RecordsInUse() {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
-            return renamingFolder || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers || w.pendingFolders.Count>0) ||
+            return renamingFolder || TransferQueue.Running || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers || w.pendingFolders.Count>0) ||
                 windows.OfType<UpscaleToast>().Any(t=>t.IsWorking) ||
-                windows.Any(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow));
+                windows.Any(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow) && !(w is TransferWindow));
         }
         static async void RelinkDrives() {
             if(relinking || Application.Current==null){if(relinking)DrivesChangedSoon(3);return;}
@@ -2380,6 +2489,7 @@ namespace LoveMyShelf {
             ReloadKeepingPlace();
         }
         void FinishCovers(PendingCovers pending) {
+            TileSound.Stop(); // a cover file that is about to go must not be held by its own sound
             if(pending.Done)return;
             pending.Done=true;pendingDeletes.Remove(pending);
             bool open=!lifetime.IsCancellationRequested && IsVisible,reload=false;
@@ -2437,6 +2547,7 @@ namespace LoveMyShelf {
         // After an edited GIF cover is made: the old file goes to the Recycle Bin and the new one takes its name
         // (when it's the same kind of file in the same folder). If anything fails, both files simply stay.
         Photo ReplaceOldMotion(Photo linked,string old,string made,MotionRequest request) {
+            TileSound.Stop(); // the old file may be playing in its tile right now
             try {
                 if(String.Equals(Path.GetFullPath(old),Path.GetFullPath(made),StringComparison.OrdinalIgnoreCase) || !File.Exists(old))return null;
                 moveToRecycleBin(old,new System.Windows.Interop.WindowInteropHelper(this).Handle);
@@ -2492,7 +2603,7 @@ namespace LoveMyShelf {
                     // Operate only on the entry in the displayed folder, even if the viewer
                     // has previously located a same-named original somewhere else.
                     string source=active.Source;
-                    if(ShowingUnfinished) {
+                    if(ShowingUnfinished || ShowingTag) {
                         // The tile may come from a folder inside an added one: its own record says where it lives.
                         source=GalleryStore.SourceOfRecords(Path.GetDirectoryName(photo.Folder));
                         if(source==null)continue;
@@ -2597,7 +2708,7 @@ namespace LoveMyShelf {
                     String.Equals(GalleryStore.RecordBase(p),recordBase,StringComparison.OrdinalIgnoreCase)){last=i;family.Add(p);}
             }
             if(last<0)return; // that original isn't shown here; the cover appears when the view is loaded again
-            if(active.Source!=null || ShowingUnfinished)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
+            if(active.Source!=null || ShowingUnfinished || ShowingTag)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
             var order=GalleryStore.InCoverOrder(family.Concat(new[]{cover}));
             int at=order.IndexOf(cover);
             int place=at+1<order.Count?photos.IndexOf(order[at+1]):last+1;
@@ -2646,6 +2757,38 @@ namespace LoveMyShelf {
         // The last moves, newest last. Ctrl+Z puts the newest one back.
         static readonly List<List<Tuple<string,string>>> moveHistory=new List<List<Tuple<string,string>>>();
         void ReloadAfterFileMove() {ReloadKeepingPlace();}
+        // The move Ctrl+Z has taken out of the history but not yet handed to the file queue (it is still being
+        // got ready). While it is set, another Ctrl+Z waits; if the getting ready is cut short, it goes back.
+        static List<Tuple<string,string>> undoPending;
+        // For a move that took folders along: the folders (old place, new place), so that undoing it tidies them too.
+        static readonly Dictionary<List<Tuple<string,string>>,FolderTrail> moveTrails=new Dictionary<List<Tuple<string,string>>,FolderTrail>();
+        static FolderTrail undoPendingTrail;
+        sealed class FolderTrail {
+            public List<Tuple<string,string>> Roots=new List<Tuple<string,string>>(),Empty=new List<Tuple<string,string>>();
+            public HashSet<string> Created=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // New places of folders that moved in one step (so an undo knows them as folders without looking).
+            public HashSet<string> Whole=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        static void TellFilesMoved() {var handler=FilesChanged;if(handler!=null)handler();}
+        // The small button in the bottom bar that shows how far the file queue is; it is there only while the queue has work.
+        Button queueButton;
+        void ShowQueueButton() {
+            if(queueButton==null)return;
+            var jobs=TransferQueue.Jobs.Where(j=>j.Active).ToList();
+            var was=queueButton.Visibility;
+            if(jobs.Count==0)queueButton.Visibility=Visibility.Collapsed;
+            else {
+                long total=jobs.Sum(j=>j.TotalBytes),sent=jobs.Sum(j=>j.DoneBytes);
+                bool working=jobs.Any(j=>j.State==TransferState.Running || j.State==TransferState.Waiting);
+                // The word "Queue" is there whenever the window is wide enough for it.
+                string word=ActualWidth>=1000?L.P("Queue","대기열")+" ":"";
+                queueButton.Content=(working?"⇄ ":"Ⅱ ")+word+(total>0?Math.Floor(100.0*sent/total).ToString("0")+"%":jobs.Count.ToString());
+                queueButton.ToolTip=(working?L.P("Files are being sent.","파일을 보내고 있어요."):L.P("The file queue is paused.","파일 대기열을 멈춰 뒀어요."))+" "
+                    +L.P("Click to open the file queue.","누르면 파일 대기열이 열려요.");
+                queueButton.Visibility=Visibility.Visible;
+            }
+            if(was!=queueButton.Visibility)updateFooter();
+        }
         internal static bool AnotherWindowOpen {get {return Application.Current!=null && Application.Current.Windows.OfType<GalleryWindow>().Count(w=>w.IsVisible)>1;}}
 
         // Opens a second window beside this one. A full-screen or maximized window is first made smaller so both can be seen.
@@ -2682,14 +2825,14 @@ namespace LoveMyShelf {
         }
 
         // Another window may have saved options (language, theme, sort, …). Take them over when this window is used again.
-        void TakeOverSettings() {
+        internal void TakeOverSettings() {
             try {
                 var fresh=Preferences.Load(store.Root);
                 if(fresh.SameAs(settings))return;
                 bool sortChanged=fresh.Sort!=settings.Sort || fresh.Descending!=settings.Descending,languageChanged=fresh.Korean!=settings.Korean;
                 bool themeChanged=fresh.Theme!=settings.Theme,gridChanged=fresh.GridGif!=settings.GridGif;
                 fresh.LanguageChosen=settings.LanguageChosen || fresh.LanguageChosen;
-                settings=fresh;MotionWindow.UseDefaults(settings);
+                settings=fresh;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
                 if(themeChanged)Themes.Apply(settings.Theme);
                 if(languageChanged) {
                     L.Korean=settings.Korean;localize();
@@ -2732,7 +2875,8 @@ namespace LoveMyShelf {
         // The folder tab being shown is where dropped files go; the cover collections have no folder to drop into.
         bool CanDropMoves(string[] originals,string target) {
             return originals.Length>0 && target!=null && Directory.Exists(target)
-                && originals.Any(p=>!Mover.SameFolder(Path.GetDirectoryName(p),target));
+                && originals.Any(p=>!Mover.SameFolder(Path.GetDirectoryName(p),target))
+                && !originals.Any(p=>Renamer.IsAt(target,p)); // a folder is never dropped into itself
         }
         // A folder tile under the pointer takes the files into that folder; anywhere else they go to the folder on screen.
         // A folder tile or a folder row of the tree under the pointer, or null.
@@ -2764,12 +2908,16 @@ namespace LoveMyShelf {
         }
         // Like File Explorer: files move within the same drive and are copied to another drive;
         // Ctrl always copies and Shift always moves.
-        static bool CopiesOnDrop(DragEventArgs e,string[] originals,string target) {
+        // Between drives the person's own choice in the options comes first: ask each time (the start), copy or move.
+        // Returns true to copy, false to move, null to ask once the files are let go.
+        bool? CopiesOnDrop(DragEventArgs e,string[] originals,string target) {
             if((e.KeyStates&DragDropKeyStates.ControlKey)!=0)return true;
             if((e.KeyStates&DragDropKeyStates.ShiftKey)!=0)return false;
             try {
                 string root=Path.GetPathRoot(Path.GetFullPath(target));
-                return originals.Any(p=>!String.Equals(Path.GetPathRoot(Path.GetFullPath(p)),root,StringComparison.OrdinalIgnoreCase));
+                bool across=originals.Any(p=>!String.Equals(Path.GetPathRoot(Path.GetFullPath(p)),root,StringComparison.OrdinalIgnoreCase));
+                if(!across)return false;
+                return settings.DropAcross==1?true:settings.DropAcross==2?(bool?)false:null;
             } catch(Exception) {return false;}
         }
         // Like File Explorer, holding dragged files over a folded folder in the tree for a moment unfolds it,
@@ -2793,12 +2941,15 @@ namespace LoveMyShelf {
             var tile=FolderTileAt(e);
             string target=tile!=null?DropPath(tile):active==null?null:active.Source;
             if(!CanDropMoves(originals,target)){e.Effects=DragDropEffects.None;HideDropHint();MarkDropFolder(null);return;}
-            bool copy=CopiesOnDrop(e,originals,target);
+            bool? choice=CopiesOnDrop(e,originals,target);
+            bool copy=choice!=false;
             e.Effects=copy?DragDropEffects.Copy:DragDropEffects.Link; // Link is this app's own "move" (the allowed effects keep other programs from moving the files)
             MarkDropFolder(tile);
             if(tile is TreeViewItem)HoverUnfold((TreeViewItem)tile);
             ScrollTreeNearEdge(e);
-            if(tile!=null)ShowDropHint(L.F(copy?"Let go and {0:N0} are copied into the “{1}” folder.":"Let go and {0:N0} move into the “{1}” folder.",originals.Length,Path.GetFileName(target)));
+            if(choice==null)ShowDropHint(L.PF("Let go and you are asked whether to copy or move {0:N0} to “{1}”. Hold Ctrl to copy, Shift to move.",
+                "지금 놓으면 {0:N0}개를 ‘{1}’ 폴더로 복사할지 옮길지 물어봐요. Ctrl을 누른 채 놓으면 복사, Shift를 누른 채 놓으면 옮기기예요.",originals.Length,tile!=null?Path.GetFileName(target):active.Name));
+            else if(tile!=null)ShowDropHint(L.F(copy?"Let go and {0:N0} are copied into the “{1}” folder.":"Let go and {0:N0} move into the “{1}” folder.",originals.Length,Path.GetFileName(target)));
             else ShowDropHint(L.F(copy?"Let go to copy {0:N0} to “{1}”.":"Let go to move {0:N0} to “{1}”. Hold Ctrl to copy instead.",originals.Length,active.Name));
             if(!(tile is TreeViewItem))hoverRow=null;
         }
@@ -2808,13 +2959,25 @@ namespace LoveMyShelf {
             var tile=FolderTileAt(e);
             string targetPath=tile!=null?DropPath(tile):active==null?null:active.Source;
             if(!CanDropMoves(originals,targetPath))return;
-            bool copy=CopiesOnDrop(e,originals,targetPath);
-            e.Effects=copy?DragDropEffects.Copy:DragDropEffects.Link;
+            bool? choice=CopiesOnDrop(e,originals,targetPath);
+            e.Effects=choice!=false?DragDropEffects.Copy:DragDropEffects.Link;
             Album target;
             if(tile==null)target=active;
             else try {target=store.OpenSubfolder(targetPath);} catch(Exception ex) {UI.Error(this,ex);return;}
             // Start after the drag ends, so a question or notice doesn't open in the middle of the drag.
-            Dispatcher.BeginInvoke(new Action(()=>MoveOriginals(originals,copy,target)),DispatcherPriority.ApplicationIdle);
+            Dispatcher.BeginInvoke(new Action(()=>{
+                if(choice==null) {
+                    var dialog=new TransferChoiceWindow(ActiveAppWindow(),originals.Length,target.Name);
+                    dialog.ShowDialog();
+                    if(dialog.CopyChosen==null)return;
+                    choice=dialog.CopyChosen;
+                    if(dialog.Remember) {
+                        var updated=settings.Copy();updated.DropAcross=choice==true?1:2;
+                        try {updated.Save(store.Root);settings=updated;SettingsChanged();} catch(Exception) {}
+                    }
+                }
+                MoveOriginals(originals,choice==true,target);
+            }),DispatcherPriority.ApplicationIdle);
         }
         Tuple<ConflictChoice,bool> AskConflict(ConflictInfo info) {
             Tuple<ConflictChoice,bool> answer=Tuple.Create(ConflictChoice.Skip,false);
@@ -2827,57 +2990,266 @@ namespace LoveMyShelf {
         void RecycleForMove(string path) {
             Dispatcher.Invoke(new Action(()=>moveToRecycleBin(path,new System.Windows.Interop.WindowInteropHelper(this).Handle)));
         }
-        async void MoveOriginals(string[] originals,bool copy,Album target) {
-            if(!copy && originals.Any(CoverWork.HoldsPath)) {
-                originals=originals.Where(p=>!CoverWork.HoldsPath(p)).ToArray();
+        // originals: files, and folders too (a folder goes with everything inside it).
+        void MoveOriginals(string[] originals,bool copy,Album target) {
+            TakeOverSettings(); // an option changed in another window (check every copy) counts here too
+            if(!copy && originals.Any(p=>CoverWork.HoldsPath(p) || CoverWork.HoldsUnder(p))) {
+                originals=originals.Where(p=>!CoverWork.HoldsPath(p) && !CoverWork.HoldsUnder(p)).ToArray();
                 TellFileInCoverWork();
                 if(originals.Length==0)return;
             }
             FinishPendingCovers();
-            string folderName=target.Name;
-            var busy=Notify(L.T(copy?"Copying files…":"Moving files…"),L.F("Sending {0:N0} files to the “{1}” folder.",originals.Length,folderName),null,NoticeKind.Busy);
-            MoveReport report=null;Exception error=null;
+            var items=new List<TransferItem>();
+            string from=null;
             try {
-                report=await Task.Run(()=>Mover.RunDetailed(store,originals,target.Source,target.Folder,copy,folderName,AskConflict,RecycleForMove));
-            } catch(Exception ex) {error=ex;}
-            finally {busy.Dismiss();}
-            if(error!=null){Notify(L.T("Couldn’t move the files"),error.Message,null,NoticeKind.Warning);return;}
-            if(report.Moved.Count>0)lock(moveHistory)moveHistory.Add(report.Moved);
-            if(report.Moved.Count+report.Copied>0 && FilesChanged!=null)FilesChanged();
-            string done=copy?L.F("Copied {0:N0} to “{1}”.",report.Copied,folderName):L.F("Moved {0:N0} to “{1}”.",report.Moved.Count,folderName);
-            var lines=new List<string>();
-            if(report.Moved.Count>0)lines.Add(L.T("You can undo with Ctrl+Z."));
-            if(report.Skipped>0)lines.Add(L.F("{0:N0} were skipped because the same name was there.",report.Skipped));
-            if(report.AlreadyThere>0)lines.Add(L.F("{0:N0} were already in this folder.",report.AlreadyThere));
-            if(report.Failed.Count==0) {
-                if(report.Moved.Count+report.Copied>0)Notify(copy?L.T("Copied"):L.T("Moved"),done+(lines.Count>0?Environment.NewLine+String.Join(" ",lines):""),null);
-                else if(lines.Count>0)Notify(L.T("Nothing was moved"),String.Join(" ",lines),null,NoticeKind.Info);
-            } else {
-                Notify(L.T("Some files couldn’t be moved"),
-                    String.Join(Environment.NewLine,report.Failed.Take(3))+(report.Failed.Count>3?Environment.NewLine+L.F("and {0:N0} more",report.Failed.Count-3):"")+
-                    (report.Moved.Count+report.Copied>0?Environment.NewLine+done:""),null,NoticeKind.Warning);
+                var folders=originals.Select(Path.GetDirectoryName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                from=folders.Count==1?folders[0]:L.PF("{0:N0} folders","폴더 {0:N0}곳",folders.Count);
+            } catch(Exception) {}
+            QueueTransfer(new TransferJob {Copy=copy,FolderName=target.Name,FromLabel=from??"",ToLabel=target.Source},items,originals,target);
+        }
+        // Reads the sizes, asks about every same-name file now (so the queue never stops in the night to ask), then
+        // puts the job in the file queue. The queue sends one job at a time.
+        async void QueueTransfer(TransferJob job,List<TransferItem> items,string[] chosen=null,Album target=null) {
+            job.Store=store;
+            var busy=Notify(L.P("Getting the files ready…","보낼 파일을 살펴보고 있어요…"),"",null,NoticeKind.Busy);
+            try {
+                await Task.Run(()=>{
+                    // Folders are opened up into the files inside them (this can take a while on a hard drive).
+                    if(chosen!=null)Mover.Expand(store,chosen,target.Source,target.Folder,job,items);
+                    foreach(var item in items) {
+                        if(item.Whole)continue;
+                        try {
+                            var info=new FileInfo(item.From);
+                            if(!info.Exists)continue;
+                            item.Size=info.Length;item.Stamp=info.LastWriteTimeUtc;
+                            var there=new FileInfo(Path.Combine(item.TargetSource,info.Name));
+                            item.Conflict=!Mover.SameFolder(info.DirectoryName,item.TargetSource) && there.Exists && !Mover.SamePlace(info.DirectoryName,item.TargetSource);
+                            if(item.Conflict){item.SeenLength=there.Length;item.SeenStamp=there.LastWriteTimeUtc;}
+                        } catch(Exception) {}
+                    }
+                });
+            } finally {busy.Dismiss();}
+            if(lifetime.IsCancellationRequested) { // this window was closed meanwhile: nothing is queued
+                if(job.Undo)lock(moveHistory) {
+                    if(undoPending!=null){moveHistory.Add(undoPending);if(undoPendingTrail!=null)moveTrails[undoPending]=undoPendingTrail;}
+                    undoPending=null;undoPendingTrail=null;
+                }
+                return;
+            }
+            if(job.Rejected.Count>0)Notify(L.P("Some couldn’t be taken","일부는 보낼 수 없어요"),
+                String.Join(Environment.NewLine,job.Rejected.Take(3))+(job.Rejected.Count>3?Environment.NewLine+L.F("and {0:N0} more",job.Rejected.Count-3):""),null,NoticeKind.Warning);
+            if(items.Count==0 && job.EmptyDirs.Count==0) {
+                if(job.Undo)lock(moveHistory){undoPending=null;undoPendingTrail=null;}
+                int there;lock(job.Report)there=job.Report.AlreadyThere;
+                if(there>0)Notify(L.T("Nothing was moved"),L.F("{0:N0} were already in this folder.",there),null,NoticeKind.Info);
+                return;
+            }
+            var conflicts=items.Where(i=>i.Conflict).ToList();
+            ConflictChoice? always=null;
+            for(int i=0;i<conflicts.Count;i++) {
+                var item=conflicts[i];
+                if(always.HasValue){item.Decided=always;continue;}
+                var dialog=new ConflictWindow(ActiveAppWindow(),new ConflictInfo {Name=Path.GetFileName(item.From),From=item.From,
+                    To=Path.Combine(item.TargetSource,Path.GetFileName(item.From)),FolderName=job.Undo?L.T("the original folder"):job.FolderName,
+                    Number=i+1,Total=conflicts.Count,Copy=job.Copy});
+                dialog.ShowDialog();
+                item.Decided=dialog.Choice;
+                if(dialog.ApplyToAll)always=dialog.Choice;
+            }
+            job.Items.AddRange(items);
+            job.Verify=settings.VerifyCopies;
+            BindTransfer(job,store,moveToRecycleBin);
+            bool others=TransferQueue.Busy;
+            TransferQueue.Add(job);
+            if(job.Undo)lock(moveHistory){undoPending=null;undoPendingTrail=null;}
+            // A job that is done in a blink (a move inside one drive) needs no window; anything longer shows the queue.
+            if(others){TransferWindow.ShowQueue(false);TellQueueButton();}
+            else {
+                var soon=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(700)};
+                soon.Tick+=delegate {
+                    soon.Stop();
+                    if(job.Active && Application.Current.Windows.OfType<GalleryWindow>().Any(w=>w.IsVisible)){TransferWindow.ShowQueue(false);TellQueueButton();}
+                };
+                soon.Start();
             }
         }
-        // Ctrl+Z: puts the files of the latest move back where they were.
-        async void UndoMove() {
-            List<Tuple<string,string>> last;
+        // What a job needs from the running program: where the records are, how a replaced file goes to the Recycle Bin, and the notice at its end.
+        static void BindTransfer(TransferJob job,GalleryStore store,Action<string,IntPtr> bin) {
+            job.Store=store;
+            job.Recycle=path=>Application.Current.Dispatcher.Invoke(new Action(()=>{
+                var window=Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
+                bin(path,window==null?IntPtr.Zero:new System.Windows.Interop.WindowInteropHelper(window).Handle);
+            }));
+            job.Finished=TransferEnded;
+        }
+        // The first few times the file queue opens by itself: where to find it again.
+        void TellQueueButton() {
+            TakeOverSettings();
+            if(settings.QueueTips>=3)return;
+            var updated=settings.Copy();updated.QueueTips++;
+            try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
+            Notify(L.P("It is in the file queue","파일 대기열에 넣었어요"),
+                L.P("The file queue shows how far it is. You can pause there, cancel, or change the order. If you close that window, the [⇄ Queue] button in the bottom bar of this window opens it again.",
+                    "파일 대기열 창에서 얼마나 보냈는지 볼 수 있고, 일시정지·취소·순서 바꾸기도 거기서 해요. 그 창을 닫아도 이 창 아래 줄의 [⇄ 대기열] 버튼을 누르면 다시 열려요."),
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info);
+        }
+        // The file queue window was closed while files are still being sent.
+        static void TellQueueGoesOn() {
+            var window=Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
+            if(window==null)return;
+            window.Notify(L.P("Still sending in the background","뒤에서 계속 보내고 있어요"),
+                L.P("Click the [⇄ Queue] button in the bottom bar, or this notice, to open the file queue again.","아래 줄의 [⇄ 대기열] 버튼이나 이 알림을 누르면 파일 대기열이 다시 열려요."),
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,false,8);
+        }
+        // Jobs the last run left unfinished are back in the queue, paused.
+        static bool leftoverTold;
+        void TellLeftoverQueue() {
+            if(leftoverTold)return;
+            leftoverTold=true;
+            int left=TransferQueue.Jobs.Count(j=>j.Active);
+            if(left==0)return;
+            ShowQueueButton();
+            Notify(L.P("Unfinished jobs are in the file queue","끝내지 못한 작업이 파일 대기열에 있어요"),
+                L.PF("{0:N0} jobs from the last time are waiting, paused. Click here to open the file queue: [Go on] continues one from where it stopped, [Cancel] drops it.",
+                    "지난번에 보내던 작업 {0:N0}개가 멈춘 채 기다리고 있어요. 여기를 누르면 파일 대기열이 열려요. [이어서]를 누르면 멈춘 곳부터 계속하고, [취소]를 누르면 그만둬요.",left),
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,true);
+        }
+        // A job of the file queue has ended (done or cancelled): the notice, and what Ctrl+Z can put back.
+        static void TransferEnded(TransferJob job) {
+            var report=job.Report;
+            List<Tuple<string,string>> moved;List<string> failed;int copied,skipped,already;
+            lock(report){moved=report.Moved.ToList();failed=report.Failed.ToList();copied=report.Copied;skipped=report.Skipped;already=report.AlreadyThere;}
+            if(job.Undo) {
+                // Files the job never got to (it was cancelled) can still be put back with Ctrl+Z.
+                // Ones that were skipped or failed are not offered again: they would only come up every time.
+                var left=job.Items.Skip(job.Next)
+                    .Select(i=>Tuple.Create(Path.Combine(i.TargetSource,i.RestoreName??Path.GetFileName(i.From)),i.From)).ToList();
+                if(left.Count>0)lock(moveHistory) {
+                    moveHistory.Add(left);
+                    // The rest of the same move: its folders are tidied when the rest is put back too.
+                    if(job.Roots.Count+job.EmptyDirs.Count>0 || job.Items.Any(i=>i.Whole)) {
+                        var rest=new FolderTrail();
+                        foreach(var root in job.Roots)rest.Roots.Add(Tuple.Create(root.Item2,root.Item1));
+                        foreach(var empty in job.EmptyDirs)rest.Empty.Add(Tuple.Create(empty.Item2,empty.Item1));
+                        if(job.OnlyThese!=null)rest.Created=job.OnlyThese;
+                        foreach(var item in job.Items.Skip(job.Next))if(item.Whole)rest.Whole.Add(item.From);
+                        moveTrails[left]=rest;
+                    }
+                }
+            } else {
+                bool folders=job.Roots.Count+job.EmptyDirs.Count>0 || job.Items.Any(i=>i.Whole);
+                // A move of nothing but empty folders has no file to list, but it can be undone all the same.
+                if(moved.Count>0 || (folders && !job.Copy && job.Created.Count>0))lock(moveHistory) {
+                    moveHistory.Add(moved);
+                    if(folders) {
+                        var trail=new FolderTrail();
+                        trail.Roots.AddRange(job.Roots);trail.Empty.AddRange(job.EmptyDirs);
+                        lock(job.Created)foreach(string made in job.Created)trail.Created.Add(made);
+                        var whole=new HashSet<string>(job.Items.Where(i=>i.Whole).Select(i=>i.From),StringComparer.OrdinalIgnoreCase);
+                        foreach(var pair in moved)if(whole.Contains(pair.Item1))trail.Whole.Add(pair.Item2);
+                        moveTrails[moved]=trail;
+                    }
+                }
+            }
+            // A folder that is at a new place now (in one step, or file by file until the old one was empty and
+            // went): windows that were showing it or something inside it follow it, and so does the cover folder setting.
+            var gone=new List<Tuple<string,string>>();
+            var steps=new HashSet<string>(job.Items.Where(i=>i.Whole).Select(i=>i.From),StringComparer.OrdinalIgnoreCase);
+            foreach(var pair in moved)if(steps.Contains(pair.Item1))gone.Add(pair);
+            if(!job.Copy)foreach(var root in job.Roots) {
+                try {if(!Directory.Exists(root.Item1) && Directory.Exists(root.Item2))gone.Add(root);} catch(Exception) {}
+            }
+            foreach(var pair in gone) {
+                foreach(var gallery in Application.Current.Windows.OfType<GalleryWindow>().ToList()) {
+                    if(gallery.lifetime.IsCancellationRequested)continue;
+                    try {
+                        bool covers=Renamer.IsAt(gallery.settings.CoverDirectory,pair.Item1);
+                        gallery.FolderRenamed(pair.Item1,pair.Item2);
+                        if(covers) {try {gallery.settings.Copy().Save(gallery.store.Root);} catch(Exception) {}}
+                    } catch(Exception) {}
+                }
+            }
+            var window=Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
+            if(window==null)return;
+            bool cancelled=job.State==TransferState.Cancelled;
+            if(job.Undo) {
+                if(failed.Count>0)window.Notify(L.T("Some files couldn’t be put back"),String.Join(Environment.NewLine,failed.Take(3)),null,NoticeKind.Warning);
+                else if(moved.Count>0)window.Notify(L.T("Put back"),L.F("{0:N0} files were put back in their original place.",moved.Count),null);
+                return;
+            }
+            bool copy=job.Copy;string folderName=job.FolderName;
+            string done=copy?L.F("Copied {0:N0} to “{1}”.",copied,folderName):L.F("Moved {0:N0} to “{1}”.",moved.Count,folderName);
+            var lines=new List<string>();
+            if(cancelled)lines.Add(L.P("The rest was cancelled and is where it was.","나머지는 취소해서 원래 자리에 그대로 있어요."));
+            if(moved.Count>0)lines.Add(L.T("You can undo with Ctrl+Z."));
+            if(skipped>0)lines.Add(L.F("{0:N0} were skipped because the same name was there.",skipped));
+            if(already>0)lines.Add(L.F("{0:N0} were already in this folder.",already));
+            if(failed.Count==0) {
+                if(moved.Count+copied==0 && job.EmptyDirs.Count>0 && !cancelled)
+                    window.Notify(copy?L.T("Copied"):L.T("Moved"),L.PF("{0:N0} empty folders went to “{1}”.","빈 폴더 {0:N0}개를 ‘{1}’ 폴더로 보냈어요.",job.EmptyDirs.Count,folderName),null);
+                else if(moved.Count+copied>0)window.Notify(copy?L.T("Copied"):L.T("Moved"),done+(lines.Count>0?Environment.NewLine+String.Join(" ",lines):""),null);
+                else if(lines.Count>0 && !cancelled)window.Notify(L.T("Nothing was moved"),String.Join(" ",lines),null,NoticeKind.Info);
+            } else {
+                window.Notify(L.T("Some files couldn’t be moved"),
+                    String.Join(Environment.NewLine,failed.Take(3))+(failed.Count>3?Environment.NewLine+L.F("and {0:N0} more",failed.Count-3):"")+
+                    (moved.Count+copied>0?Environment.NewLine+done:""),()=>TransferWindow.ShowQueue(true),NoticeKind.Warning);
+            }
+        }
+        // Ctrl+Z: puts the files of the latest move back where they were. It waits its turn in the file queue too,
+        // so it never touches a file another job is sending.
+        void UndoMove() {
+            // One undo at a time: a second one started before the first has ended would put things back out of order.
+            bool preparing;lock(moveHistory)preparing=undoPending!=null;
+            if(preparing)return;
+            if(TransferQueue.Undoing) {
+                TransferWindow.ShowQueue(true);
+                Notify(L.P("Still putting files back","아직 되돌리는 중이에요"),L.P("Press Ctrl+Z again when the one in the file queue has ended.","파일 대기열에 있는 되돌리기가 끝난 뒤에 Ctrl+Z를 다시 눌러 주세요."),null,NoticeKind.Info);
+                return;
+            }
+            List<Tuple<string,string>> last;FolderTrail trail=null;
             lock(moveHistory) {
                 if(moveHistory.Count==0)return;
                 last=moveHistory[moveHistory.Count-1];
-                if(last.Any(m=>CoverWork.HoldsPath(m.Item1) || CoverWork.HoldsPath(m.Item2)))last=null; // stays in the history for later
-                else moveHistory.RemoveAt(moveHistory.Count-1);
+                if(last.Any(m=>CoverWork.HoldsPath(m.Item1) || CoverWork.HoldsPath(m.Item2) || CoverWork.HoldsUnder(m.Item2)))last=null; // stays in the history for later
+                else {
+                    moveHistory.RemoveAt(moveHistory.Count-1);undoPending=last;
+                    if(moveTrails.TryGetValue(last,out trail))moveTrails.Remove(last);
+                    undoPendingTrail=trail;
+                }
             }
             if(last==null){TellFileInCoverWork();return;}
-            var busy=Notify(L.T("Putting the files back…"),"",null,NoticeKind.Busy);
-            MoveReport report=null;Exception error=null;
+            var items=new List<TransferItem>();var failed=new List<string>();
+            // The folder a file goes back into may be gone (it was moved away with the file): it is made again.
+            var albums=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+            foreach(var pair in last) {
+                string back=Path.GetDirectoryName(pair.Item1);
+                try {
+                    bool whole=trail!=null && trail.Whole.Contains(pair.Item2);
+                    string album;
+                    // OpenSubfolder: a folder that was not on the shelf is not put on it by an undo.
+                    if(!albums.TryGetValue(back,out album))albums[back]=album=Directory.Exists(back)?store.OpenSubfolder(back).Folder:store.AlbumFolderOf(back);
+                    items.Add(new TransferItem {From=pair.Item2,TargetSource=back,TargetAlbum=album,RestoreName=whole?null:Path.GetFileName(pair.Item1),Whole=whole,MakeFolder=!whole});
+                }
+                catch(Exception ex) {failed.Add(Path.GetFileName(pair.Item1)+" — "+ex.Message);}
+            }
+            if(failed.Count>0)Notify(L.T("Some files couldn’t be put back"),String.Join(Environment.NewLine,failed.Take(3)),null,NoticeKind.Warning);
+            bool folderWork=trail!=null && trail.Roots.Count+trail.Empty.Count>0;
+            if(items.Count==0 && !folderWork){lock(moveHistory){undoPending=null;undoPendingTrail=null;}return;}
+            string to=null;
             try {
-                report=await Task.Run(()=>Mover.UndoDetailed(store,last,L.T("the original folder"),AskConflict,RecycleForMove));
-            } catch(Exception ex) {error=ex;}
-            finally {busy.Dismiss();}
-            if(error!=null){Notify(L.T("Couldn’t put the files back"),error.Message,null,NoticeKind.Warning);return;}
-            if(report.Moved.Count>0 && FilesChanged!=null)FilesChanged();
-            if(report.Failed.Count>0)Notify(L.T("Some files couldn’t be put back"),String.Join(Environment.NewLine,report.Failed.Take(3)),null,NoticeKind.Warning);
-            else Notify(L.T("Put back"),L.F("{0:N0} files were put back in their original place.",report.Moved.Count),null);
+                var folders=items.Select(i=>i.TargetSource).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                to=folders.Count==1?folders[0]:L.PF("{0:N0} folders","폴더 {0:N0}곳",folders.Count);
+            } catch(Exception) {}
+            var undo=new TransferJob {Undo=true,FolderName=L.T("the original folder"),
+                FromLabel=items.Count>0?Path.GetDirectoryName(items[0].From):trail.Roots.Count>0?trail.Roots[0].Item2:"",ToLabel=to??(trail!=null && trail.Roots.Count>0?trail.Roots[0].Item1:"")};
+            // The folders the files came back out of are empty afterwards and go, but only the ones the move itself
+            // had made; a folder that was there before the move stays. Folders that were empty go back as well.
+            if(trail!=null) {
+                foreach(var root in trail.Roots)undo.Roots.Add(Tuple.Create(root.Item2,root.Item1));
+                foreach(var empty in trail.Empty)undo.EmptyDirs.Add(Tuple.Create(empty.Item2,empty.Item1));
+                undo.OnlyThese=trail.Created;
+            }
+            QueueTransfer(undo,items);
         }
         // What a drag from this tile carries: every chosen tile when the dragged one is chosen, otherwise just that one.
         internal List<Photo> DragTargets(Photo photo) {
@@ -2955,7 +3327,7 @@ namespace LoveMyShelf {
             var sortMenu=SortMenu();
             foreach(var item in sortMenu.Items.Cast<object>().ToList()){sortMenu.Items.Remove(item);sortBy.Items.Add(item);}
             own.Items.Add(sortBy);
-            var refresh=new MenuItem {Header=L.T("Refresh"),InputGestureText="F5"};refresh.Click+=delegate {Refresh();StartCoverMigration();};
+            var refresh=new MenuItem {Header=L.T("Refresh"),InputGestureText="F5"};refresh.Click+=delegate {Refresh();StartCoverMigration();DrivesChangedSoon(0.3);};
             own.Items.Add(refresh);
             // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
             own.Items.Add(new Separator());
@@ -3014,10 +3386,8 @@ namespace LoveMyShelf {
                 if(mark!=null && mark.Length>=4){var bytes=new byte[4];mark.Position=0;mark.Read(bytes,0,4);effect=BitConverter.ToInt32(bytes,0);}
             } catch(Exception) {return;}
             bool move=(effect&2)!=0 && (effect&1)==0;
-            var all=list.Cast<string>().ToList();
-            var files=all.Where(File.Exists).ToArray();
-            int folders=all.Count(Directory.Exists);
-            if(folders>0)Notify(L.T("Folders aren’t pasted"),L.F("{0:N0} folders were left out. Love My Shelf pastes files only.",folders),null,NoticeKind.Info);
+            // Folders are pasted too, with everything inside them.
+            var files=list.Cast<string>().Where(p=>File.Exists(p) || Directory.Exists(p)).ToArray();
             if(files.Length==0)return;
             MoveOriginals(files,!move,target);
             if(move){try {Clipboard.Clear();} catch(Exception) {}cutFolders.Clear();ShowCutLookEverywhere();}
@@ -3485,6 +3855,7 @@ namespace LoveMyShelf {
             var share=new MenuItem {Header=L.F("Share {0:N0} items…",targets.Count)};
             share.Click+=delegate {ShareTiles.RunMany(this,targets,true);};
             menu.Items.Add(copy);menu.Items.Add(share);
+            AddTagItems(menu,targets.Where(p=>p.Linked).ToList());
             menu.Items.Add(new Separator()); // the Recycle Bin stays at the bottom: here it can mean the originals
             int originals=ShowingAllCrops?targets.Count:targets.GroupBy(p=>Path.GetDirectoryName(p.Folder)+"|"+p.Name,StringComparer.OrdinalIgnoreCase).Count();
             var delete=new MenuItem {Header=L.F(ShowingAllCrops?"Move {0:N0} cover files to the Recycle Bin":"Move {0:N0} originals to the Recycle Bin",originals),InputGestureText="Delete"};
@@ -3494,6 +3865,71 @@ namespace LoveMyShelf {
             clear.Click+=delegate {ClearSelection();};
             menu.Items.Add(clear);
             return menu;
+        }
+        // ----- Tags -----
+        // [Tags…] in a tile's right-click menu, and in a tag's view also [Take the tag off].
+        internal void AddTagItems(ContextMenu menu,List<Photo> targets) {
+            if(targets.Count==0)return;
+            var tags=new MenuItem {Header=L.T("Tags…")};
+            tags.Click+=delegate {EditTags(targets);};
+            menu.Items.Add(tags);
+            string shown=ShownTag;
+            if(shown==null)return;
+            var off=new MenuItem {Header=L.F("Take the tag “{0}” off",shown).Replace("_","__")};
+            off.Click+=delegate {
+                try {Tags.Change(targets,null,new[]{shown});ClearSelection();} catch(Exception ex) {UI.Error(this,ex);}
+            };
+            menu.Items.Add(off);
+        }
+        internal void EditTags(List<Photo> targets) {
+            if(targets.Count==0)return;
+            new TagWindow(this,targets).ShowDialog();
+        }
+        // The tag list opens above the [Tags] button: each tag with how many originals carry it.
+        void OpenTagMenu() {
+            var menu=new ContextMenu {PlacementTarget=tagsButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Top};
+            var counts=Tags.Counts();
+            string shown=ShownTag;
+            if(counts.Count==0) {
+                menu.Items.Add(new MenuItem {Header=L.T("There are no tags yet. Right-click a file and click [Tags…]."),IsEnabled=false});
+            }
+            foreach(var pair in counts) {
+                string tag=pair.Key;
+                var item=new MenuItem {Header=tag.Replace("_","__"),InputGestureText=pair.Value.ToString("N0"),
+                    IsChecked=shown!=null && String.Equals(shown,tag,StringComparison.OrdinalIgnoreCase)};
+                item.Click+=delegate {Select(TagAlbum(tag));};
+                menu.Items.Add(item);
+            }
+            if(shown!=null) {
+                menu.Items.Add(new Separator());
+                var rename=new MenuItem {Header=L.F("Rename the tag “{0}”…",shown).Replace("_","__")};
+                rename.Click+=delegate {RenameShownTag();};
+                var delete=new MenuItem {Header=L.F("Delete the tag “{0}”…",shown).Replace("_","__")};
+                delete.Click+=delegate {DeleteShownTag();};
+                menu.Items.Add(rename);menu.Items.Add(delete);
+            }
+            menu.Items.Add(new Separator());
+            var people=new MenuItem {Header=L.T("Find people by face…")};
+            people.Click+=delegate {FaceWindow.Open(this,store);};
+            menu.Items.Add(people);
+            menu.IsOpen=true;
+        }
+        void RenameShownTag() {
+            string tag=ShownTag;if(tag==null)return;
+            var ask=new TagNameWindow(this,L.T("Rename tag"),L.T("New name of the tag"),tag,L.T("Rename"));
+            if(ask.ShowDialog()!=true || ask.Value==tag)return;
+            try {
+                Tags.Rename(tag,ask.Value);FaceNames.Rename(store,tag,ask.Value);
+                historyMove=true;
+                try {Select(TagAlbum(ask.Value));} finally {historyMove=false;}
+            } catch(Exception ex) {UI.Error(this,ex);}
+        }
+        void DeleteShownTag() {
+            string tag=ShownTag;if(tag==null)return;
+            int files=Tags.FilesWith(tag).Sum(f=>f.Value.Count);
+            if(MessageBox.Show(this,L.F("Take the tag “{0}” off {1:N0} files and delete it?\nThe files themselves stay where they are.",tag,files),
+                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+            try {Tags.Delete(tag);FaceNames.Rename(store,tag,null);Refresh();} catch(Exception ex) {UI.Error(this,ex);}
         }
         // The guide, opened on the section for where you are.
         internal void ShowGuide(string section,Window owner=null) {GuideWindow.Open(owner??this,section);}
@@ -3549,11 +3985,12 @@ namespace LoveMyShelf {
             if(renamingFolder || !Renamer.CanRenameFolder(path))return;
             string from=Path.GetFullPath(path).TrimEnd('\\'),oldName=Path.GetFileName(from);
             var windows=Application.Current.Windows.OfType<Window>().ToList();
-            if(windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+            if(TransferQueue.Busy || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy || w.migratingCovers) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+                if(TransferQueue.Busy)TransferWindow.ShowQueue(false);
                 Notify(L.T("Some work is still in progress"),L.T("Rename the folder after the work in progress is done."),null,NoticeKind.Info);return;
             }
             // An open picture, video or editor is holding on to the records inside.
-            var open=windows.FirstOrDefault(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow));
+            var open=windows.FirstOrDefault(w=>w.IsVisible && !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is VideoOverlay) && !(w is GuideWindow) && !(w is TransferWindow));
             if(open!=null) {
                 open.Activate();
                 Notify(L.T("Close this window first"),L.T("Close the open picture or video window, then rename the folder."),null,NoticeKind.Info);return;
@@ -3620,7 +4057,7 @@ namespace LoveMyShelf {
         static Window BlockingWindow() {
             if(CoverWork.Top!=null)return CoverWork.Top;
             return Application.Current.Windows.OfType<Window>().FirstOrDefault(w=>w.IsVisible &&
-                !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is Viewer) && !(w is GuideWindow) && !(w is VideoOverlay));
+                !(w is GalleryWindow) && !(w is UpscaleToast) && !(w is Viewer) && !(w is GuideWindow) && !(w is VideoOverlay) && !(w is TransferWindow));
         }
         void UpscaleFinished(Photo updated) {
             ReplaceShown(updated);

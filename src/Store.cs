@@ -78,15 +78,8 @@ namespace LoveMyShelf {
             double w=source.PixelWidth,h=source.PixelHeight;
             dc.PushTransform(new MatrixTransform(CoverTransform(w,h,fraction,rotation,destination)));
             var bounds=new Rect(0,0,w,h);
-            // A cover saved before the brightness curve keeps its white or black sheet (see Light).
-            bool sheet=Light.IsLegacy(brightness);
-            if(sheet) {
-                int level=Light.Level(brightness);
-                dc.DrawRectangle(level>0?Brushes.White:Brushes.Black,null,bounds);
-                dc.PushOpacity(1-Math.Abs(level)/100.0);
-            }
+            // Every style, Milky's white or black sheet too, is drawn on the colors (see Light).
             dc.DrawImage(Light.Apply(source,brightness),bounds);
-            if(sheet)dc.Pop();
             dc.Pop();
         }
         internal static BitmapSource RenderRotatedCover(BitmapSource source,Rect fraction,double rotation,int width,int height,int brightness=0) {
@@ -198,9 +191,31 @@ namespace LoveMyShelf {
     public class GalleryStore {
         public readonly string Root;
         const string ExclusionFile = "exclude-from-collection";
-        const string HiddenTabFile = "hide-folder-tab";
+        internal const string HiddenTabFile = "hide-folder-tab";
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-        public GalleryStore(string root) { Root = root; Directory.CreateDirectory(root); }
+        public GalleryStore(string root) { Root = root; Directory.CreateDirectory(root); Tags.Use(root); }
+        // The originals that carry a tag, from every folder, each with its covers like in its own folder.
+        // Folders on a drive that isn't connected are left out; they come back with the drive.
+        internal List<Photo> Tagged(string tag,out int skipped,PhotoSort sort,bool descending) {
+            skipped=0;
+            var items=new List<Photo>();
+            foreach(var folder in Tags.FilesWith(tag)) {
+                try {
+                    string source=SourceOfRecords(folder.Key);
+                    if(source==null || !Directory.Exists(source))continue;
+                    // Another drive may be using this folder's old drive letter: its files are not the tagged ones.
+                    bool? sameDrive=DriveLinks.SameDriveAsBefore(folder.Key,source);
+                    if(sameDrive==false)continue;
+                    int unreadable;
+                    var found=FolderPhotos(new Album(folder.Key,Path.GetFileName(source),source),out unreadable)
+                        .Where(p=>folder.Value.Contains(Path.GetFileName(p.Name))).ToList();
+                    // A tagged file that isn't there right now is only left out of the view. Looking never removes a tag:
+                    // the file may be back later (moved away for a moment, renamed outside, its records waiting for a drive).
+                    items.AddRange(found);
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            }
+            return SortCoverFamilies(items,sort,descending);
+        }
         public List<Album> Albums() {
             return Directory.GetDirectories(Root).Where(f=>File.Exists(Path.Combine(f,"album.txt")))
                 .Select(f=>new Album(f,File.ReadAllText(Path.Combine(f,"album.txt")),
@@ -292,7 +307,7 @@ namespace LoveMyShelf {
                             if((ImageExtensions.Contains(Path.GetExtension(path)) || VideoFrames.Supports(path)) && !SharedCoverFiles.IsBesideCover(path))count++;
                     } catch(UnauthorizedAccessException) {count=-1;} catch(IOException) {count=-1;}
                     list.Add(Tuple.Create(dir,count));
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             // Folders follow the date sort like File Explorer; every other sort orders them by name.
             IEnumerable<Tuple<DirectoryInfo,int>> ordered=sort==PhotoSort.Modified?
@@ -311,8 +326,8 @@ namespace LoveMyShelf {
             var list=new List<string>();
             try {
                 foreach(var dir in new DirectoryInfo(path).EnumerateDirectories())
-                    try {if(ShownFolder(dir))list.Add(dir.FullName);} catch(IOException) {} catch(UnauthorizedAccessException) {}
-            } catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Security.SecurityException) {}
+                    try {if(ShownFolder(dir))list.Add(dir.FullName);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);} catch(System.Security.SecurityException quiet) {ErrorLog.Quiet(quiet);}
             list.Sort((a,b)=>StrCmpLogicalW(Path.GetFileName(a),Path.GetFileName(b)));
             return list;
         }
@@ -462,7 +477,7 @@ namespace LoveMyShelf {
                     string path=waiting.Pop();
                     if(!seen.Add(path))continue;
                     try {foreach(string inner in FoldersToScan(path,coverFolder))waiting.Push(inner);}
-                    catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Security.SecurityException) {}
+                    catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);} catch(System.Security.SecurityException quiet) {ErrorLog.Quiet(quiet);}
                     try {
                         if(!HasPictures(path))continue;
                         int unreadable;
@@ -494,7 +509,7 @@ namespace LoveMyShelf {
                     string full=PlainPath(inner.FullName);
                     if(coverFolder!=null && String.Equals(full,coverFolder,StringComparison.OrdinalIgnoreCase))continue;
                     list.Add(full);
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             return list;
         }
@@ -510,7 +525,7 @@ namespace LoveMyShelf {
         static extern IntPtr FindFirstFile(string path,out FindData data);
         [DllImport("kernel32.dll")] static extern bool FindClose(IntPtr handle);
         // Junctions and symbolic links can point back up and never end. OneDrive folders are marked in a similar way but are real.
-        static bool IsFolderLink(DirectoryInfo dir) {
+        internal static bool IsFolderLink(DirectoryInfo dir) {
             if((dir.Attributes&FileAttributes.ReparsePoint)==0)return false;
             FindData data;
             IntPtr handle=FindFirstFile(dir.FullName,out data);
@@ -694,12 +709,12 @@ namespace LoveMyShelf {
                         swapped.Add(Tuple.Create(backup,pair.Item2));
                     }
                 } catch {
-                    foreach(var done in swapped)try {File.Copy(done.Item1,done.Item2,true);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                    foreach(var done in swapped)try {File.Copy(done.Item1,done.Item2,true);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
                     throw;
                 }
             } finally {
-                foreach(var pair in parts)try {File.Delete(pair.Item1);} catch(IOException) {} catch(UnauthorizedAccessException) {}
-                foreach(var done in swapped)try {File.Delete(done.Item1);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                foreach(var pair in parts)try {File.Delete(pair.Item1);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+                foreach(var done in swapped)try {File.Delete(done.Item1);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
         }
         // The place a record has right now on disk. A window that has been open for a while may still hold an older one.
@@ -725,10 +740,10 @@ namespace LoveMyShelf {
                         token.ThrowIfCancellationRequested();
                         try {
                             if(File.Exists(cover.Original))SaveSceneTime(cover,MotionMaker.MomentOf(cover,cover.Original));
-                        } catch(OperationCanceledException) {throw;} catch(Exception) {}
+                        } catch(OperationCanceledException) {throw;} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     }
                 }
-            } catch(Exception) {}
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
         }
         static void SaveSceneTime(Photo cover,double ms) {
             string metadata=Path.Combine(cover.Folder,"photo.xml");
@@ -773,7 +788,7 @@ namespace LoveMyShelf {
                         var cover=Read(folder);
                         if(!cover.HasCrop || cover.ExcludedFromCollection)continue;
                         candidates.Add(cover);
-                    } catch(Exception) {}
+                    } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 }
                 if(candidates.Count==0)return null;
                 var best=InCoverOrder(candidates)[0];
@@ -788,7 +803,7 @@ namespace LoveMyShelf {
             if(!Directory.Exists(parent))return covers;
             foreach(string folder in Directory.GetDirectories(parent,RecordBase(photo)+"*")) {
                 try {if(File.Exists(Path.Combine(folder,"photo.xml")))covers.Add(Read(folder,photo.Linked?photo.Original:null));}
-                catch(Exception) {}
+                catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             }
             return covers;
         }
@@ -830,7 +845,7 @@ namespace LoveMyShelf {
                     // The first cover was deleted earlier while other covers remained: the earliest one moves up.
                     try {
                         if(PromoteExtraCover(folder)!=null){photos.Add(Read(folder,path));added=true;}
-                    } catch(Exception) {}
+                    } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 }
                 if(!added)photos.Add(new Photo {Folder=folder,Name=name,Original=path,Linked=true,RecordDamaged=damaged});
                 foreach(string extra in extraFolders["p-"+Key(name)]) {
@@ -882,7 +897,7 @@ namespace LoveMyShelf {
             double? sceneMs=picture!=null || selectedTime.HasValue?null:selectedFrame==old.FrameIndex?old.SavedSceneMs:null;
             if(picture==null && !selectedTime.HasValue && !sceneMs.HasValue && selectedFrame>0 && AnimationFrames.Supports(original)) {
                 try {sceneMs=MotionMaker.MomentOf(new Photo {FrameIndex=selectedFrame},original);}
-                catch(OperationCanceledException) {throw;} catch(Exception) {}
+                catch(OperationCanceledException) {throw;} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             }
             Directory.CreateDirectory(old.Folder);
             string id = Guid.NewGuid().ToString("N");
@@ -946,17 +961,17 @@ namespace LoveMyShelf {
             } catch {
                 File.Delete(part); File.Delete(newThumb); File.Delete(display);
                 if(coverFile!=null)File.Delete(coverFile);
-                if(pictureCopy!=null)try {File.Delete(pictureCopy);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                if(pictureCopy!=null)try {File.Delete(pictureCopy);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
                 throw;
             }
             SharedCoverFiles.RemoveSuperseded(previous);
             // A cover remade from something else leaves no stray copy of the picture it used before.
             if(old.Picture!=null && !String.Equals(old.Picture,pictureName,StringComparison.OrdinalIgnoreCase)) {
-                try {File.Delete(old.PictureFile);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                try {File.Delete(old.PictureFile);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             if(old.Thumb!=null) {
                 try { File.Delete(old.Thumb);File.Delete(old.LegacyImage); }
-                catch(IOException) { } catch(UnauthorizedAccessException) { }
+                catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             if(old.Linked && coverDirectory==null) OriginalLocator.Remember(old,original);
             var result=Read(old.Folder,old.Linked?original:null);

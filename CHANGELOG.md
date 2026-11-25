@@ -7,6 +7,46 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ---
 
+## 1.0.7 · 2026-11-25
+
+태그와 얼굴로 보고 싶은 파일을 모을 수 있어요. 파일이나 폴더를 여러 개 보낼 때는 대기열에서 지금 어느 파일을 얼마나 보냈는지 볼 수 있어요.
+
+- **태그로 파일 모아 보기:** 폴더 창에서 칸을 오른쪽 클릭하고 [태그…]를 눌러요. ‘여행’처럼 나중에 찾기 쉬운 이름을 적고 Enter를 누르면 돼요. 여러 칸을 선택하면 한 번에 붙일 수 있어요. 아래쪽 가운데의 [태그]에서 이름을 고르면 여러 폴더에 흩어진 파일도 한곳에 모여요. 파일 탐색기에서 이름을 바꾸거나 같은 드라이브 안에서 옮겨도 대부분 태그가 따라가요. 폴더 창이 열려 있었다면 F5를 눌러 새로 고침해 보세요.
+- **얼굴로 사람 찾기:** 폴더 창 아래쪽 가운데의 [태그]를 누르고 목록 맨 아래에서 [얼굴로 사람 찾기…]를 열어요. [얼굴 찾기]를 누르면 JPG 표지에서 닮은 얼굴끼리 모아 줘요. 묶음을 살펴보고 이름을 적은 뒤 [이름 붙이고 태그 달기]를 누르면 그 표지들의 원본에 태그가 붙어요. 얼굴을 찾고 묶는 일은 모두 이 컴퓨터 안에서만 해요. 표지 그림이나 얼굴 정보는 밖으로 보내지 않아요.
+- **파일과 폴더를 순서대로 보내는 파일 대기열:** 파일을 옮기거나 복사하면 작업이 대기열에 쌓이고 하나씩 시작돼요. 폴더 칸을 끌어다 놓으면 안에 든 파일까지 통째로 보내요. 폴더 창 아래 줄의 ⇄ 버튼을 누르면 작업마다 [일시정지], [이어서], [취소]를 고를 수 있고, 기다리는 작업은 ↑, ↓, [맨 앞으로]로 순서를 바꿀 수 있어요. 보내다가 프로그램을 닫아도 다음에 열면 작업이 멈춘 채 남아 있어요. [이어서]를 누르면 멈춘 곳부터 계속해요. 복사본이 원본과 같은지 확인하고 싶다면 설명서 겸 옵션의 [파일 둘러보기]에서 [하나하나 확인하기]를 골라요.
+- **대기열에서 파일 하나씩 진행 상황 보기:** 파일 대기열에서 작업의 [파일 목록 보기]를 누르면 그 작업에 든 파일이 모두 나와요. 다 보낸 파일에는 ✓가 붙고, 지금 보내는 파일에는 ▶와 함께 그 파일을 몇 퍼센트 보냈는지 숫자와 막대로 보여 줘요. 아직 기다리는 파일도 같은 목록에서 볼 수 있어요. 목록을 둘러보다가 [지금 보내는 파일로]를 누르면 보내는 중인 줄로 돌아가요. 파일이 있는 폴더를 열려면 그 줄을 더블클릭해요.
+- **MP4 GIF 표지에 소리 넣기:** 영상으로 GIF 표지를 만들 때 파일 종류를 MP4로, 재생 방식을 [반복]으로 고르고 [소리 넣기]를 켜요. 폴더 창에서 그 칸에 마우스를 올리면 그림과 소리가 함께 재생되고, 마우스를 떼면 소리가 멈춰요. 조용히 둘러보고 싶으면 설명서 겸 옵션의 ‘칸에 마우스를 올리면 소리도 낼까요?’에서 소리를 끌 수 있어요.
+- **크게 보기 단축키 바꾸기:** F1을 눌러 설명서 겸 옵션을 열고 왼쪽 목록 맨 아래의 [고급]을 눌러요. 바꾸고 싶은 동작 오른쪽의 키를 누른 다음 키보드에서 원하는 키를 하나 눌러요. 이미 열려 있는 크게 보기 창에서도 바로 쓸 수 있어요. 처음 쓰던 키로 모두 되돌리고 싶으면 맨 아래의 [모두 원래대로]를 눌러요.
+- **화면 전체를 뽀얗게 밝히기:** 영상을 보거나 표지를 만들 때 R을 누를 때마다 ‘부드럽게’, ‘어두운 곳 보기’, ‘뽀얗게’ 순서로 밝기 방식이 바뀌어요. ‘뽀얗게’에서 E를 누르면 얇은 흰 막을 덧댄 듯 화면 전체가 밝아져요. W로 밝기를 낮추거나 Q로 원래 밝기로 돌아갈 수 있어요.
+- **‘부드럽게’로 더 환하게 밝히기:** 기본 밝기 방식인 ‘부드럽게’의 효과가 더 커졌어요. 얼굴이나 장면이 어둡게 보일 때 E를 눌러 보세요. 부드러운 느낌을 살리면서 전보다 더 환하게 볼 수 있어요.
+- **GIF 표지 구간의 시작과 끝을 한눈에 보기:** GIF 표지 만들기 창의 장면 띠 위에 양 끝이 둥근 손잡이로 표시돼요. 손잡이 사이의 색 있는 선이 고른 구간이에요. 장면 띠에서 그 구간 바깥을 더블클릭하면 가까운 손잡이가 그 자리로 와요. 크게 보기의 재생바에서도 옅은 색 띠와 양 끝 표시로 같은 구간을 알아볼 수 있어요.
+- **4K 영상 장면 고르기와 GIF 표지 장면 띠가 빨라졌어요:** 4K 영상에서 표지로 쓸 장면을 고를 때 멈춘 곳 앞뒤의 장면 목록이 더 빨리 나와요. GIF 표지 만들기 창에서도 처음 장면 띠가 보이기까지 덜 기다려요.
+- **다른 드라이브로 옮길 때 원본을 한 번 더 확인하고 지워요:** 파일을 다른 드라이브로 옮기면 복사가 끝난 뒤에 원본을 지워요. 이제 지우기 직전에, 복사할 때와 달라진 점이 없는지 한 번 더 확인해요. 그사이 원본이 바뀌었으면 지우지 않고 알려 줘요. 멈췄다가 이어서 보낼 때도 같은 파일이 맞는지 확인해요.
+- **문제가 생기면 이 컴퓨터에 기록을 남겨요:** 프로그램에 문제가 생기면 무슨 일이 있었는지 %LOCALAPPDATA%\LoveMyShelf\errors.txt 파일에 적어 둬요. 이 컴퓨터에만 남고 인터넷으로 보내지 않아요. 파일 탐색기 주소창에 %LOCALAPPDATA%\LoveMyShelf 를 붙여 넣고 Enter를 누르면 그 폴더가 열려요. 문제를 알려 줄 때 이 파일을 함께 보내면 원인을 찾기 쉬워요. 파일 이름과 폴더 위치가 들어 있을 수 있으니 보내기 전에 메모장으로 한번 열어 보세요.
+- **WebP 칸의 투명 여백 줄이기:** 폴더 창에서 WebP 그림 가장자리의 투명한 여백 때문에 그림이 칸 안에 작게 보이던 문제를 고쳤어요. 이제 칸에 보여 줄 때 그 여백을 잘라 그림을 더 크게 볼 수 있어요.
+- **전체 화면을 최소화했다 돌아와도 단축키가 돼요:** 전체 화면에서 창을 최소화한 뒤 작업 표시줄에서 다시 열면 단축키가 듣지 않던 문제를 고쳤어요. 창으로 돌아온 뒤에도 보던 화면에서 바로 키를 누를 수 있어요.
+- **알림을 눌러도 업데이트되지 않던 문제:** 새 버전 알림을 눌러 업데이트하면 ‘Love My Shelf가 이미 실행 중이에요’라는 창이 뜨고 쓰던 버전으로 돌아가던 문제를 고쳤어요. 업데이트를 마치지 못하면 쓰던 버전이 다시 켜지면서 알려 줘요. 그 알림을 누르면 다운로드 페이지가 열려요.
+
+---
+
+Use tags and faces to collect the files you want to see. When sending several files or folders, the queue shows which file is being sent and how much of it has arrived.
+
+- **Collect files by tag:** In the folder window, right-click a tile and click [Tags…]. Type a name you can find later, such as ‘Travel’, and press Enter. Select several tiles to tag them all at once. Choose a name under [Tags] at the bottom middle to see files from different folders together. Tags usually follow when you rename a file in File Explorer or move it within the same drive. If the folder window was open, press F5 to refresh.
+- **Find people by face:** Click [Tags] at the bottom middle of the folder window and open [Find people by face…] at the bottom of the list. Click [Find faces] to group similar faces from JPG covers. Look through a group, type a name and click [Name them and tag] to tag the originals behind those covers. Finding and grouping faces happens entirely on this computer. No cover pictures or face information are sent out.
+- **A file queue for sending files and folders in order:** When you move or copy files, the jobs line up and start one at a time. Drag a folder tile to send the whole folder with the files inside. Click the ⇄ button in the bottom bar of the folder window to choose [Pause], [Go on] or [Cancel] for each job. Use ↑, ↓ or [To the front] to reorder waiting jobs. If you close the program while sending, the jobs are still there, paused, the next time you open it. Click [Go on] to continue from where you stopped. To check that each copy matches its original, choose [Check every copy] under [Browsing files] in Guide & Options.
+- **See progress for each file in the queue:** In the file queue, click [Show the files] on a job to see every file in it. Finished files have a ✓. The file being sent has a ▶, with a percentage and a bar showing how much of that file has been sent. Waiting files appear in the same list. After browsing the list, click [To the file being sent] to return to the current row. Double-click a row to open the folder containing that file.
+- **Include sound in an MP4 GIF cover:** When making a GIF cover from a video, choose MP4 as the file type, choose [Loop] as the play style and turn on [Put the sound in]. Move the mouse over that tile in the folder window and the picture and sound play together. Move the mouse away and the sound stops. To browse quietly, turn the sound off under ‘Should a tile play its sound when the mouse is on it?’ in Guide & Options.
+- **Change the large view’s shortcuts:** Press F1 to open Guide & Options and click [Advanced] at the bottom of the list on the left. Click the key to the right of the action you want to change, then press the single key you want on the keyboard. You can use it right away, even in a large view window that is already open. To restore all the original keys, click [Put all keys back] at the bottom.
+- **Brighten the whole picture with Milky:** While watching a video or making a cover, each press of R cycles through Soft, See in the dark and Milky, in that order. With Milky selected, press E to brighten the whole picture as though adding a thin white layer. Press W to lower the brightness or Q to return to the original brightness.
+- **Brighten the picture more with Soft:** The default brightness style, Soft, now has a stronger effect. If a face or scene looks dark, press E. You can make it brighter than before while keeping the soft look.
+- **See the start and end of a GIF cover part at a glance:** Above the scene strip in the Make GIF cover window, round handles mark both ends. The colored line between the handles shows the part you chose. Double-click outside that part on the scene strip to bring the nearer handle there. In the large view, a pale band and marks at both ends show the same part on the playback bar.
+- **Faster scene selection for 4K videos and a faster GIF cover scene strip:** When choosing a cover scene from a 4K video, the list of scenes around the point where you paused appears sooner. In the Make GIF cover window, there is also less waiting for the first scene strip to appear.
+- **The original is checked once more before it is deleted when moving to another drive:** When you move a file to another drive, the original is deleted after the copy is finished. Now, right before deleting, Love My Shelf checks once more that nothing has changed since it was copied. If the original has changed in the meantime, it is not deleted and you are told. When a paused job goes on, it also checks that the file is still the same one.
+- **When something goes wrong, a record is kept on this computer:** When something goes wrong in the program, what happened is written to the file %LOCALAPPDATA%\LoveMyShelf\errors.txt. It stays on this computer and is not sent over the internet. Paste %LOCALAPPDATA%\LoveMyShelf into the address bar of File Explorer and press Enter to open that folder. If you send this file along when you report a problem, the cause is easier to find. It may contain file names and folder locations, so open it in Notepad before sending it.
+- **Trim transparent margins in WebP tiles:** Fixed a problem in the folder window where transparent margins around a WebP picture made it look small inside its tile. Those margins are now trimmed when the tile is displayed, so you can see the picture more clearly at a larger size.
+- **Shortcuts work after returning from a minimized full-screen window:** Fixed a problem where shortcuts stopped responding after you minimized a full-screen window and brought it back from the taskbar. When you return to the window, you can use the keys right away on the screen you were viewing.
+- **The update did not go through when the notice was clicked:** Fixed a problem where updating from the new version notice showed a window saying ‘Love My Shelf is already running’ and went back to the version you were using. If an update can’t be finished, the version you were using starts again and tells you. Click that notice to open the download page.
+
 ## 1.0.6 · 2026-11-25
 
 영상을 보면서 GIF 표지 구간을 바로 정하고, 돌리거나 확대한 화면 그대로 표지를 만들 수 있어요. 화면을 오른쪽 클릭하면 모든 조작이 키와 함께 한눈에 보여요.

@@ -583,6 +583,8 @@ namespace LoveMyShelf {
             PreviewKeyDown+=(s,e)=>{
                 var key=e.Key==System.Windows.Input.Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 if(key==System.Windows.Input.Key.System)key=e.SystemKey;
+                // The copy below can't say "held down", so a held key doesn't repeat a once-per-press job here.
+                if(e.IsRepeat && ViewerKeys.OncePerPress(ViewerKeys.ActionFor(key))){e.Handled=true;return;}
                 var forwarded=new System.Windows.Input.KeyEventArgs(e.KeyboardDevice,PresentationSource.FromVisual(owner),e.Timestamp,key) {
                     RoutedEvent=System.Windows.Input.Keyboard.PreviewKeyDownEvent};
                 owner.RaiseEvent(forwarded);

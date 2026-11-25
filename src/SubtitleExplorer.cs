@@ -151,7 +151,10 @@ namespace LoveMyShelf {
         void ForwardKeys(object sender,KeyEventArgs e) {
             if(Keyboard.FocusedElement is TextBox)return;
             var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
-            if(key!=Key.Space && key!=Key.D && key!=Key.F && key!=Key.Left && key!=Key.Right)return;
+            // The keys that play, step a scene or skip, as set in Guide & Options → Advanced (Space, D, F, ← → by default).
+            string job=ViewerKeys.ActionFor(key);
+            if(job!="play" && job!="sceneBack" && job!="sceneForward" && job!="back" && job!="forward")return;
+            if(e.IsRepeat && ViewerKeys.OncePerPress(job)){e.Handled=true;return;}
             var source=PresentationSource.FromVisual(viewer);
             if(source==null)return;
             viewer.RaiseEvent(new KeyEventArgs(e.KeyboardDevice,source,e.Timestamp,key) {RoutedEvent=Keyboard.PreviewKeyDownEvent});

@@ -22,14 +22,13 @@ namespace LoveMyShelf {
         readonly bool snapEdges;
         readonly double wheelZoomFactor;
         public double Rotation { get; private set; }
-        // The value saved with the cover: the level and its style (see Light). An old cover keeps its white or black
-        // sheet until the brightness or the style is changed here.
+        // The value saved with the cover: the level and its style (see Light). An old cover's white or black sheet is Milky.
         internal int Brightness {get {return Light.Encode(Level,style);}}
         int style=Light.Soft;
         // The -100..100 number on the slider.
         internal int Level {get;private set;}
-        // Soft or See in the dark; an old cover's sheet counts as Soft on the button.
-        internal int LightStyle {get {return style==Light.Dark?Light.Dark:Light.Soft;}}
+        // Soft, See in the dark or Milky.
+        internal int LightStyle {get {return style;}}
         Point last;
         internal event Action RotationChanged;
         internal event Action BrightnessChanged;
@@ -87,12 +86,12 @@ namespace LoveMyShelf {
         internal void SetBrightness(double value) {
             int level=Light.Clamp((int)Math.Round(value));
             if(level==Level)return;
-            Level=level;if(style==Light.Sheet)style=Light.Soft;InvalidateVisual();
+            Level=level;InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
         }
-        // R: Soft and See in the dark take turns. The level stays.
+        // R: Soft, See in the dark and Milky take turns. The level stays.
         internal void SwitchStyle() {
-            style=LightStyle==Light.Dark?Light.Soft:Light.Dark;InvalidateVisual();
+            style=Light.NextStyle(style);InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
         }
         internal static double NormalizeRotation(double angle) {
@@ -286,7 +285,7 @@ namespace LoveMyShelf {
             var value=UI.Text("",12);value.MinWidth=40;bar.Children.Add(value);
             var reset=RotationShortcut("0","Reset brightness to 0",()=>Surface.SetBrightness(0));
             UI.Right(bar,reset);
-            // R: the style in use (Soft or See in the dark); a click switches to the other.
+            // R: the style in use (Soft, See in the dark or Milky); a click moves to the next.
             var style=RotationShortcut("","Switch brightness style",()=>Surface.SwitchStyle());
             UI.Right(bar,style);
             var slider=new DragSlider {Minimum=-100,Maximum=100,TickFrequency=1,IsSnapToTickEnabled=true,

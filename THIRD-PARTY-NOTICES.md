@@ -23,6 +23,13 @@ Love My Shelf itself is licensed under the GNU General Public License v3.0 (see 
 - License: Apache License 2.0, <https://www.apache.org/licenses/LICENSE-2.0>.
 - Paper: Conde et al., *Swin2SR: SwinV2 Transformer for Compressed Image Super-Resolution and Restoration*, ECCV 2022 Workshops.
 
+## Face models (`faces/face_detection_yunet_2023mar.onnx`, `faces/face_recognition_sface_2021dec.onnx`)
+
+- What they do: the two AI models used by **Find people by face**. They run on this computer only, through the ONNX Runtime above.
+- YuNet (finds faces): from the OpenCV Model Zoo, <https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet>. License: MIT, full text in `faces/LICENSE-face_detection_yunet_2023mar.onnx.txt`.
+- SFace (describes a face as 128 numbers): from the OpenCV Model Zoo, <https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface>. License: Apache License 2.0, full text in `faces/LICENSE-face_recognition_sface_2021dec.onnx.txt`.
+- Papers: *YuNet: A Tiny Millisecond-level Face Detector*, <https://link.springer.com/article/10.1007/s11633-023-1423-y>; *SFace: Sigmoid-Constrained Hypersphere Loss for Robust Face Recognition*, <https://arxiv.org/abs/2205.12010>.
+
 ## FFmpeg (`tools/ffmpeg.exe`, `tools/ffprobe.exe`, `tools/*.dll`)
 
 - What it does: reads video frames for video covers.

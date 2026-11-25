@@ -174,7 +174,46 @@ namespace LoveMyShelf {
             bool alpha=false;
             for(int i=3;i<pixels.Length;i+=4)if(pixels[i]!=0){alpha=true;break;}
             var image=BitmapSource.Create(w,h,96,96,alpha?PixelFormats.Pbgra32:PixelFormats.Bgr32,null,pixels,stride);
-            image.Freeze();return image;
+            image.Freeze();
+            if(alpha) {
+                var picture=Letterbox(pixels,w,h);
+                if(picture.HasValue) {
+                    var cropped=new CroppedBitmap(image,picture.Value);cropped.Freeze();return cropped;
+                }
+            }
+            return image;
+        }
+        // Some thumbnail handlers (WebP) put the picture in the middle of a square and leave the sides (or the top
+        // and bottom) see-through. A tile fits the whole square, so the picture came out small. Returns the picture
+        // part only when the see-through edges are on two opposite sides, about the same width, with a fully solid
+        // picture edge next to them (Windows pads a tall picture into a square or a less tall shape); a picture that is see-through itself (a logo, a sticker) is left as it is.
+        static System.Windows.Int32Rect? Letterbox(byte[] pixels,int w,int h) {
+            int stride=w*4;
+            Func<int,bool> clearColumn=x=>{for(int y=0;y<h;y++)if(pixels[y*stride+x*4+3]!=0)return false;return true;};
+            Func<int,bool> clearRow=y=>{for(int x=0;x<w;x++)if(pixels[y*stride+x*4+3]!=0)return false;return true;};
+            Func<int,bool> solidColumn=x=>{for(int y=0;y<h;y++)if(pixels[y*stride+x*4+3]!=255)return false;return true;};
+            Func<int,bool> solidRow=y=>{for(int x=0;x<w;x++)if(pixels[y*stride+x*4+3]!=255)return false;return true;};
+            int left=0,right=0,top=0,bottom=0;
+            while(left<w && clearColumn(left))left++;
+            if(left==w)return null;
+            while(clearColumn(w-1-right))right++;
+            while(clearRow(top))top++;
+            while(clearRow(h-1-bottom))bottom++;
+            bool sides=left>0 && right>0 && top==0 && bottom==0 && Math.Abs(left-right)<=1;
+            bool ends=top>0 && bottom>0 && left==0 && right==0 && Math.Abs(top-bottom)<=1;
+            // The picture's edge may land between two pixels and come out half see-through: that one line goes too.
+            if(sides) {
+                if(!solidColumn(left) && left+2<w-right && solidColumn(left+1))left++;
+                if(!solidColumn(w-1-right) && w-2-right>left && solidColumn(w-2-right))right++;
+                sides=solidColumn(left) && solidColumn(w-1-right);
+            }
+            if(ends) {
+                if(!solidRow(top) && top+2<h-bottom && solidRow(top+1))top++;
+                if(!solidRow(h-1-bottom) && h-2-bottom>top && solidRow(h-2-bottom))bottom++;
+                ends=solidRow(top) && solidRow(h-1-bottom);
+            }
+            if(!sides && !ends)return null;
+            return new System.Windows.Int32Rect(left,top,w-left-right,h-top-bottom);
         }
         [ComImport,Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         interface IShellItemImageFactory {

@@ -3,6 +3,7 @@
 !/.gitignore
 !/*.md
 /AGENTS.md
+/HISTORY.md
 !/src/
 !/*.ps1
 !/LICENSE

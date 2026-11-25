@@ -67,6 +67,7 @@ namespace LoveMyShelf {
         static extern void SHCreateItemFromParsingName(string path,IntPtr context,ref Guid iid,out IntPtr item);
 
         internal static void MoveFile(string path,IntPtr owner) {
+            TileSound.Stop(); // a cover whose sound is playing would be "in use"
             if(!File.Exists(path))throw new FileNotFoundException(L.T("The original file could not be found."),path);
             var id=new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");
             IntPtr item=IntPtr.Zero;

@@ -73,6 +73,12 @@ namespace LoveMyShelf {
             if(photo==null || other==null)return false;
             return GalleryWindow.SameOriginal(photo,other) || HoldsPath(other.Original);
         }
+        // True when the file a cover is being made from is somewhere inside this folder.
+        internal static bool HoldsUnder(string folder) {
+            if(original==null || String.IsNullOrEmpty(folder))return false;
+            try {return Renamer.IsAt(Path.GetFullPath(original),Path.GetFullPath(folder));}
+            catch(Exception) {return false;}
+        }
         internal static bool HoldsPath(string path) {
             if(original==null || String.IsNullOrEmpty(path))return false;
             try {return String.Equals(Path.GetFullPath(original),Path.GetFullPath(path),StringComparison.OrdinalIgnoreCase);}

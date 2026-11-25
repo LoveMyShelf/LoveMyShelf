@@ -16,7 +16,7 @@ using System.Xml.Linq;
 namespace LoveMyShelf {
     internal static class AppInfo {
         // Keep in step with the GitHub release tag (v1.2.0 and so on).
-        internal const string Version="1.0.6";
+        internal const string Version="1.0.7";
         // The last version without the "updated" notice: someone coming from it has no record of what they last saw.
         internal const string LastWithoutNotice="1.0.4";
         internal const string ReleasesPage="https://github.com/LoveMyShelf/LoveMyShelf/releases/latest";
@@ -251,7 +251,7 @@ namespace LoveMyShelf {
                 if(File.Exists(target))File.Delete(target);
                 File.Move(part,target);
             } finally {
-                try {if(File.Exists(part))File.Delete(part);} catch(IOException) {} catch(UnauthorizedAccessException) {}
+                try {if(File.Exists(part))File.Delete(part);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
         }
 
@@ -298,9 +298,12 @@ namespace LoveMyShelf {
                         string next=target+NewSuffix,final=target;
                         Retry(()=>File.Move(next,final));
                     }
-                } catch(Exception) {
+                } catch(Exception failed) {
+                    ErrorLog.Serious("Update could not be put in place",failed);
                     Undo(swapped,fresh);MarkFailed(stage);
-                    guard.ReleaseMutex();
+                    // Let go of it altogether before the version before it starts: an older one takes this still being
+                    // open to mean a copy is already running.
+                    guard.ReleaseMutex();guard.Close();
                     Launch(exe,appDir);
                     return 1;
                 }
@@ -310,7 +313,7 @@ namespace LoveMyShelf {
                 }
                 if(Take(guard,30)) {
                     Undo(swapped,fresh);MarkFailed(stage);
-                    guard.ReleaseMutex();
+                    guard.ReleaseMutex();guard.Close();
                     Launch(exe,appDir);
                 }
                 return 1;
@@ -335,48 +338,93 @@ namespace LoveMyShelf {
                 try {
                     Retry(()=>{if(File.Exists(pair.Item1))File.Delete(pair.Item1);});
                     if(pair.Item2!=null)Retry(()=>File.Move(pair.Item2,pair.Item1));
-                } catch(Exception) {}
+                } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             }
-            foreach(string path in fresh)try {if(File.Exists(path))File.Delete(path);} catch(Exception) {}
+            foreach(string path in fresh)try {if(File.Exists(path))File.Delete(path);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
         }
         static void MarkFailed(string stage) {
-            try {File.WriteAllText(Path.Combine(stage,FailedName),DateTime.UtcNow.ToString("o"));} catch(Exception) {}
-            try {string files=Path.Combine(stage,"files");if(Directory.Exists(files))Directory.Delete(files,true);} catch(Exception) {}
+            try {File.WriteAllText(Path.Combine(stage,FailedName),DateTime.UtcNow.ToString("o"));} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+            try {string files=Path.Combine(stage,"files");if(Directory.Exists(files))Directory.Delete(files,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
         }
         static Process Launch(string exe,string appDir) {
             try {return Process.Start(new ProcessStartInfo(exe) {UseShellExecute=false,WorkingDirectory=appDir});}
             catch(Exception) {return null;}
         }
         // A new version that closes before its first window appears counts as failed.
+        // One that shows nothing for a long time may be stuck, or only slow (a drive waking up, an antivirus scan):
+        // from outside the two look the same, so it is never closed from here. The wait goes on five times as long
+        // instead, so that when the person gives up and ends it, the version before it still comes back.
         static bool StartedWell(Process process,EventWaitHandle ready,int seconds) {
             if(process==null)return false;
             using(process) {
-                var until=DateTime.UtcNow.AddSeconds(seconds);
-                while(DateTime.UtcNow<until) {
+                var waited=Stopwatch.StartNew(); // not the clock: it jumps when the computer sleeps or the time is set
+                bool noted=false;
+                while(waited.Elapsed.TotalSeconds<seconds*5.0) {
                     if(ready.WaitOne(250))return true;
                     if(process.HasExited)return ready.WaitOne(0);
+                    if(!noted && waited.Elapsed.TotalSeconds>=seconds) {
+                        noted=true;
+                        ErrorLog.Note("Update","The new version has not shown its first window after "+seconds+" seconds. Still waiting for it.");
+                    }
                 }
+                ErrorLog.Note("Update","The new version never reported its first window. It is left running, and the files of the version before it are kept.");
                 return true;
             }
         }
 
+        // An update that was undone and has not been told about yet: its version, once. The mark itself stays, since it
+        // also keeps that version from being tried again; a line added to it is what makes this happen only once.
+        const string ToldMark="told";
+        internal static string UndoneUpdate() {
+            try {
+                if(!Directory.Exists(UpdateRoot))return null;
+                string found=null;
+                foreach(string folder in Directory.GetDirectories(UpdateRoot)) {
+                    string version=Path.GetFileName(folder),mark=Path.Combine(folder,FailedName);
+                    System.Version parsed;
+                    // One mark that can't be read or written must not keep quiet about another that was just written.
+                    try {
+                        if(!System.Version.TryParse(version,out parsed) || !AppInfo.IsNewer(version,AppInfo.Version) || !File.Exists(mark))continue;
+                        if(File.ReadAllText(mark).Contains(ToldMark))continue;
+                        File.AppendAllText(mark,Environment.NewLine+ToldMark);
+                        if(found==null || AppInfo.IsNewer(version,found))found=version;
+                    } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+                }
+                return found;
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);return null;}
+        }
+        // True while the update helper is waiting to hear that this new version opened. If it can't open, closing
+        // at once (no window to answer first) is what lets the helper put the version before it back.
+        internal static bool HelperWaiting {
+            get {
+                if(reported)return false;
+                try {
+                    EventWaitHandle ready;
+                    if(!EventWaitHandle.TryOpenExisting(ReadyEvent,out ready))return false;
+                    ready.Dispose();
+                    return true;
+                } catch(Exception quiet) {ErrorLog.Quiet(quiet);return false;}
+            }
+        }
+        static volatile bool reported;
         // Called once the first window is on screen: tells the helper all is well, then clears what's left.
         internal static void ReportStarted() {
+            reported=true;
             try {
                 EventWaitHandle ready;
                 if(EventWaitHandle.TryOpenExisting(ReadyEvent,out ready))using(ready)ready.Set();
-            } catch(Exception) {}
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             string appDir=AppFolder;
             Task.Delay(5000).ContinueWith(delegate {
-                try {string backup=Path.Combine(appDir,BackupFolder);if(Directory.Exists(backup))Directory.Delete(backup,true);} catch(Exception) {}
+                try {string backup=Path.Combine(appDir,BackupFolder);if(Directory.Exists(backup))Directory.Delete(backup,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 try {
                     if(!Directory.Exists(UpdateRoot))return;
                     foreach(string folder in Directory.GetDirectories(UpdateRoot)) {
                         System.Version parsed;
                         if(System.Version.TryParse(Path.GetFileName(folder),out parsed) && !AppInfo.IsNewer(parsed.ToString(),AppInfo.Version))
-                            try {Directory.Delete(folder,true);} catch(Exception) {}
+                            try {Directory.Delete(folder,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     }
-                } catch(Exception) {}
+                } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             });
         }
     }

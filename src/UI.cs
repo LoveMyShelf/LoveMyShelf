@@ -158,6 +158,8 @@ namespace LoveMyShelf {
             }));
         }
         [STAThread] public static void Main(string[] args) {
+            // From here on, whatever ends the program without warning leaves its reason in errors.txt (the helpers too).
+            ErrorLog.WatchCrashes();
             // The update helper: a copy of this program that swaps the files after the app has closed.
             if(args.Length==3 && args[0]==AppUpdater.ApplySwitch) {
                 Environment.Exit(AppUpdater.RunApply(args[1],args[2]));
@@ -171,16 +173,29 @@ namespace LoveMyShelf {
                 Environment.Exit(UpscaleEngine.RunChild(args[1],args[2]));
                 return;
             }
+            // Finding faces runs the same way.
+            if(args.Length==3 && args[0]==FaceEngine.ChildSwitch) {
+                Environment.Exit(FaceEngine.RunChild(args[1],args[2]));
+                return;
+            }
             string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with Love My Shelf"
-            bool first;
-            using(var guard=new Mutex(true,AppUpdater.AppMutex,out first)) {
+            // Asked by taking it, not by whether it was already there: the update helper keeps it open, without holding
+            // it, while it waits for this new version to start, and that must not look like a second copy running.
+            using(var guard=new Mutex(false,AppUpdater.AppMutex)) {
+                bool first;
+                try {first=guard.WaitOne(0);} catch(AbandonedMutexException) {first=true;}
                 if(!first) {
                     // Hand the file to the program that is already running instead of complaining.
                     if(openPath!=null && ExplorerOpen.Send(openPath))return;
                     MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return;
                 }
+                // Never let go of here: it is let go when this thread ends, as late as can be, and the update helper waits for that.
                 PendingPath=openPath;
                 ExplorerOpen.Listen(OpenFromOutside);
+                bool running=false;
+                // Ending on a problem: the file queue stops where it is and is kept, as it is when the program is closed.
+                // It waits five seconds at most, since the thread that failed may be the one it would wait for.
+                ErrorLog.BeforeCrash=TransferQueue.StopForCrash;
                 try {
                     var app=new Application();
                     using(Stream stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("LoveMyShelf.Theme.xaml"))
@@ -198,8 +213,33 @@ namespace LoveMyShelf {
                         try {Directory.CreateDirectory(root);prefs.Save(root);} catch(IOException) {} catch(UnauthorizedAccessException) {}
                         app.ShutdownMode=ShutdownMode.OnLastWindowClose;
                     }
-                    app.Run(new GalleryWindow(new GalleryStore(root)));
-                } catch(Exception ex) { MessageBox.Show(ex.Message,L.T("Could not open Love My Shelf"),MessageBoxButton.OK,MessageBoxImage.Error); }
+                    // Windows is shutting down or the person is signing out: the file queue stops where it is and is kept.
+                    app.SessionEnding+=delegate {try {TransferQueue.Shutdown();} catch(Exception quiet) {ErrorLog.Quiet(quiet);}};
+                    var firstWindow=new GalleryWindow(new GalleryStore(root));
+                    running=true;
+                    app.Run(firstWindow);
+                } catch(Exception ex) {
+                    if(AppUpdater.HelperWaiting) {
+                        // Just updated, and this version can't open: no window to answer, so the one before it comes back now.
+                        ErrorLog.Serious("The new version could not open",ex);
+                        if(running)ErrorLog.RunBeforeCrash();
+                        return;
+                    }
+                    if(!running) {
+                        ErrorLog.Serious("Could not open",ex);
+                        MessageBox.Show(ex.Message,L.T("Could not open Love My Shelf"),MessageBoxButton.OK,MessageBoxImage.Error);
+                    } else {
+                        // A problem nothing was ready for, in the middle of use.
+                        ErrorLog.Serious("Crash",ex);
+                        ErrorLog.RunBeforeCrash();
+                        // The windows are still there, in whatever state the problem left them: this window may be cut short by them.
+                        try {
+                            MessageBox.Show(L.PF("Love My Shelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}",
+                                "문제가 생겨서 Love My Shelf를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}",ex.Message,ErrorLog.Path),
+                                "Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Error);
+                        } catch(Exception again) {ErrorLog.Serious("While telling about the crash",again);}
+                    }
+                }
             }
         }
     }

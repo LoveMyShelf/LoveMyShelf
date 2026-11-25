@@ -30,7 +30,7 @@ namespace LoveMyShelf {
                     if(drive.DriveType!=DriveType.Fixed && drive.DriveType!=DriveType.Removable)continue;
                     uint serial=OriginalLocator.VolumeOf(drive.Name);
                     if(serial!=0)layout.Add(drive.Name,serial);
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             return layout;
         }
@@ -89,15 +89,19 @@ namespace LoveMyShelf {
                 foreach(var album in albums) {
                     token.ThrowIfCancellationRequested();
                     try {PlanAlbum(album,drives,plans,token);}
-                    catch(IOException) {} catch(UnauthorizedAccessException) {}
+                    catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
                 }
                 foreach(var plan in plans) {
                     token.ThrowIfCancellationRequested();
                     try {Hold(store,plan);}
-                    catch(IOException) {} catch(UnauthorizedAccessException) {} // in use: the next run tries again
+                    catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);} // in use: the next run tries again
                 }
                 if(plans.Count>0)PlaceHeld(store,drives,result,token);
                 FollowEmptyFolders(store,albums,visible,drives,result);
+                // A folder whose drive letter changed: the tags of all its files (with or without covers) go to its new record folder.
+                foreach(var pair in result.Albums.ToList())Tags.FolderMoved(pair.Key,pair.Value.Item1);
+                // Tagged files without a cover that were renamed or moved in File Explorer.
+                try {Tags.FollowFiles(store,token);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 RememberVolumes(albums,drives,result);
                 MoveTabs(store,visible,result);
                 RepointCoverFiles(store,drives,result,token);
@@ -118,7 +122,7 @@ namespace LoveMyShelf {
                 if(!OriginalLocator.Facts(record,out saved,out volume,out length)) {
                     // A record from an old version: learn which drive it is on while the file is here.
                     if(rootKnown && File.Exists(atHome)) {
-                        try {OriginalLocator.Remember(GalleryStore.Read(record,atHome),atHome,true);} catch(Exception) {}
+                        try {OriginalLocator.Remember(GalleryStore.Read(record,atHome),atHome,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     }
                     continue;
                 }
@@ -189,7 +193,7 @@ namespace LoveMyShelf {
             try {
                 lock(SharedCoverFiles.MetadataLock)Directory.Move(plan.Record,Path.Combine(holding,Guid.NewGuid().ToString("N")));
             } catch {
-                try {File.Delete(ticket);} catch(Exception) {}
+                try {File.Delete(ticket);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 throw;
             }
         }
@@ -211,17 +215,32 @@ namespace LoveMyShelf {
                     string target=Path.Combine(album.Folder,basis+suffix);
                     // A cover made meanwhile keeps its place; this one joins it as another cover of the same file.
                     if(Directory.Exists(target))target=Path.Combine(album.Folder,basis+"-"+Guid.NewGuid().ToString("N").Substring(0,10));
+                    // The name the record had until now: a file renamed in File Explorer was found again under its new name.
+                    string oldName=null;
+                    try {oldName=(string)XElement.Load(Path.Combine(held,"photo.xml")).Attribute("name");} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     SetName(held,name);
                     OriginalLocator.MovePath(held,Path.Combine(source,name));
                     lock(SharedCoverFiles.MetadataLock)Directory.Move(held,target);
-                    try {File.Delete(Path.Combine(target,Ticket));} catch(Exception) {}
+                    try {File.Delete(Path.Combine(target,Ticket));} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     result.Records++;
                     string from=(string)ticket.Attribute("from");
+                    if(from!=null)Tags.Moved(from,String.IsNullOrEmpty(oldName)?name:Path.GetFileName(oldName),album.Folder,name);
                     if((string)ticket.Attribute("drive")=="1" && from!=null && !Paths.Equals(from,album.Folder))
                         result.Albums[from]=Tuple.Create(album.Folder,album.Source);
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
-                catch(System.Xml.XmlException) {} catch(FormatException) {} catch(ArgumentException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+                catch(System.Xml.XmlException quiet) {ErrorLog.Quiet(quiet);} catch(FormatException) {} catch(ArgumentException) {}
             }
+        }
+        // Whether a folder is still on the drive its records were made on: null when the drive was never noted.
+        internal static bool? SameDriveAsBefore(string albumFolder,string source) {
+            try {
+                string file=Path.Combine(albumFolder,VolumeFile);
+                uint noted;
+                if(!File.Exists(file) || !UInt32.TryParse(File.ReadAllText(file).Trim(),out noted) || noted==0)return null;
+                uint now=OriginalLocator.VolumeOf(Path.GetPathRoot(Path.GetFullPath(source)));
+                if(now==0)return null;
+                return now==noted;
+            } catch(IOException) {return null;} catch(UnauthorizedAccessException) {return null;} catch(ArgumentException) {return null;}
         }
         static void SetName(string record,string name) {
             string metadata=Path.Combine(record,"photo.xml");
@@ -235,7 +254,7 @@ namespace LoveMyShelf {
         static void SaveOver(XElement xml,string file) {
             string part=file+"."+Guid.NewGuid().ToString("N")+".tmp";
             try {xml.Save(part);File.Replace(part,file,null);}
-            finally {try {File.Delete(part);} catch(Exception) {}}
+            finally {try {File.Delete(part);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}}
         }
 
         // A shelf folder without any covers has no record to follow, so its drive's number is kept beside it.
@@ -255,18 +274,18 @@ namespace LoveMyShelf {
                     if(!Directory.Exists(source))continue;
                     var moved=store.OpenSubfolder(source);
                     if(!Paths.Equals(moved.Folder,album.Folder))result.Albums[album.Folder]=Tuple.Create(moved.Folder,moved.Source);
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
         }
         static void RememberVolumes(List<Album> albums,DriveLayout drives,RelinkResult result) {
             foreach(var old in result.Albums.Keys)
-                try {File.Delete(Path.Combine(old,VolumeFile));} catch(Exception) {}
+                try {File.Delete(Path.Combine(old,VolumeFile));} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             foreach(var moved in result.Albums.Values) {
                 try {
                     uint serial;
                     if(drives.SerialOfRoot.TryGetValue(drives.RootOf(moved.Item2),out serial) && serial!=0)
                         File.WriteAllText(Path.Combine(moved.Item1,VolumeFile),serial.ToString());
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             foreach(var album in albums) {
                 try {
@@ -275,7 +294,7 @@ namespace LoveMyShelf {
                     uint serial;
                     if(drives.SerialOfRoot.TryGetValue(drives.RootOf(album.Source),out serial) && serial!=0)
                         File.WriteAllText(file,serial.ToString());
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
         }
         // The folder keeps its place among the tabs at its new address.
@@ -285,12 +304,12 @@ namespace LoveMyShelf {
             foreach(var pair in result.Albums)
                 if(visible.Contains(pair.Key))shown.Add(pair.Value.Item1);
             foreach(string folder in shown)
-                try {File.Delete(Path.Combine(folder,HiddenTabFile));} catch(Exception) {}
+                try {File.Delete(Path.Combine(folder,HiddenTabFile));} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             foreach(var pair in result.Albums) {
                 if(!visible.Contains(pair.Key) || shown.Contains(pair.Key))continue;
                 try {
                     if(Directory.GetDirectories(pair.Key,"p-*").Length==0)File.WriteAllText(Path.Combine(pair.Key,HiddenTabFile),"");
-                } catch(IOException) {} catch(UnauthorizedAccessException) {}
+                } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
             var names=result.Albums.ToDictionary(p=>Path.GetFileName(p.Key),p=>Path.GetFileName(p.Value.Item1),Paths);
             try {
@@ -304,7 +323,7 @@ namespace LoveMyShelf {
                     string now=File.ReadAllText(last).Trim();
                     if(names.ContainsKey(now))File.WriteAllText(last,names[now]);
                 }
-            } catch(IOException) {} catch(UnauthorizedAccessException) {}
+            } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
         }
 
         // Cover files can live on any drive. Their names carry a unique tag, so the same path on another drive is the same file.
@@ -336,8 +355,8 @@ namespace LoveMyShelf {
                             }
                             if(changed){SaveOver(xml,metadata);result.Files++;}
                         }
-                    } catch(IOException) {} catch(UnauthorizedAccessException) {}
-                    catch(System.Xml.XmlException) {} catch(ArgumentException) {}
+                    } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+                    catch(System.Xml.XmlException quiet) {ErrorLog.Quiet(quiet);} catch(ArgumentException) {}
                 }
             }
             FollowCoverFolder(store,drives,moves,result);
@@ -385,7 +404,7 @@ namespace LoveMyShelf {
                 xml.SetAttributeValue("coverDirectory",moved);
                 SaveOver(xml,options);
                 result.CoverDirectory=moved;
-            } catch(IOException) {} catch(UnauthorizedAccessException) {} catch(System.Xml.XmlException) {}
+            } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);} catch(System.Xml.XmlException quiet) {ErrorLog.Quiet(quiet);}
         }
     }
 }

@@ -51,6 +51,9 @@ namespace LoveMyShelf {
         Button AddButton(Action action) {
             var button=UI.Btn("",action);
             button.Style=(Style)Application.Current.Resources["TitleBarButton"];
+            // Like Windows' own caption buttons, a click here never takes the keys away from the window
+            // (in full screen the buttons sit on the video overlay, and the viewer's shortcuts stopped after minimizing).
+            button.Focusable=false;
             WindowChrome.SetIsHitTestVisibleInChrome(button,true);
             UI.Right(this,button);
             return button;

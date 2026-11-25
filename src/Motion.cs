@@ -9,7 +9,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Polygon=System.Windows.Shapes.Polygon;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -24,6 +23,9 @@ namespace LoveMyShelf {
         public double Speed=1; // 0.5 = half speed, 2 = twice as fast
         public string Loop="forward"; // forward, bounce (forward, then back) or reverse
         public int Quality=1; // 0 high, 1 normal, 2 smaller file
+        // MP4 only, from a video, playing forward: the video's sound for the same part goes into the file.
+        public bool Sound;
+        internal bool WithSound {get {return Sound && Format=="mp4" && Loop=="forward";}}
         // A file the Make GIF window already made with exactly these choices; Make then only has to move it into place.
         public string Prepared,PreparedKey;
         public double PreparedBefore,PreparedAfter;
@@ -38,7 +40,7 @@ namespace LoveMyShelf {
         internal string ToText() {
             var c=CultureInfo.InvariantCulture;
             return String.Format(c,"before={0};after={1};fps={2};height={3};format={4};speed={5};loop={6};quality={7}",
-                Math.Round(Before,3),Math.Round(After,3),Fps,Height,Format,Speed,Loop,Quality);
+                Math.Round(Before,3),Math.Round(After,3),Fps,Height,Format,Speed,Loop,Quality)+(Sound?";sound=1":"");
         }
         internal static MotionRequest Parse(string text) {
             if(String.IsNullOrEmpty(text))return null;
@@ -56,6 +58,8 @@ namespace LoveMyShelf {
                 if(r.Loop!="forward" && r.Loop!="bounce" && r.Loop!="reverse")return null;
                 if(r.Speed<=0 || r.Fps<=0 || r.Height<=0)return null;
                 r.Quality=Math.Max(0,Math.Min(2,r.Quality));
+                string sound;
+                r.Sound=values.TryGetValue("sound",out sound) && sound=="1"; // covers made before this had no sound
                 return r;
             } catch(Exception) {return null;}
         }
@@ -98,6 +102,7 @@ namespace LoveMyShelf {
         // speed and play style start fresh each time.
         // The pictures per second and the height are kept as values: a number typed in Guide & Options joins the lists below.
         static int lastFps=30,lastHeight=1280,lastQuality=0,lastFormat=1;
+        static bool lastSound=true; // the sound box starts checked; it only shows for an MP4 made from a video
         static double sideMs=1000;
         // From Guide & Options: how far apart the scenes of the preview are, in milliseconds.
         // This is the GIF window's own setting, apart from the scene step (Scenes.StepMs).
@@ -124,7 +129,7 @@ namespace LoveMyShelf {
         const int Thumbs=14; // pictures on the strip before its width is known
         // The pictures stay fully visible for exact work: only a three-pixel line just outside the start and end crosses them.
         // The handles, the chosen part and the cover and play marks live in a thin rail above and below the pictures.
-        const double PictureHeight=156,RailHeight=8,StripHeight=PictureHeight+2*RailHeight,ThumbGap=2;
+        const double PictureHeight=156,TopRail=PartLook.TopRail,StripHeight=PictureHeight+TopRail+PartLook.BottomRail,ThumbGap=2;
         // Strip pictures show the cover's own part of each scene, in its 9:16 shape, so a wider window shows
         // more of them (like a video editor's timeline) instead of stretching each one.
         const double CellWidth=PictureHeight*9/16;
@@ -154,8 +159,19 @@ namespace LoveMyShelf {
         DraftScenes draft;
         CancellationTokenSource draftWork;
         bool draftOn; // the preview is playing and the real file is not ready yet
-        // A small arrow in the rail under the pictures, pointing up at the scene now playing.
-        readonly Polygon playMark=new Polygon {IsHitTestVisible=false};
+        // A small round dot in the rail under the pictures, under the scene now playing, and a tiny card in the
+        // rail over them at the JPG cover's scene (see PartLook).
+        readonly FrameworkElement playMark=PartLook.PlayMark(),coverMark=PartLook.CoverMark();
+        double stripPixel=1; // one screen pixel in the strip's units
+        // What the mouse can do on the strip, always in view under it: the action in bold and a few words each.
+        TextBlock[] hintCaps,hintWords;
+        FrameworkElement wheelHint,hintBar,stripFrame;
+        WrapPanel hintRow;
+        Button back;
+        bool hintsPlaced,hintsBelow;
+        StackPanel chips;
+        readonly List<TextBlock> fieldNames=new List<TextBlock>();
+        int pointed=-1;
         ComboBox fps,height,quality,format;
         RadioButton[] loopChoices;
         double speed=1;
@@ -172,7 +188,7 @@ namespace LoveMyShelf {
         TextBlock help;
         // The layout. Wide: what is happening on the left of the preview, every choice on its right, and under them
         // only the strip and one row. Narrow: the choices come down under the strip, as before.
-        const double WideBottom=180,SideGap=18,SideMin=236,SideMax=340;
+        const double WideBottom=180,SideGap=18,SideMin=236,SideMax=480;
         DockPanel page,lastRow,compactGuide;
         StackPanel bottom,narrowHost,sidePanel,actions,moreChoices;
         Grid middle;
@@ -186,7 +202,8 @@ namespace LoveMyShelf {
         string makeLabel;
         // The card on the left: what the preview is right now, in plain words.
         readonly TextBlock guideTitle=UI.Text("",16),guideBody=UI.Text("",13,true),guideProgress=UI.Text("",13),guideFoot=UI.Text("",12.5,true),compactText=UI.Text("",12.5);
-        readonly TextBlock heightNote=UI.Text("",12,true);
+        readonly TextBlock heightNote=UI.Text("",12,true),soundNote=UI.Text("",12,true);
+        CheckBox sound;
         readonly Grid guideTrack=new Grid {Height=4,Margin=new Thickness(0,6,0,0)};
         readonly Border guideFill=new Border {CornerRadius=new CornerRadius(2),HorizontalAlignment=HorizontalAlignment.Left};
         // The background run that makes the real file for the preview, and what it made.
@@ -220,6 +237,8 @@ namespace LoveMyShelf {
             start=Math.Max(0,source.Moment-sideMs);end=source.Moment+sideMs;
             viewStart=Math.Max(0,source.Moment-span/2);
             int loopPick=0,fpsValue=lastFps,heightValue=lastHeight,qualityPick=lastQuality,formatPick=lastFormat;
+            // A saved MP4 opens as it was made. A saved GIF or WebP never had the choice, so it starts from the usual one.
+            bool soundPick=saved!=null && saved.Format=="mp4"?saved.Sound:lastSound;
             if(saved!=null) {
                 // Opens on the part and the choices the GIF was made with; the strip widens to show all of it.
                 start=Math.Max(0,source.Moment-saved.Before*1000);end=source.Moment+saved.After*1000;
@@ -246,10 +265,10 @@ namespace LoveMyShelf {
             int fpsPick=Array.IndexOf(rates,Math.Max(1,fpsValue)),heightPick=Array.IndexOf(heights,Math.Max(2,heightValue));
             player=new FramePlayer(preview);
             player.Shown+=ShowPlayMark;
-            playMark.SetResourceReference(Polygon.FillProperty,"Text");
-            Canvas.SetTop(playMark,RailHeight+PictureHeight);
+            playMark.IsHitTestVisible=false;
+            coverMark.ToolTip=L.T("The JPG cover's scene is here.");
             strip.SetResourceReference(Canvas.BackgroundProperty,"Paper");
-            Canvas.SetTop(cells,RailHeight);
+            Canvas.SetTop(cells,TopRail);
             // Follows its owner into full screen, like Choose a scene and Make cover do.
             var root=new DockPanel();root.Children.Add(FullScreen.TitleBar(this,FullScreen.IsFull(owner)));
             page=new DockPanel {Margin=new Thickness(20,12,20,16)};root.Children.Add(page);Content=root;
@@ -262,42 +281,71 @@ namespace LoveMyShelf {
             realCompact.Margin=new Thickness(8,0,0,0);DockPanel.SetDock(realCompact,Dock.Right);compactGuide.Children.Add(realCompact);
             compactText.TextTrimming=TextTrimming.CharacterEllipsis;compactGuide.Children.Add(compactText);
             bottom.Children.Add(compactGuide);
-            var stripBar=new DockPanel {Margin=new Thickness(0,8,0,4)};
-            var back=UI.Btn(L.T("Back to the cover"),()=>{viewStart=ClampView(source.Moment-span/2);Layout();ShowDraft(draftOwed);});
-            DockPanel.SetDock(back,Dock.Right);stripBar.Children.Add(back);
-            help=UI.Text(NoticeLook.KeepWords(fromPart?
-                L.T("It starts from the part you marked while watching. Drag the two handles to adjust it."):editing && saved==null?
-                L.T("This GIF was made earlier, so the part set then is not saved. It starts from the part before and after the cover, as when it was first made."):
-                L.T("Drag the two handles to set the part. Drag the pictures or roll the wheel to see other parts too.")),12,true);
-            help.TextWrapping=TextWrapping.Wrap;help.VerticalAlignment=VerticalAlignment.Center;stripBar.Children.Add(help);
-            bottom.Children.Add(stripBar);
-            var stripFrame=new Border {Child=strip,CornerRadius=new CornerRadius(6),ClipToBounds=true};
+            back=UI.Btn(L.T("Back to the cover"),()=>{viewStart=ClampView(source.Moment-span/2);Layout();ShowDraft(draftOwed);});
+            // The button carries the same tiny card as the strip's cover mark, so the mark explains itself.
+            var backLabel=new StackPanel {Orientation=Orientation.Horizontal};
+            var backMark=PartLook.CoverMark(false);backMark.Margin=new Thickness(0,1,7,0);backMark.VerticalAlignment=VerticalAlignment.Center;
+            backLabel.Children.Add(backMark);backLabel.Children.Add(new TextBlock {Text=L.T("Back to the cover"),VerticalAlignment=VerticalAlignment.Center});
+            back.Content=backLabel;back.VerticalAlignment=VerticalAlignment.Center;
+            back.ToolTip=L.T("Brings the strip back to the JPG cover's scene. The small card over the pictures marks that scene.");
+            AutomationProperties.SetName(back,L.T("Back to the cover"));
+            // What the mouse can do on the strip. It sits in the free middle of the row under the strip where that
+            // has the room, so the preview keeps the height; otherwise in a row of its own over the strip (see PlaceHints).
+            // A note comes first only when there is something to say about how the window opened.
+            string note=fromPart?L.T("It starts from the part you marked while watching."):editing && saved==null?
+                L.T("This GIF was made earlier, so the part set then is not saved. It starts from the part before and after the cover, as when it was first made."):"";
+            help=UI.Text(NoticeLook.KeepWords(note),12,true);
+            help.TextWrapping=TextWrapping.Wrap;help.Margin=new Thickness(0,0,0,2);help.Visibility=note==""?Visibility.Collapsed:Visibility.Visible;
+            var hints=hintRow=new WrapPanel();
+            hintCaps=new TextBlock[3];hintWords=new TextBlock[3];
+            hints.Children.Add(Hint(0,L.T("Drag"),L.T("Set the start and the end with the handles")));
+            hints.Children.Add(wheelHint=Hint(1,L.T("Wheel"),L.T("See earlier and later scenes")));
+            hints.Children.Add(Hint(2,L.T("Double-click"),L.T("Outside the part, the part grows to there")));
+            var words=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
+            words.Children.Add(help);words.Children.Add(hints);hintBar=words;
+            stripFrame=new Border {Child=strip,CornerRadius=new CornerRadius(6),ClipToBounds=true,Margin=new Thickness(0,8,0,0)};
             bottom.Children.Add(stripFrame);
 
             // Start and end can be nudged by one scene (the scene step). The buttons sit on the same row when the window is wide.
             lastRow=new DockPanel {Margin=new Thickness(0,10,0,0)};
             summary.VerticalAlignment=VerticalAlignment.Center;summary.TextWrapping=TextWrapping.Wrap;
-            var chips=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Left};
+            chips=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center};
             startChip=TimeChip(L.T("Start"),1,L.T("Start one scene earlier"),L.T("Start one scene later"),out startTime);
             endChip=TimeChip(L.T("End"),2,L.T("End one scene earlier"),L.T("End one scene later"),out endTime);
             endChip.Margin=new Thickness(8,0,0,0);
-            chips.Children.Add(startChip);chips.Children.Add(endChip);lastRow.Children.Add(chips);
+            chips.Children.Add(startChip);chips.Children.Add(endChip);
+            DockPanel.SetDock(chips,Dock.Left);lastRow.Children.Add(chips);
             bottom.Children.Add(lastRow);
             narrowHost=new StackPanel();bottom.Children.Add(narrowHost);
 
-            // Every choice is a small block of its own (a name over its control), so the same blocks can stand beside
-            // the preview in a wide window or under the strip in a narrow one (see Arrange).
+            // Every choice is one row of its own (its name, then its control), so the same rows can stand beside the
+            // preview in a wide window or under the strip in a narrow one (see Arrange), and all of them show at once.
             speedField=Field(L.T("Speed"),SpeedControl());
             loopField=Field(L.T("Play style"),Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},loopPick,L.T("Play style"),Changed,out loopChoices));
             var fpsBox=new StackPanel();var heightBox=new StackPanel();var qualityBox=new StackPanel();var formatBox=new StackPanel();
-            fps=Choice(fpsBox,L.T("Smoothness (pictures per second)"),Array.ConvertAll(rates,r=>L.F("{0} a second",r)),fpsPick);
-            height=Choice(heightBox,L.T("Height"),Array.ConvertAll(heights,h=>L.F("{0} px",h)),heightPick);
+            fps=Choice(fpsBox,L.T("Smoothness"),L.T("Smoothness (pictures per second)"),Array.ConvertAll(rates,r=>L.F("{0} a second",r)),fpsPick);
+            height=Choice(heightBox,L.T("Height"),null,Array.ConvertAll(heights,h=>L.F("{0} px",h)),heightPick);
             // Said only when it applies: a cover smaller than the chosen height is made at its own size.
-            heightNote.TextWrapping=TextWrapping.Wrap;heightNote.Margin=new Thickness(1,-3,0,8);heightNote.LineHeight=17;heightNote.Visibility=Visibility.Collapsed;
+            heightNote.TextWrapping=TextWrapping.Wrap;heightNote.Margin=new Thickness(1,0,0,6);heightNote.LineHeight=17;heightNote.Visibility=Visibility.Collapsed;
             heightBox.Children.Add(heightNote);
-            quality=Choice(qualityBox,L.T("Picture quality"),new[]{L.T("High"),L.T("Normal"),L.T("Low")},qualityPick);
-            format=Choice(formatBox,L.T("File type"),new[]{L.T("GIF · moves everywhere · big size"),L.T("WebP · smooth colors, small size · doesn't work in some places"),L.T("MP4 · smallest size and sharp · goes up as a video")},formatPick);
+            quality=Choice(qualityBox,L.T("Picture quality"),null,new[]{L.T("High"),L.T("Normal"),L.T("Low")},qualityPick);
+            format=Choice(formatBox,L.T("File type"),null,new[]{L.T("GIF · moves everywhere · big size"),L.T("WebP · smooth colors, small size · doesn't work in some places"),L.T("MP4 · smallest size and sharp · goes up as a video")},formatPick);
+            // Sound: only an MP4 can carry it, only a video has it, and only forward play keeps it in step with the picture.
+            sound=new CheckBox {Content=L.T("Put the sound in"),IsChecked=soundPick,Margin=new Thickness(1,2,0,2),FontSize=13};
+            sound.SetResourceReference(Control.ForegroundProperty,"Text");
+            soundNote.TextWrapping=TextWrapping.Wrap;soundNote.Margin=new Thickness(1,0,0,6);soundNote.LineHeight=17;
+            formatBox.Children.Add(sound);formatBox.Children.Add(soundNote);
+            sound.Checked+=delegate {Changed();};sound.Unchecked+=delegate {Changed();};
+            UpdateSound();
             fpsField=fpsBox;heightField=heightBox;qualityField=qualityBox;formatField=formatBox;
+            // The names share one width (the widest of them in this language), so every control starts on the same
+            // line; the notes under a control start there too.
+            double nameWidth=0;
+            var appFont=Application.Current.Resources["AppFont"] as FontFamily; // measured before the window lends its font
+            foreach(var name in fieldNames){if(appFont!=null)name.FontFamily=appFont;name.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));nameWidth=Math.Max(nameWidth,name.DesiredSize.Width);}
+            nameWidth=Math.Ceiling(nameWidth)+14;
+            foreach(var name in fieldNames)name.Width=nameWidth;
+            foreach(var under in new FrameworkElement[]{heightNote,sound,soundNote}){var m=under.Margin;under.Margin=new Thickness(nameWidth+m.Left,m.Top,m.Right,m.Bottom);}
             // What these mean, in plain words, and the place to choose what they start as.
             explain=UI.Btn(L.T("What do these mean? (F1)"),()=>GuideWindow.Open(this,"gif"));
             explain.HorizontalAlignment=HorizontalAlignment.Left;explain.Margin=new Thickness(0,2,0,4);
@@ -307,7 +355,7 @@ namespace LoveMyShelf {
             more.SetResourceReference(Control.ForegroundProperty,"Text");
             moreChoices=new StackPanel {Margin=new Thickness(0,6,0,0)};more.Content=moreChoices;
             moreGrid=new System.Windows.Controls.Primitives.UniformGrid {Columns=2};moreChoices.Children.Add(moreGrid);
-            actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+            actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};
             var cancel=UI.Btn(L.T("Cancel"),()=>DialogResult=false);cancel.IsCancel=true;
             make=UI.Btn(makeLabel,Finish,true);
             make.IsDefault=true;make.Margin=new Thickness(6,0,0,0);
@@ -372,6 +420,7 @@ namespace LoveMyShelf {
             strip.SizeChanged+=delegate {Layout();};
             strip.MouseLeftButtonDown+=StripDown;strip.MouseMove+=StripMove;strip.MouseLeftButtonUp+=StripUp;
             strip.LostMouseCapture+=delegate {if(dragging!=0)FinishDrag();};
+            strip.MouseLeave+=delegate {if(dragging==0)PointAt(-1);};
             // The wheel over the strip moves the view sideways; the chosen part stays where it is.
             strip.MouseWheel+=(s,e)=>{e.Handled=true;WheelStrip(e.Delta);};
             wheelSettle.Tick+=delegate {
@@ -438,7 +487,14 @@ namespace LoveMyShelf {
                         // A clip shorter than the strip fills the strip instead of leaving it mostly empty.
                         if(duration<span){span=Math.Max(500,duration);Regrid(true);}
                         // A short clip is shown whole, so there's nothing more to drag to; say so instead of inviting a drag.
-                        if(WholeClipShown)help.Text=NoticeLook.KeepWords(L.F("The whole video ({0:0.0} s) shows on the strip. Drag the two handles to set the part.",duration/1000));
+                        if(WholeClipShown) {
+                            wheelHint.Visibility=Visibility.Collapsed;
+                            if(help.Visibility!=Visibility.Visible) {
+                                help.Text=NoticeLook.KeepWords(L.F("The whole video ({0:0.0} s) shows on the strip.",duration/1000));
+                                help.Visibility=Visibility.Visible;
+                            }
+                            PlaceHints();
+                        }
                         end=Math.Min(end,duration);
                         // A part that began at the very end of the file (a mark there, a rounded scene) still gets a scene.
                         if(start>end-Math.Max(50,Scenes.StepMs))start=Math.Max(0,end-Math.Max(50,Scenes.StepMs));
@@ -502,12 +558,14 @@ namespace LoveMyShelf {
             double at=speed/0.1;
             SetSpeed((direction>0?Math.Floor(at+1e-6)+1:Math.Ceiling(at-1e-6)-1)*0.1);
         }
-        static FrameworkElement Field(string label,FrameworkElement control) {
-            var stack=new StackPanel();
-            var name=UI.Text(label,13);name.Margin=new Thickness(0,0,0,4);
-            control.HorizontalAlignment=HorizontalAlignment.Left;
-            stack.Children.Add(name);stack.Children.Add(control);
-            return stack;
+        // "Speed  [Z Reset] [X −] 1× …": the name and its control on one row. Where the room is too narrow for both,
+        // the control goes under its name.
+        FrameworkElement Field(string label,FrameworkElement control) {
+            var row=new WrapPanel();
+            var name=UI.Text(label,13);name.Margin=new Thickness(0,3,0,3);fieldNames.Add(name);
+            control.HorizontalAlignment=HorizontalAlignment.Left;control.VerticalAlignment=VerticalAlignment.Center;
+            row.Children.Add(name);row.Children.Add(control);
+            return row;
         }
         static void Detach(FrameworkElement item) {
             var parent=item.Parent as Panel;
@@ -517,13 +575,15 @@ namespace LoveMyShelf {
         void Arrange(bool wideNow) {
             if(arranged && wideNow==wide)return;
             arranged=true;wide=wideNow;
-            foreach(var item in new FrameworkElement[]{summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,explain,narrowRow,more})Detach(item);
+            foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,explain,narrowRow,more})Detach(item);
             var fields=new[]{speedField,loopField,fpsField,heightField,qualityField,formatField};
             if(wide) {
-                foreach(var field in fields){field.Margin=new Thickness(0,0,0,field==speedField || field==loopField?12:2);sidePanel.Children.Add(field);}
-                explain.Margin=new Thickness(0,2,0,0);sidePanel.Children.Add(explain);
-                summary.Margin=new Thickness(0,14,0,0);summary.HorizontalAlignment=HorizontalAlignment.Left;sidePanel.Children.Add(summary);
+                foreach(var field in fields){field.Margin=new Thickness(0,0,0,6);sidePanel.Children.Add(field);}
+                explain.Margin=new Thickness(0,6,0,0);sidePanel.Children.Add(explain);
+                summary.Margin=new Thickness(0,12,0,0);summary.HorizontalAlignment=HorizontalAlignment.Left;sidePanel.Children.Add(summary);
                 actions.Margin=new Thickness(12,0,0,0);DockPanel.SetDock(actions,Dock.Right);lastRow.Children.Insert(0,actions);
+                // Back to the cover stands beside the two times.
+                back.Margin=new Thickness(10,0,0,0);chips.Children.Add(back);
             } else {
                 summary.Margin=new Thickness(12,0,0,0);summary.HorizontalAlignment=HorizontalAlignment.Right;
                 DockPanel.SetDock(summary,Dock.Right);lastRow.Children.Insert(0,summary);
@@ -533,9 +593,34 @@ namespace LoveMyShelf {
                 explain.Margin=new Thickness(0,2,0,4);moreChoices.Children.Add(explain);
                 actions.Margin=new Thickness(0,12,0,0);
                 narrowHost.Children.Add(narrowRow);narrowHost.Children.Add(more);narrowHost.Children.Add(actions);
+                // The row of the times also holds the summary here, so Back to the cover goes up beside the other
+                // button over the strip, where there is room.
+                back.Margin=new Thickness(8,0,0,0);DockPanel.SetDock(back,Dock.Right);compactGuide.Children.Insert(0,back);
             }
             leftScroll.Visibility=rightScroll.Visibility=wide?Visibility.Visible:Visibility.Collapsed;
             compactGuide.Visibility=wide?Visibility.Collapsed:Visibility.Visible;
+            hintsPlaced=false;
+        }
+        // The hints go in the free middle of the last row (between the times and the buttons) when two lines of them
+        // fit there; with less room, or with a note to show first, they get a row of their own over the strip.
+        // Decided from widths alone, so it can't flip back and forth.
+        void PlaceHints() {
+            var open=new Size(Double.PositiveInfinity,Double.PositiveInfinity);
+            double[] w=new double[hintRow.Children.Count];
+            for(int i=0;i<w.Length;i++){var hint=hintRow.Children[i];hint.Measure(open);w[i]=hint.Visibility==Visibility.Visible?hint.DesiredSize.Width:0;}
+            double need=Math.Max(w[0]+w[1],w[2]);
+            chips.Measure(open);actions.Measure(open);
+            double room=page.ActualWidth-chips.DesiredSize.Width-actions.DesiredSize.Width-actions.Margin.Left-24;
+            bool below=wide && help.Visibility!=Visibility.Visible && room>=need;
+            if(hintsPlaced && below==hintsBelow)return;
+            hintsPlaced=true;hintsBelow=below;
+            Detach(hintBar);
+            if(below) {
+                hintBar.Margin=new Thickness(18,0,6,0);hintBar.HorizontalAlignment=HorizontalAlignment.Center;lastRow.Children.Add(hintBar);
+            } else {
+                hintBar.Margin=new Thickness(0,8,0,0);hintBar.HorizontalAlignment=HorizontalAlignment.Left;
+                bottom.Children.Insert(bottom.Children.IndexOf(stripFrame),hintBar);
+            }
         }
         // The preview is as tall as the room above the strip; what is left on its sides goes to the two side columns.
         void Fit() {
@@ -544,6 +629,7 @@ namespace LoveMyShelf {
             // Decided from the window's size alone (not from the room left after arranging), so it can't flip back and forth.
             double roomIfWide=pageHeight-WideBottom;
             Arrange(roomIfWide>=330 && (pageWidth-roomIfWide*9/16)/2-SideGap>=SideMin);
+            PlaceHints();
             double room=middle.ActualHeight,across=middle.ActualWidth;
             if(room<=0 || across<=0)return;
             double width=Math.Floor(Math.Min(room*9/16,across));
@@ -598,37 +684,24 @@ namespace LoveMyShelf {
                 Canvas.SetLeft(placeholder,X(at));cells.Children.Add(placeholder);
             }
         }
-        // Over the pictures only a three-pixel line just outside the start and end, so it never hides a scene
-        // that goes into the GIF; everything else sits in the rails.
+        // Over the pictures only a fine line just outside the start and the end, so it never hides a scene that
+        // goes into the GIF; everything else sits in the rails (see PartLook).
         void Overlay() {
-            double left=X(start),right=X(end),lowerRail=RailHeight+PictureHeight;
-            foreach(double top in new[]{RailHeight-2,lowerRail}) {
-                var chosen=new Border {Width=Math.Max(0,right-left),Height=2,IsHitTestVisible=false,SnapsToDevicePixels=true};
-                chosen.SetResourceReference(Border.BackgroundProperty,"Accent");
-                Canvas.SetLeft(chosen,left);Canvas.SetTop(chosen,top);strip.Children.Add(chosen);
-            }
-            var mark=new Polygon {Points=new PointCollection{new Point(-5,0),new Point(5,0),new Point(0,RailHeight)},IsHitTestVisible=false};
-            mark.SetResourceReference(Polygon.FillProperty,"Text");
-            Canvas.SetLeft(mark,X(source.Moment));strip.Children.Add(mark);
+            double left=X(start),right=X(end);
             var screen=PresentationSource.FromVisual(strip);
-            double pixel=screen==null || screen.CompositionTarget==null?1:1/screen.CompositionTarget.TransformToDevice.M11;
-            double lineWidth=3*pixel;
-            playMark.Points=new PointCollection{new Point(-lineWidth/2,0),new Point(lineWidth/2,0),new Point(4.5,RailHeight),new Point(-4.5,RailHeight)};
+            stripPixel=screen==null || screen.CompositionTarget==null?1:1/screen.CompositionTarget.TransformToDevice.M11;
+            double line=PartLook.Line(stripPixel);
+            // The track is as long as the clip (as much of it as the strip shows).
+            bool known=!Double.IsNaN(duration) && duration>0;
+            PartLook.Range(strip,left,right,Math.Max(0,X(0)),known?Math.Min(strip.ActualWidth,X(duration)):strip.ActualWidth,PictureHeight,stripPixel);
+            // The cover's card goes in before the knobs: a knob standing on the cover's scene stays whole over it.
+            PartLook.PlaceCoverMark(coverMark,X(source.Moment));strip.Children.Add(coverMark);
+            // The knob in use goes in last, so in a very short part the other one never covers it.
+            foreach(int which in activeHandle==1?new[]{2,1}:new[]{1,2})
+                PartLook.Handle(strip,which==1?left-line/2:right+line/2,activeHandle==which);
             strip.Children.Add(playMark);PlacePlayMark();
-            foreach(int which in new[]{1,2}) {
-                double at=which==1?left-lineWidth/2:right+lineWidth/2;
-                var line=new Border {Width=lineWidth,Height=PictureHeight,IsHitTestVisible=false,SnapsToDevicePixels=true};
-                line.SetResourceReference(Border.BackgroundProperty,"Accent");
-                Canvas.SetLeft(line,which==1?left-lineWidth:right);Canvas.SetTop(line,RailHeight);strip.Children.Add(line);
-                foreach(bool upper in new[]{true,false}) {
-                    var handle=new Border {Width=9,Height=RailHeight,IsHitTestVisible=false,Opacity=activeHandle==which?1:0.6,
-                        CornerRadius=upper?new CornerRadius(3,3,0,0):new CornerRadius(0,0,3,3)};
-                    handle.SetResourceReference(Border.BackgroundProperty,"Accent");
-                    Canvas.SetLeft(handle,at-4.5);Canvas.SetTop(handle,upper?0:lowerRail);strip.Children.Add(handle);
-                }
-            }
         }
-        // Where the preview is in the original, as a thin line inside the chosen part.
+        // Where the preview is in the original, as a dot under the chosen part.
         void ShowPlayMark(int index) {
             playAt=timeline!=null && index>=0 && index<timeline.Length?timeline[index]:Double.NaN;
             PlacePlayMark();
@@ -636,7 +709,25 @@ namespace LoveMyShelf {
         void PlacePlayMark() {
             bool show=!Double.IsNaN(playAt) && player.Playing && dragging==0 && playAt>=start-1 && playAt<=end+1 && strip.ActualWidth>0;
             playMark.Visibility=show?Visibility.Visible:Visibility.Collapsed;
-            if(show)Canvas.SetLeft(playMark,X(playAt));
+            if(show)PartLook.PlacePlayMark(playMark,X(playAt),TopRail+PictureHeight);
+        }
+        // One hint: the action in bold and what it does, in a few words. Plain text, so it never looks like one
+        // more button in the row of buttons it shares.
+        FrameworkElement Hint(int which,string cap,string words) {
+            var row=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,1,18,1)};
+            hintCaps[which]=UI.Text(cap,12);hintCaps[which].FontWeight=FontWeights.SemiBold;
+            hintWords[which]=UI.Text(words,12,true);hintWords[which].Margin=new Thickness(6,0,0,0);
+            row.Children.Add(hintCaps[which]);row.Children.Add(hintWords[which]);
+            return row;
+        }
+        // Lights up the hint for what the pointer can do where it is: 0 a handle, 1 the pictures, 2 outside the part.
+        void PointAt(int which) {
+            if(which==pointed || hintCaps==null)return;
+            pointed=which;
+            for(int i=0;i<hintCaps.Length;i++) {
+                hintCaps[i].SetResourceReference(TextBlock.ForegroundProperty,i==which?"Accent":"Text");
+                hintWords[i].SetResourceReference(TextBlock.ForegroundProperty,i==which?"Text":"Subtle");
+            }
         }
 
         static readonly SolidColorBrush LoadingCell=Frozen(Color.FromRgb(0x2B,0x2E,0x33));
@@ -796,10 +887,17 @@ namespace LoveMyShelf {
         internal double ViewStart {get {return viewStart;}}
         internal double SpanMs {get {return span;}}
         internal bool WholeClipShown {get {return !Double.IsNaN(duration) && duration>0 && duration<=span+1;}}
-        internal void PressStrip(double x) {
+        // The handle a press at x takes hold of: 1 the start, 2 the end, 0 neither. In a short part both are
+        // within reach, and then it is the nearer one.
+        int HandleAt(double x) {
             double left=X(start),right=X(end);
-            if(Math.Abs(x-left)<=14 || (x<left && left-x<=16)){dragging=1;activeHandle=1;}
-            else if(Math.Abs(x-right)<=14 || (x>right && x-right<=16)){dragging=2;activeHandle=2;}
+            bool onStart=Math.Abs(x-left)<=14 || (x<left && left-x<=16),onEnd=Math.Abs(x-right)<=14 || (x>right && x-right<=16);
+            if(onStart && onEnd)return Math.Abs(x-left)<=Math.Abs(x-right)?1:2;
+            return onStart?1:onEnd?2:0;
+        }
+        internal void PressStrip(double x) {
+            int handle=HandleAt(x);
+            if(handle!=0){dragging=handle;activeHandle=handle;PointAt(0);}
             else {dragging=3;dragOrigin=x;dragView=viewStart;strip.Cursor=Cursors.SizeWE;}
             Layout();UpdateChips();SetStatus();
         }
@@ -807,7 +905,9 @@ namespace LoveMyShelf {
         internal void MoveStrip(double x) {
             if(dragging==0) {
                 double left=X(start),right=X(end);
+                // The hint that lights up is what a press here would do, so it uses the same reach as PressStrip.
                 strip.Cursor=Math.Abs(x-left)<=14 || Math.Abs(x-right)<=14?Cursors.SizeWE:Cursors.Hand;
+                PointAt(HandleAt(x)!=0?0:x<left || x>right?2:1);
                 return;
             }
             if(dragging==3){viewStart=ClampView(dragView-(x-dragOrigin)/Math.Max(1e-9,PixelsPerMs));Layout();return;}
@@ -832,6 +932,7 @@ namespace LoveMyShelf {
             bool handle=dragging==1 || dragging==2;
             bool pan=dragging==3;
             dragging=0;edgeScroll.Stop();strip.Cursor=Cursors.Hand;
+            if(!strip.IsMouseOver)PointAt(-1); // let go outside the strip: no hint stays lit
             PlacePlayMark();
             if(handle){UpdateChips();UpdateSummary();SchedulePrepare();}
             else if(pan){ShowDraft(draftOwed);SetStatus();}
@@ -922,11 +1023,22 @@ namespace LoveMyShelf {
             endChip.SetResourceReference(Border.BorderBrushProperty,activeHandle==2?"Accent":"Line");
         }
 
-        void Changed() {UpdateSummary();SchedulePrepare();}
+        void Changed() {UpdateSound();UpdateSummary();SchedulePrepare();}
+        // The sound box shows only when the file can have sound, and says why when it can't be used right now.
+        void UpdateSound() {
+            if(sound==null || format==null || loopChoices==null)return;
+            bool possible=format.SelectedIndex==2 && VideoFrames.Supports(source.Path);
+            bool forward=Picked(loopChoices)==0;
+            sound.Visibility=soundNote.Visibility=possible?Visibility.Visible:Visibility.Collapsed;
+            sound.IsEnabled=forward;
+            soundNote.Text=NoticeLook.KeepWords(!forward?L.T("Sound goes in only when the play style is [Loop]."):
+                L.T("In the folder window the sound plays when the mouse is on the tile. It also plays when you open or share the file somewhere else."));
+        }
         MotionRequest Read() {
             return new MotionRequest {Before=(source.Moment-start)/1000,After=(end-source.Moment)/1000,Fps=rates[fps.SelectedIndex],
                 Height=heights[height.SelectedIndex],Format=Formats[format.SelectedIndex],Quality=quality.SelectedIndex,
-                Speed=speed,Loop=Loops[Picked(loopChoices)]};
+                Speed=speed,Loop=Loops[Picked(loopChoices)],
+                Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path)};
         }
         bool PreparedFor(MotionRequest request) {
             return preparedFile!=null && preparedKey==MotionMaker.Key(source,request) && File.Exists(preparedFile);
@@ -938,6 +1050,7 @@ namespace LoveMyShelf {
                 request.PreparedBefore=preparedResult.Before;request.PreparedAfter=preparedResult.After;
             }
             lastFps=rates[fps.SelectedIndex];lastHeight=heights[height.SelectedIndex];lastQuality=quality.SelectedIndex;lastFormat=format.SelectedIndex;
+            if(sound!=null && sound.Visibility==Visibility.Visible)lastSound=sound.IsChecked==true;
             if(fromPart && partGiver!=null)partGiver.DropPart();
             Value=request;DialogResult=true;
         }
@@ -1195,16 +1308,20 @@ namespace LoveMyShelf {
         static Panel Cell(Grid grid,int row,int column) {
             var cell=new StackPanel();Grid.SetRow(cell,row);Grid.SetColumn(cell,column);grid.Children.Add(cell);return cell;
         }
-        static ComboBox Choice(Panel panel,string label,string[] options,int index) {
-            panel.Children.Add(UI.Text(label,13));
-            var combo=new ComboBox {ItemsSource=options,SelectedIndex=Math.Max(0,Math.Min(options.Length-1,index)),Margin=new Thickness(0,4,0,8),
+        // "Height  [1280 px ▾]": the name and the box on one row. full is the longer name read out and shown on hover.
+        ComboBox Choice(Panel panel,string label,string full,string[] options,int index) {
+            var row=new DockPanel();
+            var name=UI.Text(label,13);fieldNames.Add(name);
+            if(full!=null)name.ToolTip=full;
+            DockPanel.SetDock(name,Dock.Left);row.Children.Add(name);
+            var combo=new ComboBox {ItemsSource=options,SelectedIndex=Math.Max(0,Math.Min(options.Length-1,index)),Margin=new Thickness(0,0,0,0),
                 Style=(Style)Application.Current.FindResource("OptionsChoice")};
             // A long name (the file types) ends in … in the box when the column is narrow; the open list shows it whole.
             var line=new FrameworkElementFactory(typeof(TextBlock));
             line.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding());
             line.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);
             combo.ItemTemplate=new DataTemplate {VisualTree=line};
-            AutomationProperties.SetName(combo,label);panel.Children.Add(combo);return combo;
+            AutomationProperties.SetName(combo,full??label);row.Children.Add(combo);panel.Children.Add(row);return combo;
         }
         // For checks: choose by position as a person would by clicking.
         internal void ChooseForChecks(int speed,int loop) {
@@ -1288,6 +1405,80 @@ namespace LoveMyShelf {
 
     // Plays decoded frames into an Image on the UI thread. Pauses while its own window is minimized
     // (each large view is a window of its own) or Hold is set (the person paused it).
+    // An MP4 cover plays as a video in the one tile under the mouse: picture and sound come from the same file,
+    // so they stay together and the cover plays to its end however long it is (reading pictures one by one stops at 300).
+    // Only one plays at a time, and the file is let go as soon as it stops, so the cover can still be renamed, moved or deleted.
+    internal static class TileSound {
+        static System.Windows.Media.MediaPlayer player;
+        static object holder;
+        static Action whenStopped;
+        // Whether the cover file itself carries sound.
+        internal static bool Has(Photo photo) {
+            return photo.MotionSettings!=null && photo.MotionSettings.WithSound && IsVideo(photo);
+        }
+        internal static bool IsVideo(Photo photo) {
+            return photo.MotionFile!=null && photo.MotionFile.EndsWith(".mp4",StringComparison.OrdinalIgnoreCase);
+        }
+        // shown: the moving picture, once the file is open. stopped: it is over (the tile shows its still picture again).
+        // failed: Windows couldn't play the file. top and bottom: the rows to show of a cover made before covers were trimmed.
+        internal static void Play(object who,string file,int volume,bool silent,double top,double bottom,
+            Action<System.Windows.Media.ImageSource> shown,Action stopped,Action failed) {
+            Stop();
+            try {
+                var made=new System.Windows.Media.MediaPlayer {Volume=Math.Max(0,Math.Min(100,volume))/100.0,IsMuted=silent};
+                made.MediaFailed+=delegate {
+                    if(player!=made)return;
+                    Stop();
+                    if(failed!=null)failed();
+                };
+                made.MediaOpened+=delegate {
+                    if(player!=made)return;
+                    int w=made.NaturalVideoWidth,h=made.NaturalVideoHeight;
+                    if(w<=0 || h<=0) { // no picture to show: the same as not being able to play it
+                        Stop();
+                        if(failed!=null)failed();
+                        return;
+                    }
+                    System.Windows.Media.Drawing picture=new System.Windows.Media.VideoDrawing {Player=made,Rect=new Rect(0,0,w,h)};
+                    // A cover made before covers were trimmed is the full 9:16 with empty rows: only the picture's rows show.
+                    if((top>0 || bottom<1) && Math.Abs(h/(double)w-16.0/9)<=0.012) {
+                        double first=Math.Ceiling(top*h-1e-6),last=Math.Floor(bottom*h+1e-6);
+                        if(last-first>=2) {
+                            var group=new System.Windows.Media.DrawingGroup {ClipGeometry=new System.Windows.Media.RectangleGeometry(new Rect(0,first,w,last-first))};
+                            group.Children.Add(picture);picture=group;
+                        }
+                    }
+                    if(shown!=null)shown(new System.Windows.Media.DrawingImage(picture));
+                };
+                made.MediaEnded+=delegate {if(player==made)try {made.Position=TimeSpan.Zero;made.Play();} catch(Exception) {}};
+                // Remembered before it opens, so a failure right away is still closed and reported.
+                player=made;holder=who;whenStopped=stopped;
+                made.Open(FileUri(file));made.Play();
+            } catch(Exception) {Stop();if(failed!=null)failed();}
+        }
+        // A file address that keeps "#", "%" and the like in a name as part of the name.
+        static Uri FileUri(string file) {
+            var parts=Path.GetFullPath(file).Replace('\\','/').Split('/');
+            for(int i=0;i<parts.Length;i++)if(!(i==0 && parts[i].EndsWith(":")))parts[i]=Uri.EscapeDataString(parts[i]);
+            return new Uri("file:///"+String.Join("/",parts));
+        }
+        internal static bool PlayingFor(object who) {return holder==who && player!=null;}
+        // Safe from any thread: file work that runs in the background calls this before it touches a cover file.
+        internal static void Stop(object who=null) {
+            if(who!=null && holder!=who)return;
+            var old=player;var after=whenStopped;
+            player=null;holder=null;whenStopped=null;
+            if(old==null)return;
+            Action close=()=>{
+                try {if(after!=null)after();} catch(Exception) {}
+                try {old.Stop();old.Close();} catch(Exception) {}
+            };
+            try {
+                if(old.Dispatcher.CheckAccess())close();
+                else old.Dispatcher.Invoke(DispatcherPriority.Send,TimeSpan.FromMilliseconds(700),close);
+            } catch(Exception) {}
+        }
+    }
     internal sealed class FramePlayer {
         internal bool Hold;
         internal event Action<int> Shown;
@@ -1497,7 +1688,7 @@ namespace LoveMyShelf {
                 Math.Round(s.Crop.X,4).ToString(c),Math.Round(s.Crop.Y,4).ToString(c),Math.Round(s.Crop.Width,4).ToString(c),Math.Round(s.Crop.Height,4).ToString(c),
                 Math.Round(s.Rotation,2).ToString(c),"light"+s.Brightness.ToString(c),Math.Round(r.Before*1000).ToString(c),Math.Round(r.After*1000).ToString(c),
                 r.Fps.ToString(c),r.Height.ToString(c),r.Format,r.Speed.ToString(c),r.Loop,r.Quality.ToString(c),"trimmed",
-                r.Format=="webp"?"effort"+WebpEffort.ToString(c):""});
+                r.Format=="webp"?"effort"+WebpEffort.ToString(c):"",r.WithSound?"sound":""});
         }
         static string PreviewFolder {get {return Path.Combine(Path.GetTempPath(),"LoveMyShelf","GIF preview");}}
         internal static string PreviewFile(string extension) {
@@ -1623,7 +1814,7 @@ namespace LoveMyShelf {
             // -t before -i makes FFmpeg stop reading at the end of the part. Given after -i, the GIF palette step
             // waited for the end of the whole video (a 3-second GIF from a long 4K video took minutes).
             string input=(start>0?"-ss "+VideoFrames.Seconds(start)+" ":"")+"-t "+N((end-start)/1000)+" -i "+VideoFrames.Quote(original)+" ";
-            Run(input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight);
+            Run(input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight,request.WithSound);
         }
 
         // Samples the GIF/WebP at the chosen frame rate (and speed) into a temporary raw file for FFmpeg.
@@ -1673,7 +1864,7 @@ namespace LoveMyShelf {
         // bayer is lighter; Smaller uses 128 colors). Very long GIFs make the palette in a first pass instead of
         // holding every frame in memory.
         static void Run(string input,string chain,MotionRequest request,int forward,int outW,int outH,string part,CancellationToken token,
-            Action<double> progress,double progressFrom,double progressSpan,Action<BitmapSource,int> copies,int copyHeight) {
+            Action<double> progress,double progressFrom,double progressSpan,Action<BitmapSource,int> copies,int copyHeight,bool sound=false) {
             bool bounce=request.Loop=="bounce" && forward>=3,reverse=request.Loop=="reverse";
             bool gif=request.Format=="gif";
             long held=(long)outW*outH*3*forward*(bounce?2:1);
@@ -1723,13 +1914,28 @@ namespace LoveMyShelf {
                     g.Append(';').Append(current).Append("format=yuv420p[out]");
                     codec="-c:v libx264 -preset medium -crf "+(request.Quality==0?17:request.Quality==2?25:20)+" -movflags +faststart -f mp4";
                 }
-                string args="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote(g.ToString())+" -map [out] "+codec+" "+VideoFrames.Quote(part);
+                // Sound: the video's first sound track for the same part, at the same speed. "?" lets a video without sound through.
+                string audio=sound && !gif && request.Format=="mp4"?"-map 0:a:0? "+Tempo(request.Speed)+"-c:a aac -b:a 160k -ac 2 ":"";
+                string args="-v error -nostdin -y "+input+(audio.Length>0?"":"-an ")+"-sn -dn -filter_complex "+VideoFrames.Quote(g.ToString())+" -map [out] "+audio+codec+" "+VideoFrames.Quote(part);
                 if(copies!=null)args+=" -map [copy] -c:v rawvideo -pix_fmt bgra -f rawvideo pipe:1";
                 // GIF frames come out only after the palette is made, so reading the frames is most of the work.
                 double share=gif && palette==null?0.85:0.97;
                 Execute(args,copies,copyW,copyH,copyRate,forward,request.Fps,token,progress,progressFrom,progressSpan*share);
                 if(progress!=null)progress(progressFrom+progressSpan);
             } finally {if(palette!=null)File.Delete(palette);}
+        }
+        // The sound keeps its pitch at another speed. One step of FFmpeg's atempo goes from half to double speed, so slower or faster takes several.
+        static string Tempo(double speed) {
+            // The picture's times start again from zero, so the sound's do too; otherwise the two drift apart
+            // in files whose times don't begin at zero (TS files, losslessly cut clips).
+            var steps=new List<string> {"asetpts=PTS-STARTPTS"};
+            if(Math.Abs(speed-1)>=0.005) {
+                double left=speed;
+                while(left<0.5){steps.Add("atempo=0.5");left/=0.5;}
+                while(left>2){steps.Add("atempo=2.0");left/=2;}
+                steps.Add("atempo="+left.ToString("0.####",CultureInfo.InvariantCulture));
+            }
+            return "-af "+String.Join(",",steps)+" ";
         }
         static string PaletteGen(MotionRequest request) {return "palettegen=stats_mode=full"+(request.Quality==2?":max_colors=128":"");}
         static void Execute(string args,Action<BitmapSource,int> copies,int copyW,int copyH,int copyRate,int forward,int fps,CancellationToken token,

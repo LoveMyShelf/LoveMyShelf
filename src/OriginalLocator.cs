@@ -85,7 +85,7 @@ namespace LoveMyShelf {
                     if(File.Exists(target))File.Replace(temp,target,null);else File.Move(temp,target);
                 }
             } catch(IOException){if(required)throw;}catch(UnauthorizedAccessException){if(required)throw;}
-            finally {try{File.Delete(temp);}catch(IOException){}catch(UnauthorizedAccessException){}}
+            finally {try{File.Delete(temp);}catch(IOException quiet) {ErrorLog.Quiet(quiet);}catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}}
         }
         static bool Matches(Reference saved,string path,bool idOnly=false) {
             try {using(var f=Open(path)){
@@ -96,15 +96,93 @@ namespace LoveMyShelf {
         }
         // A tag editor (Mp3tag and the like) may save a video as a new file under the same name, so both its Windows ID
         // and its content signature change. Same drive, same place, nearly the same size: it is still this original.
+        // "Nearly" depends on the file, and on whether it grew or shrank. A picture saved again (turned, its details
+        // edited) changes by up to about half; a small video may get a cover picture put in; a big video keeps the room
+        // it always had. Nothing shrinks to less than half and is still the same file, and an empty file never is.
+        // (64 MB either way for everything let a 1 MB photo pass for a 60 MB file that had taken its name.)
+        internal static bool SizeNear(string path,long before,long now) {
+            const long MB=1024*1024;
+            if(now<=0 || before<=0)return false;
+            bool video=path!=null && VideoFrames.Supports(path);
+            long room=!video?Math.Max(2*MB,before/2):before<64*MB?Math.Max(8*MB,before):Math.Max(64*MB,before/10);
+            if(now>=before)return now-before<=room;
+            return before-now<=Math.Min(room,before/2);
+        }
         static bool EditedInPlace(Reference saved,string path) {
             try {
                 if(!Paths.Equals(Path.GetFullPath(path),Path.GetFullPath(saved.Path)))return false;
                 using(var f=Open(path)){
                     FileInfoNative info;
                     if(!GetFileInformationByHandle(f.SafeFileHandle,out info) || info.Volume!=saved.Volume)return false;
-                    return Math.Abs(f.Length-saved.Length)<=Math.Max(64L*1024*1024,saved.Length/10);
+                    return SizeNear(path,saved.Length,f.Length);
                 }
             } catch(IOException){return false;}catch(UnauthorizedAccessException){return false;}catch(ArgumentException){return false;}
+        }
+        // ----- For moving to another drive: the original goes only if it is still the very file that was copied -----
+        [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetFileInformationByHandle(SafeFileHandle file,int kind,ref byte info,int size);
+        // Which file this open file is. Asked only on NTFS, where the number stays with the file; id 0 means "not known".
+        internal static void IdOf(FileStream file,string path,out uint volume,out ulong id) {
+            volume=0;id=0;
+            try {
+                string root=Path.GetPathRoot(Path.GetFullPath(path));
+                if(String.IsNullOrEmpty(root) || root.StartsWith(@"\\",StringComparison.Ordinal))return;
+                var drive=new DriveInfo(root);
+                // A network drive may call itself NTFS and still hand out numbers that don't stay.
+                if(drive.DriveType!=DriveType.Fixed && drive.DriveType!=DriveType.Removable)return;
+                if(!String.Equals(drive.DriveFormat,"NTFS",StringComparison.OrdinalIgnoreCase))return;
+                FileInfoNative info;
+                if(GetFileInformationByHandle(file.SafeFileHandle,out info) && info.Volume!=0){volume=info.Volume;id=info.Id;}
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);volume=0;id=0;}
+        }
+        internal enum Gone {Deleted,Changed,Unsure}
+        // Deletes the file if it is still the one that was copied: same size, same time and, where known, the same
+        // file number. It is looked at and deleted through one open handle that lets nobody write, rename or delete it
+        // meanwhile, so nothing can take its place between the look and the delete.
+        // Unsure: it could not be done this way (in use, a path Windows won't open like this) and nothing was changed.
+        internal static Gone DeleteIfSame(string path,long length,DateTime stampUtc,uint volume,ulong id) {
+            try {
+                const uint Delete=0x00010000,ReadAttributes=0x80,ShareRead=1,OpenExisting=3,OpenLinkItself=0x00200000;
+                using(var file=CreateFile(path,Delete|ReadAttributes,ShareRead,IntPtr.Zero,OpenExisting,OpenLinkItself,IntPtr.Zero)) {
+                    if(file.IsInvalid)return Gone.Unsure;
+                    FileInfoNative info;
+                    if(!GetFileInformationByHandle(file,out info))return Gone.Unsure;
+                    if((info.Attributes&(uint)FileAttributes.Directory)!=0)return Gone.Changed;
+                    // A link, or a cloud file (OneDrive keeps this mark on files that are here too): its size can't
+                    // be read this way, so it is left to the way it was always done.
+                    if((info.Attributes&(uint)FileAttributes.ReparsePoint)!=0)return Gone.Unsure;
+                    long now=((long)info.SizeHigh<<32)|info.SizeLow;
+                    long written=((long)info.Written.dwHighDateTime<<32)|(uint)info.Written.dwLowDateTime;
+                    if(now!=length || written!=stampUtc.ToFileTimeUtc())return Gone.Changed;
+                    if(id!=0 && (info.Volume!=volume || info.Id!=id))return Gone.Changed;
+                    // Windows refuses to delete a read-only file this way; the mark is taken off first, as before.
+                    bool readOnly=(info.Attributes&(uint)FileAttributes.ReadOnly)!=0;
+                    if(readOnly)File.SetAttributes(path,(FileAttributes)info.Attributes&~FileAttributes.ReadOnly);
+                    byte yes=1;
+                    if(SetFileInformationByHandle(file,4,ref yes,1))return Gone.Deleted; // 4: FileDispositionInfo
+                    // Not deleted after all: it gets its read-only mark back.
+                    if(readOnly) {try {File.SetAttributes(path,(FileAttributes)info.Attributes);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}}
+                    return Gone.Unsure;
+                }
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);return Gone.Unsure;}
+        }
+        // ----- For tags: a file's own identity, without a cover record -----
+        internal static bool Identity(string path,out uint volume,out ulong id,out long birth,out long length) {
+            volume=0;id=0;birth=0;length=0;
+            try {
+                if(!File.Exists(path))return false;
+                using(var f=Open(path)) {
+                    FileInfoNative info;
+                    if(!GetFileInformationByHandle(f.SafeFileHandle,out info) || info.Volume==0)return false;
+                    volume=info.Volume;id=info.Id;birth=info.Birth;length=f.Length;
+                    return true;
+                }
+            } catch(IOException){return false;}catch(UnauthorizedAccessException){return false;}
+        }
+        // Where that file is now, on whichever connected drive has that volume number. hint: a folder to try the drive of first.
+        internal static string FindById(string hint,uint volume,ulong id,long birth) {
+            try {
+                return PathById(new Reference {Path=hint??@"C:\",Id=id,Volume=volume,Birth=birth});
+            } catch(IOException){return null;}catch(UnauthorizedAccessException){return null;}catch(ArgumentException){return null;}
         }
         // ----- For DriveLinks -----
         internal static uint VolumeOf(string root) {
@@ -130,7 +208,7 @@ namespace LoveMyShelf {
             try {
                 foreach(var file in new DirectoryInfo(directory).EnumerateFiles())
                     if(file.Length==saved.Length && Compatible(file.FullName,saved.Path) && Matches(saved,file.FullName))return file.FullName;
-            } catch(IOException){} catch(UnauthorizedAccessException){}
+            } catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             return null;
         }
         internal static void MovePath(string folder,string path) {
@@ -143,7 +221,7 @@ namespace LoveMyShelf {
                     xml.SetAttributeValue("path",path);xml.Save(temp);
                     File.Replace(temp,target,null);
                 }
-            } finally {try{File.Delete(temp);}catch(IOException){}catch(UnauthorizedAccessException){}}
+            } finally {try{File.Delete(temp);}catch(IOException quiet) {ErrorLog.Quiet(quiet);}catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}}
         }
         // The person said this file is the original, even though it no longer looks the same.
         internal static void Link(Photo photo,string path) {Remember(photo,path,false,true);}
@@ -186,7 +264,7 @@ namespace LoveMyShelf {
                             match=bytes.Length==saved.Length && bytes.ToArray().SequenceEqual(saved);
                         }
                     }
-                }catch(Exception){/* A missing codec, frame or corrupt candidate is not a match. */}
+                }catch(Exception quiet) {ErrorLog.Quiet(quiet);/* A missing codec, frame or corrupt candidate is not a match. */}
             };
             if(Thread.CurrentThread.GetApartmentState()==ApartmentState.STA)compare();
             else {var thread=new Thread(compare){IsBackground=true};thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();}
@@ -240,7 +318,7 @@ namespace LoveMyShelf {
                         }
                     }
                 }
-            }catch(OperationCanceledException){throw;}catch(Exception){/* Windows Search is optional. */}
+            }catch(OperationCanceledException){throw;}catch(Exception quiet) {ErrorLog.Quiet(quiet);/* Windows Search is optional. */}
             return paths;
         }
         // Older releases saved only a filename and the rendered crop. A name collision
@@ -322,10 +400,10 @@ namespace LoveMyShelf {
                             var photo=GalleryStore.Read(folder);
                             string original=Path.Combine(album.Source,Path.GetFileName(photo.Name));
                             if(File.Exists(original) && CropMatches(photo,original,File.ReadAllBytes(photo.Thumb),token))Remember(photo,original,true);
-                        }catch(IOException){}catch(UnauthorizedAccessException){}catch(System.Xml.XmlException){}
+                        }catch(IOException quiet) {ErrorLog.Quiet(quiet);}catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}catch(System.Xml.XmlException quiet) {ErrorLog.Quiet(quiet);}
                     }
                 }
-            }catch(OperationCanceledException){}catch(Exception){/* Tracking can retry at next startup or on open. */}
+            }catch(OperationCanceledException){}catch(Exception quiet) {ErrorLog.Quiet(quiet);/* Tracking can retry at next startup or on open. */}
         }
     }
 }

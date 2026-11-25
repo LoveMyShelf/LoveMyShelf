@@ -66,7 +66,7 @@ namespace LoveMyShelf {
         int index,shown=-1;
         bool fullscreen,original,hidden,motion,paused,sync,resumeAfterDrag,selectedMovie,largeVideo,draggingVideo,cachedCover;
         int playbackBrightness;
-        int playbackStyle=Light.Soft; // R: Soft or See in the dark (see Light)
+        int playbackStyle=Light.Soft; // R: Soft, See in the dark or Milky (see Light)
         int PlaybackValue {get {return Light.Encode(playbackBrightness,playbackStyle);}}
         // E / W / Q was pressed for this file (a 0 then means "back to normal"). Both start over with every new file.
         bool brightnessChosen;string brightnessFile;
@@ -368,80 +368,91 @@ namespace LoveMyShelf {
             AddHandler(Mouse.PreviewMouseMoveEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
             AddHandler(Mouse.LostMouseCaptureEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
             MouseLeave+=delegate {RefreshFullscreenControls();};
-            Activated+=delegate {RefreshFullscreenControls();};
+            Activated+=delegate {RefreshFullscreenControls();TakeKeys();};
             Deactivated+=delegate {RefreshFullscreenControls();};
             SizeChanged+=delegate {RefreshFullscreenControls();};
+            StateChanged+=delegate {if(WindowState!=WindowState.Minimized)TakeKeys();};
             PreviewKeyDown+=(s,e)=>{
-                var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
-                switch(key) {
-                    case Key.F1:GuideWindow.Open(this,"large");break;
-                    case Key.Escape:
-                        if(keyPanel!=null && keyPanel.IsOpen){keyPanel.IsOpen=false;break;} // the controls close first
-                        Close();break;
-                    case Key.Left:case Key.Right:
+                var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key==Key.System?e.SystemKey:e.Key;
+                // Esc and F1 always keep their jobs. Every other key does what Guide & Options → Advanced says
+                // (the defaults unless the person changed them: ViewerKeys).
+                if(key==Key.F1){GuideWindow.Open(this,"large");e.Handled=true;return;}
+                if(key==Key.Escape) {
+                    if(keyPanel!=null && keyPanel.IsOpen)keyPanel.IsOpen=false; // the controls close first
+                    else Close();
+                    e.Handled=true;return;
+                }
+                string job=ViewerKeys.ActionFor(key);
+                // A key the person chose (Enter, Tab, …) is used up even when its job can't run right now, so it
+                // doesn't press a focused button or move the focus instead. The first keys behave as they always did.
+                if(job!=null && Keyboard.Modifiers==ModifierKeys.None && !ViewerKeys.IsFirstKey(job,key))e.Handled=true;
+                switch(job) {
+                    case "back":case "forward":
                         // ← → skip by the chosen number of seconds; Shift + ← → skips one second.
                         if(!motion || (Keyboard.Modifiers!=ModifierKeys.None && Keyboard.Modifiers!=ModifierKeys.Shift) || draggingVideo || resumeAfterDrag)return;
-                        Skip(key==Key.Left?-1:1,Keyboard.Modifiers==ModifierKeys.Shift?1:skipSeconds);break;
-                    case Key.K:case Key.L:
+                        Skip(job=="back"?-1:1,Keyboard.Modifiers==ModifierKeys.Shift?1:skipSeconds);break;
+                    case "previous":case "next":
                         if(forCrop || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Navigate(key==Key.K?-1:1);break;
-                    case Key.D:case Key.F:
+                        Navigate(job=="previous"?-1:1);break;
+                    case "sceneBack":case "sceneForward":
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        StepFrame(key==Key.D?-1:1);break;
-                    case Key.E:case Key.W:case Key.Q:
+                        StepFrame(job=="sceneBack"?-1:1);break;
+                    case "brightnessReset":case "brighter":case "darker":
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        ChangeBrightness(key==Key.Q?0:key==Key.E?1:-1);break;
-                    case Key.R:
+                        ChangeBrightness(job=="brightnessReset"?0:job=="brighter"?1:-1);break;
+                    case "brightnessStyle":
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
                         SwitchBrightnessStyle();break;
-                    case Key.Space:if(!e.IsRepeat){if(motion)SetPaused(!paused);else if(!WantsCrop)Primary();}break;
-                    case Key.C:case Key.X:case Key.Z:
+                    case "play":
+                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
+                        if(!e.IsRepeat){if(motion)SetPaused(!paused);else if(!WantsCrop)Primary();}break;
+                    case "faster":case "slower":case "speedReset":
                         // Like PotPlayer: C faster, X slower by 0.1, Z back to normal.
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        double newRate=key==Key.Z?1:Math.Round(rate+(key==Key.C?0.1:-0.1),1);
+                        double newRate=job=="speedReset"?1:Math.Round(rate+(job=="faster"?0.1:-0.1),1);
                         SetRate(Math.Max(0.2,Math.Min(4,newRate)));
                         ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
                         break;
-                    case Key.Up:case Key.Down:
+                    case "volumeUp":case "volumeDown":
                         // Like PotPlayer and YouTube: ↑ ↓ change the volume by 5; held down, it keeps going.
                         if(!motion || !volume.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None)return;
                         muted=false;
-                        volume.Value=Math.Max(0,Math.Min(100,Math.Round(volume.Value/5)*5+(key==Key.Up?5:-5)));
+                        volume.Value=Math.Max(0,Math.Min(100,Math.Round(volume.Value/5)*5+(job=="volumeUp"?5:-5)));
                         ApplyAudio();
                         ShowCornerNote(L.F("Volume {0}%",(int)volume.Value));break;
-                    case Key.M:
+                    case "mute":
                         // M turns the sound off and on again, like PotPlayer; the volume itself stays as it was.
                         if(!motion || !volume.IsEnabled || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         muted=!muted;ApplyAudio();
                         ShowCornerNote(muted?L.T("Sound off"):L.F("Volume {0}%",(int)volume.Value));break;
-                    case Key.V:
+                    case "double":
                         // Straight to 2×, and from 2× back to 1×: the same key as in Make GIF cover.
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleDoubleRate();break;
-                    case Key.N:
+                    case "clearVoice":
                         if(!motion || !clearVoiceReady || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleClearVoice();break;
-                    case Key.O:case Key.P:
+                    case "turnLeft":case "turnRight":
                         // O turns the picture left and P right, a little at a time; held down, it keeps turning.
                         if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Turn(key==Key.P?1:-1,e.IsRepeat);break;
-                    case Key.I:
+                        Turn(job=="turnRight"?1:-1,e.IsRepeat);break;
+                    case "turnReset":
                         if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ResetTurn();break;
-                    case Key.Delete:
+                    case "recycle":
                         if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         RecycleCurrent();break;
-                    case Key.Tab:
+                    case "info":
                         if(forCrop || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleInfo();break;
-                    case Key.OemOpenBrackets:case Key.OemCloseBrackets:
+                    case "partStart":case "partEnd":
                         // Like PotPlayer's A-B repeat: [ marks where the GIF cover's part starts, ] where it ends.
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
-                        MarkPart(key==Key.OemOpenBrackets?1:2);break;
-                    case Key.Oem5:case Key.OemBackslash: // the \ key (the won sign on a Korean keyboard)
+                        MarkPart(job=="partStart"?1:2);break;
+                    case "partClear": // \ (the won sign on a Korean keyboard)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ClearPart();break;
-                    case Key.OemQuestion:case Key.Divide: // the / key, next to the arrow keys (and the one on the number pad)
+                    case "capture": // / next to the arrow keys (and the one on the number pad)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         CaptureFrame();break;
                     default:return;
@@ -622,21 +633,15 @@ namespace LoveMyShelf {
             SeekTo(from);
             return true;
         }
-        // A band above the bar from the start to the end, with a tick at each mark (one tick while only one is set).
+        // A pale band around the bar's rail from the start to the end, closed by a short bar at each mark (one bar
+        // while only one is set). The same look as the GIF cover window's strip (see PartLook).
         void ShowPart() {
             partMarks.Children.Clear();
             double width=seek.ActualWidth;
             if(!motion || !PartIsHere || duration<=1 || width<=12)return;
             const double thumb=10; // the bar's playhead: its middle runs from 5 to width-5
             Func<double,double> x=ms=>thumb/2+Math.Max(0,Math.Min(1,ms/duration))*(width-thumb);
-            Action<double,double,double,double> box=(left,top,w,h)=>{
-                var shape=new System.Windows.Shapes.Rectangle {Width=Math.Max(1,w),Height=h};
-                shape.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,"Accent");
-                Canvas.SetLeft(shape,left);Canvas.SetTop(shape,top);partMarks.Children.Add(shape);
-            };
-            if(partStart.HasValue && partEnd.HasValue)box(x(partStart.Value),-10,x(partEnd.Value)-x(partStart.Value),3);
-            if(partStart.HasValue)box(x(partStart.Value)-1.5,-10,3,15);
-            if(partEnd.HasValue)box(x(partEnd.Value)-1.5,-10,3,15);
+            PartLook.OnBar(partMarks,partStart.HasValue?x(partStart.Value):(double?)null,partEnd.HasValue?x(partEnd.Value):(double?)null);
         }
         // JPG quality for captures. Used inside only: no number like this is ever shown on screen or in the guide.
         const int CaptureJpgQuality=95;
@@ -1476,9 +1481,9 @@ namespace LoveMyShelf {
             ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
             ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0} · {1}",playbackBrightness,Light.StyleName(playbackStyle)));
         }
-        // R: Soft and See in the dark take turns. The level stays.
+        // R: Soft, See in the dark and Milky take turns. The level stays.
         void SwitchBrightnessStyle() {
-            playbackStyle=playbackStyle==Light.Dark?Light.Soft:Light.Dark;brightnessChosen=true;
+            playbackStyle=Light.NextStyle(playbackStyle);brightnessChosen=true;
             ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
             ShowCornerNote(L.F("Brightness style: {0}",Light.StyleName(playbackStyle)));
         }
@@ -1557,6 +1562,27 @@ namespace LoveMyShelf {
                 SetPanelVisible(!hidden);
             }
         }
+        // Back from the taskbar (minimized in full screen with the minimize button on the overlay), Windows could
+        // hand the keys to the video's own child window or to nothing, so no shortcut worked until F11 went out and
+        // back in. Once the window has settled, the keys come back here, unless something of ours (the overlay,
+        // the controls popup) already has them.
+        void TakeKeys() {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input,new Action(()=>{
+                if(!IsVisible || WindowState==WindowState.Minimized || !(IsActive || (overlay!=null && overlay.IsActive)))return;
+                IntPtr me=new WindowInteropHelper(this).Handle,focus=GetFocus();
+                if(me==IntPtr.Zero)return;
+                // The overlay is its own window, not a child: with nothing focused inside it, keys go nowhere.
+                bool emptyOverlay=overlay!=null && focus!=IntPtr.Zero && focus==new WindowInteropHelper(overlay).Handle &&
+                    !overlay.IsKeyboardFocusWithin;
+                if(focus==IntPtr.Zero || emptyOverlay || (focus!=me && IsChild(me,focus))) {
+                    if(!IsActive)Activate();
+                    SetFocus(me);Keyboard.Focus(this);
+                } else if(focus==me && Keyboard.FocusedElement==null) Keyboard.Focus(this);
+            }));
+        }
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetFocus();
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr hwnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] static extern bool IsChild(IntPtr parent,IntPtr child);
         void RefreshFullscreenControls() {
             if(!fullscreen)return;
             bool active=IsActive || (overlay!=null && overlay.IsActive);
@@ -1576,7 +1602,7 @@ namespace LoveMyShelf {
                     overlay.AddHandler(Mouse.PreviewMouseMoveEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
                     overlay.AddHandler(Mouse.LostMouseCaptureEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
                     overlay.MouseLeave+=delegate {RefreshFullscreenControls();};
-                    overlay.Activated+=delegate {RefreshFullscreenControls();};
+                    overlay.Activated+=delegate {RefreshFullscreenControls();TakeKeys();};
                     overlay.Deactivated+=delegate {RefreshFullscreenControls();};
                     overlay.PreviewMouseWheel+=Wheel;
                 }

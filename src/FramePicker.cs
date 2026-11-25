@@ -49,6 +49,10 @@ namespace LoveMyShelf {
         volatile Request requested;
         volatile bool closed;
         Task decoding;
+        // Stops the reading while this window waits behind the cover editor (and the Make GIF cover window),
+        // so their own reading of the video gets the computer to itself. A new one starts on coming back.
+        CancellationTokenSource reading;
+        bool rangeSet;
         // Reading more scenes when the grid is scrolled to its top or bottom: -1 earlier, +1 later, 0 nothing asked.
         volatile int extendWanted;
         volatile bool atVideoStart,atVideoEnd;
@@ -124,11 +128,12 @@ namespace LoveMyShelf {
                 if(decoding!=null)return;
                 indexClock.Start();
                 indexTimer.Start();
-                decoding=Task.Run((Action)Decode);
+                StartReading();
             };
             Closed+=async delegate {
                 closed=true;indexTimer.Stop();lifetime.Cancel();work.Set();
                 if(decoding!=null)await decoding;
+                if(reading!=null)reading.Dispose();
                 work.Dispose();lifetime.Dispose();
             };
             PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape){DialogResult=false;e.Handled=true;}};
@@ -255,6 +260,9 @@ namespace LoveMyShelf {
                 var token=lifetime.Token;
                 FrameTimes current=nearby;
                 int frameCount=total;
+                // The scene list may change while the reading stops; this scene is already taken from the list it was shown in.
+                await PauseReading();
+                if(closed)return;
                 var image=await Task.Run(()=>current==null?AnimationFrames.Still(path,index,previewSide):
                     VideoFrames.AtTime(path,current.Start(index),current.TimestampOffset(index),previewSide,token));
                 if(closed)return;
@@ -276,47 +284,64 @@ namespace LoveMyShelf {
                 if(CoverWork.Show(editor)==true) {SavedCrop=editor;DialogResult=true;}
                 else if(!editor.BackToFrames) DialogResult=false;
             } catch(Exception ex){if(!closed)UI.Error(this,ex);}
-            finally {if(!closed)scroll.IsEnabled=true;}
+            finally {if(!closed){scroll.IsEnabled=true;ResumeReading();}}
         }
-        void Decode() {
+        void StartReading() {
+            reading=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            var token=reading.Token;
+            decoding=Task.Run(()=>Decode(token));
+        }
+        // Ends the reading (the FFmpeg it runs closes at once) and waits until its thread has stopped.
+        async Task PauseReading() {
+            if(reading==null || reading.IsCancellationRequested)return;
+            reading.Cancel();work.Set();
+            if(decoding!=null)await decoding;
+        }
+        // Back from the cover editor: reads on where it stopped. Pictures already read stay; only missing tiles are read.
+        void ResumeReading() {
+            if(closed || reading==null || !reading.IsCancellationRequested)return;
+            reading.Dispose();
+            extendWanted=0;
+            count.ToolTip=null;
+            if(nearby!=null)count.Text=RangeText(nearby);
+            else if(total>0)count.Text=L.F("{0:N0} scenes",total);
+            // The old request and a wake-up left over from stopping would make the new reading start on tiles already read.
+            requested=null;work.Reset();
+            first=end=-1; // so the next layout asks for the missing tiles again
+            StartReading();
+            ScheduleLayout();
+        }
+        void Decode(CancellationToken token) {
             try {
-                if(useNearby){DecodeNearby();return;}
-                using(var file=new AnimationFrames(path,lifetime.Token)) {
-                    Dispatcher.Invoke(new Action(()=>SetRange(file.Times,false)));
-                    DecodeVisible(file);
+                if(useNearby){DecodeNearby(token);return;}
+                using(var file=new AnimationFrames(path,token)) {
+                    if(!rangeSet)Dispatcher.Invoke(new Action(()=>SetRange(file.Times,false)));
+                    DecodeVisible(file,token);
                 }
             } catch(Exception ex) {
-                if(!closed)Dispatcher.Invoke(new Action(()=>{
+                // Stopped on purpose (closing, or waiting behind the cover editor): nothing went wrong.
+                if(!closed && !token.IsCancellationRequested)Dispatcher.Invoke(new Action(()=>{
+                    if(closed || token.IsCancellationRequested)return;
                     indexTimer.Stop();count.Text=L.T("Could not read the scenes.");count.ToolTip=ex.Message;
                 }));
             }
         }
 
-        void DecodeNearby() {
-            var token=lifetime.Token;
+        void DecodeNearby(CancellationToken token) {
             double center=anchorTime.Value;
-            FrameTimes close=null;
             // The grid shows one scene every so often (0.2 s unless changed in the options), not every picture of the video.
             double step=Scenes.StepMs;
-            try {close=VideoFrames.Nearby(path,center,token,350).Thin(step,center);}
-            catch(InvalidDataException) { }
-            bool shownClose=close!=null && close.Start(0)<=center;
-            if(shownClose) {
-                using(var file=new AnimationFrames(path,token,close)) {
-                    Dispatcher.Invoke(new Action(()=>SetRange(close,true)));
-                    work.WaitOne();
-                    if(closed)return;
-                    var view=requested;
-                    if(view!=null && view.Indices.Contains(view.Paused)) {
-                        // Decode adjacent frames in sequence, but show the paused thumbnail first.
-                        bool hasPrevious=view.Paused>0;
-                        var earlier=hasPrevious?file.Read(view.Paused-1,view.Side):null;
-                        Present(view,view.Paused,file.Read(view.Paused,view.Side));
-                        if(earlier!=null)Present(view,view.Paused-1,earlier);
-                        if(view.Paused+1<file.Count)Present(view,view.Paused+1,file.Read(view.Paused+1,view.Side));
-                    }
-                }
+            // Read on after the cover editor: the wide list is already there, or at least the close one.
+            if(wideReady){ReadAround(nearby,token);return;}
+            FrameTimes close=nearby;
+            bool shownClose=close!=null;
+            if(!shownClose) {
+                try {close=VideoFrames.Nearby(path,center,token,350).Thin(step,center);}
+                catch(InvalidDataException) { }
+                shownClose=close!=null && close.Start(0)<=center;
+                if(shownClose)ShowClose(close,token);
             }
+            if(closed)return;
             token.ThrowIfCancellationRequested();
             FrameTimes wide;
             try {wide=VideoFrames.Nearby(path,center,token,Scenes.RadiusMs).Thin(step,center);}
@@ -324,15 +349,38 @@ namespace LoveMyShelf {
                 if(!shownClose)throw;
                 wide=close;
             }
+            token.ThrowIfCancellationRequested();
             if(wide.Count>0 && wide.Start(0)<=0.5)atVideoStart=true;
             var current=wide;
+            Dispatcher.Invoke(new Action(()=>{SetRange(current,true);wideReady=true;}));
+            ReadAround(current,token);
+        }
+        // The few scenes right around the paused one, shown before the wider list is ready.
+        void ShowClose(FrameTimes close,CancellationToken token) {
+            using(var file=new AnimationFrames(path,token,close)) {
+                Dispatcher.Invoke(new Action(()=>SetRange(close,true)));
+                work.WaitOne();
+                if(closed || token.IsCancellationRequested)return;
+                var view=requested;
+                if(view!=null && view.Indices.Contains(view.Paused)) {
+                    // Decode adjacent frames in sequence, but show the paused thumbnail first.
+                    bool hasPrevious=view.Paused>0;
+                    var earlier=hasPrevious?file.Read(view.Paused-1,view.Side):null;
+                    Present(view,view.Paused,file.Read(view.Paused,view.Side));
+                    if(earlier!=null)Present(view,view.Paused-1,earlier);
+                    if(view.Paused+1<file.Count)Present(view,view.Paused+1,file.Read(view.Paused+1,view.Side));
+                }
+            }
+        }
+        // Reads the tiles asked for, and more scenes when the grid reaches its top or bottom.
+        void ReadAround(FrameTimes current,CancellationToken token) {
+            double step=Scenes.StepMs;
             var reader=new AnimationFrames(path,token,current);
             try {
-                Dispatcher.Invoke(new Action(()=>{SetRange(current,true);wideReady=true;}));
-                while(!closed) {
-                    DecodeVisible(reader);
+                while(!closed && !token.IsCancellationRequested) {
+                    DecodeVisible(reader,token);
                     int direction=extendWanted;
-                    if(closed || direction==0)return;
+                    if(closed || token.IsCancellationRequested || direction==0)return;
                     // Widen the range that way by the usual reach (75 scenes), keeping at most MaxSpanMs in all.
                     double from=current.Start(0),to=current.Start(current.Count-1);
                     double newFrom=direction<0?Math.Max(0,from-Scenes.RadiusMs):from;
@@ -395,7 +443,7 @@ namespace LoveMyShelf {
                 }
             pictures=moved;pictureBytes=moved.Values.Sum(p=>p.Bytes);
             rangeVersion++;
-            if(local)nearby=times;
+            if(local)nearby=times;else rangeSet=true;
             requested=null;first=end=-1;
             previous=marked;total=times.Count;
             count.Text=local?RangeText(times):
@@ -411,15 +459,15 @@ namespace LoveMyShelf {
             return offset<=lastOffset?last-lastOffset+offset:-1;
         }
 
-        void DecodeVisible(AnimationFrames file) {
+        void DecodeVisible(AnimationFrames file,CancellationToken token) {
             // What this thread read for the previous request, so a new one does not read again a picture
             // that has not reached the window yet. (Older ones have, or were let go for memory and may be read again.)
             var read=new HashSet<int>();var before=new HashSet<int>();int readVersion=-1,readSide=-1;
-            while(!closed) {
+            while(!closed && !token.IsCancellationRequested) {
                 work.WaitOne();
                 if(extendWanted!=0)return; // the caller reads more scenes, then comes back
                 var view=requested;
-                if(closed || view==null)continue;
+                if(closed || token.IsCancellationRequested || view==null)continue;
                 if(view.Version!=readVersion || view.Side!=readSide){read.Clear();readVersion=view.Version;readSide=view.Side;}
                 before=read;read=new HashSet<int>();
                 IEnumerable<int> indices=view.Indices;
@@ -430,7 +478,7 @@ namespace LoveMyShelf {
                         indices=indices.OrderBy(i=>file.Times.Start(i)<keyframe.Value);
                 }
                 foreach(int i in indices.Concat(view.Later)) {
-                    if(closed || requested!=view || extendWanted!=0)break;
+                    if(closed || token.IsCancellationRequested || requested!=view || extendWanted!=0)break;
                     if(before.Contains(i) || !read.Add(i))continue;
                     Present(view,i,file.Read(i,view.Side));
                 }

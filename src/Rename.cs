@@ -35,7 +35,7 @@ namespace LoveMyShelf {
             public void Rollback() {
                 for(int i=Moves.Count-1;i>=0;i--) {
                     var m=Moves[i];
-                    try {if(m.Item3)Directory.Move(m.Item2,m.Item1);else File.Move(m.Item2,m.Item1);} catch(Exception) {}
+                    try {if(m.Item3)Directory.Move(m.Item2,m.Item1);else File.Move(m.Item2,m.Item1);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 }
             }
         }
@@ -58,6 +58,7 @@ namespace LoveMyShelf {
 
         // Renames photo's original to newName (with extension). Returns the new path of the original.
         internal static string Rename(GalleryStore store,Photo photo,string newName) {
+            TileSound.Stop(); // a cover whose sound is playing would be "in use"
             string albumFolder=Path.GetDirectoryName(photo.Folder);
             string source=SourceOf(albumFolder);
             if(source==null)throw new InvalidOperationException(L.T("Only files in an added folder can be renamed."));
@@ -108,15 +109,16 @@ namespace LoveMyShelf {
                     }
                 }
             } catch {
-                foreach(var b in undoBackups) try {if(File.Exists(b.Item1)){File.Copy(b.Item1,b.Item2,true);}} catch(Exception) {}
+                foreach(var b in undoBackups) try {if(File.Exists(b.Item1)){File.Copy(b.Item1,b.Item2,true);}} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 undo.Rollback();
                 CleanBackups();
                 throw;
             }
             CleanBackups();
+            Tags.Moved(albumFolder,oldName,albumFolder,newName);
             // Point the remembered location of every cover record at the renamed original.
             foreach(var record in Directory.GetDirectories(albumFolder,newBase+"*")) {
-                try {OriginalLocator.Remember(GalleryStore.Read(record,to),to);} catch(Exception) {}
+                try {OriginalLocator.Remember(GalleryStore.Read(record,to),to);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             }
             return to;
         }
@@ -161,7 +163,15 @@ namespace LoveMyShelf {
         internal static string RenameFolder(GalleryStore store,string folder,string newName) {
             string from=Path.GetFullPath(folder).TrimEnd('\\');
             if(!CanRenameFolder(from))throw new DirectoryNotFoundException(L.T("The source folder could not be found."));
-            string to=Path.Combine(Path.GetDirectoryName(from),newName);
+            return Relocate(store,from,Path.Combine(Path.GetDirectoryName(from),newName));
+        }
+        // The same for a folder that goes to another place on its own drive (a whole-folder move of the file queue):
+        // the folder moves in one step, and every record that knew it by its old path learns the new one.
+        internal static string Relocate(GalleryStore store,string folder,string place) {
+            TileSound.Stop();
+            string from=Path.GetFullPath(folder).TrimEnd('\\');
+            if(!CanRenameFolder(from))throw new DirectoryNotFoundException(L.T("The source folder could not be found."));
+            string to=Path.GetFullPath(place).TrimEnd('\\'),newName=Path.GetFileName(to);
             if(from==to)return from;
             bool caseOnly=String.Equals(from,to,StringComparison.OrdinalIgnoreCase);
             if(!caseOnly && (Directory.Exists(to) || File.Exists(to)))throw new IOException(L.F("There is already a folder or file named “{0}” here.",newName));
@@ -221,17 +231,18 @@ namespace LoveMyShelf {
                     Repoint(Path.Combine(store.Root,"options.xml"),new[]{"coverDirectory"},from,to,saved);
                 }
             } catch {
-                for(int i=saved.Count-1;i>=0;i--) try {File.WriteAllBytes(saved[i].Item1,saved[i].Item2);} catch(Exception) {}
+                for(int i=saved.Count-1;i>=0;i--) try {File.WriteAllBytes(saved[i].Item1,saved[i].Item2);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 undo.Rollback();
                 throw;
             }
-            foreach(string aside in removed) try {Directory.Delete(aside,true);} catch(Exception) {}
+            foreach(string aside in removed) try {Directory.Delete(aside,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+            Tags.Reload(); // each folder's tags moved with its record folder
             return to;
         }
         [ThreadStatic] static List<Tuple<string,string>> backups;
         static List<Tuple<string,string>> undoBackups {get {return backups??(backups=new List<Tuple<string,string>>());}}
         static void CleanBackups() {
-            foreach(var b in undoBackups) try {File.Delete(b.Item1);} catch(Exception) {}
+            foreach(var b in undoBackups) try {File.Delete(b.Item1);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             undoBackups.Clear();
         }
     }

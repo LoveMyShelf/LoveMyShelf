@@ -80,7 +80,9 @@ namespace LoveMyShelf {
         bool rebuilding;
 
         GalleryWindow Gallery {get {return Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault();}}
-        Preferences Prefs {get {var g=Gallery;return g!=null?g.Settings:new Preferences();}}
+        Preferences Prefs {get {var g=Gallery;return g!=null?g.Settings:PrefsForChecks??new Preferences();}}
+        // The checks draw the pages without a folder window: the options they show.
+        internal static Preferences PrefsForChecks;
 
         internal GuideWindow(Window owner,string start) {
             UI.WindowSetup(this,T("Guide & Options","설명서 겸 옵션"));
@@ -98,7 +100,14 @@ namespace LoveMyShelf {
             scroller.Content=cards;scroller.SetResourceReference(Control.BackgroundProperty,"Paper");root.Children.Add(scroller);
             Content=root;
             contents.SelectionChanged+=delegate {if(!rebuilding)Show(contents.SelectedIndex,true);};
-            PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape || e.Key==Key.F1){Close();e.Handled=true;}};
+            PreviewKeyDown+=(s,e)=>{
+                if(waitingFor!=null){TakeKey(e);return;}
+                // Held Esc after cancelling a key: the repeats don't close the window.
+                if(e.IsRepeat && e.Key==Key.Escape){e.Handled=true;return;}
+                // Esc while "swap them?" is asked closes only that question.
+                if(e.Key==Key.Escape && clashFor!=null){clashFor=null;clashWith=null;Redraw();e.Handled=true;return;}
+                if(e.Key==Key.Escape || e.Key==Key.F1){Close();e.Handled=true;}
+            };
             savedTimer.Tick+=delegate {savedTimer.Stop();savedId=null;if(savedNote!=null)savedNote.Visibility=Visibility.Collapsed;};
             Action changed=()=>Rebuild();
             var gallery=Gallery;
@@ -175,6 +184,8 @@ namespace LoveMyShelf {
             }
             if(sections[index].Id=="all")DrawOverview();
             if(sections[index].Id=="news")DrawNews();
+            if(sections[index].Id=="advanced")DrawAdvanced();
+            else {waitingFor=null;clashFor=null;keyNote=null;}
             if(toTop)scroller.ScrollToTop();
         }
         // The version in use, then what each version brought, newest first.
@@ -195,6 +206,179 @@ namespace LoveMyShelf {
         }
         // The checks use this to see a drafted version before it is released.
         internal static string NewsVersionForChecks;
+
+        // ---------- Advanced: the large view's keys ----------
+        // Only for the few who want it. The guide, the shortcut list, tooltips and notices keep the default keys;
+        // the first card says so.
+        ViewerKeys.Command waitingFor;            // the row waiting for a key to be pressed
+        ViewerKeys.Command clashFor,clashWith;    // a key that is already used: the row, and the job that has the key
+        Key clashKey;
+        string keyNote;                           // a short line under the row waiting for a key (a key that can't be used)
+
+        void DrawAdvanced() {
+            var prefs=Prefs;
+            var changed=prefs.Shortcuts;
+            var intro=Box(false);var top=new StackPanel();intro.Child=top;
+            top.Children.Add(Heading(T("Change the large view's shortcuts","크게 보기 단축키 바꾸기")));
+            AddLines(top,new[]{
+                T("You can change the keys used in the large view to the keys you like. Use it when you want them to match another program your hands are used to.",
+                  "크게 보기에서 쓰는 단축키를 원하는 키로 바꿀 수 있어요. 손에 익은 다른 프로그램의 키와 맞추고 싶을 때 써 보세요."),
+                T("The guide, All shortcuts and the button tooltips always show the keys Love My Shelf started with. If you change a key here, press your new key instead of the one written there.",
+                  "설명서, 단축키 모아 보기, 버튼 설명에는 언제나 처음 정해진 키로 적혀 있어요. 여기서 키를 바꿨다면 거기 적힌 키 대신 바꾼 키를 눌러 주세요."),
+                T("Click a key on the right, then press the key you want to use.",
+                  "오른쪽의 키를 누른 다음, 쓰고 싶은 키를 키보드에서 누르면 돼요.")},7);
+            AddTips(top,new[]{
+                T("A change applies right away, also to large views that are already open.","바꾼 키는 바로 적용돼요. 이미 열려 있는 크게 보기 창에도요."),
+                T("{{Esc}} (close), {{F1}} (guide) and {{F11}} (full screen) can't be changed, so you can always find your way back.",
+                  "{{Esc}}(닫기), {{F1}}(설명서), {{F11}}(전체 화면)은 바꿀 수 없어요. 어떻게 바꿔도 돌아갈 길이 남아 있게요."),
+                T("Only single keys can be used, not keys pressed together with Ctrl, Alt or Shift.","Ctrl·Alt·Shift와 함께 누르는 키는 쓸 수 없고, 키 하나만 쓸 수 있어요."),
+                T("If you get mixed up, [[Put all keys back]] at the bottom brings back the keys Love My Shelf started with.",
+                  "헷갈리면 맨 아래 [[모두 원래대로]]를 누르세요. 처음 정해진 키로 한 번에 돌아가요.")});
+            cards.Children.Add(intro);
+
+            var list=Box(true);list.Tag="keys";var rows=new StackPanel();list.Child=rows;
+            var label=UI.Text(T("⚙  Set it right here","⚙  여기서 바로 설정해요"),12);label.FontWeight=FontWeights.SemiBold;
+            label.SetResourceReference(TextBlock.ForegroundProperty,"Accent");label.Margin=new Thickness(0,0,0,4);
+            rows.Children.Add(label);
+            rows.Children.Add(Heading(T("Large view keys","크게 보기 키")));
+            foreach(var command in ViewerKeys.All)rows.Children.Add(KeyRow(command,changed));
+            var bottom=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,16,0,0)};
+            var resetAll=UI.Btn(T("Put all keys back","모두 원래대로"),()=>{waitingFor=null;clashFor=null;keyNote=null;ChangeKeys(k=>k.Clear());});
+            resetAll.FontSize=13;resetAll.IsEnabled=changed.Count>0;bottom.Children.Add(resetAll);
+            var count=UI.Text(changed.Count>0?T(changed.Count+" changed",changed.Count+"개 바꿨어요"):T("All keys are the defaults now","지금은 모두 처음 키예요"),13,true);
+            count.VerticalAlignment=VerticalAlignment.Center;count.Margin=new Thickness(12,0,0,0);bottom.Children.Add(count);
+            rows.Children.Add(bottom);
+            var saved=UI.Text(T("✓  Saved. It applies right away.","✓  저장됐어요. 바로 적용돼요."),13);
+            saved.FontWeight=FontWeights.SemiBold;saved.SetResourceReference(TextBlock.ForegroundProperty,"Accent");
+            saved.Margin=new Thickness(0,10,0,0);saved.Visibility=savedId=="keys"?Visibility.Visible:Visibility.Collapsed;
+            if(savedId=="keys")savedNote=saved;
+            rows.Children.Add(saved);
+            cards.Children.Add(list);
+        }
+        FrameworkElement KeyRow(ViewerKeys.Command command,Dictionary<string,Key> changed) {
+            var holder=new StackPanel {Margin=new Thickness(0,6,0,0)};
+            var row=new DockPanel {LastChildFill=true};
+            Key now=ViewerKeys.KeyOf(changed,command);
+            bool isChanged=now!=command.Default,waiting=waitingFor==command;
+            var right=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};
+            if(isChanged && !waiting) {
+                var back=UI.Btn(T("Reset","원래대로"),()=>{waitingFor=null;keyNote=null;Give(command,command.Default);});
+                back.FontSize=12;back.Margin=new Thickness(0,0,8,0);
+                back.ToolTip=T("Back to the first key: "+ViewerKeys.Label(command.Default),"처음 키로 되돌려요: "+ViewerKeys.Label(command.Default));
+                right.Children.Add(back);
+            }
+            // The key itself is the button: drawn like a keyboard key, with the accent border when it was changed.
+            var chip=new Button {Template=ChoiceTemplate(),Cursor=Cursors.Hand,MinWidth=96,Padding=new Thickness(10,5,10,6),
+                BorderThickness=new Thickness(isChanged || waiting?2:1),HorizontalContentAlignment=HorizontalAlignment.Center};
+            chip.SetResourceReference(Control.BackgroundProperty,waiting?"Raised":"Paper");
+            chip.SetResourceReference(Control.BorderBrushProperty,isChanged || waiting?"Accent":"StrongLine");
+            var chipText=UI.Text(waiting?T("Press a key…","키를 눌러 주세요…"):ViewerKeys.Label(now),13);
+            chipText.FontWeight=FontWeights.SemiBold;chipText.HorizontalAlignment=HorizontalAlignment.Center;
+            if(waiting || isChanged)chipText.SetResourceReference(TextBlock.ForegroundProperty,"Accent");
+            chip.Content=chipText;
+            System.Windows.Automation.AutomationProperties.SetName(chip,command.Name+": "+ViewerKeys.Label(now));
+            chip.ToolTip=waiting?T("Press Esc to cancel","Esc를 누르면 취소돼요"):T("Click, then press the new key","누른 다음 새 키를 눌러 주세요");
+            chip.Click+=delegate {
+                clashFor=null;keyNote=null;
+                waitingFor=waiting?null:command;
+                Redraw();
+            };
+            right.Children.Add(chip);
+            DockPanel.SetDock(right,Dock.Right);row.Children.Add(right);
+            var name=UI.Text(command.Name,14);name.TextWrapping=TextWrapping.Wrap;name.VerticalAlignment=VerticalAlignment.Center;
+            name.Margin=new Thickness(0,0,12,0);
+            if(isChanged) {
+                var both=new StackPanel {VerticalAlignment=VerticalAlignment.Center};both.Children.Add(name);
+                var was=UI.Text(T("Default: ","처음 키: ")+ViewerKeys.Label(command.Default),12,true);was.Margin=new Thickness(0,1,12,0);
+                both.Children.Add(was);row.Children.Add(both);
+            } else row.Children.Add(name);
+            holder.Children.Add(row);
+            if(waiting) {
+                var line=UI.Text(keyNote??T("Press the key you want to use. Esc cancels.","쓰고 싶은 키를 눌러 주세요. Esc를 누르면 취소돼요."),13,keyNote==null);
+                line.TextWrapping=TextWrapping.Wrap;line.Margin=new Thickness(0,6,0,0);
+                if(keyNote!=null)line.Foreground=new SolidColorBrush(NoticeLook.Amber);
+                holder.Children.Add(line);
+            }
+            if(clashFor==command && clashWith!=null) {
+                // The key is used by another job: swap the two, or keep things as they were.
+                var box=new Border {CornerRadius=new CornerRadius(10),Padding=new Thickness(14,10,14,11),Margin=new Thickness(0,8,0,4),BorderThickness=new Thickness(1)};
+                box.SetResourceReference(Border.BackgroundProperty,"Paper");box.BorderBrush=new SolidColorBrush(NoticeLook.Amber);
+                var stack=new StackPanel();box.Child=stack;
+                Key mine=ViewerKeys.KeyOf(changed,command);
+                var other=clashWith;var key=clashKey;
+                // The number pad's / is an extra key of Capture: taking it leaves Capture its own / key.
+                Key theirs=ViewerKeys.KeyOf(changed,other);
+                bool extra=theirs!=key;
+                var text=UI.Text(extra?
+                    T(ViewerKeys.Label(key)+" also works for “"+other.Name+"” now. Use it here instead? “"+other.Name+"” keeps "+ViewerKeys.Label(theirs)+".",
+                      ViewerKeys.Label(key)+" 키는 지금 ‘"+other.Name+"’에도 쓰고 있어요. 이쪽으로 가져올까요? ‘"+other.Name+"’은 "+ViewerKeys.Label(theirs)+" 키로 계속 쓸 수 있어요."):
+                    T(ViewerKeys.Label(key)+" is already used for “"+other.Name+"”. Swap them? Then “"+other.Name+"” moves to "+ViewerKeys.Label(mine)+".",
+                      ViewerKeys.Label(key)+" 키는 지금 ‘"+other.Name+"’에 쓰고 있어요. 서로 맞바꿀까요? 맞바꾸면 ‘"+other.Name+"’에는 "+ViewerKeys.Label(mine)+" 키가 들어가요."),13);
+                text.TextWrapping=TextWrapping.Wrap;stack.Children.Add(text);
+                var buttons=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0)};
+                var swap=UI.Btn(extra?T("Use it here","가져오기"):T("Swap them","맞바꾸기"),()=>{
+                    clashFor=null;clashWith=null;
+                    ChangeKeys(k=>{if(!extra)ViewerKeys.Set(k,other,mine);ViewerKeys.Set(k,command,key);});
+                },true);
+                swap.FontSize=13;buttons.Children.Add(swap);
+                var cancel=UI.Btn(T("Cancel","취소"),()=>{clashFor=null;clashWith=null;Redraw();});
+                cancel.FontSize=13;cancel.Margin=new Thickness(6,0,0,0);buttons.Children.Add(cancel);
+                stack.Children.Add(buttons);
+                holder.Children.Add(box);
+            }
+            var line2=new Border {Height=1,Margin=new Thickness(0,6,0,0)};line2.SetResourceReference(Border.BackgroundProperty,"Line");
+            holder.Children.Add(line2);
+            return holder;
+        }
+        // A key pressed while a row waits for one.
+        void TakeKey(KeyEventArgs e) {
+            e.Handled=true;
+            var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key==Key.System?e.SystemKey:e.Key;
+            var command=waitingFor;
+            switch(key) {
+                case Key.LeftShift:case Key.RightShift:case Key.LeftCtrl:case Key.RightCtrl:case Key.LeftAlt:case Key.RightAlt:case Key.LWin:case Key.RWin:
+                case Key.HangulMode:case Key.HanjaMode:case Key.CapsLock:case Key.NumLock:
+                    return; // wait for the real key (switching 한/영 on the way is fine)
+            }
+            if(key==Key.Escape){waitingFor=null;keyNote=null;Redraw();return;}
+            if(e.IsRepeat)return;
+            if(Keyboard.Modifiers!=ModifierKeys.None) {
+                keyNote=T("Keys pressed together with Ctrl, Alt or Shift can't be used. Press one key on its own.","Ctrl·Alt·Shift와 함께 누른 키는 쓸 수 없어요. 키 하나만 눌러 주세요.");
+                Redraw();return;
+            }
+            if(!ViewerKeys.CanUse(key)) {
+                keyNote=key==Key.F1 || key==Key.F11?T(ViewerKeys.Label(key)+" always opens the "+(key==Key.F1?"guide":"full screen")+", so it can't be used. Press another key.",
+                        ViewerKeys.Label(key)+" 키는 언제나 "+(key==Key.F1?"설명서":"전체 화면")+"에 쓰여서 고를 수 없어요. 다른 키를 눌러 주세요."):
+                    T("This key can't be used. Press another key.","이 키는 쓸 수 없어요. 다른 키를 눌러 주세요.");
+                Redraw();return;
+            }
+            waitingFor=null;keyNote=null;
+            Give(command,key);
+        }
+        // Gives a job a key, or first asks to swap when another job uses it (also when a row goes back to its first key).
+        void Give(ViewerKeys.Command command,Key key) {
+            clashFor=null;clashWith=null;
+            var changed=Prefs.Shortcuts;
+            if(key==ViewerKeys.KeyOf(changed,command)){Redraw();return;}
+            var other=ViewerKeys.UsedBy(changed,key,command);
+            if(other!=null){clashFor=command;clashWith=other;clashKey=key;Redraw();return;}
+            ChangeKeys(k=>ViewerKeys.Set(k,command,key));
+        }
+        void ChangeKeys(Action<Dictionary<string,Key>> change) {
+            var gallery=Gallery;
+            if(gallery==null)return;
+            gallery.TakeOverSettings(); // another folder window may have saved newer options since
+            var updated=gallery.Settings.Copy();change(updated.Shortcuts);
+            savedId="keys";savedTimer.Stop();savedTimer.Start();
+            if(!gallery.ApplySettings(updated))savedId=null; // not saved: no "Saved" line
+            Redraw(); // also when the folder window this page listens to is gone
+        }
+        // Draws the page again in the same place (a row started or stopped waiting for a key).
+        void Redraw() {
+            double offset=scroller.VerticalOffset;
+            Show(Math.Max(0,contents.SelectedIndex),false);
+            UpdateLayout();scroller.ScrollToVerticalOffset(offset);
+        }
 
         // ---------- drawing ----------
 
@@ -746,6 +930,32 @@ namespace LoveMyShelf {
                     T("If the folder already has a file with the same name, Love My Shelf asks what to do. You can choose [[Replace]] (the existing file goes to the Recycle Bin), [[Skip]] or [[Keep both]] (a number is added after the name of the file being moved). Nothing is ever overwritten without asking.","옮길 폴더에 같은 이름의 파일이 이미 있으면 어떻게 할지 물어봐요. [[바꾸기]](기존 파일은 휴지통으로 가요), [[건너뛰기]], [[둘 다 남기기]](옮기는 파일 이름 뒤에 번호가 붙어요) 중에서 고를 수 있어요. 묻지 않고 덮어쓰는 일은 없어요."),
                     T("If you moved something by mistake, press {{Ctrl}} + {{Z}}. The files go back to where they were.","잘못 옮겼다면 {{Ctrl}} + {{Z}}를 누르세요. 파일이 원래 자리로 돌아가요.")},
                 Keys=new[]{K(T("Open one more window","창 하나 더 열기"),"Ctrl+","N"),K(T("Undo the last move","방금 옮긴 것 되돌리기"),"Ctrl+","Z")}});
+            browse.Items.Add(new Card {Title=T("The file queue: sending a lot to another drive","파일 대기열: 다른 드라이브로 많이 보낼 때"),
+                Lines=new[]{T("Every move and copy lines up in the file queue and is sent one job at a time. Two jobs on the same hard drive at once only make both slow, so the queue never does that. While something is being sent, a [[⇄ Queue]] button with a percentage shows in the bottom bar. Click it and the file queue opens. If you close Love My Shelf in the middle, the queue is kept: the next time you start it, the unfinished jobs are waiting there, paused, and [[Go on]] continues them from where they stopped.",
+                      "옮기기와 복사는 모두 파일 대기열에 줄을 서고, 한 번에 한 작업씩 보내요. 같은 하드에 두 작업을 동시에 걸면 둘 다 느려지기만 해서, 대기열은 그렇게 하지 않아요. 보내는 동안에는 아래 줄에 퍼센트가 적힌 [[⇄ 대기열]] 버튼이 보여요. 그 버튼을 누르면 파일 대기열이 열려요. 중간에 Love My Shelf를 닫아도 대기열은 남아 있어요. 다음에 켜면 끝내지 못한 작업이 멈춘 채로 기다리고 있고, [[이어서]]를 누르면 멈춘 곳부터 계속해요."),
+                    T("In the file queue you can see how far each job is, how fast it is going and about how long is left. [[Pause]] stops a job where it is and lets go of the file, so the drive can be removed safely; [[Go on]] continues from the same place. [[↑]], [[↓]] and [[To the front]] change the order of jobs that are waiting. A job that has not started can be changed between copy and move.",
+                      "파일 대기열에서는 작업마다 얼마나 보냈는지, 속도가 얼마인지, 대략 얼마나 남았는지 볼 수 있어요. [[일시정지]]를 누르면 그 자리에서 멈추고 파일을 놓아 두어서 드라이브를 안전하게 뺄 수 있고, [[이어서]]를 누르면 같은 곳부터 계속해요. [[↑]], [[↓]], [[맨 앞으로]]로 기다리는 작업의 순서를 바꿔요. 아직 시작하지 않은 작업은 복사와 옮기기를 서로 바꿀 수 있어요."),
+                    T("Folders go too, with everything inside them. Drag a folder tile onto another window, a folder tile or the folder tree, or right-click a folder, choose [[Cut]] or [[Copy]], and press {{Ctrl}} + {{V}} in the folder it should go to. If that folder already has a folder with the same name, the two are joined, and you are asked only about files with the same name. The covers and tags of the files inside follow them, and a folder you had added to Love My Shelf stays added at its new place.",
+                      "폴더도 안에 든 것까지 통째로 보낼 수 있어요. 폴더 칸을 다른 창이나 폴더 칸, 폴더 트리 위로 끌어다 놓거나, 폴더를 오른쪽 클릭해 [[잘라내기]]나 [[복사]]를 고른 다음 보낼 폴더에서 {{Ctrl}} + {{V}}를 눌러요. 보낼 곳에 같은 이름의 폴더가 이미 있으면 두 폴더를 합치고, 이름이 같은 파일만 어떻게 할지 물어봐요. 안에 든 파일의 표지와 태그도 함께 따라가고, Love My Shelf에 추가해 둔 폴더는 새 위치에서도 추가된 채로 있어요."),
+                    T("When a file is moved to another drive, the original is deleted only after the whole file has arrived and its covers and tags have followed. If the drive comes loose or the program closes in the middle, the original is still whole in its old place.",
+                      "다른 드라이브로 옮길 때는 파일이 통째로 도착하고 표지와 태그까지 따라간 뒤에야 원본을 지워요. 중간에 드라이브가 빠지거나 프로그램이 꺼져도 원본은 원래 자리에 온전히 남아 있어요.")}});
+            browse.Items.Add(new Setting {Id="dropAcross",SectionId="browse",Title=T("When files are dragged to another drive, copy or move?","다른 드라이브로 끌어다 놓으면 복사할까요, 옮길까요?"),
+                Lines=new[]{T("This is for dragging without a key held. Within one drive, files always move. {{Ctrl}} held always copies and {{Shift}} held always moves, whatever is chosen here.",
+                      "아무 키도 누르지 않고 끌어다 놓을 때의 설정이에요. 같은 드라이브 안에서는 언제나 옮겨요. 여기서 무엇을 고르든 {{Ctrl}}을 누른 채 놓으면 복사, {{Shift}}를 누른 채 놓으면 옮기기예요.")},
+                Choices=new[]{
+                    new Choice(T("Ask each time","놓을 때마다 물어보기"),T("A small window asks [[Copy]] or [[Move]] when you let go.","놓는 순간 작은 창이 [[복사]]할지 [[옮기기]]할지 물어봐요.")),
+                    new Choice(T("Copy","복사"),T("The originals stay where they are. This is what File Explorer does.","원본을 그 자리에 그대로 둬요. 파일 탐색기와 같은 방식이에요.")),
+                    new Choice(T("Move","옮기기"),T("Each original is deleted after it has arrived whole, and its covers and tags go with it.","다 도착한 파일부터 원본을 지우고, 표지와 태그도 함께 따라가요."))},
+                Default=0,Get=p=>p.DropAcross,Set=(p,i)=>p.DropAcross=i});
+            browse.Items.Add(new Setting {Id="verifyCopies",SectionId="browse",Title=T("Check that each copy is the same as the original?","보낸 파일이 원본과 똑같은지 확인할까요?"),
+                Lines=new[]{T("When this is on, every file sent through the file queue is read back from the drive it went to and compared with the original, byte by byte. A file that is moved is deleted from its old place only after it has passed. If a copy is not the same, it is thrown away, the original stays, and you are told.",
+                      "켜 두면 파일 대기열로 보낸 파일을 도착한 드라이브에서 다시 읽어, 원본과 한 바이트씩 비교해요. 옮기는 파일은 이 확인을 통과한 뒤에야 원래 자리에서 지워요. 복사본이 원본과 다르면 복사본을 버리고 원본은 그대로 두고 알려 드려요."),
+                    T("Even with this off, a file is counted as sent only after it has been written all the way onto the drive and its size has been checked.",
+                      "꺼 두어도, 파일을 드라이브에 끝까지 다 쓰고 크기까지 확인한 뒤에야 보낸 것으로 쳐요.")},
+                Choices=new[]{
+                    new Choice(T("Don't check","확인하지 않기"),T("Files are sent at the usual speed.","평소 속도로 보내요.")),
+                    new Choice(T("Check every copy","하나하나 확인하기"),T("Sending takes about twice as long. Good for an old drive, a loose cable, or files you can't afford to lose.","보내는 시간이 두 배쯤 걸려요. 오래된 드라이브나 헐거운 케이블이 걱정될 때, 잃으면 안 되는 파일을 보낼 때 좋아요."))},
+                Default=0,Columns=2,Get=p=>p.VerifyCopies?1:0,Set=(p,i)=>p.VerifyCopies=i==1});
             browse.Items.Add(new Card {Title=T("Rename, delete, search","이름 바꾸기, 삭제, 검색"),
                 Keys=new[]{K(T("Renames the selected file. The JPG and GIF covers made from it are renamed along with it.","선택한 파일의 이름을 바꿔요. 그 파일로 만든 JPG 표지와 GIF 표지의 이름도 함께 바뀌어요."),"F2"),
                     K(T("Moves it to the Recycle Bin. You can restore it from the Recycle Bin.","휴지통으로 보내요. 휴지통에서 복원할 수 있어요."),"Delete")},
@@ -828,7 +1038,7 @@ namespace LoveMyShelf {
                 Keys=new[]{K(T("Move the picture","사진 옮기기"),T("Drag","끌기")),K(T("Zoom in / out","확대 / 축소"),T("Wheel","휠")),
                     K(T("One step in / out","한 단계 확대 / 축소"),"+","−"),K(T("Previous / next scene (videos)","이전 장면 / 다음 장면 (영상)"),"D","F"),
                     K(T("Skip back / forward (videos)","뒤로 / 앞으로 건너뛰기 (영상)"),"←","→"),K(T("Skip one second (videos)","1초 건너뛰기 (영상)"),"Shift","←","→"),
-                    K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark","밝기 방식: 부드럽게 / 어두운 곳 보기"),"R"),
+                    K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark / Milky","밝기 방식: 부드럽게 / 어두운 곳 보기 / 뽀얗게"),"R"),
                     K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});
             make.Items.Add(new Card {Title=T("Rotation and brightness","회전과 밝기"),
                 Lines=new[]{T("Move the [[Rotation]] slider and the picture tilts 0.1° at a time. A picture lying on its side can be stood up in one go with the 90° buttons.",
@@ -937,8 +1147,8 @@ namespace LoveMyShelf {
             video.Items.Add(Numbers("brightnessStep",T("How much should E and W change the brightness?","E, W 키로 밝기를 얼마나 바꿀까요?"),new[]{1,2,3,4,5,10},3,
                 p=>p.BrightnessStep,(p,v)=>p.BrightnessStep=v,v=>v.ToString(),
                 v=>v==1?T("Finest","가장 세밀하게"):v==3?T("Usual","보통"):v==10?T("Big","크게"):"",3));
-            ((Setting)video.Items.Last()).Lines=new[]{T("While watching a video or making a cover, E makes it brighter and W makes it darker. R switches the style: Soft (the usual one) brightens faces gently and softly, and See in the dark lifts only the dark parts a lot, so things are easy to tell apart even in a very dark video. Q returns it to the original brightness, and moving to another file returns both to the start. Choose how much one press changes it.",
-                "영상을 보거나 표지를 만들 때 E를 누르면 밝아지고 W를 누르면 어두워져요. R을 누르면 방식이 바뀌어요. 부드럽게(기본)는 얼굴을 은은하고 뽀얗게 밝혀 주고, 어두운 곳 보기는 어두운 부분만 크게 들어 올려서 아주 어두운 영상에서도 물체가 잘 구분돼요. Q를 누르면 원래 밝기로 돌아오고, 다른 파일로 넘어가면 밝기와 방식이 모두 처음으로 돌아와요. 한 번 누를 때 얼마나 바뀔지 골라요.")};
+            ((Setting)video.Items.Last()).Lines=new[]{T("While watching a video or making a cover, E makes it brighter and W makes it darker. Each press of R moves to the next style. Soft (the usual one) brightens faces gently and brightly, and See in the dark lifts only the dark parts a lot, so things are easy to tell apart even in a very dark video. Milky brightens the whole screen as if laying a white veil over it. At +100 it turns all white. Q returns it to the original brightness, and moving to another file returns both to the start. Choose how much one press changes it.",
+                "영상을 보거나 표지를 만들 때 E를 누르면 밝아지고 W를 누르면 어두워져요. R을 누를 때마다 방식이 차례로 바뀌어요. 부드럽게(기본)는 얼굴을 은은하고 환하게 밝혀 주고, 어두운 곳 보기는 어두운 부분만 크게 들어 올려서 아주 어두운 영상에서도 물체가 잘 구분돼요. 뽀얗게는 화면 전체에 흰 막을 씌우듯 밝혀요. +100이면 하얗게 돼요. Q를 누르면 원래 밝기로 돌아오고, 다른 파일로 넘어가면 밝기와 방식이 모두 처음으로 돌아와요. 한 번 누를 때 얼마나 바뀔지 골라요.")};
             Typed((Setting)video.Items.Last(),"",1,20,1);
             video.Items.Add(Numbers("rotationStep",T("How far should O and P turn the picture?","O, P 키로 얼마나 회전할까요?"),new[]{1,5,10,15,30,45},10,
                 p=>p.RotationStep,(p,v)=>p.RotationStep=v,v=>T(v+"°",v+"도"),
@@ -977,16 +1187,17 @@ namespace LoveMyShelf {
                       "GIF 표지는 영상·GIF·WebP로 만든 JPG 표지를 바탕으로 만들어요. 표지 장면의 앞뒤 몇 초를 JPG 표지와 똑같은 테두리·회전·밝기로 움직이게 한 거예요."),
                     T("[[Make GIF cover]] is in the Make cover screen, the large view, and a tile's right-click menu.","[[GIF 표지 만들기]]는 표지 만들기 화면, 크게 보기 화면, 칸의 오른쪽 클릭 메뉴에 있어요."),
                     T("A tile shows the JPG cover first, and the GIF cover moves when you point at it (you can change this below).","칸에는 JPG 표지가 먼저 보이고, 마우스를 올리면 GIF 표지가 움직여요(아래에서 바꿀 수 있어요)."),
-                    T("You can also set the part while watching the video: press {{[}} where it starts and {{]}} where it ends. The playback bar shows the part in blue and only that part plays again and again. Then make a cover as usual from a scene inside the part, and Make GIF cover opens on that part. A part can be up to 60 seconds. {{\\}} clears it.",
-                      "영상을 보면서 구간을 미리 정할 수도 있어요. 시작할 곳에서 {{[}}, 끝낼 곳에서 {{]}}를 눌러요. 재생바에 구간이 파랗게 표시되고 그 구간만 되풀이해서 재생돼요. 그다음 평소처럼 구간 안의 장면으로 표지를 만들면 GIF 표지 만들기 창이 그 구간으로 열려요. 구간은 60초까지 정할 수 있어요. {{\\}}를 누르면 구간이 지워져요.")}});
+                    T("You can also set the part while watching the video: press {{[}} where it starts and {{]}} where it ends. The playback bar shows the part as a pale band and only that part plays again and again. Then make a cover as usual from a scene inside the part, and Make GIF cover opens on that part. A part can be up to 60 seconds. {{\\}} clears it.",
+                      "영상을 보면서 구간을 미리 정할 수도 있어요. 시작할 곳에서 {{[}}, 끝낼 곳에서 {{]}}를 눌러요. 재생바에 구간이 옅은 띠로 표시되고 그 구간만 되풀이해서 재생돼요. 그다음 평소처럼 구간 안의 장면으로 표지를 만들면 GIF 표지 만들기 창이 그 구간으로 열려요. 구간은 60초까지 정할 수 있어요. {{\\}}를 누르면 구간이 지워져요.")}});
             gif.Items.Add(new Card {Title=T("Set the part on the scene strip","장면 띠에서 구간을 정해요"),
-                Lines=new[]{T("At the bottom of the Make GIF cover window is a strip with the video's scenes laid out in a long row. The two blue handles on the strip are the start and the end of the GIF.",
-                    "GIF 표지 만들기 창 아래쪽에는 영상의 장면이 가로로 길게 늘어선 띠가 있어요. 띠 위의 파란 손잡이 두 개가 GIF의 시작과 끝이에요.")},
-                Steps=new[]{T("Drag the two blue handles to the start and the end. The handles move one scene at a time (by the scene step under ‘Scenes from videos’), and the ‹ › buttons under the strip also move them one scene at a time.","파란 손잡이 두 개를 시작과 끝 위치로 끌어요. 손잡이는 한 장면씩(‘영상에서 장면 고르기’의 장면 간격만큼) 움직이고, 띠 아래의 ‹ › 버튼도 한 장면씩 옮겨 줘요."),
+                Lines=new[]{T("At the bottom of the Make GIF cover window is a strip with the video's scenes laid out in a long row. Over the pictures runs a thin bar like a slider: its colored part is what goes into the GIF, and the two round handles at the ends of that part are the start and the end. The small card on that bar is the JPG cover's scene, and the round dot moving under them is where the preview is playing now.",
+                    "GIF 표지 만들기 창 아래쪽에는 영상의 장면이 가로로 길게 늘어선 띠가 있어요. 그림 위쪽에 슬라이더처럼 생긴 얇은 줄이 있어요. 색이 칠해진 부분이 GIF에 들어갈 구간이고, 그 양 끝의 동그란 손잡이 두 개가 시작과 끝이에요. 그 줄 위의 작은 카드 표시는 JPG 표지 장면이고, 그림 아래쪽에서 움직이는 동그란 점은 미리보기가 지금 재생 중인 곳이에요.")},
+                Steps=new[]{T("Drag the two handles to the start and the end. The handles move one scene at a time (by the scene step under ‘Scenes from videos’), and the ‹ › buttons under the strip also move them one scene at a time.","손잡이 두 개를 시작과 끝 위치로 끌어요. 손잡이는 한 장면씩(‘영상에서 장면 고르기’의 장면 간격만큼) 움직이고, 띠 아래의 ‹ › 버튼도 한 장면씩 옮겨 줘요."),
                     T("Drag the pictures in the strip, or roll the mouse wheel over the strip, to see other parts of the video. Each notch of the wheel moves a quarter of the strip: down goes later, up goes earlier. The handles stay where they are. Click [[Back to the cover]] to return to the cover's scene.","띠의 그림을 끌거나 띠 위에서 마우스 휠을 굴리면 영상의 다른 부분을 볼 수 있어요. 휠 한 칸에 띠의 4분의 1씩 움직이고, 아래로 굴리면 뒤쪽, 위로 굴리면 앞쪽으로 가요. 손잡이는 그 자리에 그대로 있어요. [[표지로 돌아가기]]를 누르면 표지 장면으로 돌아와요."),
+                    T("Double-click outside the part and the part grows to there: to the left of the part the start comes there, to the right of it the end. It is quicker than dragging when the place is far.","구간 바깥을 더블클릭하면 구간이 그곳까지 늘어나요. 구간 왼쪽이면 시작이, 오른쪽이면 끝이 그곳으로 와요. 멀리 옮길 때는 끄는 것보다 빨라요."),
                     T("Choose the speed and the play style. The speed changes by 0.1× at a time with [[−]] and [[+]] (or {{X}} and {{C}}), from 0.2× to 4×; hold one and it keeps changing, and {{Z}} returns it to 1×. {{V}} goes straight to 2×, and pressing it again returns to 1×. [[Loop]] keeps repeating from start to end, [[Back and forth]] goes to the end and then comes back in reverse, and [[Backward]] plays in reverse from the end.","속도와 재생 방식을 골라요. 속도는 [[−]]와 [[+]](또는 {{X}}, {{C}})로 0.1배씩 바꿔요. 0.2배부터 4배까지 되고, 누르고 있으면 계속 바뀌어요. {{Z}}를 누르면 1배로 돌아와요. {{V}}를 누르면 바로 2배가 되고, 한 번 더 누르면 1배로 돌아와요. [[반복]]은 처음부터 끝까지를 계속 반복하고, [[왕복]]은 끝까지 갔다가 거꾸로 돌아오고, [[거꾸로]]는 끝에서부터 거꾸로 재생해요."),
                     T("When you change the part, the preview shows at the top right away. If you like it, click [[Make]]. The window closes right away and the real file is made in the background. To see how it will be saved first, click [[See how the real file looks]] on the left. (If you choose ‘By itself in the background’ in the settings below, the real file is made by itself while you wait and the preview changes to it.)","구간을 바꾸면 위쪽에 미리보기가 바로 나와요. 마음에 들면 [[만들기]]를 눌러요. 창은 바로 닫히고 실제 파일은 뒤에서 만들어져요. 저장될 모습을 먼저 보고 싶으면 왼쪽의 [[실제 모습 미리 보기]]를 눌러요. (아래 설정에서 ‘뒤에서 알아서 만들기’를 골라 두면, 기다리는 동안 실제 파일이 저절로 만들어지고 미리보기가 그 파일로 바뀌어요.)")},
-                Keys=new[]{K(T("Move the handle you last held one scene at a time","마지막에 잡은 손잡이를 한 장면씩 옮기기"),"←","→"),K(T("Original speed / 0.1× slower / 0.1× faster / 2×","원래 속도 / 0.1배 느리게 / 0.1배 빠르게 / 2배"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")},
+                Keys=new[]{K(T("Move the handle you last held one scene at a time","마지막에 잡은 손잡이를 한 장면씩 옮기기"),"←","→"),K(T("See earlier and later scenes","앞뒤 장면 보기"),T("Wheel","휠")),K(T("Bring the start or the end to a place outside the part","구간 바깥으로 시작이나 끝 옮기기"),T("Double-click","더블클릭")),K(T("Original speed / 0.1× slower / 0.1× faster / 2×","원래 속도 / 0.1배 느리게 / 0.1배 빠르게 / 2배"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")},
                 Tips=new[]{T("The making runs by itself in the background, so you can keep using Love My Shelf meanwhile. When it's done, a notice appears at the bottom right.","만드는 작업은 뒤에서 알아서 진행되니까 그동안 Love My Shelf를 계속 써도 돼요. 다 되면 오른쪽 아래에 알려 드려요.")}});
             gif.Items.Add(new Card {Title=T("GIF, WebP, MP4: what's the difference?","GIF·WebP·MP4는 무엇이 다른가요?"),
                 Lines=new[]{T("A GIF cover can be saved in one of three file formats. None of the three has sound. The sizes below are for a cover 3 seconds long, at 15 pictures a second and 960 pixels tall.",
@@ -1045,8 +1256,8 @@ namespace LoveMyShelf {
                 "GIF 표지의 세로 픽셀 수예요. 클수록 선명하지만 용량이 커져요. 세로가 2배가 되면 용량은 약 4배가 돼요. 원본보다 크게 만들지는 않아요(원본이 더 작으면 원본 크기로 만들어요).")};
             Typed((Setting)gif.Items.Last(),T("pixels","픽셀"),240,2160,10);
             gif.Items.Add(new Setting {Id="gifSide",SectionId="gif",Title=T("How many seconds before and after the cover at first?","처음에 표지 앞뒤로 몇 초를 잡을까요?"),
-                Lines=new[]{T("When the Make GIF cover window opens, the two blue handles sit before and after the cover's scene. This sets how many seconds from the cover's scene each one sits at first. With 1.5 seconds, it is 1.5 before + 1.5 after, 3 seconds in all. You can change it any time by dragging the handles in the window.",
-                    "GIF 표지 만들기 창을 열면 파란 손잡이 두 개가 표지 장면의 앞과 뒤에 놓여 있어요. 처음에 표지 장면에서 각각 몇 초 떨어진 곳에 놓을지 정해요. 1.5초면 앞 1.5초 + 뒤 1.5초로 모두 3초짜리가 돼요. 창에서 손잡이를 끌어 언제든 바꿀 수 있어요.")},
+                Lines=new[]{T("When the Make GIF cover window opens, the two handles sit before and after the cover's scene. This sets how many seconds from the cover's scene each one sits at first. With 1.5 seconds, it is 1.5 before + 1.5 after, 3 seconds in all. You can change it any time by dragging the handles in the window.",
+                    "GIF 표지 만들기 창을 열면 손잡이 두 개가 표지 장면의 앞과 뒤에 놓여 있어요. 처음에 표지 장면에서 각각 몇 초 떨어진 곳에 놓을지 정해요. 1.5초면 앞 1.5초 + 뒤 1.5초로 모두 3초짜리가 돼요. 창에서 손잡이를 끌어 언제든 바꿀 수 있어요.")},
                 Choices=new[]{new Choice(T("0.5 seconds each (1 s in all)","앞뒤 0.5초씩 (모두 1초)"),""),new Choice(T("1 second each (2 s in all)","앞뒤 1초씩 (모두 2초)"),""),
                     new Choice(T("1.5 seconds each (3 s in all)","앞뒤 1.5초씩 (모두 3초)"),""),new Choice(T("2 seconds each (4 s in all)","앞뒤 2초씩 (모두 4초)"),""),
                     new Choice(T("3 seconds each (6 s in all)","앞뒤 3초씩 (모두 6초)"),"")},
@@ -1104,6 +1315,12 @@ namespace LoveMyShelf {
                     new Choice(T("Move when the mouse is on it","마우스를 올렸을 때만 움직이기"),T("Point at a tile and that tile's GIF cover moves.","칸에 마우스를 올리면 그 칸의 GIF 표지가 움직여요.")),
                     new Choice(T("Always move","항상 움직이기"),T("Every GIF cover on screen moves. The ones off screen stay still, so scrolling doesn't stutter.","화면에 보이는 GIF 표지가 모두 움직여요. 화면 밖에 있는 것은 멈춰 있어서 스크롤이 버벅이지 않아요."))},
                 Default=1,Get=p=>(int)p.GridGif,Set=(p,i)=>p.GridGif=(GifPlayback)i});
+            gif.Items.Add(new Setting {Id="gifHoverSound",SectionId="gif",Title=T("Should a tile play its sound when the mouse is on it?","칸에 마우스를 올리면 소리도 낼까요?"),
+                Lines=new[]{T("This is for MP4 GIF covers made with [Put the sound in]. Only the tile under the mouse plays, and it stops when the mouse leaves. With [Don't move] above there is no sound either.","[소리 넣기]로 만든 MP4 GIF 표지에만 해당돼요. 마우스를 올린 칸 하나만 소리가 나고, 마우스가 벗어나면 멈춰요. 위에서 [움직이지 않기]를 골랐다면 소리도 나지 않아요.")},
+                Choices=new[]{new Choice(T("Play the sound","소리 내기"),T("The cover moves with its sound, at the volume you use in the large view.","표지가 소리와 함께 움직여요. 소리 크기는 크게 보기에서 쓰는 볼륨을 따라요.")),
+                    new Choice(T("No sound","소리 내지 않기"),T("Covers move silently in the tiles.","칸에서는 표지가 소리 없이 움직여요."))},
+                Default=0,Columns=2,Get=p=>p.GifHoverSound?0:1,Set=(p,i)=>p.GifHoverSound=i==0});
+
 
             // ----- Large view -----
             var large=add("large",T("Large view","크게 보기"));
@@ -1130,7 +1347,7 @@ namespace LoveMyShelf {
                       "전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 최대화를 누르면 전체 화면이 끝나고 최대화된 창이 돼요. Love My Shelf의 모든 창이 같아요.")},
                 Keys=new[]{K(T("Previous / next file","이전 파일 / 다음 파일"),"K","L"),K(T("Play or pause","재생 / 일시정지"),"Space"),
                     K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
-                    K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark","밝기 방식: 부드럽게 / 어두운 곳 보기"),"R"),
+                    K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark / Milky","밝기 방식: 부드럽게 / 어두운 곳 보기 / 뽀얗게"),"R"),
                     K(T("Original speed / 0.1× slower / 0.1× faster / 2×","원래 속도 / 0.1배 느리게 / 0.1배 빠르게 / 2배"),"Z","X","C","V"),
                     K(T("Rotation back to normal / turn left / turn right","회전 원래대로 / 왼쪽으로 회전 / 오른쪽으로 회전"),"I","O","P"),K(T("Zoom in / out","확대 / 축소"),T("Wheel","휠")),
                     K(T("Capture this scene","지금 장면 캡처"),"/"),K(T("GIF cover part: start / end / clear","GIF 표지 구간: 시작 / 끝 / 지우기"),"[","]","\\"),K(T("Show / hide the file information","파일 정보 보기 / 숨기기"),"Tab"),
@@ -1281,6 +1498,9 @@ namespace LoveMyShelf {
                     "Love My Shelf는 한 번에 하나만 실행할 수 있어요. 화면 아래 작업 표시줄에서 이미 실행 중인 Love My Shelf를 눌러 보세요.")}});
             help.Items.Add(new Card {Title=T("Text is hard to read","글씨가 잘 안 보여요"),
                 Lines=new[]{T("Try changing the screen mode in [[Screen, language, updates]].","[[화면·언어·새 버전]]에서 화면 모드를 바꿔 보세요.")}});
+
+            // ----- Advanced (drawn by DrawAdvanced): changing the large view's keys -----
+            add("advanced",T("Advanced","고급"));
             return list;
         }
     }
