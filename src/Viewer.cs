@@ -2021,14 +2021,14 @@ namespace LoveMyShelf {
             int sourceHeight=0;
             var cover=CoverImages.TryLoad(photo);
             if(cover==null) {
-                try{cover=Pictures.Load(photo.Thumb);}catch(IOException){}
+                try{cover=Pictures.Load(photo.Thumb);}catch(IOException){}catch(NotSupportedException){}catch(FormatException){}
             }
             // The upscale size limit applies to the saved cover file, not the version currently shown.
             try {
                 if(System.IO.File.Exists(photo.CoverFile))
                     using(var file=System.IO.File.Open(photo.CoverFile,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete))
                         sourceHeight=BitmapFrame.Create(file,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None).PixelHeight;
-            } catch(IOException){} catch(NotSupportedException){}
+            } catch(IOException){} catch(NotSupportedException){} catch(FormatException){}
             return Tuple.Create(cover==null?null:CoverImages.TrimBlackBands(cover),sourceHeight);
         }
         async Task LoadSavedCover(Photo photo,CancellationToken token) {

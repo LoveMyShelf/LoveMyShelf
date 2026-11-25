@@ -111,6 +111,7 @@ namespace LoveMyShelf {
                     return Load(file);
             } catch(IOException) {return null;}
             catch(NotSupportedException) {return null;}
+            catch(FormatException) {return null;} // a damaged picture (FileFormatException)
         }
 
         internal static BitmapSource TrimBlackBands(BitmapSource cover) {

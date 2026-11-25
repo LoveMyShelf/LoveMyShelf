@@ -269,9 +269,10 @@ namespace LoveMyShelf {
             var fill=new Border {Opacity=0.16};fill.SetResourceReference(Border.BackgroundProperty,"Accent");
             var edge=new Border {BorderThickness=new Thickness(1)};edge.SetResourceReference(Border.BorderBrushProperty,"Accent");
             box.Children.Add(fill);box.Children.Add(edge);layer.Children.Add(box);holder.Children.Add(layer);
-            scroller.PreviewMouseRightButtonDown+=(s,e)=>Arm(e,MouseButton.Right);
+            // The scroll bar and the column headers keep their own clicks (no clearing, no box), like File Explorer.
+            scroller.PreviewMouseRightButtonDown+=(s,e)=>{if(!OnBar(e.OriginalSource) && !OnHeader(e.OriginalSource))Arm(e,MouseButton.Right);};
             scroller.PreviewMouseLeftButtonDown+=(s,e)=>{
-                if(ItemAt(e.OriginalSource)!=null)return;
+                if(ItemAt(e.OriginalSource)!=null || OnBar(e.OriginalSource) || OnButton(e.OriginalSource))return;
                 if((Keyboard.Modifiers&ModifierKeys.Control)==0){chosen.Clear();Paint();}
                 Arm(e,MouseButton.Left);
             };
@@ -301,13 +302,24 @@ namespace LoveMyShelf {
                 bool drew=drawing && e.ChangedButton==drawButton;
                 if(e.ChangedButton==drawButton){armed=false;if(drawing){Finish();e.Handled=true;}} // no menu after drawing
                 // A right click on blank space in the area: File Explorer's blank-space menu.
-                if(!drew && e.ChangedButton==MouseButton.Right && ItemAt(e.OriginalSource)==null){e.Handled=true;owner.ShowBackgroundMenu(scroller,null);}
+                if(!drew && e.ChangedButton==MouseButton.Right && ItemAt(e.OriginalSource)==null && !OnBar(e.OriginalSource) && !OnHeader(e.OriginalSource)){e.Handled=true;owner.ShowBackgroundMenu(scroller,null);}
             };
             scroller.PreviewMouseRightButtonUp+=up;scroller.PreviewMouseLeftButtonUp+=up;
             scroller.LostMouseCapture+=delegate {if(drawing)Finish();};
         }
         void Arm(MouseButtonEventArgs e,MouseButton button) {armed=true;drawButton=button;drawStart=e.GetPosition(layer);}
         void Finish() {drawing=false;box.Visibility=Visibility.Collapsed;if(scroller.IsMouseCaptured)scroller.ReleaseMouseCapture();}
+        static bool OnBar(object source) {
+            for(var node=source as DependencyObject;node!=null;node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node))
+                if(node is ScrollBar)return true;
+            return false;
+        }
+        static bool OnButton(object source) {
+            for(var node=source as DependencyObject;node!=null;node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node))
+                if(node is ButtonBase)return true;
+            return false;
+        }
+        static bool OnHeader(object source) {return ItemAt(source)==null && OnButton(source);} // a column header, not a folder
         static Button ItemAt(object source) {
             for(var node=source as DependencyObject;node!=null;node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node))
                 if(node is Button && ((Button)node).Tag is FolderTarget)return (Button)node;

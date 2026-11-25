@@ -207,7 +207,8 @@ namespace LoveMyShelf {
         }
         void ShowRows() {
             string word=search.Text.Trim();
-            list.ItemsSource=word.Length==0?rows:rows.Where(r=>r.Cue.Text.IndexOf(word,StringComparison.CurrentCultureIgnoreCase)>=0).ToList();
+            // Always a new list: handing WPF the same (refilled) rows again is ignored and would keep the old lines on screen.
+            list.ItemsSource=word.Length==0?rows.ToList():rows.Where(r=>r.Cue.Text.IndexOf(word,StringComparison.CurrentCultureIgnoreCase)>=0).ToList();
             bool none=list.Items.Count==0;
             empty.Visibility=none?Visibility.Visible:Visibility.Collapsed;
             empty.Text=viewer.Subtitle==null?(viewer.HasOwnSubtitle?L.T("This video has subtitles inside it. They show as usual during playback, but only subtitle files can be listed and synced here."):

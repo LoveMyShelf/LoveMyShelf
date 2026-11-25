@@ -122,7 +122,7 @@ namespace LoveMyShelf {
             text=heading+"\n"+detail;
             title.Text=NoticeLook.KeepWords(heading);
             body.Text=NoticeLook.KeepWords(detail);body.Visibility=String.IsNullOrEmpty(detail)?Visibility.Collapsed:Visibility.Visible;
-            icon.Content=NoticeLook.Icon(kind);
+            StopSpin();icon.Content=NoticeLook.Icon(kind);
             BeginAnimation(OpacityProperty,null);
             Visibility=Visibility.Visible;
             if(!already)NoticeLook.Enter(this);else Opacity=1;
@@ -133,8 +133,18 @@ namespace LoveMyShelf {
             hideTimer.Stop();
             if(Visibility!=Visibility.Visible)return;
             var fade=new DoubleAnimation(Opacity,0,TimeSpan.FromMilliseconds(160));
-            fade.Completed+=delegate {if(Opacity<0.01)Visibility=Visibility.Collapsed;};
+            // Hidden: the icon goes too, so a busy spinner does not keep turning out of sight.
+            fade.Completed+=delegate {if(Opacity<0.01){Visibility=Visibility.Collapsed;StopSpin();icon.Content=null;}};
             BeginAnimation(OpacityProperty,fade);
+        }
+        // The busy spinner turns forever; stop it before its icon is replaced or removed.
+        void StopSpin() {
+            var grid=icon.Content as Grid;
+            if(grid==null)return;
+            foreach(UIElement child in grid.Children) {
+                var turn=child.RenderTransform as RotateTransform;
+                if(turn!=null)turn.BeginAnimation(RotateTransform.AngleProperty,null);
+            }
         }
     }
 }
