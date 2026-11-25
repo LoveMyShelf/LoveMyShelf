@@ -118,6 +118,7 @@ namespace LoveMyShelf {
             sideMs=settings.GifSideTenths*100.0;
             AutoMake=settings.GifAutoMake;MakeDelayMs=settings.GifMakeDelayMs;
             MotionMaker.WebpEffort=settings.WebpEffort;
+            UpscaleEngine.UseGpu=settings.UpscaleGpu;
         }
         // The usual choices plus one more when the value in use isn't among them (typed in Guide & Options, or saved with an older GIF).
         static int[] With(int[] usual,int value) {

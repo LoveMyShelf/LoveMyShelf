@@ -157,6 +157,31 @@ namespace LoveMyShelf {
                 window.OpenExternalFile(path);
             }));
         }
+        // Started from inside the ZIP (Windows takes out only the exe) or with the exe taken out on its own: the player
+        // beside it is missing, videos won't play the way they should, and it looks broken. Says how to unpack instead.
+        // Not while an update is waiting to hear from this version: a window here would hold it up.
+        static bool filesMissing;
+        static bool AllUnpacked(bool languageChosen) {
+            try {
+                string app=AppDomain.CurrentDomain.BaseDirectory;
+                if(File.Exists(Path.Combine(app,"libmpv-2.dll")) || File.Exists(Path.Combine(app,"tools","libmpv-2.dll")))return true;
+                if(AppUpdater.HelperWaiting)return true;
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);return true;}
+            // Most often the very first start, before a language was chosen: go by the language Windows is in, as the first window does.
+            bool korean=languageChosen?L.Korean:System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ko";
+            var answer=MessageBox.Show(korean?
+                "Love My Shelf에 필요한 파일이 옆에 없어요. 압축 파일 안에서 바로 켰거나, LoveMyShelf.exe만 따로 꺼내서 켠 것 같아요.\n\n"+
+                "받은 ZIP 파일을 오른쪽 클릭해서 압축을 전부 푼 다음, 풀린 폴더에서 LoveMyShelf.exe를 다시 켜 주세요. "+
+                "바탕 화면에서 바로 켜고 싶으면 exe는 그 폴더에 그대로 두고 바로 가기를 만들어 주세요.\n\n"+
+                "그래도 지금 켤까요? 영상은 Windows 기본 재생기로 나오고, 일부 기능이 안 될 수 있어요.":
+                "Some files Love My Shelf needs are not next to it. It looks like it was started from inside the ZIP file, or LoveMyShelf.exe was taken out on its own.\n\n"+
+                "Right-click the ZIP file you downloaded, unpack all of it, and start LoveMyShelf.exe again from the folder that comes out. "+
+                "To start it from the desktop, leave the exe in that folder and make a shortcut.\n\n"+
+                "Open it anyway? Videos will play in the Windows player, and some features won't work.",
+                korean?"압축을 전부 풀어 주세요":"Please unpack the whole ZIP first",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No);
+            filesMissing=true;
+            return answer==MessageBoxResult.Yes;
+        }
         [STAThread] public static void Main(string[] args) {
             // From here on, whatever ends the program without warning leaves its reason in errors.txt (the helpers too).
             ErrorLog.WatchCrashes();
@@ -169,8 +194,8 @@ namespace LoveMyShelf {
             string root=Path.Combine(data,"LoveMyShelf","Folders");
             L.Korean=Preferences.Load(root).Korean;
             // Background upscaling runs in a separate copy of this program, without a window.
-            if(args.Length==3 && args[0]==UpscaleEngine.ChildSwitch) {
-                Environment.Exit(UpscaleEngine.RunChild(args[1],args[2]));
+            if((args.Length==3 || args.Length==4) && args[0]==UpscaleEngine.ChildSwitch) {
+                Environment.Exit(UpscaleEngine.RunChild(args[1],args[2],args.Length==4 && args[3]==UpscaleEngine.GpuSwitch));
                 return;
             }
             // Finding faces runs the same way.
@@ -189,6 +214,8 @@ namespace LoveMyShelf {
                     if(openPath!=null && ExplorerOpen.Send(openPath))return;
                     MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return;
                 }
+                // After the one-copy check, so starting it twice from the ZIP shows this once, and a file sent on goes straight through.
+                if(!AllUnpacked(Preferences.Load(root).LanguageChosen))return;
                 // Never let go of here: it is let go when this thread ends, as late as can be, and the update helper waits for that.
                 PendingPath=openPath;
                 ExplorerOpen.Listen(OpenFromOutside);
@@ -203,7 +230,8 @@ namespace LoveMyShelf {
                     UI.LoadFonts(app);
                     var prefs=Preferences.Load(root);
                     // Keeps the File Explorer menu entry pointing at this copy (the folder may have moved).
-                    if(prefs.ExplorerMenu) {try {ExplorerOpen.Sync(prefs);} catch(Exception) {}}
+                    // Not when files were missing: that copy may be in a temporary folder.
+                    if(prefs.ExplorerMenu && !filesMissing) {try {ExplorerOpen.Sync(prefs);} catch(Exception) {}}
                     Themes.Apply(prefs.Theme);
                     if(!prefs.LanguageChosen || !prefs.UsageNoticeShown) {
                         // Keep the app alive between this window and the main one.

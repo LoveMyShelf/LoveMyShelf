@@ -1759,7 +1759,7 @@ namespace LoveMyShelf {
                 other.settings.CaptureDirectory=updated.CaptureDirectory;other.settings.CaptureAsShown=updated.CaptureAsShown;other.settings.CaptureJpg=updated.CaptureJpg;
                 other.settings.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(updated.MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
                 other.settings.SubtitleScale=updated.SubtitleScale;other.settings.GifAutoMake=updated.GifAutoMake;other.settings.GifMakeDelayMs=updated.GifMakeDelayMs;
-                other.settings.WebpEffort=updated.WebpEffort;
+                other.settings.WebpEffort=updated.WebpEffort;other.settings.UpscaleGpu=updated.UpscaleGpu;
                 other.settings.Shortcuts=new Dictionary<string,System.Windows.Input.Key>(updated.Shortcuts,StringComparer.Ordinal);
                 if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
                 if(changedTimes){other.settings.CoverTimes=updated.CoverTimes;other.CoverMarksSoon();}

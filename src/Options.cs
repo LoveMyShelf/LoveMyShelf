@@ -67,6 +67,7 @@ namespace LoveMyShelf {
         public bool GifAutoMake;         // true: the real file is made in the background after every change; false: only when asked
         public int GifMakeDelayMs=700;   // how long the handles must rest before the real file starts being made
         public int WebpEffort;           // 0 smallest file (slow), 1 faster, 2 fastest (bigger file)
+        public bool UpscaleGpu;          // upscaling on the graphics card (DirectML) instead of the processor
         public int SubtitleScale=100;    // subtitle size in the large view, in percent
         internal static string SuggestedCoverParent {get {return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);}}
         public PhotoSort Sort;
@@ -155,6 +156,7 @@ namespace LoveMyShelf {
                     GifAutoMake=(string)xml.Attribute("gifReal")=="auto",
                     GifMakeDelayMs=ReadNumber(xml,"gifMakeDelay",200,10000,700),
                     WebpEffort=ReadNumber(xml,"webpEffort",0,2,0),
+                    UpscaleGpu=(string)xml.Attribute("upscaleDevice")=="gpu",
                     SubtitleScale=ReadNumber(xml,"subtitleSize",40,400,100),
                     OpenPhotoOriginal=(string)xml.Attribute("largePhoto")=="original",
                     OpenMotionOriginal=(string)xml.Attribute("largeMotion")=="original",
@@ -280,7 +282,7 @@ namespace LoveMyShelf {
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),
                     new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),new XAttribute("gifDefaults",2),
                     new XAttribute("gifReal",GifAutoMake?"auto":"ask"),new XAttribute("gifMakeDelay",GifMakeDelayMs),
-                    WebpEffort==0?null:new XAttribute("webpEffort",WebpEffort),SubtitleScale==100?null:new XAttribute("subtitleSize",SubtitleScale),
+                    WebpEffort==0?null:new XAttribute("webpEffort",WebpEffort),UpscaleGpu?new XAttribute("upscaleDevice","gpu"):null,SubtitleScale==100?null:new XAttribute("subtitleSize",SubtitleScale),
                     new XAttribute("largePhoto",OpenPhotoOriginal?"original":"cover"),
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),

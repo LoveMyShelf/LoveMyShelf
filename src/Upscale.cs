@@ -32,17 +32,22 @@ namespace LoveMyShelf {
         }
         internal static bool Suitable(int coverHeight) {return Available && coverHeight>0 && coverHeight<MaxSourceHeight;}
 
-        // Child process entry: LoveMyShelf.exe --upscale <input> <output>
-        internal static int RunChild(string input,string output) {
+        // Set from the options: true runs upscaling on the graphics card (DirectML), false on the processor.
+        internal static bool UseGpu;
+        internal const string GpuSwitch="gpu";
+        internal static bool GpuAvailable {get {return File.Exists(Path.Combine(Folder,"DirectML.dll"));}}
+
+        // Child process entry: LoveMyShelf.exe --upscale <input> <output> [gpu]
+        internal static int RunChild(string input,string output,bool gpu=false) {
             try {
                 var source=new FormatConvertedBitmap(Load(input),PixelFormats.Rgb24,null,0);
                 int w=source.PixelWidth,h=source.PixelHeight,stride=w*3;
                 var pixels=new byte[stride*h];
                 source.CopyPixels(pixels,stride,0);
                 byte[] result;
-                using(var ort=new OnnxSession(Path.Combine(Folder,"onnxruntime.dll"),Path.Combine(Folder,"model.onnx"),
-                    Math.Max(1,Environment.ProcessorCount-2))) {
-                    result=Run(ort,pixels,w,h,(done,total)=>{Console.Out.WriteLine("progress "+done+" "+total);Console.Out.Flush();});
+                using(var device=new Device(gpu && GpuAvailable)) {
+                    result=Run(device,pixels,w,h,(done,total)=>{Console.Out.WriteLine("progress "+done+" "+total);Console.Out.Flush();});
+                    Console.Out.WriteLine("device "+(device.OnGpu?"gpu":"cpu"));Console.Out.Flush();
                 }
                 BitmapSource image=BitmapSource.Create(w*Factor,h*Factor,96,96,PixelFormats.Rgb24,null,result,w*Factor*3);
                 if(image.PixelHeight>MaxOutputHeight)image=Shrink(image,MaxOutputHeight);
@@ -78,7 +83,7 @@ namespace LoveMyShelf {
             return i;
         }
         // Runs the model on overlapping tiles of a fixed size and keeps each tile's center.
-        static byte[] Run(OnnxSession ort,byte[] rgb,int w,int h,Action<int,int> progress) {
+        static byte[] Run(Device ort,byte[] rgb,int w,int h,Action<int,int> progress) {
             int side=Tile+2*Pad,outW=w*Factor,outH=h*Factor;
             var output=new byte[outW*outH*3];
             var input=new float[3*side*side];
@@ -106,6 +111,60 @@ namespace LoveMyShelf {
                 progress(++done,total);
             }
             return output;
+        }
+        // Runs the model on the graphics card when asked and it works, and otherwise on the processor. Some graphics
+        // drivers give wrong pictures (on an Intel Iris Xe tested in 2026, nearly black or blue ones with the usual graph
+        // optimizations), so every tile from the graphics card is checked, and at the first failure or wrong tile the
+        // rest is done on the processor, starting again from that tile.
+        sealed class Device : IDisposable {
+            OnnxSession session;
+            internal bool OnGpu {get;private set;}
+            internal Device(bool gpu) {
+                if(gpu) {
+                    try {session=Open(true);OnGpu=true;}
+                    catch(Exception){session=null;}
+                }
+                if(session==null)session=Open(false);
+            }
+            static OnnxSession Open(bool gpu) {
+                return new OnnxSession(Path.Combine(Folder,"onnxruntime.dll"),Path.Combine(Folder,"model.onnx"),
+                    gpu?2:Math.Max(1,Environment.ProcessorCount-2),gpu:gpu);
+            }
+            internal float[] Run(float[] input,int side,out int outSide) {
+                if(OnGpu) {
+                    try {
+                        float[] result=session.Run(input,side,out outSide);
+                        if(Plausible(input,side,result,outSide))return result;
+                    } catch(Exception) {}
+                    session.Dispose();session=null;OnGpu=false;
+                    session=Open(false);
+                }
+                return session.Run(input,side,out outSide);
+            }
+            // The enlarged tile must look like the tile: no missing numbers, and the average of each 4x4 block of the
+            // result (cut to 0..1 as it is saved) close to the pixel it came from. A right result measured about 0.002-0.004
+            // on average (2026-11-26); black, blue, striped or shuffled results are far above 0.04.
+            static bool Plausible(float[] input,int side,float[] output,int outSide) {
+                if(outSide!=side*Factor || output.Length!=3*outSide*outSide)return false;
+                int inPlane=side*side,outPlane=outSide*outSide;
+                double error=0;
+                for(int c=0;c<3;c++)
+                    for(int y=0;y<side;y++)
+                        for(int x=0;x<side;x++) {
+                            double sum=0;
+                            for(int dy=0;dy<Factor;dy++) {
+                                int row=c*outPlane+(y*Factor+dy)*outSide+x*Factor;
+                                for(int dx=0;dx<Factor;dx++) {
+                                    float v=output[row+dx];
+                                    if(Single.IsNaN(v) || Single.IsInfinity(v))return false;
+                                    sum+=v<0?0:v>1?1:v;
+                                }
+                            }
+                            error+=Math.Abs(sum/(Factor*Factor)-input[c*inPlane+y*side+x]);
+                        }
+                return error/(3.0*inPlane)<=0.04;
+            }
+            public void Dispose() {if(session!=null){session.Dispose();session=null;}}
         }
         static byte ToByte(float v) {
             float scaled=v*255f+0.5f;
@@ -135,6 +194,8 @@ namespace LoveMyShelf {
         [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate IntPtr ShapeFn(IntPtr value,out IntPtr info);
         [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate IntPtr CpuInfoFn(int allocator,int memType,out IntPtr info);
         [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate void ReleaseFn(IntPtr item);
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate IntPtr OptionsFn(IntPtr options);
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate IntPtr AppendDmlFn(IntPtr options,int device);
 
         readonly IntPtr api;
         readonly ErrorMessageFn errorMessage;
@@ -153,7 +214,8 @@ namespace LoveMyShelf {
             return (T)(object)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(api,index*IntPtr.Size),typeof(T));
         }
         // input and outputs: the names in the model (the upscaling model's when left out).
-        internal OnnxSession(string library,string model,int threads,string input="pixel_values",string[] outputs=null) {
+        // gpu: run on the graphics card through DirectML (the onnxruntime-directml build), with the settings DirectML needs.
+        internal OnnxSession(string library,string model,int threads,string input="pixel_values",string[] outputs=null,bool gpu=false) {
             inputName=Marshal.StringToHGlobalAnsi(input);
             outputs=outputs??new[]{"reconstruction"};
             outputNames=new IntPtr[outputs.Length];
@@ -179,6 +241,20 @@ namespace LoveMyShelf {
                 Check(Fn<CreateEnvFn>(3)(3,System.Text.Encoding.ASCII.GetBytes("LoveMyShelf\0"),out env));
                 Check(Fn<CreateOptionsFn>(10)(out options));
                 Check(Fn<SetThreadsFn>(24)(options,threads));
+                if(gpu) {
+                    // Basic graph optimization only: with all of them an Intel Iris Xe gave wrong pictures, with basic the
+                    // same as the processor. DirectML also needs memory patterns off and one operation at a time.
+                    Check(Fn<SetThreadsFn>(23)(options,1));
+                    Check(Fn<OptionsFn>(17)(options));
+                    Check(Fn<SetThreadsFn>(13)(options,0));
+                    // ONNX Runtime loads DirectML.dll only now, by name, and Windows has an older one of its own:
+                    // loading the one beside onnxruntime.dll first makes sure that one is used.
+                    if(LoadLibraryEx(Path.Combine(Path.GetDirectoryName(library),"DirectML.dll"),IntPtr.Zero,AlteredSearchPath)==IntPtr.Zero)
+                        throw new IOException("DirectML");
+                    IntPtr append=GetProcAddress(module,"OrtSessionOptionsAppendExecutionProvider_DML");
+                    if(append==IntPtr.Zero)throw new IOException("DirectML");
+                    Check(((AppendDmlFn)Marshal.GetDelegateForFunctionPointer(append,typeof(AppendDmlFn)))(options,GraphicsCards.Fastest()));
+                }
                 Check(Fn<CreateSessionFn>(7)(env,model,options,out session));
                 Check(Fn<CpuInfoFn>(69)(1,0,out memory));
             } catch {Dispose();throw;}
@@ -247,6 +323,54 @@ namespace LoveMyShelf {
             if(session!=IntPtr.Zero){releaseSession(session);session=IntPtr.Zero;}
             if(options!=IntPtr.Zero){releaseOptions(options);options=IntPtr.Zero;}
             if(env!=IntPtr.Zero){releaseEnv(env);env=IntPtr.Zero;}
+            if(!namesFreed) {
+                namesFreed=true;
+                Marshal.FreeHGlobal(inputName);
+                foreach(IntPtr name in outputNames)Marshal.FreeHGlobal(name);
+            }
+        }
+        bool namesFreed;
+    }
+
+    // Picks the graphics card for DirectML by its number in DXGI's list (the order ONNX Runtime counts in). On a laptop
+    // with both built-in graphics and a separate card, number 0 is usually the built-in one that drives the screen, so
+    // the card with the most memory of its own is taken; software renderers are skipped. 0 when anything goes wrong.
+    static class GraphicsCards {
+        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]
+        struct AdapterDesc {
+            [MarshalAs(UnmanagedType.ByValTStr,SizeConst=128)] public string Description;
+            public uint VendorId,DeviceId,SubSysId,Revision;
+            public UIntPtr DedicatedVideoMemory,DedicatedSystemMemory,SharedSystemMemory;
+            public uint LuidLow;public int LuidHigh;
+            public uint Flags;
+        }
+        [DllImport("dxgi.dll")] static extern int CreateDXGIFactory1(ref Guid id,out IntPtr factory);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int EnumAdapters1Fn(IntPtr factory,uint index,out IntPtr adapter);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int GetDesc1Fn(IntPtr adapter,out AdapterDesc desc);
+        const int NotFound=unchecked((int)0x887A0002);
+        const uint Software=2;
+        internal static int Fastest() {
+            IntPtr factory=IntPtr.Zero;
+            try {
+                var id=new Guid("770aae78-f26f-4dba-a829-253c83d1b387"); // IDXGIFactory1
+                if(CreateDXGIFactory1(ref id,out factory)<0 || factory==IntPtr.Zero)return 0;
+                var enumerate=(EnumAdapters1Fn)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory),12*IntPtr.Size),typeof(EnumAdapters1Fn));
+                int best=0;ulong most=0;
+                for(uint i=0;i<16;i++) {
+                    IntPtr adapter;
+                    int hr=enumerate(factory,i,out adapter);
+                    if(hr==NotFound || hr<0 || adapter==IntPtr.Zero)break;
+                    try {
+                        var describe=(GetDesc1Fn)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(Marshal.ReadIntPtr(adapter),10*IntPtr.Size),typeof(GetDesc1Fn));
+                        AdapterDesc desc;
+                        if(describe(adapter,out desc)<0 || (desc.Flags&Software)!=0)continue;
+                        ulong memory=desc.DedicatedVideoMemory.ToUInt64();
+                        if(memory>most){most=memory;best=(int)i;}
+                    } finally {Marshal.Release(adapter);}
+                }
+                return best;
+            } catch(Exception) {return 0;}
+            finally {if(factory!=IntPtr.Zero)Marshal.Release(factory);}
         }
     }
 
@@ -293,8 +417,16 @@ namespace LoveMyShelf {
             try {
                 string directory=Path.GetDirectoryName(job.Photo.CoverFile);
                 temp=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
-                string error=await RunChild(job.Photo.CoverFile,temp);
+                bool gpu=UpscaleEngine.UseGpu && UpscaleEngine.GpuAvailable;
+                string error=await RunChild(job.Photo.CoverFile,temp,gpu);
                 if(stopped)return;
+                // The graphics card can take the whole upscaling program down (a driver crash), which nothing inside it
+                // can catch, so a failed run on the graphics card is done again on the processor.
+                if(error!=null && gpu) {
+                    done=0;total=0;Raise(job.Photo.Folder);
+                    error=await RunChild(job.Photo.CoverFile,temp,false);
+                    if(stopped)return;
+                }
                 if(error!=null)throw new IOException(error);
                 var updated=await Task.Run(()=>GalleryStore.AttachUpscale(job.Photo,job.Revision,temp));
                 temp=null;
@@ -313,10 +445,10 @@ namespace LoveMyShelf {
                 if(!stopped)Next();
             }
         }
-        Task<string> RunChild(string input,string output) {
+        Task<string> RunChild(string input,string output,bool gpu) {
             var done=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var start=new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,
-                UpscaleEngine.ChildSwitch+" \""+input+"\" \""+output+"\"") {
+                UpscaleEngine.ChildSwitch+" \""+input+"\" \""+output+"\""+(gpu?" "+UpscaleEngine.GpuSwitch:"")) {
                 UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
                 StandardOutputEncoding=System.Text.Encoding.UTF8,StandardErrorEncoding=System.Text.Encoding.UTF8};
             var process=new Process {StartInfo=start,EnableRaisingEvents=true};

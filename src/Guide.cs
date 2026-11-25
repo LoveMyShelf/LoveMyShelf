@@ -1371,6 +1371,14 @@ namespace LoveMyShelf {
                 Lines=new[]{T("[[View original]] and [[View cover]] switch between the cover and the original.","[[원본 보기]]와 [[표지 보기]]로 표지와 원본을 서로 바꿔 볼 수 있어요."),
                     T("If a cover is small and looks a little blurry, try [[Upscale]]. AI enlarges the cover 4 times and makes it sharper. It takes a little time but runs by itself in the background, so you can look at other photos meanwhile. When it's done, a notice appears at the bottom right. The original cover stays too, so you can compare the two and choose.",
                       "표지가 작아서 조금 흐릿해 보이면 [[업스케일링]]을 눌러 보세요. AI가 표지를 4배로 키우면서 선명하게 다듬어 줘요. 시간이 조금 걸리지만 뒤에서 알아서 진행되니까 그동안 다른 사진을 봐도 돼요. 다 되면 오른쪽 아래에 알려 드려요. 원래 표지도 남아 있어서 둘을 비교해 보고 고를 수 있어요.")}});
+            large.Items.Add(new Setting {Id="upscaleDevice",SectionId="large",Title=T("What should do the upscaling?","업스케일링은 무엇으로 할까요?"),
+                Lines=new[]{T("Which one is faster depends on the computer. Graphics built into a laptop (such as Intel's) can be even slower than the processor. With a separate graphics card (such as NVIDIA or AMD), the graphics card can be much faster.",
+                    "컴퓨터마다 어느 쪽이 빠른지 달라요. 노트북에 들어 있는 그래픽(인텔 내장 그래픽 등)은 오히려 CPU보다 느릴 수 있어요. 따로 꽂힌 그래픽카드(NVIDIA·AMD 등)가 있으면 그래픽카드가 훨씬 빠를 수 있어요."),
+                    T("If the graphics card doesn't work or its result looks wrong, Love My Shelf switches to the processor by itself and finishes the cover.",
+                    "그래픽카드로 하다가 안 되거나 결과가 이상하면, 알아서 CPU로 바꿔서 끝까지 만들어요.")},
+                Choices=new[]{new Choice(T("Processor (CPU)","CPU (컴퓨터의 두뇌)"),T("The starting choice. It works the same on every computer. The computer gets a little busy while it runs.","처음 설정이에요. 어느 컴퓨터에서나 똑같이 잘 돼요. 하는 동안 컴퓨터가 조금 바빠져요.")),
+                    new Choice(T("Graphics card","그래픽카드"),T("Good for a computer with a separate graphics card. The processor stays less busy while it runs.","따로 꽂힌 그래픽카드가 있는 컴퓨터에 좋아요. 하는 동안 CPU가 덜 바빠져요."))},
+                Default=0,Columns=2,Get=p=>p.UpscaleGpu?1:0,Set=(p,i)=>p.UpscaleGpu=i==1});
             var views=new[]{new Choice(T("View cover large","표지 크게 보기"),T("A tile with a cover opens the cover large first. Click [[View original]] to switch to the original.","표지가 있는 칸은 표지가 먼저 크게 열려요. [[원본 보기]]를 누르면 원본으로 바꿔 볼 수 있어요.")),
                 new Choice(T("View original large","원본 크게 보기"),T("The original photo or video opens first. Click [[View cover]] to switch to the cover.","원본 사진이나 영상이 먼저 열려요. [[표지 보기]]를 누르면 표지로 바꿔 볼 수 있어요."))};
             large.Items.Add(new Setting {Id="openBy",SectionId="large",Title=T("How should clicking a tile open the large view?","칸을 어떻게 클릭하면 크게 열리게 할까요?"),
