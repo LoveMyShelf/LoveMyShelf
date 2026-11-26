@@ -3559,7 +3559,7 @@ namespace LoveMyShelf {
             own.Items.Add(refresh);
             var phone=new MenuItem {Header=L.P("Send to phone…","휴대폰으로 보내기…")};phone.Click+=delegate {SendToPhone();};
             own.Items.Add(phone);
-            var tell=new MenuItem {Header=L.P("Tell us what's inconvenient…","불편한 점 알려 주기…")};tell.Click+=delegate {FeedbackWindow.Show(this);};
+            var tell=new MenuItem {Header=L.P("Tell us what you'd like…","바라는 점 알려 주기…")};tell.Click+=delegate {FeedbackWindow.Show(this);};
             own.Items.Add(tell);
             // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
             own.Items.Add(new Separator());

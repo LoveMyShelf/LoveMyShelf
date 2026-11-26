@@ -12,7 +12,7 @@ using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace LoveMyShelf {
-    // "Tell us what's inconvenient": the person writes here, sees everything that would go along, and LoveMyShelf opens
+    // "Tell us what you'd like": the person writes here, sees everything that would go along, and LoveMyShelf opens
     // a Google Form in the browser with it filled in. Nothing is sent by LoveMyShelf itself: the person presses [Submit]
     // on the form. No sign-in is needed (the form has no file question and no one-response limit).
     internal sealed class FeedbackWindow : Window {
@@ -48,7 +48,7 @@ namespace LoveMyShelf {
         readonly string versionLine,windowsLine,errorsFound;
 
         FeedbackWindow(Window owner) {
-            UI.WindowSetup(this,T("Tell us what's inconvenient","불편한 점 알려 주기"));
+            UI.WindowSetup(this,T("Tell us what you'd like","바라는 점 알려 주기"));
             if(owner!=null && owner.IsVisible){Owner=owner;WindowStartupLocation=WindowStartupLocation.CenterOwner;}
             ShowInTaskbar=true;
             var area=SystemParameters.WorkArea;
@@ -75,14 +75,16 @@ namespace LoveMyShelf {
             errors=errorsFound;
         }
 
-        // The part of Guide & Options under "Tell us what's inconvenient": one line and the button.
+        // The part of Guide & Options under "Tell us what you'd like": one line and the button.
         internal static FrameworkElement GuidePanel(Window guide) {
             var box=new Border {CornerRadius=new CornerRadius(14),BorderThickness=new Thickness(1),Padding=new Thickness(20,16,20,18),Margin=new Thickness(0,0,0,14)};
             box.SetResourceReference(Border.BackgroundProperty,"CardBack");box.SetResourceReference(Border.BorderBrushProperty,"CardLine");
             var stack=new StackPanel();box.Child=stack;
+            var promise=Line(T("Tell us what you'd like, and we'll do our best to add it.","바라는 걸 알려 주시면 최대한 넣어 드릴게요."),false,15);promise.FontWeight=FontWeights.SemiBold;promise.Margin=new Thickness(0,0,0,6);
+            stack.Children.Add(promise);
             stack.Children.Add(Line(T("Write it in LoveMyShelf, then press [Submit] once on the form that opens. No sign-in is needed.",
                 "러브마이셀프에서 쓰고, 열리는 설문지에서 [제출]만 한 번 누르면 돼요. 로그인하지 않아도 돼요."),false,14));
-            var button=UI.Btn(T("Tell us what's inconvenient…","불편한 점 알려 주기…"),()=>Show(Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault()??guide),true);
+            var button=UI.Btn(T("Tell us what you'd like…","바라는 점 알려 주기…"),()=>Show(Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault()??guide),true);
             button.Padding=new Thickness(16,0,16,0);button.MinHeight=36;button.Margin=new Thickness(0,12,0,0);button.HorizontalAlignment=HorizontalAlignment.Left;
             stack.Children.Add(button);
             return box;
@@ -138,9 +140,9 @@ namespace LoveMyShelf {
 
         // ---------------- Writing ----------------
         void WritePage() {
-            NewPage(T("Tell us what's inconvenient","불편한 점 알려 주기"));
-            Para(T("Something that doesn't work, something awkward, or something you wish it had: write it freely. Every message is read, and it helps make LoveMyShelf better.",
-                "안 되는 것, 불편한 것, 있었으면 하는 기능을 편하게 적어 주세요. 하나하나 다 읽어 보고 러브마이셀프를 고치는 데 써요."));
+            NewPage(T("Tell us what you'd like","바라는 점 알려 주기"));
+            Para(T("A feature you'd like, something awkward or something that doesn't work: write it freely. Tell us what you'd like, and we'll do our best to add it.",
+                "있었으면 하는 기능, 불편한 것, 안 되는 것 무엇이든 편하게 적어 주세요. 바라는 걸 알려 주시면 최대한 넣어 드릴게요."));
 
             Sub(T("What is it about?","어떤 이야기인가요?"));
             var kinds=new WrapPanel();
