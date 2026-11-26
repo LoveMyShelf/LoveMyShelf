@@ -657,8 +657,10 @@ namespace LoveMyShelf {
         // A tag's view: every original that carries the tag, from all folders (like the unfinished collection, they live in their own folders).
         internal const string TagKey="@tag:";
         bool ShowingTag {get {return active!=null && active.Source==null && active.Folder.StartsWith(TagKey,StringComparison.Ordinal);}}
-        string ShownTag {get {return ShowingTag?active.Folder.Substring(TagKey.Length):null;}}
-        static Album TagAlbum(string tag) {return new Album(TagKey+tag,"#"+tag);}
+        // One tag, or several shown together (their names joined by a tab, which a tag can't contain).
+        string ShownTag {get {var tags=ShownTags;return tags.Count==1?tags[0]:null;}}
+        List<string> ShownTags {get {return ShowingTag?SplitTags(active.Folder.Substring(TagKey.Length)):new List<string>();}}
+        static Album TagAlbum(string tag) {return TagAlbum(SplitTags(tag));}
         Button tagsButton;
         internal Preferences Settings { get { return settings; } }
         // The large view's volume and Clear voice, kept for the next video (like PotPlayer). Every window learns
@@ -1004,7 +1006,7 @@ namespace LoveMyShelf {
                 allCropsButton.ToolTip=L.T("Cover collection");AutomationProperties.SetName(allCropsButton,L.T("Cover collection"));
                 unfinishedButton.ToolTip=L.T("Unfinished cover collection");AutomationProperties.SetName(unfinishedButton,L.T("Unfinished cover collection"));
                 openCoverFolder.ToolTip=L.T("Open cover folder");AutomationProperties.SetName(openCoverFolder,L.T("Open cover folder"));
-                tagsButton.ToolTip=ShowingTag?"#"+ShownTag:L.T("Tags");AutomationProperties.SetName(tagsButton,L.T("Tags"));
+                tagsButton.ToolTip=ShowingTag?"#"+String.Join(" · #",ShownTags):L.T("Tags");AutomationProperties.SetName(tagsButton,L.T("Tags"));
             };
             footer.SizeChanged+=delegate {updateFooter();};
             // The folder tree on the left, with an edge that can be dragged to make it wider or narrower.
@@ -1959,7 +1961,7 @@ namespace LoveMyShelf {
                     photos=PadSimilar(Math.Max(2,columns));
                 } else if(ShowingAllCrops || ShowingUnfinished || ShowingTag) {
                     bool pending=ShowingUnfinished;
-                    string tag=ShownTag;
+                    var tag=ShowingTag?ShownTags:null;
                     photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
                     canShuffle=false;
                     emptyTitle.Text=L.T(tag!=null?"Loading…":"Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
@@ -4196,38 +4198,6 @@ namespace LoveMyShelf {
         internal void EditTags(List<Photo> targets) {
             if(targets.Count==0)return;
             new TagWindow(this,targets).ShowDialog();
-        }
-        // The tag list opens above the [Tags] button: each tag with how many originals carry it.
-        void OpenTagMenu() {
-            var menu=new ContextMenu {PlacementTarget=tagsButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Top};
-            var counts=Tags.Counts();
-            string shown=ShownTag;
-            if(counts.Count==0) {
-                menu.Items.Add(new MenuItem {Header=L.T("There are no tags yet. Right-click a file and click [Tags…]."),IsEnabled=false});
-            }
-            foreach(var pair in counts) {
-                string tag=pair.Key;
-                var item=new MenuItem {Header=tag.Replace("_","__"),InputGestureText=pair.Value.ToString("N0"),
-                    IsChecked=shown!=null && String.Equals(shown,tag,StringComparison.OrdinalIgnoreCase)};
-                item.Click+=delegate {Select(TagAlbum(tag));};
-                menu.Items.Add(item);
-            }
-            if(shown!=null) {
-                menu.Items.Add(new Separator());
-                var rename=new MenuItem {Header=L.F("Rename the tag “{0}”…",shown).Replace("_","__")};
-                rename.Click+=delegate {RenameShownTag();};
-                var delete=new MenuItem {Header=L.F("Delete the tag “{0}”…",shown).Replace("_","__")};
-                delete.Click+=delegate {DeleteShownTag();};
-                menu.Items.Add(rename);menu.Items.Add(delete);
-            }
-            menu.Items.Add(new Separator());
-            var people=new MenuItem {Header=L.T("Find people by face…")};
-            people.Click+=delegate {FaceWindow.Open(this,store);};
-            menu.Items.Add(people);
-            var similar=new MenuItem {Header=L.P("Similar photos","비슷한 사진 모음")};
-            similar.Click+=delegate {Select(SimilarAlbum);};
-            menu.Items.Add(similar);
-            menu.IsOpen=true;
         }
         void RenameShownTag() {
             string tag=ShownTag;if(tag==null)return;

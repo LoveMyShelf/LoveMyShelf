@@ -100,6 +100,15 @@
       boldEn="only that type shows|click another to add it"
       tryKo="사진과 영상이 섞인 폴더를 열고 [형식 ▾]에서 JPG와 WebP를 차례로 눌러 보세요."
       tryEn="Open a folder with photos and videos mixed, then click JPG and WebP one after the other in [Type ▾]."/>
+    <item group="better" icon="check"
+      titleKo="태그 여러 개를 함께 보기"
+      titleEn="See several tags together"
+      textKo="아래 줄 [태그]에서 태그 하나를 누르면 전처럼 그 태그 모아 보기가 열려요. 이제 목록이 닫히지 않아서, 다른 태그를 이어서 누르면 두 태그가 붙은 파일이 함께 보여요.&#10;보고 있는 태그를 다시 누르면 빠지고, 둘 이상일 때는 맨 위 [고른 태그 모두 풀기]로 태그를 열기 전 폴더로 바로 돌아가요."
+      textEn="Click a tag in [Tags] at the bottom and its view opens, as before. Now the list stays open, so clicking another tag shows the files with either tag together.&#10;Click a shown tag again to take it out. With two or more, [Clear the picked tags] at the top goes straight back to the folder you were in."
+      boldKo="다른 태그를 이어서 누르면|함께 보여요"
+      boldEn="clicking another tag|together"
+      tryKo="[태그]에서 사람 태그 두 개를 차례로 눌러 보세요."
+      tryEn="In [Tags], click two people's tags one after the other."/>
   </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."

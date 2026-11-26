@@ -210,10 +210,19 @@ namespace LoveMyShelf {
         public GalleryStore(string root) { Root = root; Directory.CreateDirectory(root); Tags.Use(root); }
         // The originals that carry a tag, from every folder, each with its covers like in its own folder.
         // Folders on a drive that isn't connected are left out; they come back with the drive.
-        internal List<Photo> Tagged(string tag,out int skipped,PhotoSort sort,bool descending) {
+        internal List<Photo> Tagged(string tag,out int skipped,PhotoSort sort,bool descending) {return Tagged(new[]{tag},out skipped,sort,descending);}
+        // Several tags: every original that carries any of them, once.
+        internal List<Photo> Tagged(IEnumerable<string> tags,out int skipped,PhotoSort sort,bool descending) {
             skipped=0;
             var items=new List<Photo>();
-            foreach(var folder in Tags.FilesWith(tag)) {
+            var files=new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach(string tag in tags)
+                foreach(var folder in Tags.FilesWith(tag)) {
+                    HashSet<string> names;
+                    if(!files.TryGetValue(folder.Key,out names))files.Add(folder.Key,names=new HashSet<string>(folder.Value,folder.Value.Comparer));
+                    else names.UnionWith(folder.Value);
+                }
+            foreach(var folder in files) {
                 try {
                     string source=SourceOfRecords(folder.Key);
                     if(source==null || !Directory.Exists(source))continue;
