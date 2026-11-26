@@ -4,13 +4,26 @@
 
 영상, 사진, 움짤이 잔뜩 쌓인 폴더를 한눈에 보는 Windows 프로그램이에요. 파일 탐색기처럼 쓰면서, 파일마다 **내가 고른 장면을 표지로** 붙일 수 있어요.
 
-이건 컴맹이 말만하고 Fable, Astra, Neon이 협업해서 만든 것입니다.  
-저 같은 컴맹 분들 위한 팁 : 그냥 이 페이지 주소를 무료 chatgpt 웹버전한테 주면 몇 초만에 분석 다 하고 설명해 줄 거예요.  
-여러분들이 원하는 기능도 각자 붙일 수 있지만, 처음부터 직접 만드는 게 제일 재밌습니다. 다른 일하면서 마이크로만 말해도 다 해줘요.
-
 ### [⬇ Love My Shelf 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
 [English is below](#english) · [설명서](GUIDE.ko.md) · [바뀐 점](CHANGELOG.md)
+
+**내 파일은 이렇게 지켜요**
+
+- 표지를 만들어도 원본 사진과 영상은 그대로예요. 표지는 항상 따로 저장돼요.
+- 지우면 휴지통으로만 가요. 휴지통을 쓸 수 없는 곳(예: 네트워크 폴더)이면 아예 지우지 않아요.
+- 다른 드라이브로 옮길 때는 복사가 끝까지 잘 됐는지 확인한 다음에 원래 자리의 파일을 지워요.
+
+받는 파일은 약 220MB예요. 영상 재생기와 AI 기능(표지를 4배 크고 선명하게, 얼굴로 사람 찾기)이 모두 들어 있어서 그래요. AI 기능은 인터넷에 올리지 않고 내 컴퓨터 안에서만 돌아가요.
+
+## 이럴 때 좋아요
+
+| 하고 싶은 일 | 잘 맞는 프로그램 |
+|---|---|
+| 사진을 한 장씩 빠르게 넘겨 보기 | 꿀뷰·알씨 같은 가벼운 사진 뷰어 |
+| 영상·움짤·사진이 섞인 폴더를 큰 그림으로 한눈에 훑기 | **Love My Shelf** |
+| 영상마다 내가 고른 장면을 표지로 붙이고, 움직이는 표지도 만들기 | **Love My Shelf** |
+| 탐색기처럼 복사·옮기기·이름 바꾸기를 해도 표지가 함께 옮겨지게 하기 | **Love My Shelf** |
 
 ## 받아서 켜는 법
 
@@ -120,13 +133,26 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 
 A Windows program for seeing folders piled with videos, photos and memes at a glance. Use it like File Explorer, and give each file **the scene you chose as its cover**.
 
-This was made by someone who knows nothing about computers. I just talked, and Fable, Astra, and Neon worked together to build it.  
-A tip for people like me who aren't good with computers: just give this page's address to the free web version of ChatGPT. In a few seconds it'll go through the whole thing and explain it to you.  
-You can add any features you want, but building something yourself from scratch is the most fun part. You can do other things while you just talk into a mic, and the AI builds it all for you.
-
 ### [⬇ Download Love My Shelf (Windows, free)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
 [User guide](GUIDE.md) · [Changelog](CHANGELOG.md)
+
+**How your files are kept safe**
+
+- Making covers leaves your original photos and videos as they are. Covers are always saved separately.
+- Deleting only sends files to the Recycle Bin. Where there is no Recycle Bin (such as a network folder), nothing is deleted.
+- When moving to another drive, the original is deleted only after the copy is verified.
+
+The download is about 220 MB because it includes a video player and AI features (4× larger, sharper covers and finding people by face). The AI features run only on your computer and upload nothing.
+
+## When to use it
+
+| What you want to do | What fits best |
+|---|---|
+| Flip through photos one by one, fast | A light photo viewer |
+| Browse a folder of mixed videos, GIFs and photos as big thumbnails | **Love My Shelf** |
+| Give each video a scene you chose as its cover, animated covers too | **Love My Shelf** |
+| Copy, move and rename like File Explorer, and have covers move along | **Love My Shelf** |
 
 ## Download and start
 
