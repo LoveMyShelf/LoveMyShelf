@@ -342,10 +342,10 @@ namespace LoveMyShelf {
             lastHiddenFormatNotice=DateTime.UtcNow;
             var visit=formatVisit;
             Notify(String.Format(L.P("{0:N0} added files are hidden by the type filter","넣은 {0:N0}개가 형식 거르기 때문에 안 보여요"),hidden.Count),
-                L.P("Show them too","같이 보기"),delegate {
+                L.P("Click [Show them too] and they show up.","[같이 보기]를 누르면 보이게 돼요."),delegate {
                     if(formatVisit!=visit || !FilteringFormats)return;
                     chosenFormats.UnionWith(hidden);FormatSelectionChanged();
-                },NoticeKind.Info);
+                },NoticeKind.Info,false,15,L.P("Show them too","같이 보기"));
         }
     }
 }
