@@ -418,8 +418,8 @@ namespace LoveMyShelf {
         // True once nothing more can be read before / after the scene list (the video's start or end).
         bool nearbyAtStart,nearbyAtEnd,readingMore;
         public CropWindow(Window owner,BitmapSource image,string name,Rect? saved,double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,
-            int previewSide=2200,int brightness=0) {
-            this.previewSide=previewSide;
+            int previewSide=0,int brightness=0) {
+            this.previewSide=previewSide>0?previewSide:Preferences.EditorPreviewSide;
             UI.WindowSetup(this,saved.HasValue?L.T("Make one more cover"):L.T("Make cover")); Owner=owner; ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             Width=Math.Min(880,SystemParameters.WorkArea.Width); Height=Math.Min(850,SystemParameters.WorkArea.Height);
