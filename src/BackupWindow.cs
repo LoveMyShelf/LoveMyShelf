@@ -240,8 +240,8 @@ namespace LoveMyShelf {
         string chosenPlace;
         void SetupPage(bool thenBackup) {
             NewPage(T("Where should backups go?","백업을 어디에 둘까요?"));
-            Para(T("Your covers, tags and records are locked with your password on this computer first, and only the locked file goes there.",
-                "표지·태그·기록을 이 컴퓨터에서 먼저 비밀번호로 잠그고, 잠긴 파일만 그곳에 넣어요."),true);
+            Para(T("Your covers, tags and records are locked with your password on this computer, and only that one locked file goes where you choose. Even in Google Drive or OneDrive, Google and Microsoft can't see what's inside. All they see is the file name, its size and when it was saved.",
+                "표지·태그·기록을 이 컴퓨터에서 비밀번호로 잠근 뒤, 잠긴 파일 하나만 고른 곳에 넣어요. 구글 드라이브나 OneDrive에 두어도 구글과 마이크로소프트는 안의 내용을 볼 수 없어요. 보이는 건 파일 이름과 크기, 저장한 시간뿐이에요."),true);
             var places=Backup.CloudPlaces();
             chosenPlace=settings.Destination??(places.Count>0?places[0].Path:null);
             var titles=new List<string>();var details=new List<string>();var extras=new List<FrameworkElement>();
@@ -332,8 +332,8 @@ namespace LoveMyShelf {
                 "이미 클라우드 폴더에 올라가 있는 사진과 표지는 지금처럼 보여요. 잠기는 건 백업 파일과 사진 상자예요."));
             Para("2.  "+T("Covers on a drive that isn't plugged in can't go in. After each backup you are told how many were left out.",
                 "꽂혀 있지 않은 외장 하드에 있는 표지는 못 담아요. 백업이 끝나면 몇 장이 빠졌는지 알려 드려요."),false,14,8);
-            Para("3.  "+T("The password is kept nowhere. If you forget it, nobody can open the backup, not even us.",
-                "비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도(저희도) 백업을 열 수 없어요."),false,14,8);
+            Para("3.  "+T("The password is kept nowhere. If you forget it, nobody can open the backup. We made it and we can't either. Write it in a notebook or a phone memo.",
+                "비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도 열 수 없어요. 만든 저희도 못 열어요. 수첩이나 휴대폰 메모에 적어 두세요."),false,14,8);
             var ok=Check(T("I've read this","확인했어요"),false);ok.Margin=new Thickness(0,16,0,0);page.Children.Add(ok);
             AtLeft(T("Back","뒤로"),()=>SetupPage(thenBackup));
             Button go=null,save=null;
