@@ -7,6 +7,30 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ---
 
+## 1.0.8 · 2026-11-26
+
+비슷한 사진을 모아 나란히 비교하며 정리할 수 있어요. 표지·태그·기록을 비밀번호로 잠가 백업하고, 컴퓨터를 바꿔도 되살릴 수 있어요.
+
+- **비슷한 사진 모음:** 폴더 트리의 Love My Shelf 아래 [비슷한 사진 모음]을 누르고 [찾기]를 눌러요. 똑같은 파일과 거의 같은 사진을 묶음으로 모아 보여 줘요. 묶음마다 남기기 좋은 사진에 ‘남기기 추천’이 붙고, 칸 아래쪽에 해상도·형식·용량과 무엇이 다른지 적혀 있어요. 폴더를 오른쪽 클릭하고 [비슷한 사진 찾기…]를 눌러 그 폴더만 찾을 수도 있어요.
+- **나란히 비교하며 남길 사진 고르기:** 비슷한 사진 모음에서 칸을 더블클릭하면 두 사진을 같은 크기로 나란히 보여 줘요. 남길 사진의 1이나 2를 누르면 다른 사진은 휴지통으로 가고, 다음 사진이 그 자리에 와요. 잘못 골랐으면 Ctrl+Z로 되돌려요. 지는 사진에 표지가 있으면 남기는 사진으로 옮길지, 같이 휴지통에 보낼지 물어봐요. 똑같은 파일이 많으면 [정리하기…]로 한 번에 정리할 수도 있어요.
+- **비밀번호로 잠근 백업과 복원:** F1을 눌러 설명서 겸 옵션을 열고 [백업·복원]에서 [지금 백업하기]를 눌러요. 표지·태그·기록을 이 컴퓨터에서 비밀번호로 잠근 파일 하나로 만들어 구글 드라이브, OneDrive, 외장 하드 같은 곳에 넣어 둬요. 잠근 파일이라 드라이브 쪽에서는 안을 볼 수 없어요. 컴퓨터를 바꾸면 [백업에서 복원하기]로 되살려요. 사진이 다른 곳으로 옮겨졌어도 폴더 하나만 알려 주면 근처 폴더까지 찾아서 이어 줘요. 백업할 때가 되면 프로그램을 켤 때 알려 드려요(기본 1주일마다). 비밀번호는 어디에도 저장하지 않으니 꼭 따로 적어 두세요.
+- **원본 사진·영상을 잠긴 사진 상자로 보관하기:** 백업 설정에서 [잠긴 사진 상자도 만들기]를 고르고 넣을 폴더를 고르면, 원본 사진·영상의 잠긴 복사본을 백업과 같은 비밀번호로 만들어 둬요. 원본은 그대로 두고, 다음부터는 바뀐 폴더만 다시 만들어요. 복원할 때 ‘잠긴 사진 상자도 같이 풀까요?’에서 [예]를 고르면 필요한 공간을 보여 준 뒤 풀어서 원본까지 바로 이어 줘요. 이 기능에는 7-Zip이 필요해요.
+- **업스케일링을 그래픽카드로도:** 설명서 겸 옵션의 [크게 보기]에서 ‘업스케일링은 무엇으로 할까요?’를 [그래픽카드]로 바꿀 수 있어요. 컴퓨터에 따라 더 빨라질 수 있어요. 그래픽카드로 하다가 안 되거나 결과가 이상하면 알아서 CPU로 바꿔서 끝까지 만들어요. 처음 설정은 지금처럼 CPU예요.
+- **압축을 덜 풀고 켰을 때 알려 줘요:** 받은 ZIP 안에서 바로 켜거나 LoveMyShelf.exe만 꺼내서 켜면 필요한 파일이 없어서 영상이 안 나올 수 있어요. 이제 그럴 때 ‘압축을 전부 풀어 주세요’ 창으로 알려 줘요.
+- **작은 문제 네 가지를 고쳤어요:** 자막 탐색기에 예전 줄이 남아 보이던 문제, 하위 폴더 영역의 스크롤바나 열 머리를 누르면 고른 칸이 풀리던 문제, 표지 그림이 깨졌을 때 대신 보여 줄 그림을 못 찾던 문제, 숨긴 알림의 빙글 도는 표시가 계속 돌던 문제를 고쳤어요.
+
+Gather similar photos and tidy them up by comparing side by side. Back up your covers, tags and records locked with a password, and bring them back on another computer.
+
+- **A collection of similar photos:** Click [Similar photos] under Love My Shelf in the folder tree, then click [Find]. Identical files and nearly identical photos are shown together in groups. In each group, the photo worth keeping is marked ‘Suggested to keep’, and the bottom of each tile shows its resolution, format, size and how it differs. You can also right-click a folder and click [Find similar photos…] to look in that folder only.
+- **Compare side by side and choose what to keep:** In Similar photos, double-click a tile to see two photos side by side at the same size. Press 1 or 2 on the photo to keep, and the other one goes to the Recycle Bin while the next photo takes its place. Press Ctrl+Z if you chose the wrong one. If the photo that goes has covers, you are asked whether to move them to the photo you keep or send them to the Recycle Bin too. With many identical files, [Tidy up…] can sort them all at once.
+- **Backups locked with a password, and restoring them:** Press F1 to open Guide & Options and click [Back up now] under [Backup and restore]. Your covers, tags and records are locked with a password on this computer into one file, which you can keep in Google Drive, OneDrive or on an external drive. Because the file is locked, the drive can’t see what is inside. On a new computer, use [Restore from a backup]. Even if your photos moved somewhere else, show where one folder is and the folders near it are found and connected too. When it’s time for a backup, you are reminded when the program starts (every week unless you change it). The password is kept nowhere, so be sure to write it down.
+- **Keep the original photos and videos in locked photo boxes:** In the backup settings, choose [Also make locked photo boxes] and pick the folders. A locked copy of the original photos and videos is made with the same password as the backup. The originals stay as they are, and next time only the folders that changed are made again. When restoring, choose [Yes] at ‘Open the locked photo boxes too?’: the space needed is shown, then the boxes are opened and the originals connected right away. This needs 7-Zip.
+- **Upscaling on the graphics card too:** Under [Large view] in Guide & Options, you can change ‘What should do the upscaling?’ to [Graphics card]. Depending on the computer, it can be faster. If the graphics card fails or the result looks wrong, it switches to the CPU by itself and finishes. The default is still the CPU.
+- **A notice when the ZIP wasn’t fully unpacked:** If you start Love My Shelf from inside the ZIP, or take out only LoveMyShelf.exe, files it needs are missing and videos may not play. Now a ‘Please unpack the whole ZIP first’ window tells you so.
+- **Four small problems fixed:** Fixed old lines staying in the subtitle explorer, clicks on the folder area’s scroll bar or column headers clearing the selection, damaged cover pictures not falling back to another picture, and the spinning mark of a hidden notice that kept turning.
+
+---
+
 ## 1.0.7 · 2026-11-25
 
 태그와 얼굴로 보고 싶은 파일을 모을 수 있어요. 파일이나 폴더를 여러 개 보낼 때는 대기열에서 지금 어느 파일을 얼마나 보냈는지 볼 수 있어요.
