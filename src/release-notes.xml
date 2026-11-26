@@ -140,6 +140,11 @@
       textEn="A wide cover takes two cells, so at the end of a row it moved to the next row and left that cell empty. Now the next one-cell file goes into that cell. The order changes by just one place, and the covers of one original stay together.&#10;To keep the order exactly as before, choose [Leave it empty] under 'When a wide cover leaves a cell empty at the end of a row?' in Guide &amp; Options."
       boldKo="바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요"
       boldEn="the next one-cell file goes into that cell"/>
+    <item group="fixed" icon="check"
+      titleKo="최대화해도 아래가 잘려 보이지 않아요"
+      titleEn="Nothing is cut off at the bottom when you maximize"
+      textKo="폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요."
+      textEn="With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed."/>
   </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
