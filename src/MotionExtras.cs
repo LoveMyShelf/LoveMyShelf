@@ -83,10 +83,15 @@ namespace LoveMyShelf {
                 File.Copy(font,fontCopy,true);
                 int px=Math.Max(8,(int)Math.Round(outH*Math.Max(2,Math.Min(40,r.TextSize))/100.0));
                 int border=Math.Max(1,(int)Math.Round(px/12.0));
-                string y=r.TextPlace==0?"h*0.04":r.TextPlace==1?"(h-text_h)/2":"h-text_h-h*0.04";
+                // Top, middle, bottom; or the middle of the text at a place of your own, kept inside the picture.
+                string x="(w-text_w)/2",y=r.TextPlace==0?"h*0.04":r.TextPlace==1?"(h-text_h)/2":"h-text_h-h*0.04";
+                if(r.TextPlace==3) {
+                    x="max(0\\,min(w-text_w\\,w*"+N(Math.Max(0,Math.Min(100,r.TextX))/100)+"-text_w/2))";
+                    y="max(0\\,min(h-text_h\\,h*"+N(Math.Max(0,Math.Min(100,r.TextY))/100)+"-text_h/2))";
+                }
                 steps.Append("drawtext=fontfile=").Append(Quote(fontCopy)).Append(":textfile=").Append(Quote(textFile))
                     .Append(":expansion=none:fontsize=").Append(px).Append(":fontcolor=white:borderw=").Append(border)
-                    .Append(":bordercolor=black:x=(w-text_w)/2:y=").Append(y).Append(',');
+                    .Append(":bordercolor=black:x=").Append(x).Append(":y=").Append(y).Append(',');
             }
             return steps.Length==0?null:steps.ToString(0,steps.Length-1);
         }
@@ -145,20 +150,81 @@ namespace LoveMyShelf {
     }
 
     // The line of text over the GIF window's preview, drawn like the file will have it (white with a black edge).
+    // It can be dragged to any place (then the place is "Your own"); while the made file's own pictures play (they
+    // already have the text), only a dashed box shows where it is, and it can still be dragged.
     internal sealed class TextMark : FrameworkElement {
-        string text="";int place=2;double size=8;
-        internal void Set(string value,int where,double percent) {text=(value??"").Replace("\r"," ").Replace("\n"," ").Trim();place=where;size=percent;InvalidateVisual();}
-        internal TextMark() {IsHitTestVisible=false;}
-        protected override void OnRender(DrawingContext dc) {
-            if(text.Length==0 || ActualHeight<=0)return;
+        string text="";int place=2;double size=8,across=50,down=50;bool boxOnly;
+        Rect box=Rect.Empty;
+        Point grabbed;bool dragging,moved;
+        // While dragging: the middle of the text as percents of the width and the height. Then once when let go.
+        internal event Action<double,double> Moving;
+        internal event Action Moved;
+        internal void Set(string value,int where,double percent,double x,double y,bool onlyBox) {
+            text=(value??"").Replace("\r"," ").Replace("\n"," ").Trim();place=where;size=percent;across=x;down=y;boxOnly=onlyBox;
+            InvalidateVisual();
+        }
+        internal TextMark() {Cursor=Cursors.SizeAll;ToolTip=L.P("Drag the text to move it","글자를 끌어서 옮겨요");}
+        FormattedText Measure(out double x,out double y) {
+            x=y=0;
+            if(text.Length==0 || ActualHeight<=0)return null;
             double px=Math.Max(6,ActualHeight*Math.Max(2,Math.Min(40,size))/100);
             var family=Application.Current.Resources["AppFont"] as FontFamily??new FontFamily("Malgun Gothic");
-            var formatted=new FormattedText(text,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface(family,FontStyles.Normal,FontWeights.Bold,FontStretches.Normal),px,Brushes.White,1);
-            double x=(ActualWidth-formatted.Width)/2,y=place==0?ActualHeight*0.04:place==1?(ActualHeight-formatted.Height)/2:ActualHeight-formatted.Height-ActualHeight*0.04;
-            var shape=formatted.BuildGeometry(new Point(x,y));
-            dc.DrawGeometry(null,new Pen(Brushes.Black,Math.Max(1,px/12)*2){LineJoin=PenLineJoin.Round},shape);
-            dc.DrawGeometry(Brushes.White,null,shape);
+            var f=new FormattedText(text,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface(family,FontStyles.Normal,FontWeights.Bold,FontStretches.Normal),px,Brushes.White,1);
+            if(place==3) {
+                // The same rule as the file: the middle of the text at the place picked, kept inside the picture.
+                x=Math.Max(0,Math.Min(ActualWidth-f.Width,ActualWidth*across/100-f.Width/2));
+                y=Math.Max(0,Math.Min(ActualHeight-f.Height,ActualHeight*down/100-f.Height/2));
+            } else {
+                x=(ActualWidth-f.Width)/2;
+                y=place==0?ActualHeight*0.04:place==1?(ActualHeight-f.Height)/2:ActualHeight-f.Height-ActualHeight*0.04;
+            }
+            return f;
         }
+        protected override void OnRender(DrawingContext dc) {
+            double x,y;var f=Measure(out x,out y);
+            if(f==null){box=Rect.Empty;return;}
+            box=new Rect(x,y,f.Width,f.Height);
+            if(!boxOnly) {
+                var shape=f.BuildGeometry(new Point(x,y));
+                dc.DrawGeometry(null,new Pen(Brushes.Black,Math.Max(1,ActualHeight*size/100/12)*2){LineJoin=PenLineJoin.Round},shape);
+                dc.DrawGeometry(Brushes.White,null,shape);
+            }
+            // A dashed box: while the pointer is on the text, while dragging, or where the made file has its text.
+            if(boxOnly || dragging || IsMouseOver) {
+                var outline=Rect.Inflate(box,4,3);
+                dc.DrawRectangle(null,new Pen(Brushes.Black,3),outline);
+                dc.DrawRectangle(null,new Pen(Brushes.White,1.5){DashStyle=DashStyles.Dash},outline);
+            }
+        }
+        protected override HitTestResult HitTestCore(PointHitTestParameters p) {
+            return !box.IsEmpty && Rect.Inflate(box,8,6).Contains(p.HitPoint)?new PointHitTestResult(this,p.HitPoint):null;
+        }
+        protected override void OnMouseEnter(MouseEventArgs e) {base.OnMouseEnter(e);InvalidateVisual();}
+        protected override void OnMouseLeave(MouseEventArgs e) {base.OnMouseLeave(e);InvalidateVisual();}
+        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
+            if(box.IsEmpty)return;
+            var p=e.GetPosition(this);
+            grabbed=new Point(p.X-(box.X+box.Width/2),p.Y-(box.Y+box.Height/2));
+            moved=false;dragging=CaptureMouse();e.Handled=true;
+        }
+        protected override void OnMouseMove(MouseEventArgs e) {
+            if(!dragging || ActualWidth<=0 || ActualHeight<=0)return;
+            var p=e.GetPosition(this);
+            // Text wider (or taller) than the picture stays in the middle that way; otherwise it stays inside.
+            double cx=box.Width>=ActualWidth?ActualWidth/2:Math.Max(box.Width/2,Math.Min(ActualWidth-box.Width/2,p.X-grabbed.X));
+            double cy=box.Height>=ActualHeight?ActualHeight/2:Math.Max(box.Height/2,Math.Min(ActualHeight-box.Height/2,p.Y-grabbed.Y));
+            moved=true;
+            place=3;across=Math.Round(cx/ActualWidth*1000)/10;down=Math.Round(cy/ActualHeight*1000)/10;
+            InvalidateVisual();
+            if(Moving!=null)Moving(across,down);
+        }
+        protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) {
+            if(!dragging)return;
+            dragging=false;ReleaseMouseCapture();e.Handled=true; // the click doesn't pause the preview
+            InvalidateVisual();
+            if(moved && Moved!=null)Moved(); // a click without moving changes nothing
+        }
+        protected override void OnLostMouseCapture(MouseEventArgs e) {base.OnLostMouseCapture(e);if(dragging){dragging=false;InvalidateVisual();if(moved && Moved!=null)Moved();}}
     }
 
     // Right-click a GIF or WebP → [Make this moving picture smaller…]: a copy under a size you pick, saved beside it.

@@ -1300,6 +1300,8 @@ namespace LoveMyShelf {
                       "[[뒤집기]]: 좌우나 위아래로 뒤집어요. [[재생 횟수]]: 몇 번 재생할지예요. 0이면 계속 반복해요(MP4는 영상이라 해당 없어요). [[끝에서 멈춤]]: 마지막 장면에서 몇 초 멈췄다가 다시 시작할지예요."),
                     T("[[Text]]: one line of text in white with a black edge, at the top, middle or bottom. [[Text size]] is a percent of the picture's height (8 is a good start).",
                       "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 위·가운데·아래 중에 고르고, [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
+                    T("To put the text exactly where you want, drag it on the preview with the mouse, or type the place across and down (%) in [[Exact place]]; the place becomes [[Your own]]. The text never goes outside the picture.",
+                      "글자를 원하는 자리에 정확히 놓으려면 미리보기 위의 글자를 마우스로 끌거나, [[정확한 자리]]에 가로·세로 위치(%)를 넣어요. 그러면 자리가 [[직접]]으로 바뀌어요. 글자는 그림 밖으로 나가지 않아요."),
                     T("[[Picture quality]]: besides High, Normal and Low you can type any number from 1 to 100. Higher is sharper and bigger.",
                       "[[화질]]: 높게·보통·낮게 말고도 1~100 사이 숫자를 직접 넣을 수 있어요. 높을수록 선명하고 용량이 커요."),
                     T("[[Size limit]]: tick [[Fit under]] and type a size in MB. If the file comes out bigger, it is made again smaller (the picture first, then fewer pictures a second) until it fits.",

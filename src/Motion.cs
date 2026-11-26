@@ -34,7 +34,8 @@ namespace LoveMyShelf {
         public int Q;
         public double TargetMb;
         public string Text="";
-        public int TextPlace=2; // 0 top, 1 middle, 2 bottom
+        public int TextPlace=2; // 0 top, 1 middle, 2 bottom, 3 a place of your own (TextX, TextY)
+        public double TextX=50,TextY=50; // the middle of the text, in percents of the width and the height
         public double TextSize=8; // percent of the picture's height
         internal MotionRequest Copy() {return (MotionRequest)MemberwiseClone();}
         // Make it smaller: a see-through GIF or WebP stays see-through (covers are drawn on black, so they never need it).
@@ -63,7 +64,8 @@ namespace LoveMyShelf {
             if(Hold>0.01)s.Append(";hold=").Append(Math.Round(Hold,2).ToString(c));
             if(Q>0)s.Append(";q=").Append(Q.ToString(c));
             if(TargetMb>0)s.Append(";mb=").Append(Math.Round(TargetMb,2).ToString(c));
-            if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c));
+            if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c))
+                .Append(TextPlace==3?";tx="+Math.Round(TextX,1).ToString(c)+";ty="+Math.Round(TextY,1).ToString(c):"");
             return s.ToString();
         }
         internal static MotionRequest Parse(string text) {
@@ -91,7 +93,9 @@ namespace LoveMyShelf {
                 if(values.TryGetValue("q",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Q=Math.Max(0,Math.Min(100,i));
                 if(values.TryGetValue("mb",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>0 && d<100000)r.TargetMb=d;
                 if(values.TryGetValue("text",out v))r.Text=MotionLook.FromBase64(v);
-                if(values.TryGetValue("place",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.TextPlace=Math.Max(0,Math.Min(2,i));
+                if(values.TryGetValue("place",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.TextPlace=Math.Max(0,Math.Min(3,i));
+                if(values.TryGetValue("tx",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=100)r.TextX=d;
+                if(values.TryGetValue("ty",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=100)r.TextY=d;
                 if(values.TryGetValue("tsize",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=2 && d<=40)r.TextSize=d;
                 return r;
             } catch(Exception) {return null;}
@@ -234,8 +238,9 @@ namespace LoveMyShelf {
         Expander more;
         FrameworkElement speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,textField,playsField,targetField;
         // 1.0.9 extras: what was picked, kept for the next window until LoveMyShelf closes.
-        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=2;static double lastHold,lastTargetMb=20,lastTextSize=8;
-        bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double hold,targetMb=20,textSize=8;
+        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=2;static double lastHold,lastTargetMb=20,lastTextSize=8,lastTextX=50,lastTextY=50;
+        bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double hold,targetMb=20,textSize=8,textX=50,textY=50;
+        Action<double> showTextX,showTextY;
         readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
         readonly TextMark textMark=new TextMark();
         Func<double> qualityNumber;Action<double> showQuality;
@@ -281,10 +286,10 @@ namespace LoveMyShelf {
             int loopPick=0,fpsValue=lastFps,heightValue=lastHeight,qualityPick=lastQuality,formatPick=lastFormat;
             // A saved MP4 opens as it was made. A saved GIF or WebP never had the choice, so it starts from the usual one.
             bool soundPick=saved!=null && saved.Format=="mp4"?saved.Sound:lastSound;
-            flipX=lastFlipX;flipY=lastFlipY;plays=lastPlays;hold=lastHold;targetOn=lastTargetOn;targetMb=lastTargetMb;textPlace=lastTextPlace;textSize=lastTextSize;
+            flipX=lastFlipX;flipY=lastFlipY;plays=lastPlays;hold=lastHold;targetOn=lastTargetOn;targetMb=lastTargetMb;textPlace=lastTextPlace;textSize=lastTextSize;textX=lastTextX;textY=lastTextY;
             if(saved!=null) {
                 flipX=saved.FlipX;flipY=saved.FlipY;plays=saved.Plays;hold=saved.Hold;targetOn=saved.TargetMb>0;if(saved.TargetMb>0)targetMb=saved.TargetMb;
-                textBox.Text=saved.Text??"";textPlace=saved.TextPlace;textSize=saved.TextSize;qualityTyped=saved.Q>0;
+                textBox.Text=saved.Text??"";textPlace=saved.TextPlace;textSize=saved.TextSize;textX=saved.TextX;textY=saved.TextY;qualityTyped=saved.Q>0;
             }
             if(saved!=null) {
                 // Opens on the part and the choices the GIF was made with; the strip widens to show all of it.
@@ -662,8 +667,22 @@ namespace LoveMyShelf {
             textBox.ToolTip=L.P("One line, up to 60 letters. Leave it empty for no text.","한 줄, 60자까지예요. 비워 두면 글자를 넣지 않아요.");
             textBox.TextChanged+=delegate {UpdatePreviewLook();Changed();};
             textPanel.Children.Add(Field(L.P("Text","글자"),textBox));
-            textPanel.Children.Add(Field(L.P("Text place","글자 자리"),Segment(new[]{L.P("Top","위"),L.P("Middle","가운데"),L.P("Bottom","아래")},textPlace,L.P("Text place","글자 자리"),
-                ()=>{if(placeChoices==null)return;textPlace=Picked(placeChoices);UpdatePreviewLook();Changed();},out placeChoices)));
+            // Quick places, or a place of your own: drag the text on the preview, or type where its middle goes.
+            textPanel.Children.Add(Field(L.P("Text place","글자 자리"),Segment(new[]{L.P("Top","위"),L.P("Middle","가운데"),L.P("Bottom","아래"),L.P("Your own","직접")},textPlace,L.P("Text place","글자 자리"),
+                ()=>{if(placeChoices==null || movingText)return;textPlace=Picked(placeChoices);UpdatePreviewLook();Changed();},out placeChoices)));
+            var spot=new StackPanel {Orientation=Orientation.Horizontal};
+            Func<double> readX,readY;
+            spot.Children.Add(MotionLook.Number(textX,0,100,5,L.P("% across","% 가로"),L.P("Across: where the middle of the text is (0 = left, 100 = right)","가로 위치: 글자 가운데가 오는 곳 (0 왼쪽, 100 오른쪽)"),
+                v=>{textX=v;OwnTextPlace();},out readX,out showTextX));
+            var gap=new Border {Width=10};spot.Children.Add(gap);
+            spot.Children.Add(MotionLook.Number(textY,0,100,5,L.P("% down","% 세로"),L.P("Down: where the middle of the text is (0 = top, 100 = bottom)","세로 위치: 글자 가운데가 오는 곳 (0 위, 100 아래)"),
+                v=>{textY=v;OwnTextPlace();},out readY,out showTextY));
+            textPanel.Children.Add(Field(L.P("Exact place","정확한 자리"),spot));
+            var dragNote=UI.Text(NoticeLook.KeepWords(L.P("You can also drag the text on the preview with the mouse.","미리보기 위의 글자를 마우스로 끌어서 옮길 수도 있어요.")),12,true);
+            dragNote.TextWrapping=TextWrapping.Wrap;dragNote.Margin=new Thickness(0,0,0,6);textPanel.Children.Add(dragNote);
+            textMark.Moving+=(x,y)=>{textX=x;textY=y;if(showTextX!=null)showTextX(x);if(showTextY!=null)showTextY(y);
+                if(textPlace!=3){textPlace=3;movingText=true;placeChoices[3].IsChecked=true;movingText=false;}};
+            textMark.Moved+=delegate {UpdatePreviewLook();Changed();};
             Func<double> readSize;Action<double> writeSize;
             textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,L.P("% of the height","% (높이 기준)"),L.P("Text size","글자 크기"),
                 v=>{textSize=v;UpdatePreviewLook();Changed();},out readSize,out writeSize)));
@@ -672,9 +691,15 @@ namespace LoveMyShelf {
         }
         // The made file's own frames already carry the flips and the text; anything else gets them drawn on top.
         bool showingOwn,preparedOwn;
+        bool movingText;
+        // Typing an exact place makes the place "Your own".
+        void OwnTextPlace() {
+            if(textPlace!=3 && placeChoices!=null){textPlace=3;movingText=true;placeChoices[3].IsChecked=true;movingText=false;}
+            UpdatePreviewLook();Changed();
+        }
         void UpdatePreviewLook() {
             preview.RenderTransform=!showingOwn && (flipX || flipY)?new ScaleTransform(flipX?-1:1,flipY?-1:1):null;
-            textMark.Set(showingOwn?"":textBox.Text,textPlace,textSize);
+            textMark.Set(textBox.Text,textPlace,textSize,textX,textY,showingOwn);
         }
         FrameworkElement Field(string label,FrameworkElement control) {
             var row=new WrapPanel();
@@ -1158,7 +1183,7 @@ namespace LoveMyShelf {
                 Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path),
                 FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,
                 Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
-                Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize};
+                Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY};
         }
         bool PreparedFor(MotionRequest request) {
             return preparedFile!=null && preparedKey==MotionMaker.Key(source,request) && File.Exists(preparedFile);
@@ -1171,7 +1196,7 @@ namespace LoveMyShelf {
             }
             lastFps=rates[fps.SelectedIndex];lastHeight=heights[height.SelectedIndex];lastQuality=quality.SelectedIndex;lastFormat=format.SelectedIndex;
             if(sound!=null && sound.Visibility==Visibility.Visible)lastSound=sound.IsChecked==true;
-            lastFlipX=flipX;lastFlipY=flipY;lastPlays=plays;lastHold=hold;lastTargetOn=targetOn;lastTargetMb=targetMb;lastTextPlace=textPlace;lastTextSize=textSize;
+            lastFlipX=flipX;lastFlipY=flipY;lastPlays=plays;lastHold=hold;lastTargetOn=targetOn;lastTargetMb=targetMb;lastTextPlace=textPlace;lastTextSize=textSize;lastTextX=textX;lastTextY=textY;
             if(fromPart && partGiver!=null)partGiver.DropPart();
             Value=request;DialogResult=true;
         }

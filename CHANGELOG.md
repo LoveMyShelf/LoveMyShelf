@@ -7,6 +7,18 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ---
 
+## 1.0.10 · 2026-11-26
+
+움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요.
+
+- **움짤 글자를 끌어서 원하는 자리에:** GIF 표지 만들기 창의 미리보기에서 글자를 마우스로 끌면 원하는 자리에 놓을 수 있어요. [더 보기]의 [정확한 자리]에 가로·세로 위치(%)를 숫자로 넣을 수도 있고, 위·가운데·아래 버튼도 그대로 있어요. 글자는 그림 밖으로 나가지 않아요.
+
+Drag the text on a moving picture to put it exactly where you want.
+
+- **Drag the text on a moving picture to any place:** In the Make GIF cover window, drag the text on the preview with the mouse to put it anywhere. You can also type the place across and down (%) in [Exact place] under [More choices], and the Top, Middle and Bottom buttons are still there. The text never goes outside the picture.
+
+---
+
 ## 1.0.9 · 2026-11-26
 
 표지를 원하는 모양으로 자르고(비율 고정도 돼요), 바둑판 칸 모양을 9:16·3:4·1:1 중에 골라요. 움짤에 글자를 넣고 원하는 용량에 맞춰 줄일 수 있어요.

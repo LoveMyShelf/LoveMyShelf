@@ -6,6 +6,15 @@
      group: new / better / fixed. icon: sparkle download play clock order check news image folder.
      keys: shortcuts separated by spaces (optional). -->
 <notes>
+  <release version="1.0.10"
+    summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
+    summaryEn="Drag the text on a moving picture to put it exactly where you want.">
+    <item group="better" icon="play"
+      titleKo="움짤 글자를 끌어서 원하는 자리에"
+      titleEn="Drag the text on a moving picture to any place"
+      textKo="GIF 표지 만들기 창의 미리보기에서 글자를 마우스로 끌면 원하는 자리에 놓을 수 있어요. [더 보기]의 [정확한 자리]에 가로·세로 위치(%)를 숫자로 넣을 수도 있고, 위·가운데·아래 버튼도 그대로 있어요. 글자는 그림 밖으로 나가지 않아요."
+      textEn="In the Make GIF cover window, drag the text on the preview with the mouse to put it anywhere. You can also type the place across and down (%) in [Exact place] under [More choices], and the Top, Middle and Bottom buttons are still there. The text never goes outside the picture."/>
+  </release>
   <release version="1.0.9"
     summaryKo="표지를 원하는 모양으로 자르고(비율 고정도 돼요), 바둑판 칸 모양을 9:16·3:4·1:1 중에 골라요. 움짤에 글자를 넣고 원하는 용량에 맞춰 줄일 수 있어요."
     summaryEn="Cut covers in any shape (or keep one shape), and pick the grid's cell shape from 9:16, 3:4 and 1:1. Add text to moving pictures and fit them under the size you want.">
