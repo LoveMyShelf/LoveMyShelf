@@ -196,6 +196,13 @@ namespace LoveMyShelf {
                 }
                 var edit=new MenuItem { Header=photo.HasCrop?L.T("Make one more cover"):L.T("Make cover") }; edit.Click+=delegate { row.Owner.Edit(photo); };
                 menu.Items.Add(edit);
+                // A GIF or WebP: a smaller copy beside it, under a size you pick.
+                string kind=Path.GetExtension(photo.Original??"").ToLowerInvariant();
+                if((kind==".gif" || kind==".webp") && AnimationFrames.Supports(photo.Original)) {
+                    var shrink=new MenuItem {Header=L.P("Make this moving picture smaller…","움짤 용량 줄이기…")};
+                    shrink.Click+=delegate {ShrinkWindow.Open(row.Owner,photo.Original);};
+                    menu.Items.Add(shrink);
+                }
                 if(photo.Linked) {
                     var outside=new MenuItem {Header=L.T("Use a picture made elsewhere as a cover…")};
                     outside.Click+=delegate {row.Owner.AddOutsideCover(photo);};
@@ -2309,6 +2316,14 @@ namespace LoveMyShelf {
         // Picks the cells' shape for every folder window (saved in the options). Covers stay as they are; only the cells change.
         internal static void ChangeTileShape(int shape) {ChangeGrid(p=>p.TileShape=shape);}
         internal static void ChangeWideCovers(bool on) {ChangeGrid(p=>p.WideCovers=on);}
+        // The cover editor's [Keep this shape], kept for next time (nothing in the grid changes).
+        internal static void RememberCropLock(bool on) {
+            var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+            if(windows.Count==0)return;
+            var updated=windows[0].settings.Copy();updated.CropLock=on;
+            try {updated.Save(windows[0].store.Root);} catch(Exception quiet) {ErrorLog.Quiet(quiet);return;}
+            foreach(var window in windows) {if(window==windows[0])window.settings=updated;else window.settings.CropLock=on;}
+        }
         static void ChangeGrid(Action<Preferences> change) {
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
             if(windows.Count==0)return;
@@ -2870,6 +2885,8 @@ namespace LoveMyShelf {
             }
             LayoutRows(reflow,first);
         }
+        // A file was added next to the shown ones (a smaller copy of a moving picture): show it, keeping the place.
+        internal void ReloadAfterChange() {if(active!=null && active.Source!=null)ReloadKeepingPlace();}
         void ReloadKeepingPlace() {
             if(lifetime.IsCancellationRequested)return;
             pendingReflow=CaptureReflow();Refresh();

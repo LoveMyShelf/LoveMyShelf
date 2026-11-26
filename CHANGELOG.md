@@ -9,7 +9,7 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ## 1.0.9 · 2026-11-26
 
-표지를 원하는 모양으로 자르고, 바둑판 칸 모양도 9:16·3:4·1:1 중에 고를 수 있어요. 가로로 긴 표지는 칸 두 개에 크게 보여요.
+표지를 원하는 모양으로 자르고(비율 고정도 돼요), 바둑판 칸 모양을 9:16·3:4·1:1 중에 골라요. 움짤에 글자를 넣고 원하는 용량에 맞춰 줄일 수 있어요.
 
 - **표지 모양을 마음대로:** 이제 표지를 9:16뿐 아니라 어떤 모양으로든 만들 수 있어요. 표지 만들기를 열면 사진 전체가 테두리 안에 들어 있고, 테두리의 모서리나 변을 끌면 모양이 자유롭게 바뀌어요. [칸에 꽉 맞추기]를 누르면 바둑판 칸과 같은 모양이 되고, [원본 그대로]·9:16·3:4·1:1·4:3·16:9 버튼이나 가로:세로 숫자로도 정할 수 있어요. 이미 만든 9:16 표지는 그대로예요.
 - **바둑판 칸 모양 고르기:** 바둑판 칸을 9:16 세로, 3:4 세로, 1:1 정사각형 중에 고를 수 있어요. 빈 곳을 오른쪽 클릭 → [보기] → [칸 모양], 또는 설명서 겸 옵션의 [파일 둘러보기]에서 바꿔요. 표지와 사진은 칸 안에 잘리지 않고 다 보여서, 칸 모양을 바꿔도 표지를 다시 만들 필요가 없어요. 쓰던 분은 지금처럼 9:16 그대로이고, 처음 설치하는 분은 첫 화면에서 골라요(추천 3:4).
@@ -18,8 +18,12 @@ When a new version comes out, a notice appears inside the program. Click it to u
 - **표지 만들 때 내 바둑판에서 어떻게 보일지 미리 보기:** 표지 만들기 화면 오른쪽 [내 바둑판에서는 이렇게 보여요]에 지금 자르는 표지가 내 바둑판 칸에 어떻게 들어가는지 보여요. 칸을 몇 % 채우는지도 알려 주고, 그 자리에서 칸 모양을 바꿔 볼 수도 있어요.
 - **GIF 표지와 업스케일링도 표지 모양대로:** 움직이는 GIF 표지, 표지 옆 목록, 업스케일링이 모두 표지 모양을 그대로 따라가요. 가로로 긴 표지의 GIF는 [가로 크기]로 크기를 정해요.
 - **이름을 러브마이셀프로 붙여 써요:** 프로그램 이름을 화면과 설명서 모두 붙여서 써요. 한국어 화면에서는 러브마이셀프, 영어 화면에서는 LoveMyShelf예요. 표지를 넣어 두는 ‘Love My Shelf 표지’ 같은 폴더 이름은 그대로라서 만든 표지와 기록은 그대로 이어져요.
+- **움짤 꾸미기: 뒤집기·재생 횟수·끝 멈춤·글자 한 줄:** GIF 표지 만들기 창의 [더 보기]에서 좌우·위아래 뒤집기, 재생 횟수(0이면 계속), 마지막 장면에서 몇 초 멈추기, 흰 글자에 검은 테두리로 글자 한 줄(위·가운데·아래, 크기 숫자)을 넣을 수 있어요. 미리보기에도 그대로 보여요.
+- **목표 용량에 맞춰 알아서 줄이기:** [이 크기 안으로]를 체크하고 MB를 넣으면, 만든 파일이 그보다 클 때 그림 크기를, 그래도 크면 1초에 보이는 장 수를 줄여서 알아서 다시 만들어요. 화질도 높게·보통·낮게 말고 1~100 숫자로 직접 넣을 수 있어요.
+- **이미 있는 움짤 용량 줄이기:** GIF나 WebP 칸을 오른쪽 클릭하고 [움짤 용량 줄이기…]를 누르면, 목표 용량과 화질을 넣어 같은 폴더에 ‘이름 (작게)’로 작은 사본을 만들어요. 원래 파일은 그대로 두고, 투명한 부분과 재생 횟수도 그대로예요.
+- **표지 비율 고정:** 표지 만들기 창의 [🔒 비율 고정]을 켜면 테두리 모서리나 변을 아무리 끌어도 비율은 그대로이고 크기만 바뀌어요. 비율은 버튼(9:16·3:4·1:1·4:3·16:9)이나 가로:세로 숫자로 정해요. 켠 상태는 다음에도 기억해요.
 
-Cut covers in any shape, and pick the grid's cell shape from 9:16, 3:4 and 1:1. Wide covers show big across two cells.
+Cut covers in any shape (or keep one shape), and pick the grid's cell shape from 9:16, 3:4 and 1:1. Add text to moving pictures and fit them under the size you want.
 
 - **Covers in any shape:** Covers can now be any shape, not just 9:16. When Make cover opens, the whole picture is inside the frame, and dragging the frame's corners or edges changes its shape freely. [Fill the grid's cell] gives it the shape of the grid's cells, and the [Whole picture], 9:16, 3:4, 1:1, 4:3 and 16:9 buttons or typed width and height numbers set it too. The 9:16 covers you already made stay as they are.
 - **Choose the shape of the grid's cells:** The grid's cells can be 9:16 tall, 3:4 tall or 1:1 square. Change it with right-click on a blank spot → [View] → [Shape of the cells], or under [Browsing files] in Guide & Options. Covers and photos show whole inside the cells, so changing the shape never means making covers again. If you already use the program it stays 9:16 as before; a new install picks on the first screen (3:4 recommended).
@@ -28,6 +32,10 @@ Cut covers in any shape, and pick the grid's cell shape from 9:16, 3:4 and 1:1. 
 - **See how it shows in your grid while making a cover:** On the right of the Make cover screen, [How it shows in your grid] shows how the cover you are cutting sits in your grid's cells. It tells how much of the cell it fills, and you can try another cell shape right there.
 - **GIF covers and upscaling follow the cover's shape:** Moving GIF covers, the list of covers beside a large cover, and upscaling all keep the cover's shape. For a wide cover's GIF, the size is set as [Width].
 - **The name is now written LoveMyShelf:** The program's name is now written joined on screen and in the guide: LoveMyShelf (러브마이셀프 on Korean screens). Folder names such as ‘Love My Shelf 표지’ stay the same, so your covers and records carry on as they are.
+- **Moving covers: flip, plays, a pause at the end, one line of text:** Under [More choices] in the Make GIF cover window you can flip left-right or up-down, set how many times it plays (0 = forever), pause a few seconds on the last picture, and add one line of white text with a black edge (top, middle or bottom, with a size number). The preview shows them too.
+- **Fit under a size by itself:** Tick [Fit under] and type a size in MB: if the file comes out bigger, it is made again smaller by itself, the picture first and then fewer pictures a second. Picture quality can also be typed as a number from 1 to 100.
+- **Make a moving picture you already have smaller:** Right-click a GIF or WebP tile and choose [Make this moving picture smaller…]: type the size and quality, and a smaller copy is saved next to it as ‘name (smaller)’. The file itself stays as it is, and see-through parts and the number of plays are kept.
+- **Keep the cover's shape:** Turn on [🔒 Keep this shape] in the Make cover window and however you drag the frame's edges and corners, the shape stays and only the size changes. Pick the shape with the buttons (9:16, 3:4, 1:1, 4:3, 16:9) or the width:height numbers. It stays on next time.
 
 ---
 

@@ -7,8 +7,8 @@
      keys: shortcuts separated by spaces (optional). -->
 <notes>
   <release version="1.0.9"
-    summaryKo="표지를 원하는 모양으로 자르고, 바둑판 칸 모양도 9:16·3:4·1:1 중에 고를 수 있어요. 가로로 긴 표지는 칸 두 개에 크게 보여요."
-    summaryEn="Cut covers in any shape, and pick the grid's cell shape from 9:16, 3:4 and 1:1. Wide covers show big across two cells.">
+    summaryKo="표지를 원하는 모양으로 자르고(비율 고정도 돼요), 바둑판 칸 모양을 9:16·3:4·1:1 중에 골라요. 움짤에 글자를 넣고 원하는 용량에 맞춰 줄일 수 있어요."
+    summaryEn="Cut covers in any shape (or keep one shape), and pick the grid's cell shape from 9:16, 3:4 and 1:1. Add text to moving pictures and fit them under the size you want.">
     <item group="new" icon="image"
       titleKo="표지 모양을 마음대로"
       titleEn="Covers in any shape"
@@ -44,6 +44,26 @@
       titleEn="The name is now written LoveMyShelf"
       textKo="프로그램 이름을 화면과 설명서 모두 붙여서 써요. 한국어 화면에서는 러브마이셀프, 영어 화면에서는 LoveMyShelf예요. 표지를 넣어 두는 ‘Love My Shelf 표지’ 같은 폴더 이름은 그대로라서 만든 표지와 기록은 그대로 이어져요."
       textEn="The program's name is now written joined on screen and in the guide: LoveMyShelf (러브마이셀프 on Korean screens). Folder names such as ‘Love My Shelf 표지’ stay the same, so your covers and records carry on as they are."/>
+    <item group="new" icon="play"
+      titleKo="움짤 꾸미기: 뒤집기·재생 횟수·끝 멈춤·글자 한 줄"
+      titleEn="Moving covers: flip, plays, a pause at the end, one line of text"
+      textKo="GIF 표지 만들기 창의 [더 보기]에서 좌우·위아래 뒤집기, 재생 횟수(0이면 계속), 마지막 장면에서 몇 초 멈추기, 흰 글자에 검은 테두리로 글자 한 줄(위·가운데·아래, 크기 숫자)을 넣을 수 있어요. 미리보기에도 그대로 보여요."
+      textEn="Under [More choices] in the Make GIF cover window you can flip left-right or up-down, set how many times it plays (0 = forever), pause a few seconds on the last picture, and add one line of white text with a black edge (top, middle or bottom, with a size number). The preview shows them too."/>
+    <item group="new" icon="download"
+      titleKo="목표 용량에 맞춰 알아서 줄이기"
+      titleEn="Fit under a size by itself"
+      textKo="[이 크기 안으로]를 체크하고 MB를 넣으면, 만든 파일이 그보다 클 때 그림 크기를, 그래도 크면 1초에 보이는 장 수를 줄여서 알아서 다시 만들어요. 화질도 높게·보통·낮게 말고 1~100 숫자로 직접 넣을 수 있어요."
+      textEn="Tick [Fit under] and type a size in MB: if the file comes out bigger, it is made again smaller by itself, the picture first and then fewer pictures a second. Picture quality can also be typed as a number from 1 to 100."/>
+    <item group="new" icon="folder"
+      titleKo="이미 있는 움짤 용량 줄이기"
+      titleEn="Make a moving picture you already have smaller"
+      textKo="GIF나 WebP 칸을 오른쪽 클릭하고 [움짤 용량 줄이기…]를 누르면, 목표 용량과 화질을 넣어 같은 폴더에 ‘이름 (작게)’로 작은 사본을 만들어요. 원래 파일은 그대로 두고, 투명한 부분과 재생 횟수도 그대로예요."
+      textEn="Right-click a GIF or WebP tile and choose [Make this moving picture smaller…]: type the size and quality, and a smaller copy is saved next to it as ‘name (smaller)’. The file itself stays as it is, and see-through parts and the number of plays are kept."/>
+    <item group="better" icon="check"
+      titleKo="표지 비율 고정"
+      titleEn="Keep the cover's shape"
+      textKo="표지 만들기 창의 [🔒 비율 고정]을 켜면 테두리 모서리나 변을 아무리 끌어도 비율은 그대로이고 크기만 바뀌어요. 비율은 버튼(9:16·3:4·1:1·4:3·16:9)이나 가로:세로 숫자로 정해요. 켠 상태는 다음에도 기억해요."
+      textEn="Turn on [🔒 Keep this shape] in the Make cover window and however you drag the frame's edges and corners, the shape stays and only the size changes. Pick the shape with the buttons (9:16, 3:4, 1:1, 4:3, 16:9) or the width:height numbers. It stays on next time."/>
 </release>
   <release version="1.0.8"
     summaryKo="비슷한 사진을 모아 나란히 비교하며 정리할 수 있어요. 표지·태그·기록을 비밀번호로 잠가 백업하고, 컴퓨터를 바꿔도 되살릴 수 있어요."

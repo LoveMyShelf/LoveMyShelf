@@ -1294,6 +1294,21 @@ namespace LoveMyShelf {
                 "GIF 표지 만들기 창을 처음 열었을 때 띠 한 줄에 영상을 몇 초 분량 보여 줄지 정해요. 표지 장면이 가운데에 와요. 짧을수록 손잡이를 세밀하게 옮기기 쉽고, 길수록 앞뒤를 넓게 볼 수 있어요. 띠의 그림을 끌면 안 보이던 부분도 볼 수 있어요.")};
             Typed((Setting)gif.Items.Last(),T("seconds","초"),2,120,1);
             // How the preview in the Make GIF cover window works: each person picks.
+            gif.Items.Add(new Card {Title=T("Flip, plays, a pause, text and a size limit","뒤집기·재생 횟수·멈춤·글자·목표 용량"),
+                Lines=new[]{T("Open [[More choices]] in the Make GIF cover window (in a wide window they are on the right).","GIF 표지 만들기 창의 [[더 보기]]를 열면 있어요(창이 넓으면 오른쪽에 바로 보여요)."),
+                    T("[[Flip]]: turn the picture left ↔ right or up ↕ down. [[Plays]]: how many times it plays, 0 means forever (an MP4 always plays as a video). [[Pause at the end]]: how many seconds the last picture stays before it starts again.",
+                      "[[뒤집기]]: 좌우나 위아래로 뒤집어요. [[재생 횟수]]: 몇 번 재생할지예요. 0이면 계속 반복해요(MP4는 영상이라 해당 없어요). [[끝에서 멈춤]]: 마지막 장면에서 몇 초 멈췄다가 다시 시작할지예요."),
+                    T("[[Text]]: one line of text in white with a black edge, at the top, middle or bottom. [[Text size]] is a percent of the picture's height (8 is a good start).",
+                      "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 위·가운데·아래 중에 고르고, [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
+                    T("[[Picture quality]]: besides High, Normal and Low you can type any number from 1 to 100. Higher is sharper and bigger.",
+                      "[[화질]]: 높게·보통·낮게 말고도 1~100 사이 숫자를 직접 넣을 수 있어요. 높을수록 선명하고 용량이 커요."),
+                    T("[[Size limit]]: tick [[Fit under]] and type a size in MB. If the file comes out bigger, it is made again smaller (the picture first, then fewer pictures a second) until it fits.",
+                      "[[목표 용량]]: [[이 크기 안으로]]를 체크하고 MB를 넣어요. 만든 파일이 더 크면 알아서 다시 작게 만들어요(먼저 크기를, 그래도 크면 1초에 보이는 장 수를 줄여요).")}});
+            gif.Items.Add(new Card {Title=T("Make a moving picture you already have smaller","이미 있는 움짤 용량 줄이기"),
+                Lines=new[]{T("Right-click a GIF or WebP tile and choose [[Make this moving picture smaller…]]. Type the size to stay under and the quality, then press [[Make it smaller]].",
+                      "GIF나 WebP 칸을 오른쪽 클릭하고 [[움짤 용량 줄이기…]]를 눌러요. 목표 용량과 화질을 넣고 [[줄이기]]를 누르면 돼요."),
+                    T("A smaller copy is saved next to it as ‘name (smaller)’. The file itself stays as it is.",
+                      "같은 폴더에 ‘이름 (작게)’로 작은 사본이 생겨요. 원래 파일은 그대로 둬요.")}});
             gif.Items.Add(new Card {Title=T("The preview and the real file","미리보기와 실제 파일"),
                 Lines=new[]{T("The top of the Make GIF cover window shows the preview first. The preview is scenes taken from the video at wide intervals and shown right away, so it looks a little choppier and less sharp than the real file. The real file is the very file that will be saved. When the real file is made, it plays as it is in the preview's place, and the size is shown exactly.",
                     "GIF 표지 만들기 창 위쪽에는 먼저 미리보기가 나와요. 미리보기는 영상에서 장면을 듬성듬성 뽑아 바로 보여 주는 것이라, 실제 파일보다 조금 끊겨 보이고 덜 선명해요. 실제 파일은 저장될 파일 그 자체예요. 실제 파일이 만들어지면 미리보기 자리에 그 파일이 그대로 재생되고, 용량도 정확하게 표시돼요."),

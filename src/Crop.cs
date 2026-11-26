@@ -101,6 +101,9 @@ namespace LoveMyShelf {
             centerY=LimitCenter(centerY,down,image.PixelHeight); InvalidateVisual();
             if(Moved!=null)Moved();
         }
+        // On: dragging the frame's edges and corners keeps its shape and changes only its size.
+        // The shape itself is still picked with the buttons and the width:height boxes.
+        internal bool LockShape;
         // The frame moved, changed or got a new picture under it (the grid preview redraws).
         internal event Action Moved;
         // Reset: the whole picture, upright, as a new cover starts.
@@ -232,7 +235,13 @@ namespace LoveMyShelf {
             // A shape very near the grid's cells, or the whole picture's, settles on it.
             foreach(double near in new[]{GridCell,PictureAspect})
                 if(Math.Abs(shape/near-1)<0.015){shape=near;break;}
-            if(edgeX!=0 && edgeY==0)w=h*shape;else h=w/shape;
+            if(LockShape) {
+                // Shape locked: only the size changes. An edge sets its own side; a corner follows the side pulled more.
+                shape=aspect;
+                if(edgeX!=0 && edgeY!=0 && Math.Abs(h/startH-1)>Math.Abs(w/startW-1))w=h*shape;
+                else if(edgeY!=0 && edgeX==0)w=h*shape;
+            }
+            if(edgeX!=0 && edgeY==0 && !LockShape)w=h*shape;else h=w/shape;
             aspect=shape;
             zoom=Limit(BaseWidth/w,MinZoom,MaxZoom);
             // The edge held moves; the opposite one stays put on the picture.
@@ -449,6 +458,18 @@ namespace LoveMyShelf {
         FrameworkElement ShapeBar() {
             var bar=new WrapPanel {Margin=new Thickness(6,3,6,3),VerticalAlignment=VerticalAlignment.Center};
             var label=UI.Text(L.P("Shape","모양"),12);label.Margin=new Thickness(0,0,8,0);bar.Children.Add(label);
+            // Lock the shape: dragging the frame then keeps this shape (remembered for next time; off at first).
+            var prefs=CropSurface.Prefs;
+            var keep=new CheckBox {Content=L.P("🔒 Keep this shape","🔒 비율 고정"),IsChecked=prefs!=null && prefs.CropLock,
+                VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,10,2),FontSize=13,FontWeight=FontWeights.SemiBold};
+            keep.SetResourceReference(Control.ForegroundProperty,"Text");
+            keep.ToolTip=L.P("On: however you drag the frame's edges and corners, the shape stays as it is and only the size changes. Pick the shape with the buttons or the numbers.",
+                "켜면 테두리의 모서리나 변을 아무리 끌어도 비율은 그대로이고 크기만 바뀌어요. 비율은 버튼이나 숫자로 정해요.");
+            AutomationProperties.SetName(keep,L.P("Keep this shape","비율 고정"));
+            Surface.LockShape=keep.IsChecked==true;
+            RoutedEventHandler locked=delegate {Surface.LockShape=keep.IsChecked==true;GalleryWindow.RememberCropLock(Surface.LockShape);};
+            keep.Checked+=locked;keep.Unchecked+=locked;
+            bar.Children.Add(keep);
             Func<string,string,Action,Button> add=(text,tip,act)=>{
                 var b=UI.Btn(text,act);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.ToolTip=tip;
                 AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;

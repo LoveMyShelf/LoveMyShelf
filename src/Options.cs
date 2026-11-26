@@ -82,6 +82,8 @@ namespace LoveMyShelf {
         public int TileShape=Covers.DefaultShape;
         // A cover clearly wider than a cell takes two cells side by side (on unless turned off).
         public bool WideCovers=true;
+        // Make cover: dragging the frame keeps its shape (off unless turned on; remembered).
+        public bool CropLock;
         public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
         public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
         public bool CaptureJpg;          // false: PNG; true: JPG
@@ -175,6 +177,7 @@ namespace LoveMyShelf {
                     CoverTimes=(string)xml.Attribute("coverTimes")=="true",
                     TileShape=IndexOr(Covers.ShapeKeys,(string)xml.Attribute("tileShape"),0),
                     WideCovers=(string)xml.Attribute("wideCovers")!="off",
+                    CropLock=(string)xml.Attribute("cropLock")=="on",
                     GifHoverSound=(string)xml.Attribute("gifHoverSound")!="off",
                     CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
                     CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
@@ -294,7 +297,7 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),CropLock?new XAttribute("cropLock","on"):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     SpeakersXml(),ViewerKeys.Xml(Shortcuts),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }

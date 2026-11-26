@@ -26,6 +26,19 @@ namespace LoveMyShelf {
         // MP4 only, from a video, playing forward: the video's sound for the same part goes into the file.
         public bool Sound;
         internal bool WithSound {get {return Sound && Format=="mp4" && Loop=="forward";}}
+        // 1.0.9 extras (see MotionLook): flips, plays (0 = forever), a pause on the last picture (seconds), quality typed
+        // as 1..100 (0 = from the three buttons), a size to stay under (MB, 0 = none) and one line of text.
+        public bool FlipX,FlipY;
+        public int Plays;
+        public double Hold;
+        public int Q;
+        public double TargetMb;
+        public string Text="";
+        public int TextPlace=2; // 0 top, 1 middle, 2 bottom
+        public double TextSize=8; // percent of the picture's height
+        internal MotionRequest Copy() {return (MotionRequest)MemberwiseClone();}
+        // Make it smaller: a see-through GIF or WebP stays see-through (covers are drawn on black, so they never need it).
+        internal bool KeepAlpha;
         // A file the Make GIF window already made with exactly these choices; Make then only has to move it into place.
         public string Prepared,PreparedKey;
         public double PreparedBefore,PreparedAfter;
@@ -35,12 +48,23 @@ namespace LoveMyShelf {
         internal bool Bounces {get {return Loop=="bounce" && ForwardFrames>=3;}}
         // Frames in the finished file and how long one round of it plays.
         internal int Frames {get {return Bounces?ForwardFrames*2-2:ForwardFrames;}}
-        internal double PlaySeconds {get {return Frames/(double)Math.Max(1,Fps);}}
+        internal double PlaySeconds {get {return Frames/(double)Math.Max(1,Fps)+Math.Max(0,Hold);}}
         // Saved with the cover (photo.xml "motionSettings"), so Edit GIF cover opens with the same part and choices.
         internal string ToText() {
             var c=CultureInfo.InvariantCulture;
             return String.Format(c,"before={0};after={1};fps={2};height={3};format={4};speed={5};loop={6};quality={7}",
-                Math.Round(Before,3),Math.Round(After,3),Fps,Height,Format,Speed,Loop,Quality)+(Sound?";sound=1":"");
+                Math.Round(Before,3),Math.Round(After,3),Fps,Height,Format,Speed,Loop,Quality)+(Sound?";sound=1":"")+Extras();
+        }
+        // Written only when used, so an older version still reads the rest.
+        internal string Extras() {
+            var c=CultureInfo.InvariantCulture;var s=new StringBuilder();
+            if(FlipX)s.Append(";flipx=1");if(FlipY)s.Append(";flipy=1");
+            if(Plays>0)s.Append(";plays=").Append(Plays.ToString(c));
+            if(Hold>0.01)s.Append(";hold=").Append(Math.Round(Hold,2).ToString(c));
+            if(Q>0)s.Append(";q=").Append(Q.ToString(c));
+            if(TargetMb>0)s.Append(";mb=").Append(Math.Round(TargetMb,2).ToString(c));
+            if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c));
+            return s.ToString();
         }
         internal static MotionRequest Parse(string text) {
             if(String.IsNullOrEmpty(text))return null;
@@ -60,6 +84,15 @@ namespace LoveMyShelf {
                 r.Quality=Math.Max(0,Math.Min(2,r.Quality));
                 string sound;
                 r.Sound=values.TryGetValue("sound",out sound) && sound=="1"; // covers made before this had no sound
+                string v;double d;int i;
+                r.FlipX=values.TryGetValue("flipx",out v) && v=="1";r.FlipY=values.TryGetValue("flipy",out v) && v=="1";
+                if(values.TryGetValue("plays",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Plays=Math.Max(0,Math.Min(100,i));
+                if(values.TryGetValue("hold",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=30)r.Hold=d;
+                if(values.TryGetValue("q",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Q=Math.Max(0,Math.Min(100,i));
+                if(values.TryGetValue("mb",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>0 && d<100000)r.TargetMb=d;
+                if(values.TryGetValue("text",out v))r.Text=MotionLook.FromBase64(v);
+                if(values.TryGetValue("place",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.TextPlace=Math.Max(0,Math.Min(2,i));
+                if(values.TryGetValue("tsize",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=2 && d<=40)r.TextSize=d;
                 return r;
             } catch(Exception) {return null;}
         }
@@ -199,7 +232,13 @@ namespace LoveMyShelf {
         WrapPanel narrowRow;
         System.Windows.Controls.Primitives.UniformGrid moreGrid;
         Expander more;
-        FrameworkElement speedField,loopField,fpsField,heightField,qualityField,formatField;
+        FrameworkElement speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,textField,playsField,targetField;
+        // 1.0.9 extras: what was picked, kept for the next window until LoveMyShelf closes.
+        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=2;static double lastHold,lastTargetMb=20,lastTextSize=8;
+        bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double hold,targetMb=20,textSize=8;
+        readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
+        readonly TextMark textMark=new TextMark();
+        Func<double> qualityNumber;Action<double> showQuality;
         Button explain,realButton,realCompact;
         bool wide,arranged,lastAuto;
         string makeLabel;
@@ -242,6 +281,11 @@ namespace LoveMyShelf {
             int loopPick=0,fpsValue=lastFps,heightValue=lastHeight,qualityPick=lastQuality,formatPick=lastFormat;
             // A saved MP4 opens as it was made. A saved GIF or WebP never had the choice, so it starts from the usual one.
             bool soundPick=saved!=null && saved.Format=="mp4"?saved.Sound:lastSound;
+            flipX=lastFlipX;flipY=lastFlipY;plays=lastPlays;hold=lastHold;targetOn=lastTargetOn;targetMb=lastTargetMb;textPlace=lastTextPlace;textSize=lastTextSize;
+            if(saved!=null) {
+                flipX=saved.FlipX;flipY=saved.FlipY;plays=saved.Plays;hold=saved.Hold;targetOn=saved.TargetMb>0;if(saved.TargetMb>0)targetMb=saved.TargetMb;
+                textBox.Text=saved.Text??"";textPlace=saved.TextPlace;textSize=saved.TextSize;qualityTyped=saved.Q>0;
+            }
             if(saved!=null) {
                 // Opens on the part and the choices the GIF was made with; the strip widens to show all of it.
                 start=Math.Max(0,source.Moment-saved.Before*1000);end=source.Moment+saved.After*1000;
@@ -342,6 +386,7 @@ namespace LoveMyShelf {
             sound.Checked+=delegate {Changed();};sound.Unchecked+=delegate {Changed();};
             UpdateSound();
             fpsField=fpsBox;heightField=heightBox;qualityField=qualityBox;formatField=formatBox;
+            BuildExtras(saved);
             // The names share one width (the widest of them in this language), so every control starts on the same
             // line; the notes under a control start there too.
             double nameWidth=0;
@@ -349,7 +394,7 @@ namespace LoveMyShelf {
             foreach(var name in fieldNames){if(appFont!=null)name.FontFamily=appFont;name.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));nameWidth=Math.Max(nameWidth,name.DesiredSize.Width);}
             nameWidth=Math.Ceiling(nameWidth)+14;
             foreach(var name in fieldNames)name.Width=nameWidth;
-            foreach(var under in new FrameworkElement[]{heightNote,sound,soundNote}){var m=under.Margin;under.Margin=new Thickness(nameWidth+m.Left,m.Top,m.Right,m.Bottom);}
+            foreach(var under in new FrameworkElement[]{heightNote,sound,soundNote,qualityUnder}){var m=under.Margin;under.Margin=new Thickness(nameWidth+m.Left,m.Top,m.Right,m.Bottom);}
             // What these mean, in plain words, and the place to choose what they start as.
             explain=UI.Btn(L.T("What do these mean? (F1)"),()=>GuideWindow.Open(this,"gif"));
             explain.HorizontalAlignment=HorizontalAlignment.Left;explain.Margin=new Thickness(0,2,0,4);
@@ -370,8 +415,11 @@ namespace LoveMyShelf {
             middle=new Grid();
             middle.ColumnDefinitions.Add(new ColumnDefinition());middle.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});middle.ColumnDefinitions.Add(new ColumnDefinition());
             var previewBox=new Grid();
+            // The preview shows the flips and the text the file will have (the file gets them from FFmpeg).
+            var previewLayers=new Grid();previewLayers.Children.Add(preview);previewLayers.Children.Add(textMark);
+            preview.RenderTransformOrigin=new Point(0.5,0.5);
             previewFrame=new Border {Background=Brushes.Black,CornerRadius=new CornerRadius(8),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,
-                Child=preview,Cursor=Cursors.Hand,ClipToBounds=true,Width=0,Height=0};
+                Child=previewLayers,Cursor=Cursors.Hand,ClipToBounds=true,Width=0,Height=0};
             previewFrame.MouseLeftButtonUp+=delegate {TogglePause();};
             AutomationProperties.SetName(previewFrame,L.T("Preview"));
             previewBox.Children.Add(previewFrame);
@@ -449,6 +497,8 @@ namespace LoveMyShelf {
             };
             PreviewKeyDown+=(s,e)=>{
                 if(e.Key==Key.F1){GuideWindow.Open(this,"gif");e.Handled=true;return;}
+                // Typing text or a number: Space and the letters stay in the box.
+                if(Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)return;
                 if(e.OriginalSource is ComboBox || e.OriginalSource is ComboBoxItem)return;
                 if(e.Key==Key.Space){if(!e.IsRepeat)TogglePause();e.Handled=true;return;}
                 // Z / X / C / V: the same keys as playback speed in the large view, in Korean input mode too.
@@ -564,6 +614,68 @@ namespace LoveMyShelf {
         }
         // "Speed  [Z Reset] [X −] 1× …": the name and its control on one row. Where the room is too narrow for both,
         // the control goes under its name.
+        // ---------- 1.0.9 extras: flips, plays and a pause, quality as a number, a size to stay under, a line of text ----------
+        FrameworkElement qualityUnder;
+        RadioButton[] placeChoices;
+        void BuildExtras(MotionRequest saved) {
+            // Flip: left-right, up-down.
+            var flips=new StackPanel {Orientation=Orientation.Horizontal};
+            foreach(int axis in new[]{0,1}) {
+                int which=axis;
+                var box=new CheckBox {Content=which==0?L.P("Left ↔ right","좌우"):L.P("Up ↕ down","위아래"),IsChecked=which==0?flipX:flipY,Margin=new Thickness(0,2,14,2),FontSize=13};
+                box.SetResourceReference(Control.ForegroundProperty,"Text");
+                RoutedEventHandler flip=delegate {if(which==0)flipX=box.IsChecked==true;else flipY=box.IsChecked==true;UpdatePreviewLook();Changed();};
+                box.Checked+=flip;box.Unchecked+=flip;
+                flips.Children.Add(box);
+            }
+            flipField=Field(L.P("Flip","뒤집기"),flips);
+            // How many times it plays (0 = forever) and a pause on the last picture.
+            var playsPanel=new StackPanel();
+            Func<double> readPlays,readHold;Action<double> writePlays,writeHold;
+            playsPanel.Children.Add(Field(L.P("Plays","재생 횟수"),MotionLook.Number(plays,0,100,1,L.P("times (0 = forever)","번 (0이면 계속)"),L.P("How many times it plays","재생 횟수"),
+                v=>{plays=(int)v;Changed();},out readPlays,out writePlays)));
+            playsPanel.Children.Add(Field(L.P("Pause at the end","끝에서 멈춤"),MotionLook.Number(hold,0,10,0.5,L.P("s","초"),L.P("Seconds the last picture stays","끝에서 멈추는 시간 (초)"),
+                v=>{hold=v;Changed();},out readHold,out writeHold)));
+            playsField=playsPanel;
+            // Quality as a number (1..100) under the three buttons: the buttons fill it in, typing makes it your own.
+            int[] presets={90,75,55};
+            Action<double> noteQuality=v=>{qualityTyped=true;Changed();};
+            qualityUnder=MotionLook.Number(saved!=null && saved.Q>0?saved.Q:presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))],1,100,5,L.P("(1–100, higher is sharper)","(1~100, 높을수록 선명)"),
+                L.P("Picture quality as a number","화질 숫자"),noteQuality,out qualityNumber,out showQuality);
+            qualityUnder.Margin=new Thickness(0,4,0,6);qualityUnder.HorizontalAlignment=HorizontalAlignment.Left;
+            ((Panel)qualityField).Children.Add(qualityUnder);
+            // A button replaces a typed number; Changed runs again so the summary and the file use the button's value.
+            quality.SelectionChanged+=delegate {bool was=qualityTyped;qualityTyped=false;if(showQuality!=null)showQuality(presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))]);if(was)Changed();};
+            // A size to stay under: made smaller by itself until it fits.
+            var limit=new StackPanel {Orientation=Orientation.Horizontal};
+            var on=new CheckBox {Content=L.P("Fit under","이 크기 안으로"),IsChecked=targetOn,Margin=new Thickness(0,2,8,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
+            on.SetResourceReference(Control.ForegroundProperty,"Text");
+            Func<double> readMb;Action<double> writeMb;
+            var mbBox=MotionLook.Number(targetMb,0.5,500,0.5,"MB",L.P("Size to stay under (MB)","목표 용량 (MB)"),v=>{targetMb=v;if(!targetOn)on.IsChecked=true;else Changed();},out readMb,out writeMb);
+            RoutedEventHandler toggle=delegate {targetOn=on.IsChecked==true;Changed();};
+            on.Checked+=toggle;on.Unchecked+=toggle;
+            limit.Children.Add(on);limit.Children.Add(mbBox);
+            targetField=Field(L.P("Size limit","목표 용량"),limit);
+            // One line of text: where it goes and how big (percent of the picture's height). White with a black edge.
+            var textPanel=new StackPanel();
+            AutomationProperties.SetName(textBox,L.P("Text on the picture","움짤에 넣을 글자"));
+            textBox.ToolTip=L.P("One line, up to 60 letters. Leave it empty for no text.","한 줄, 60자까지예요. 비워 두면 글자를 넣지 않아요.");
+            textBox.TextChanged+=delegate {UpdatePreviewLook();Changed();};
+            textPanel.Children.Add(Field(L.P("Text","글자"),textBox));
+            textPanel.Children.Add(Field(L.P("Text place","글자 자리"),Segment(new[]{L.P("Top","위"),L.P("Middle","가운데"),L.P("Bottom","아래")},textPlace,L.P("Text place","글자 자리"),
+                ()=>{if(placeChoices==null)return;textPlace=Picked(placeChoices);UpdatePreviewLook();Changed();},out placeChoices)));
+            Func<double> readSize;Action<double> writeSize;
+            textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,L.P("% of the height","% (높이 기준)"),L.P("Text size","글자 크기"),
+                v=>{textSize=v;UpdatePreviewLook();Changed();},out readSize,out writeSize)));
+            textField=textPanel;
+            UpdatePreviewLook();
+        }
+        // The made file's own frames already carry the flips and the text; anything else gets them drawn on top.
+        bool showingOwn,preparedOwn;
+        void UpdatePreviewLook() {
+            preview.RenderTransform=!showingOwn && (flipX || flipY)?new ScaleTransform(flipX?-1:1,flipY?-1:1):null;
+            textMark.Set(showingOwn?"":textBox.Text,textPlace,textSize);
+        }
         FrameworkElement Field(string label,FrameworkElement control) {
             var row=new WrapPanel();
             var name=UI.Text(label,13);name.Margin=new Thickness(0,3,0,3);fieldNames.Add(name);
@@ -579,8 +691,8 @@ namespace LoveMyShelf {
         void Arrange(bool wideNow) {
             if(arranged && wideNow==wide)return;
             arranged=true;wide=wideNow;
-            foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,explain,narrowRow,more})Detach(item);
-            var fields=new[]{speedField,loopField,fpsField,heightField,qualityField,formatField};
+            foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField,targetField,explain,narrowRow,more})Detach(item);
+            var fields=new[]{speedField,loopField,targetField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField};
             if(wide) {
                 foreach(var field in fields){field.Margin=new Thickness(0,0,0,6);sidePanel.Children.Add(field);}
                 explain.Margin=new Thickness(0,6,0,0);sidePanel.Children.Add(explain);
@@ -593,7 +705,7 @@ namespace LoveMyShelf {
                 DockPanel.SetDock(summary,Dock.Right);lastRow.Children.Insert(0,summary);
                 speedField.Margin=new Thickness(0,0,18,0);loopField.Margin=new Thickness(0);
                 narrowRow.Children.Add(speedField);narrowRow.Children.Add(loopField);
-                foreach(var field in new[]{fpsField,heightField,qualityField,formatField}){field.Margin=new Thickness(0,0,14,0);moreGrid.Children.Add(field);}
+                foreach(var field in new[]{targetField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField}){field.Margin=new Thickness(0,0,14,0);moreGrid.Children.Add(field);}
                 explain.Margin=new Thickness(0,2,0,4);moreChoices.Children.Add(explain);
                 actions.Margin=new Thickness(0,12,0,0);
                 narrowHost.Children.Add(narrowRow);narrowHost.Children.Add(more);narrowHost.Children.Add(actions);
@@ -1043,7 +1155,10 @@ namespace LoveMyShelf {
             return new MotionRequest {Before=(source.Moment-start)/1000,After=(end-source.Moment)/1000,Fps=rates[fps.SelectedIndex],
                 Height=heights[height.SelectedIndex],Format=Formats[format.SelectedIndex],Quality=quality.SelectedIndex,
                 Speed=speed,Loop=Loops[Picked(loopChoices)],
-                Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path)};
+                Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path),
+                FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,
+                Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
+                Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize};
         }
         bool PreparedFor(MotionRequest request) {
             return preparedFile!=null && preparedKey==MotionMaker.Key(source,request) && File.Exists(preparedFile);
@@ -1056,6 +1171,7 @@ namespace LoveMyShelf {
             }
             lastFps=rates[fps.SelectedIndex];lastHeight=heights[height.SelectedIndex];lastQuality=quality.SelectedIndex;lastFormat=format.SelectedIndex;
             if(sound!=null && sound.Visibility==Visibility.Visible)lastSound=sound.IsChecked==true;
+            lastFlipX=flipX;lastFlipY=flipY;lastPlays=plays;lastHold=hold;lastTargetOn=targetOn;lastTargetMb=targetMb;lastTextPlace=textPlace;lastTextSize=textSize;
             if(fromPart && partGiver!=null)partGiver.DropPart();
             Value=request;DialogResult=true;
         }
@@ -1080,6 +1196,12 @@ namespace LoveMyShelf {
                 if(preparedFrames>0){frames=preparedFrames;seconds=preparedSeconds;}
             } else {mb=Estimate(request,coverPixels,source.Aspect);size=mb<1?L.F("about {0} KB",Math.Max(1,Math.Round(mb*1024/10)*10).ToString("N0",CultureInfo.CurrentCulture)):L.F("about {0} MB",Mb(mb));}
             summary.Text=L.F("{0:0.0} s · {1:N0} pictures · {2}",seconds,frames,size);
+            if(request.TargetMb>0) {
+                string goal=Mb(request.TargetMb)+"MB";
+                summary.Text+=mb<=request.TargetMb?L.P(" · fits under "+goal+" ✓"," · "+goal+" 안 ✓"):
+                    PreparedFor(request)?L.P(" · as small as it goes, still over "+goal," · "+goal+"보다 조금 커요(더 줄이면 알아보기 힘들어요)"):
+                    L.P(" · made smaller to fit "+goal," · "+goal+"에 맞게 알아서 줄여요");
+            }
             // Very large files are only pointed out, never blocked.
             if(mb>=50)summary.Foreground=new SolidColorBrush(NoticeLook.Amber);
             else summary.SetResourceReference(TextBlock.ForegroundProperty,"Subtle");
@@ -1091,6 +1213,12 @@ namespace LoveMyShelf {
             double high=coverPixels>2?Math.Min(r.Height,coverPixels):r.Height;
             double pixels=Math.Round(high*Math.Min(aspect,1/aspect))*high*(double)r.Frames;
             double perPixel=r.Format=="gif"?new[]{0.52,0.44,0.33}[r.Quality]:r.Format=="webp"?new[]{0.07,0.05,0.03}[r.Quality]:new[]{0.05,0.035,0.02}[r.Quality];
+            if(r.Q>0) {
+                // A typed quality: between the three buttons' sizes (90 high … 55 low).
+                double t=Math.Max(0,Math.Min(1,(MotionLook.QualityOf(r)-55)/35.0));
+                double lo=r.Format=="gif"?0.33:r.Format=="webp"?0.03:0.02,hi=r.Format=="gif"?0.52:r.Format=="webp"?0.07:0.05;
+                perPixel=lo+(hi-lo)*t;
+            }
             return Math.Max(0.01,pixels*perPixel/1048576);
         }
 
@@ -1203,7 +1331,7 @@ namespace LoveMyShelf {
                         var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.PartStep(from,to)/request.Speed)),request);
                         timeline=Timeline(request,frames.Images.Length);
                         player.Start(frames);player.Hold=held;
-                        draftOn=true;SetStatus();
+                        draftOn=true;showingOwn=false;UpdatePreviewLook();SetStatus();
                     }
                     draftOwed=false;
                     Layout();
@@ -1229,7 +1357,7 @@ namespace LoveMyShelf {
             string key=MotionMaker.Key(source,request);
             if(key==preparedKey && preparedFile!=null && File.Exists(preparedFile)) {
                 // The choices came back to the file already made: its own frames show again instead of the preview.
-                if(draftOn && preparedPlay!=null){timeline=preparedTimeline;player.Start(preparedPlay);player.Hold=held;}
+                if(draftOn && preparedPlay!=null){timeline=preparedTimeline;player.Start(preparedPlay);player.Hold=held;showingOwn=preparedOwn;UpdatePreviewLook();}
                 draftOn=false;SetStatus();UpdateSummary();return;
             }
             if(prepareWork!=null)prepareWork.Cancel();
@@ -1249,7 +1377,7 @@ namespace LoveMyShelf {
                 if(work.IsCancellationRequested){MotionMaker.DeleteLater(file);return;}
                 // The finished file's own frames show its real colors and timing.
                 MotionFrames frames=null;
-                if(request.Frames<=ExactPreviewLimit) {
+                if(request.Frames+(int)Math.Ceiling(Math.Max(0,request.Hold)*request.Fps)<=ExactPreviewLimit) {
                     try {frames=await Task.Run(()=>MotionFrames.Read(file,side,work.Token),work.Token);}
                     catch(OperationCanceledException) {throw;}
                     catch(Exception) {}
@@ -1266,6 +1394,7 @@ namespace LoveMyShelf {
                 timeline=Timeline(request,frames.Images.Length);
                 preparedPlay=frames;preparedTimeline=timeline;
                 player.Start(frames);player.Hold=held;
+                preparedOwn=own;showingOwn=own;UpdatePreviewLook();
                 preparing=-1;SetStatus();UpdateSummary();PumpThumbs();
             } catch(OperationCanceledException) {MotionMaker.DeleteLater(file);}
             catch(Exception ex) {
@@ -1286,6 +1415,7 @@ namespace LoveMyShelf {
             else if(r.Loop=="bounce" && forward.Count>=3)for(int i=forward.Count-2;i>=1;i--)order.Add(forward[i]);
             var frames=new MotionFrames {Images=order.ToArray(),Delays=new int[order.Count]};
             for(int i=0;i<order.Count;i++)frames.Delays[i]=delay;
+            if(r.Hold>0.01)frames.Delays[order.Count-1]+=(int)Math.Round(Math.Min(30,r.Hold)*1000);
             return frames;
         }
         // Which moment of the original each preview frame shows.
@@ -1642,6 +1772,8 @@ namespace LoveMyShelf {
         public string File;
         public double Before,After;
         public int Width,Height;
+        // Made smaller to stay under the size asked for (and whether it still didn't fit).
+        public bool Shrunk,Over;
     }
 
     internal static class MotionMaker {
@@ -1694,7 +1826,7 @@ namespace LoveMyShelf {
                 Math.Round(s.Crop.X,4).ToString(c),Math.Round(s.Crop.Y,4).ToString(c),Math.Round(s.Crop.Width,4).ToString(c),Math.Round(s.Crop.Height,4).ToString(c),
                 Math.Round(s.Rotation,2).ToString(c),"light"+s.Brightness.ToString(c),Math.Round(r.Before*1000).ToString(c),Math.Round(r.After*1000).ToString(c),
                 r.Fps.ToString(c),r.Height.ToString(c),r.Format,r.Speed.ToString(c),r.Loop,r.Quality.ToString(c),"trimmed",
-                r.Format=="webp"?"effort"+WebpEffort.ToString(c):"",r.WithSound?"sound":""});
+                r.Format=="webp"?"effort"+WebpEffort.ToString(c):"",r.WithSound?"sound":"",r.Extras()});
         }
         static string PreviewFolder {get {return Path.Combine(Path.GetTempPath(),"LoveMyShelf","GIF preview");}}
         internal static string PreviewFile(string extension) {
@@ -1754,7 +1886,7 @@ namespace LoveMyShelf {
             }
             if(ix0>0 || iy0>0 || iw<width || ih<height)steps.Add("crop="+iw+":"+ih+":"+ix0+":"+iy0+":exact=1");
             if(sw!=iw || sh!=ih)steps.Add("scale="+sw+":"+sh+":flags=lanczos");
-            steps.Add("format=rgb24");
+            steps.Add(request.KeepAlpha?"format=rgba":"format=rgb24");
             string light=Light.Filter(brightness); // the curve, or an old cover's white or black sheet
             if(light!=null)steps.Add(light);
             if(bw!=sw || bh!=sh)steps.Add("pad="+bw+":"+bh+":"+px+":"+py+":black");
@@ -1800,7 +1932,63 @@ namespace LoveMyShelf {
             if(VideoFrames.Supports(source.Path))FromVideo(source,request,part,result,token,progress,copies,copyHeight);
             else FromAnimation(source,request,part,result,token,progress,copies,copyHeight);
             if(!File.Exists(part) || new FileInfo(part).Length==0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
+            // A size to stay under: smaller pictures first, then fewer a second, a few tries at most.
+            if(request.TargetMb>0) {
+                long limit=(long)(request.TargetMb*1048576);
+                var smaller=request.Copy();
+                for(int attempt=0;attempt<24 && new FileInfo(part).Length>limit;attempt++) {
+                    token.ThrowIfCancellationRequested();
+                    double ratio=Math.Sqrt(limit*0.9/(double)new FileInfo(part).Length);
+                    int side=Math.Max(result.Width,result.Height),next=(int)Math.Floor(side*ratio);
+                    if(next>=MinShrinkSide && next<side)smaller.Height=next;
+                    else if(next>=MinShrinkSide)smaller.Height=Math.Max(MinShrinkSide,side-16);
+                    else {
+                        if(side>MinShrinkSide)smaller.Height=MinShrinkSide;
+                        else if(smaller.Fps>5)smaller.Fps=Math.Max(5,(int)Math.Floor(smaller.Fps*ratio*ratio));
+                        else break;
+                    }
+                    var again=new MotionResult();
+                    if(progress!=null)progress(0);
+                    if(VideoFrames.Supports(source.Path))FromVideo(source,smaller,part,again,token,progress,null,0);
+                    else FromAnimation(source,smaller,part,again,token,progress,null,0);
+                    if(!File.Exists(part) || new FileInfo(part).Length==0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
+                    again.Shrunk=true;result=again;
+                }
+                result.Over=new FileInfo(part).Length>limit;
+            }
             return result;
+        }
+        // Not smaller than this on the long side when fitting a size; fewer pictures a second come next.
+        const int MinShrinkSide=240;
+        // Right-click a GIF or WebP → make this moving picture smaller: a copy beside it ("name (작게).gif"), never over it.
+        internal static string Shrink(string path,double targetMb,int quality,CancellationToken token,Action<double> progress) {
+            double seconds,shortest=1000;int count;
+            using(var file=new AnimationFrames(path,token)) {
+                seconds=Math.Max(0.05,file.Times.Duration/1000);count=Math.Max(1,file.Count);
+                // Sampled as finely as its quickest picture, so a short picture between two long ones isn't lost.
+                for(int i=0;i+1<count;i++){double d=file.Times.Start(i+1)-file.Times.Start(i);if(d>1)shortest=Math.Min(shortest,d);}
+            }
+            int fps=Math.Max(5,Math.Min(50,(int)Math.Round(Math.Max(count/seconds,1000/shortest))));
+            string ext=Path.GetExtension(path).ToLowerInvariant();
+            var request=new MotionRequest {Before=0,After=seconds,Fps=fps,Height=100000,Format=ext==".webp"?"webp":"gif",Speed=1,Loop="forward",
+                Q=Math.Max(1,Math.Min(100,quality)),TargetMb=targetMb,Plays=MotionLook.PlaysOf(path),KeepAlpha=true};
+            var source=new MotionSource {Path=path,Moment=0,Crop=new Rect(0,0,1,1),Rotation=0,Brightness=0,Aspect=1};
+            string folder=Path.GetDirectoryName(path);
+            string part=Path.Combine(folder,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
+            try {
+                Encode(source,request,part,token,progress);
+                string stem=Path.GetFileNameWithoutExtension(path)+L.P(" (smaller)"," (작게)"),target=Path.Combine(folder,stem+ext);
+                // Never over a file that is there: the next free "(2)", "(3)"… also when another window took a name meanwhile.
+                for(int n=2;;n++) {
+                    if(!File.Exists(target)) {
+                        try {File.Move(part,target);return target;}
+                        catch(IOException) {if(!File.Exists(target) || n>200)throw;}
+                    }
+                    target=Path.Combine(folder,stem+" ("+n+")"+ext);
+                }
+            } finally {
+                try {File.Delete(part);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            }
         }
 
         static void FromVideo(MotionSource source,MotionRequest request,string part,MotionResult result,CancellationToken token,
@@ -1877,11 +2065,13 @@ namespace LoveMyShelf {
             bool bounce=request.Loop=="bounce" && forward>=3,reverse=request.Loop=="reverse";
             bool gif=request.Format=="gif";
             long held=(long)outW*outH*3*forward*(bounce?2:1);
-            string palette=null;
+            string palette=null,work=MotionLook.WorkFolder(part);
             try {
+                // Flips and text go on the file only; the window's preview shows them its own way (see MotionWindow).
+                string dress=MotionLook.Dress(request,outH,work);
                 if(gif && held>700L*1024*1024) {
                     palette=part+".palette.png";
-                    string first="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote("[0:v:0]"+chain+","+PaletteGen(request)+"[p]")+
+                    string first="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote("[0:v:0]"+chain+(dress!=null?","+dress:"")+","+PaletteGen(request)+"[p]")+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
                     Execute(first,null,0,0,0,forward,request.Fps,token,null,0,0);
                     if(progress!=null)progress(progressFrom+progressSpan*0.4);
@@ -1901,6 +2091,7 @@ namespace LoveMyShelf {
                     g.Append("scale=").Append(copyW).Append(':').Append(copyH).Append(":flags=bicubic,format=bgra[copy]");
                     current="[main]";
                 }
+                if(dress!=null){g.Append(';').Append(current).Append(dress).Append("[dressed]");current="[dressed]";}
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -1908,20 +2099,22 @@ namespace LoveMyShelf {
                         .Append("[ahead][back]concat=n=2:v=1:a=0[turned]");
                     current="[turned]";
                 }
+                string hold=MotionLook.Hold(request);
+                if(hold!=null){g.Append(';').Append(current).Append(hold).Append("[held]");current="[held]";}
                 string codec;
                 if(gif) {
-                    string use="paletteuse=dither="+(request.Quality==0?"sierra2_4a":"bayer:bayer_scale="+(request.Quality==2?5:4))+":diff_mode=rectangle";
+                    string use="paletteuse=dither="+MotionLook.GifDither(request)+":diff_mode=rectangle"+(request.KeepAlpha?":alpha_threshold=128":"");
                     if(palette!=null)g.Append(';').Append(current).Append("[1:v]").Append(use).Append("[out]");
                     else g.Append(';').Append(current).Append("split[a][b];[a]").Append(PaletteGen(request)).Append("[p];[b][p]").Append(use).Append("[out]");
-                    codec="-loop 0 -f gif";
+                    codec="-loop "+MotionLook.GifLoop(request)+" -f gif";
                 } else if(request.Format=="webp") {
                     g.Append(';').Append(current).Append("null[out]");
                     // Lighter compression is quicker to make and a little bigger; the picture quality setting stays the same.
-                    codec="-c:v libwebp_anim -quality "+(request.Quality==0?90:request.Quality==2?65:82)+
-                        (WebpEffort==1?" -compression_level 2":WebpEffort>=2?" -compression_level 0":"")+" -loop 0 -f webp";
+                    codec="-c:v libwebp_anim "+(request.KeepAlpha?"-pix_fmt yuva420p ":"")+"-quality "+MotionLook.WebpQuality(request)+
+                        (WebpEffort==1?" -compression_level 2":WebpEffort>=2?" -compression_level 0":"")+" -loop "+MotionLook.WebpLoop(request)+" -f webp";
                 } else {
                     g.Append(';').Append(current).Append("format=yuv420p[out]");
-                    codec="-c:v libx264 -preset medium -crf "+(request.Quality==0?17:request.Quality==2?25:20)+" -movflags +faststart -f mp4";
+                    codec="-c:v libx264 -preset medium -crf "+MotionLook.Mp4Crf(request)+" -movflags +faststart -f mp4";
                 }
                 // Sound: the video's first sound track for the same part, at the same speed. "?" lets a video without sound through.
                 string audio=sound && !gif && request.Format=="mp4"?"-map 0:a:0? "+Tempo(request.Speed)+"-c:a aac -b:a 160k -ac 2 ":"";
@@ -1931,7 +2124,10 @@ namespace LoveMyShelf {
                 double share=gif && palette==null?0.85:0.97;
                 Execute(args,copies,copyW,copyH,copyRate,forward,request.Fps,token,progress,progressFrom,progressSpan*share);
                 if(progress!=null)progress(progressFrom+progressSpan);
-            } finally {if(palette!=null)File.Delete(palette);}
+            } finally {
+                if(palette!=null)File.Delete(palette);
+                try {if(Directory.Exists(work))Directory.Delete(work,true);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            }
         }
         // The sound keeps its pitch at another speed. One step of FFmpeg's atempo goes from half to double speed, so slower or faster takes several.
         static string Tempo(double speed) {
@@ -1946,7 +2142,7 @@ namespace LoveMyShelf {
             }
             return "-af "+String.Join(",",steps)+" ";
         }
-        static string PaletteGen(MotionRequest request) {return "palettegen=stats_mode=full"+(request.Quality==2?":max_colors=128":"");}
+        static string PaletteGen(MotionRequest request) {return MotionLook.GifPalette(request);}
         static void Execute(string args,Action<BitmapSource,int> copies,int copyW,int copyH,int copyRate,int forward,int fps,CancellationToken token,
             Action<double> progress,double progressFrom,double progressSpan) {
             using(var p=VideoFrames.Run("ffmpeg",args))
