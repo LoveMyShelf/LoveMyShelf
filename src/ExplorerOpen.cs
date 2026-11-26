@@ -13,8 +13,7 @@ namespace LoveMyShelf {
     // path to the running program, and the per-user Windows entries (no administrator needed) that put it in the menu.
     internal static class ExplorerOpen {
         const string AppFile="LoveMyShelf.exe",VerbName="LoveMyShelf";
-        static readonly string[] ImageTypes={".jpg",".jpeg",".jfif",".png",".bmp",".tif",".tiff",".gif",".webp"};
-        static string[] Types {get {return ImageTypes.Concat(VideoFrames.Extensions).ToArray();}}
+        static string[] Types {get {return PictureTypes.Extensions.Concat(VideoFrames.Extensions).ToArray();}}
 
         // The first argument that names an existing file or folder (switches like --apply-update are skipped).
         internal static string PathFrom(string[] args) {
@@ -91,7 +90,8 @@ namespace LoveMyShelf {
         static void Register() {
             string exe=ExePath,command="\""+exe+"\" \"%1\"",label=Label;
             // Nothing to do when it is already written for this place and language.
-            if(Read(AppKey+@"\shell\open\command",null)==command && Read(VerbKey(".jpg"),null)==label && Read(VerbKey(".jpg")+@"\command",null)==command)return;
+            if(Read(AppKey+@"\shell\open\command",null)==command && Read(VerbKey(".jpg"),null)==label && Read(VerbKey(".jpg")+@"\command",null)==command
+                && Read(VerbKey(".avif")+@"\command",null)==command)return; // .avif: the newest type added
             Write(AppKey,"FriendlyAppName","LoveMyShelf");
             Write(AppKey+@"\DefaultIcon",null,"\""+exe+"\",0");
             Write(AppKey+@"\shell\open",null,"");

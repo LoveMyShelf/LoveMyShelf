@@ -59,10 +59,7 @@ namespace LoveMyShelf {
             } catch(Exception) {}
             return null;
         }
-        static readonly HashSet<string> PictureExtensions=new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".jpg",".jpeg",".jfif",".png",".bmp",".tif",".tiff",".gif",".webp"
-        };
-        internal static bool IsPicture(string path) {return PictureExtensions.Contains(System.IO.Path.GetExtension(path));}
+        internal static bool IsPicture(string path) {return PictureTypes.IsPicture(path);}
         internal static bool Supports(string path) {return IsPicture(path) || VideoFrames.Supports(path);}
 
         // Every photo and video in the folders (and the folders inside them), as File Explorer shows them.
@@ -301,6 +298,14 @@ namespace LoveMyShelf {
         static bool Read(string path,out int w,out int h,out ulong hash,out bool flat,out bool moving) {
             w=h=0;hash=0;flat=false;
             moving=Animated(path);
+            if(PictureTypes.UsesFfmpeg(path)) {
+                PictureTypes.ReadSize(path,out w,out h);
+                var upright=Pictures.Load(path,128); // only the first picture of an image sequence
+                // The header may give the size before an iPhone photo is turned upright.
+                if((upright.PixelWidth>upright.PixelHeight)!=(w>h) && upright.PixelWidth!=upright.PixelHeight){int t=w;w=h;h=t;}
+                hash=Fingerprint(Gray(upright),out flat);
+                return true;
+            }
             using(var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
                 var decoder=BitmapDecoder.Create(input,BitmapCreateOptions.DelayCreation|BitmapCreateOptions.IgnoreColorProfile,BitmapCacheOption.None);
                 if(decoder.Frames.Count>1)moving=true;

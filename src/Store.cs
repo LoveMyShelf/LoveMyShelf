@@ -15,6 +15,10 @@ namespace LoveMyShelf {
     public static class Pictures {
         public static BitmapSource Load(string path, int maxSide = 0) {
             if(AnimationFrames.Supports(path)) return AnimationFrames.Still(path,0,maxSide);
+            if(PictureTypes.UsesFfmpeg(path)) {
+                try {return PictureTypes.Decode(path,maxSide);}
+                catch(Exception quiet) {ErrorLog.Quiet(quiet);} // Windows' own reader tries next
+            }
             int w, h, orientation = 1;
             using (var input = new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
                 var frame = BitmapDecoder.Create(input, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None).Frames[0];
@@ -845,9 +849,7 @@ namespace LoveMyShelf {
             } else File.Delete(marker);
             photo.ExcludedFromCollection=excluded;
         }
-        static readonly HashSet<string> ImageExtensions=new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".jpg",".jpeg",".jfif",".png",".bmp",".tif",".tiff",".gif",".webp"
-        };
+        static readonly HashSet<string> ImageExtensions=new HashSet<string>(PictureTypes.Extensions,StringComparer.OrdinalIgnoreCase);
         [DllImport("shlwapi.dll",CharSet=CharSet.Unicode,ExactSpelling=true)]
         static extern int StrCmpLogicalW(string a,string b);
         static List<Photo> FolderPhotos(Album album,out int skipped) {

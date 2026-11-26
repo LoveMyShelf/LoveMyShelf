@@ -51,10 +51,10 @@ namespace LoveMyShelf {
                     int w=size.Width,h=size.Height;if(Math.Abs(size.Angle%180)==90){int t=w;w=h;h=t;}
                     return w>0?w+" × "+h+" px":"";
                 }
-                using(var stream=File.OpenRead(path)) {
-                    var frame=BitmapDecoder.Create(stream,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None).Frames[0];
-                    return frame.PixelWidth+" × "+frame.PixelHeight+" px";
-                }
+                int pw,ph;
+                if(PictureTypes.UsesFfmpeg(path)) {var upright=Pictures.Load(path);pw=upright.PixelWidth;ph=upright.PixelHeight;}
+                else PictureTypes.ReadSize(path,out pw,out ph);
+                return pw+" × "+ph+" px";
             } catch(Exception) {return "";}
         }
         static List<Tuple<string,string>> Read(GalleryStore store,Photo photo) {

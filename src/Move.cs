@@ -587,13 +587,11 @@ namespace LoveMyShelf {
                     try {facts.DurationMs=VideoFrames.DurationMs(path,token);} catch(OperationCanceledException) {throw;} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     try {facts.Picture=VideoFrames.AtTime(path,0,0,maxSide,token);} catch(OperationCanceledException) {throw;} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 } else {
-                    try {
-                        using(var stream=File.OpenRead(path)) {
-                            var frame=BitmapDecoder.Create(stream,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None).Frames[0];
-                            facts.Width=frame.PixelWidth;facts.Height=frame.PixelHeight;
-                        }
-                    } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+                    try {int fw,fh;PictureTypes.ReadSize(path,out fw,out fh);facts.Width=fw;facts.Height=fh;} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                     try {facts.Picture=Pictures.Load(path,maxSide);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+                    // The header may give the size before an iPhone photo is turned upright.
+                    if(facts.Picture!=null && PictureTypes.UsesFfmpeg(path) && (facts.Picture.PixelWidth>facts.Picture.PixelHeight)!=(facts.Width>facts.Height)
+                        && facts.Picture.PixelWidth!=facts.Picture.PixelHeight){int t=facts.Width;facts.Width=facts.Height;facts.Height=t;}
                 }
             } catch(OperationCanceledException) {throw;} catch(Exception) {facts.Missing=true;}
             return facts;

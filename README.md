@@ -22,7 +22,7 @@
 
 ## 이럴 땐 다른 프로그램이 나아요
 
-- 아이폰 사진(HEIC), 카메라 RAW, AVIF 파일을 봐야 할 때: 아직 못 열어요.
+- 카메라 RAW 파일을 봐야 할 때: 아직 못 열어요.
 - 사진을 보정하거나 그림을 편집하고 싶을 때: LoveMyShelf는 편집 프로그램이 아니에요.
 - 휴대폰 사진을 클라우드로 자동으로 모으고 싶을 때: LoveMyShelf는 내 컴퓨터 폴더만 봐요.
 - Mac이나 리눅스를 쓸 때: Windows 전용이에요.
@@ -39,7 +39,8 @@
 | 파일마다 고른 장면을 표지로 | 예 (JPG, 움직이는 GIF·WebP·MP4) | — | — | — | — |
 | 옮기거나 이름을 바꿔도 표지가 따라감 | 예 | — | — | — | — |
 | 영상 재생 | 예 (장면 단위 넘기기, 자막) | 다른 앱으로 엶 | 예 | 예 | — |
-| HEIC·RAW | 아니요 | Microsoft 확장을 깔면 | Microsoft 확장을 깔면 | 예 | 예 |
+| HEIC | 예 (따로 깔 것 없음) | Microsoft 확장을 깔면 | Microsoft 확장을 깔면 | 예 | 예 |
+| 카메라 RAW | 아니요 | Microsoft 확장을 깔면 | Microsoft 확장을 깔면 | 예 | 예 |
 
 "—"는 공식 소개에서 그런 기능을 찾지 못했다는 뜻이에요.
 
@@ -115,10 +116,10 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 ## 쓸 수 있는 컴퓨터와 파일
 
 - Windows 10 또는 11 (64비트). .NET Framework 4.8이 필요한데, Windows 10 1903 이후에는 이미 들어 있어요.
-- 사진: JPG(JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
+- 사진: JPG(JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP, HEIC(HEIF), AVIF
 - 영상: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG(MPEG), MTS, M2TS, TS, 3GP
 - 자막: SMI, SRT, ASS, VTT
-- 아직 못 여는 것: HEIC, AVIF, 카메라 RAW
+- 아직 못 여는 것: 카메라 RAW
 
 ## 지우는 법
 
@@ -163,7 +164,7 @@ It's free, with no ads, sign-up or paid features, and all the source code is pub
 
 ## When another program is better
 
-- You need iPhone photos (HEIC), camera RAW or AVIF files: these don't open yet.
+- You need camera RAW files: these don't open yet.
 - You want to retouch or edit pictures: LoveMyShelf is not an editor.
 - You want phone photos gathered automatically from the cloud: LoveMyShelf only looks at folders on your computer.
 - You use a Mac or Linux: it is Windows only.
@@ -180,7 +181,8 @@ Only what each program's official pages say is listed (as of November 2026).
 | A cover you pick for each file | Yes (JPG, animated GIF/WebP/MP4) | — | — | — | — |
 | Cover follows the file when moved or renamed | Yes | — | — | — | — |
 | Video playback | Yes (scene-by-scene stepping, subtitles) | Opens another app | Yes | Yes | — |
-| HEIC, RAW | No | With Microsoft's extensions | With Microsoft's extensions | Yes | Yes |
+| HEIC | Yes (nothing extra to install) | With Microsoft's extensions | With Microsoft's extensions | Yes | Yes |
+| Camera RAW | No | With Microsoft's extensions | With Microsoft's extensions | Yes | Yes |
 
 "—" means no such feature was found on the official pages.
 
@@ -250,10 +252,10 @@ Light and dark themes. Korean and English.
 ## Computers and files
 
 - Windows 10 or 11 (64-bit). Needs .NET Framework 4.8, which Windows 10 1903 and later already include.
-- Photos: JPG (JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
+- Photos: JPG (JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP, HEIC (HEIF), AVIF
 - Videos: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG (MPEG), MTS, M2TS, TS, 3GP
 - Subtitles: SMI, SRT, ASS, VTT
-- Not supported yet: HEIC, AVIF, camera RAW
+- Not supported yet: camera RAW
 
 ## Removing it
 

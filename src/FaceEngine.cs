@@ -79,7 +79,7 @@ namespace LoveMyShelf {
         }
         static byte[] LoadBgr(string path,out int w,out int h) {
             using(var file=File.Open(path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
-                var frame=BitmapFrame.Create(file,BitmapCreateOptions.IgnoreColorProfile,BitmapCacheOption.OnLoad);
+                BitmapSource frame=PictureTypes.UsesFfmpeg(path)?Pictures.Load(path):BitmapFrame.Create(file,BitmapCreateOptions.IgnoreColorProfile,BitmapCacheOption.OnLoad);
                 var source=new FormatConvertedBitmap(frame,PixelFormats.Bgr24,null,0);
                 w=source.PixelWidth;h=source.PixelHeight;
                 if(w<1 || h<1 || (long)w*h>120000000)throw new InvalidDataException("picture size");

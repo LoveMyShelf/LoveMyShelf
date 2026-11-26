@@ -21,6 +21,13 @@
       textEn="In Make GIF cover, add text under [More choices], then click [Text style]. It opens only when you want it.&#10;Click [White, black edge], [Yellow, black edge] or [White on a dark band] to change it all at once, or pick the font, the letter color and the edge color one by one. The edge thickness and the band strength are numbers; an edge thickness of 0 means no edge.&#10;Four free Korean fonts come with it (Pretendard, Black Han Sans, Do Hyeon, Gowun Dodum), and you can also pick the fonts on your computer.&#10;Also fixed: when the folder being saved to had Korean letters in its name, the text came out in another font with Korean shown as empty boxes."
       boldKo="[글자 꾸미기]|무료 한글 글꼴 4개|한글이 빈 네모"
       boldEn="[Text style]|Four free Korean fonts|empty boxes"/>
+    <item group="new" icon="image"
+      titleKo="아이폰 사진(HEIC)과 AVIF 사진도 열려요"
+      titleEn="iPhone photos (HEIC) and AVIF pictures open"
+      textKo="HEIC·HEIF·AVIF 사진이 이제 폴더에 나오고, 크게 보기, 표지 만들기, 비슷한 사진 모음에서도 열려요. Microsoft HEIF·HEVC 확장을 따로 깔지 않아도 돼요.&#10;아이폰이 적어 둔 방향대로 세워서 보여 주고, 여러 조각으로 나뉘어 저장된 사진도 한 장으로 붙여서 보여 줘요. 탐색기 오른쪽 클릭의 [LoveMyShelf로 열기]도 이 형식에 생겨요.&#10;카메라 RAW 파일은 아직 못 열어요."
+      textEn="HEIC, HEIF and AVIF photos now show in your folders and open in the large view, Make cover and Similar photos. You don't need to install Microsoft's HEIF or HEVC extensions.&#10;They are turned the way the iPhone recorded, and photos saved in several tiles are put together into one picture. [Open with LoveMyShelf] in File Explorer's right-click menu appears for these files too.&#10;Camera RAW files don't open yet."
+      boldKo="HEIC·HEIF·AVIF|따로 깔지 않아도"
+      boldEn="HEIC, HEIF and AVIF|don't need to install"/>
     <item group="better" icon="image"
       titleKo="자를 곳 네모를 그릴 때 영상을 가리지 않아요"
       titleEn="Drawing where to cut no longer covers the video"
