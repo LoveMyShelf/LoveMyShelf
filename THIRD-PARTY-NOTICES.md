@@ -1,6 +1,6 @@
 # Third-party notices
 
-Love My Shelf itself is licensed under the GNU General Public License v3.0 (see `LICENSE`). The Windows download also contains the following components, each under its own license.
+LoveMyShelf itself is licensed under the GNU General Public License v3.0 (see `LICENSE`). The Windows download also contains the following components, each under its own license.
 
 ## libmpv (`libmpv-2.dll`)
 
@@ -48,12 +48,12 @@ Love My Shelf itself is licensed under the GNU General Public License v3.0 (see 
 
 ## Pretendard (`fonts/Pretendard-*.otf`)
 
-- What it does: the typeface used for all text in Love My Shelf.
+- What it does: the typeface used for all text in LoveMyShelf.
 - Version: 1.3.9, the unmodified static OpenType files Regular, Medium, SemiBold, and Bold from <https://github.com/orioncactus/pretendard> (`packages/pretendard/dist/public/static`).
 - Copyright (c) 2021, Kil Hyung-jin, with Reserved Font Name 'Pretendard'. Includes glyphs from Source Han Sans (Adobe), Inter (The Inter Project Authors), and M PLUS 1 (The M+ FONTS Project Authors).
 - License: SIL Open Font License 1.1. Full text: `fonts/OFL.txt`.
 
 ## README images and demo videos
 
-- `docs/images/icon.png` is Love My Shelf's own icon (the 256 px image from `src/gallery.ico`).
-- The demo videos in the README are screen recordings of Love My Shelf, hosted as GitHub attachments. They are not part of the Windows download.
+- `docs/images/icon.png` is LoveMyShelf's own icon (the 256 px image from `src/gallery.ico`).
+- The demo videos in the README are screen recordings of LoveMyShelf, hosted as GitHub attachments. They are not part of the Windows download.
