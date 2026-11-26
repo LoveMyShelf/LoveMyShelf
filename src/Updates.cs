@@ -498,6 +498,33 @@ namespace LoveMyShelf {
         }
         static volatile bool reported;
         // Called once the first window is on screen: tells the helper all is well, then clears what's left.
+        // Installed with LoveMyShelf-Setup.exe (installer\LoveMyShelf.iss, AppId 6F1D3C2A-...): after updating itself,
+        // the version shown in Settings > Apps (and read by winget) would stay at the installer's version.
+        // Only this installed copy changes it: a ZIP copy elsewhere leaves the installer's record alone.
+        const string SetupKey=@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1D3C2A-8B4E-4F7A-9C35-2E61B0D74A58}_is1";
+        static void SyncInstalledVersion(string appDir) {
+            using(var look=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SetupKey,false)) {
+                if(look==null)return;
+                string place=look.GetValue("InstallLocation") as string;
+                if(String.IsNullOrWhiteSpace(place))return;
+                if(!String.Equals(Path.GetFullPath(place).TrimEnd('\\'),Path.GetFullPath(appDir).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase))return;
+                if(look.GetValue("DisplayVersion") as string==AppInfo.Version)return;
+            }
+            using(var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SetupKey,true)) {
+                if(key==null)return;
+                System.Version parsed;
+                if(System.Version.TryParse(AppInfo.Version,out parsed)) {
+                    // Inno Setup also writes these numbers; keep them matching when they are there.
+                    foreach(string name in new[]{"MajorVersion","VersionMajor"})
+                        if(key.GetValue(name)!=null)key.SetValue(name,parsed.Major,Microsoft.Win32.RegistryValueKind.DWord);
+                    foreach(string name in new[]{"MinorVersion","VersionMinor"})
+                        if(key.GetValue(name)!=null)key.SetValue(name,parsed.Minor,Microsoft.Win32.RegistryValueKind.DWord);
+                }
+                // Last, so a run cut short here tries again next time.
+                key.SetValue("DisplayVersion",AppInfo.Version,Microsoft.Win32.RegistryValueKind.String);
+            }
+        }
+
         internal static void ReportStarted() {
             reported=true;
             try {
@@ -507,6 +534,7 @@ namespace LoveMyShelf {
             string appDir=AppFolder;
             Task.Delay(5000).ContinueWith(delegate {
                 try {string backup=Path.Combine(appDir,BackupFolder);if(Directory.Exists(backup))Directory.Delete(backup,true);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+                try {SyncInstalledVersion(appDir);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 try {
                     if(!Directory.Exists(UpdateRoot))return;
                     foreach(string folder in Directory.GetDirectories(UpdateRoot)) {
