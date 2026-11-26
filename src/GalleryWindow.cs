@@ -815,6 +815,7 @@ namespace LoveMyShelf {
             var open=UI.Btn("",PickFolder,true);open.Visibility=Visibility.Collapsed;UI.Right(nav,open);
             var newWindow=UI.Btn("",OpenAnotherWindow);newWindow.Margin=new Thickness(0,0,6,0);UI.Right(nav,newWindow);
             var searchHost=SearchBox();searchHost.Margin=new Thickness(6,0,6,0);UI.Right(nav,searchHost);
+            BuildFormatButton();UI.Right(nav,FormatButton);
             // Every folder in one list, like a browser's tab list; it shows only when some tabs don't fit.
             folderList=UI.Btn("▾",()=>OpenFolderList());folderList.Padding=new Thickness(10,4,10,4);folderList.Margin=new Thickness(5,0,0,0);
             folderList.Visibility=Visibility.Collapsed;UI.Right(nav,folderList);
@@ -901,14 +902,21 @@ namespace LoveMyShelf {
                 var infinite=new Size(double.PositiveInfinity,double.PositiveInfinity);
                 newWindow.Content=L.T("New window");open.Content=L.T("Add folder");guide.Content=L.T("Guide & Options");
                 foreach(var button in new[]{newWindow,open,guide})square(button,false);
-                double right=0;
-                foreach(FrameworkElement part in new FrameworkElement[]{newWindow,open,guide,searchHost,folderList}) {
-                    if(part.Visibility==Visibility.Collapsed)continue;
-                    InvalidateTree(part);part.Measure(infinite);right+=part.DesiredSize.Width;
-                }
-                if(width-right>=520)return; // the address bar keeps about 360 px
+                UpdateFormatButton(0);
+                Func<double> rightWidth=delegate {
+                    double right=0;
+                    foreach(var part in new FrameworkElement[]{newWindow,open,guide,searchHost,FormatButton,folderList}) {
+                        if(part.Visibility==Visibility.Collapsed)continue;
+                        InvalidateTree(part);part.Measure(infinite);right+=part.DesiredSize.Width;
+                    }
+                    return right;
+                };
+                if(width-rightWidth()>=520)return; // the address bar keeps about 360 px
                 newWindow.Content=newWindowIcon;open.Content=addIcon;guide.Content=guideIcon;
                 foreach(var button in new[]{newWindow,open,guide})square(button,true);
+                if(FormatButton.Visibility==Visibility.Collapsed || width-rightWidth()>=520)return;
+                UpdateFormatButton(1);
+                if(width-rightWidth()<520)UpdateFormatButton(2);
             };
             nav.SizeChanged+=delegate {updateTopBar();};
             var line=UI.Use(new Border { Height=1 },Border.BackgroundProperty,"Line"); DockPanel.SetDock(line,Dock.Top);root.Children.Add(line);
@@ -1080,7 +1088,7 @@ namespace LoveMyShelf {
             SetupDropHint(host);
             emptyTitle.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyTitle);
             emptyHelp.Margin=new Thickness(0,8,0,22);empty.Children.Add(emptyHelp);
-            emptyAction=UI.Btn("",()=>{if(FoldersFoldedAway)folderPane.Unfold();else PickFolder();});emptyAction.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyAction);host.Children.Add(empty);
+            emptyAction=UI.Btn("",()=>{if(FormatEmpty)ClickFormat(AllFormats);else if(FoldersFoldedAway)folderPane.Unfold();else PickFolder();});emptyAction.HorizontalAlignment=HorizontalAlignment.Center;empty.Children.Add(emptyAction);host.Children.Add(empty);
             resizeTimer.Tick+=delegate {resizeTimer.Stop();LayoutRows();};
             reflowTimer.Tick+=delegate {reflowTimer.Stop();CurrentReflow=null;};
             grid.SizeChanged+=delegate {resizeTimer.Stop();resizeTimer.Start();};
@@ -1464,7 +1472,6 @@ namespace LoveMyShelf {
             // The way down from the tab to the folder on screen: going back up keeps the part above it,
             // anything else (a tab, a collection) starts over from that folder.
             // Back / Forward remember each place, like File Explorer (a refresh of the same place doesn't count).
-            if(active!=null && !historyMove && LocationKey(active)!=LocationKey(album)){backStack.Add(LocationKey(active));forwardStack.Clear();}
             int inTrail=trail.FindIndex(a=>a.Folder==album.Folder);
             if(inTrail>=0)trail.RemoveRange(inTrail+1,trail.Count-inTrail-1);else{trail.Clear();trail.Add(album);trailFromPc=false;}
             // A folder reached from the tree or the path row gets its records the first time it is opened.
@@ -1472,9 +1479,16 @@ namespace LoveMyShelf {
                 try {album=store.OpenSubfolder(album.Source);trail[trail.Count-1]=album;}
                 catch(Exception ex) {UI.Error(this,ex);return;}
             }
+            bool changed=active==null || !String.Equals(LocationKey(active),LocationKey(album),StringComparison.OrdinalIgnoreCase);
+            if(changed && active!=null && !historyMove) {
+                backStack.Add(LocationKey(active));backFormats.Add(new HashSet<string>(chosenFormats,chosenFormats.Comparer));
+                forwardStack.Clear();forwardFormats.Clear();
+            }
+            if(changed || historyMove)ChangeFormatLocation();
             active=album; tabs.Children.Clear();scrollToTop=true;
             // Only the folder name, like File Explorer: side-by-side windows, the taskbar and Alt+Tab tell folders apart.
             Title=album.Name;
+            if(updateTopBar!=null)updateTopBar(); // the [Type] button: hidden in Similar photos, back to "Type" in a new place
             BuildPath();
             TreeSyncSoon();
             UI.Use(allCropsButton,Control.ForegroundProperty,ShowingAllCrops?"Accent":"Text");
@@ -1516,24 +1530,23 @@ namespace LoveMyShelf {
         readonly List<string> backStack=new List<string>(),forwardStack=new List<string>();
         bool historyMove;
         static string LocationKey(Album album) {return album.Source??("@"+album.Folder);}
-        void GoToLocation(string key) {
-            historyMove=true;
+        void GoToLocation(string key,HashSet<string> formats) {
+            historyMove=true;historyFormats=formats;
             try {
                 if(key.StartsWith("@"+TagKey,StringComparison.Ordinal))Select(TagAlbum(key.Substring(1+TagKey.Length)));
                 else if(key=="@"+SimilarKey)Select(SimilarAlbum);
                 else if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
                 else if(Directory.Exists(key))NavigateTo(key);
-            } finally {historyMove=false;}
+            } finally {historyMove=false;historyFormats=null;}
         }
-        internal void GoBack() {
-            if(backStack.Count==0 || active==null)return;
-            string key=backStack[backStack.Count-1];backStack.RemoveAt(backStack.Count-1);
-            forwardStack.Add(LocationKey(active));GoToLocation(key);
-        }
-        internal void GoForward() {
-            if(forwardStack.Count==0 || active==null)return;
-            string key=forwardStack[forwardStack.Count-1];forwardStack.RemoveAt(forwardStack.Count-1);
-            backStack.Add(LocationKey(active));GoToLocation(key);
+        internal void GoBack() {MoveInHistory(backStack,backFormats,forwardStack,forwardFormats);}
+        internal void GoForward() {MoveInHistory(forwardStack,forwardFormats,backStack,backFormats);}
+        void MoveInHistory(List<string> from,List<HashSet<string>> fromFormats,List<string> to,List<HashSet<string>> toFormats) {
+            if(from.Count==0 || active==null)return;
+            int last=from.Count-1;string key=from[last];var formats=fromFormats[last];
+            from.RemoveAt(last);fromFormats.RemoveAt(last);
+            to.Add(LocationKey(active));toFormats.Add(new HashSet<string>(chosenFormats,chosenFormats.Comparer));
+            GoToLocation(key,formats);
         }
         // Up goes to the real folder above, even above a LoveMyShelf folder (like File Explorer).
         internal bool GoUpFolder() {
@@ -1938,6 +1951,7 @@ namespace LoveMyShelf {
                     photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
                     canShuffle=false;
                     emptyTitle.Text=L.T(tag!=null?"Loading…":"Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
+                    emptyAction.Visibility=Visibility.Collapsed;
                     count.Text="";count.ToolTip=null;
                     var sort=settings.Sort;
                     bool descending=settings.Descending;
@@ -1977,6 +1991,7 @@ namespace LoveMyShelf {
                     if(await Task.WhenAny(reading,Task.Delay(150))!=reading && version==refreshVersion && shownAlbum!=album.Folder) {
                         photos=new List<Photo>();subfolders=new List<Tuple<string,int>>();LayoutRows();
                         emptyTitle.Text=L.T("Loading…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
+                        emptyAction.Visibility=Visibility.Collapsed;
                         count.Text="";count.ToolTip=null;
                     }
                     var read=await reading;
@@ -1998,20 +2013,18 @@ namespace LoveMyShelf {
             }
             if(query.Length>0)folders=folders.Where(f=>Path.GetFileName(f.Item1).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
             subfolders=folders;
+            ReadFormatSource();
             ClearSelection();
-            // The covers of one original keep their order inside the shuffled group (the sort is stable).
-            if(shuffledOrder!=null && !ShowingSimilar) photos=photos.OrderBy(p=>{
-                int rank; return shuffledOrder.TryGetValue(GalleryStore.CoverFamily(p),out rank)?rank:Int32.MaxValue;
-            }).ToList();
             skippedCount=skipped;
             var reflow=pendingReflow;pendingReflow=null;
             ShowPhotos(reflow);
+            ShowHiddenFormatNotice();
         }
         void ShowPhotos(Reflow reflow=null) {
             UpdateCoverMarks();
             SetCount(skippedCount);
             // No filter and no search, and still nothing: this folder really has no photos or videos.
-            bool noFiles=photos.Count==0 && !folderUnavailable && active.Source!=null && folderFilter==0 && search.Text.Trim().Length==0;
+            bool noFiles=photos.Count==0 && !FilteringFormats && !folderUnavailable && active.Source!=null && folderFilter==0 && search.Text.Trim().Length==0;
             folderPane.Show(subfolders,noFiles,active.Folder);
             ShowEmptyNote();
             if(reflow!=null)ApplyReflow(reflow);else LayoutRows();
@@ -2019,7 +2032,9 @@ namespace LoveMyShelf {
         // Nothing on screen because the folders here are folded: say so, so it never looks frozen.
         bool FoldersFoldedAway {get {return photos.Count==0 && subfolders.Count>0 && folderPane.IsFolded;}}
         internal void ShowEmptyNote() {
+            emptyHelp.ClearValue(TextBlock.TextWrappingProperty);emptyHelp.ClearValue(TextBlock.TextAlignmentProperty);
             if(ShowingSimilar){SimilarEmptyNote();return;}
+            if(FormatEmpty){ShowFormatEmpty();empty.Visibility=Visibility.Visible;return;}
             bool pending=ShowingPending,searching=search.Text.Trim().Length>0,foldedAway=FoldersFoldedAway;
             bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
             bool driveAway=folderUnavailable && active!=null && active.Source!=null && DriveLinks.DriveAway(active.Source);
@@ -2058,8 +2073,11 @@ namespace LoveMyShelf {
             if(ShowingAllCrops)count.Text=L.F("{0:N0} covers",covers);
             else if(ShowingPending)count.Text=L.F("{0:N0} unfinished",total-covers);
             else if(folderFilter==2)count.Text=L.F("{0:N0} finished",covers);
+            // While types are picked, "16 of 11" already says how many show, so "All 11" is not said again.
+            else if(FilteringFormats)count.Text=FormatCountPrefix(total)+L.F("{0:N0} finished",covers);
             else count.Text=L.F("{1:N0} of {0:N0} finished",total,covers);
             if(skipped>0)count.Text+="   ·   "+L.F("{0:N0} unreadable",skipped);
+            if(FilteringFormats && (ShowingAllCrops || ShowingPending || folderFilter==2))count.Text=FormatCountPrefix(total)+count.Text;
             updateFooter();
         }
         // Set before a layout that should start at the top (a different view, Shuffle).
@@ -2489,6 +2507,7 @@ namespace LoveMyShelf {
             } catch(Exception ex){Notify(L.T("Couldn’t change the cover order"),ex.Message,null,NoticeKind.Warning);}
         }
         void ApplyCoverOrder(Photo moved) {
+            if(RefreshHiddenCover(moved))return;
             if(rows==null || active==null || photos.Count==0)return;
             string family=GalleryStore.CoverFamily(moved);
             var slots=new List<int>();
@@ -2506,6 +2525,7 @@ namespace LoveMyShelf {
             string anchored=anchorIndex>=0 && anchorIndex<photos.Count && photos[anchorIndex]!=null?photos[anchorIndex].Folder:null;
             var reflow=CaptureReflow();
             for(int k=0;k<slots.Count;k++)photos[slots[k]]=ordered[k];
+            ReorderFormatSource(before,ordered);
             if(focused!=null)focusIndex=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,focused,StringComparison.OrdinalIgnoreCase));
             if(anchored!=null)anchorIndex=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,anchored,StringComparison.OrdinalIgnoreCase));
             ShowPhotos(reflow);
@@ -2610,7 +2630,7 @@ namespace LoveMyShelf {
                     null,NoticeKind.Warning);
             int index=photos.FindIndex(p=>p!=null && p.Folder==photo.Folder);
             if(index>=0)UpdatePhoto(index,updated);
-            else if(added)InsertCover(updated);
+            else if(!RefreshHiddenCover(updated) && added)InsertCover(updated);
             return updated;
         }
         // Make GIF for a cover that is already saved: same crop, rotation and brightness.
@@ -2764,7 +2784,8 @@ namespace LoveMyShelf {
                 int index=photos.FindIndex(p=>p!=null && p.Folder==bare.Folder);
                 if(index>=0 && photos[index].HasCrop)UpdatePhoto(index,bare);
             }
-            if(photos.Any(p=>p!=null && !stays.Contains(p.Folder)))RemoveTiles(p=>!stays.Contains(p.Folder));
+            var removed=new HashSet<string>(photos.Where(p=>p!=null && !stays.Contains(p.Folder)).Select(p=>p.Folder),stays.Comparer);
+            if(removed.Count>0)RemoveTiles(p=>removed.Contains(p.Folder));
         }
         // After an edited GIF cover is made: the old file goes to the Recycle Bin and the new one takes its name
         // (when it's the same kind of file in the same folder). If anything fails, both files simply stay.
@@ -2896,6 +2917,7 @@ namespace LoveMyShelf {
         // Takes tiles out of the list right away; the ones behind them slide forward.
         // promoted: tiles that stay but now stand for another record (old folder → new photo), such as a cover moved up.
         void RemoveTiles(Func<Photo,bool> remove,IDictionary<string,Photo> promoted=null) {
+            RemoveFromFormatSource(remove,promoted);
             if(photos.Count==0 || rows==null)return;
             var reflow=CaptureReflow();
             var focused=focusIndex>=0 && focusIndex<photos.Count && photos[focusIndex]!=null?photos[focusIndex].Folder:null;
@@ -2940,6 +2962,7 @@ namespace LoveMyShelf {
             if(place<0)place=last+1;
             var reflow=CaptureReflow();
             reflow.Fresh.Add(cover.Folder);
+            InsertIntoFormatSource(cover,photos[last],place<photos.Count?photos[place]:null);
             photos.Insert(place,cover);
             if(focusIndex>=place)focusIndex++;
             if(anchorIndex>=place)anchorIndex++;
@@ -2972,6 +2995,7 @@ namespace LoveMyShelf {
             double shape=Covers.Shape(settings.TileShape);
             // Compared with the slot as it is laid out (the same Photo may already have changed, such as a cover hidden).
             bool relayout=wideSlots.Contains(index)!=TakesTwoCells(photo,shape);
+            ReplaceInFormatSource(photos[index],photo);
             photos[index]=photo;
             CoverMarksSoon();
             // A cover that became wide (or stopped being wide) needs the rows laid out again; others change in place.
@@ -3408,6 +3432,8 @@ namespace LoveMyShelf {
             var window=Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
             if(window==null)return;
             bool cancelled=job.State==TransferState.Cancelled;
+            // Every window showing the folder the files landed in says so once if its type filter hides them (put back too).
+            foreach(var gallery in Application.Current.Windows.OfType<GalleryWindow>().ToList())gallery.NoticeHiddenArrivals(job);
             if(job.Undo) {
                 if(failed.Count>0)window.Notify(L.T("Some files couldn’t be put back"),String.Join(Environment.NewLine,failed.Take(3)),null,NoticeKind.Warning);
                 else if(moved.Count>0)window.Notify(L.T("Put back"),L.F("{0:N0} files were put back in their original place.",moved.Count),null);
@@ -3794,6 +3820,7 @@ namespace LoveMyShelf {
             frame.Child=search;searchField.Children.Add(frame);searchField.Children.Add(searchHint);
             host.Children.Add(searchButton);host.Children.Add(searchField);
             search.TextChanged+=delegate {
+                CloseFormatList();
                 searchHint.Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
                 searchTimer.Stop();searchTimer.Start();
                 // A search typed in stays open, so a hidden word never quietly empties the list.
@@ -3821,6 +3848,7 @@ namespace LoveMyShelf {
         void ShowSearchField(bool open) {
             searchField.Visibility=open?Visibility.Visible:Visibility.Collapsed;
             searchButton.Visibility=open?Visibility.Collapsed:Visibility.Visible;
+            if(updateTopBar!=null)updateTopBar();
         }
         internal void OpenSearch() {
             ShowSearchField(true);
@@ -4342,6 +4370,7 @@ namespace LoveMyShelf {
         void ReplaceShown(Photo updated) {
             int index=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,updated.Folder,StringComparison.OrdinalIgnoreCase));
             if(index>=0 && rows!=null)UpdatePhoto(index,updated);
+            else RefreshHiddenCover(updated);
             if(CoverReplaced!=null)CoverReplaced(updated);
         }
         // Shows the two versions side by side. Returns the photo as recorded after the choice.
