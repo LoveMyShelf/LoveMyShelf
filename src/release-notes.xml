@@ -29,6 +29,11 @@
       titleEn="Keep the original photos and videos in locked photo boxes"
       textKo="백업 설정에서 [잠긴 사진 상자도 만들기]를 고르고 넣을 폴더를 고르면, 원본 사진·영상의 잠긴 복사본을 백업과 같은 비밀번호로 만들어 둬요. 원본은 그대로 두고, 다음부터는 바뀐 폴더만 다시 만들어요. 복원할 때 ‘잠긴 사진 상자도 같이 풀까요?’에서 [예]를 고르면 필요한 공간을 보여 준 뒤 풀어서 원본까지 바로 이어 줘요."
       textEn="In the backup settings, choose [Also make locked photo boxes] and pick the folders. A locked copy of the original photos and videos is made with the same password as the backup. The originals stay as they are, and next time only the folders that changed are made again. When restoring, choose [Yes] at ‘Open the locked photo boxes too?’: the space needed is shown, then the boxes are opened and the originals connected right away."/>
+    <item group="new" icon="image"
+      titleKo="휴대폰으로 보내기"
+      titleEn="Send to phone"
+      textKo="폴더 빈 곳을 오른쪽 클릭하고 [휴대폰으로 보내기…]를 누르면 표지를 보이는 순서대로 구글 드라이브·OneDrive에 복사해요. 휴대폰 앱에서 이름순으로 보면 같은 순서예요. 원하면 원본도 함께 보낼 수 있어요."
+      textEn="Right-click a blank spot in a folder and choose [Send to phone…] to copy the covers, in the order shown, into Google Drive or OneDrive. Sort by name in the phone app to see the same order. Originals can go along if you like."/>
     <item group="better" icon="sparkle"
       titleKo="업스케일링을 그래픽카드로도"
       titleEn="Upscaling on the graphics card too"
