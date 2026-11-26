@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -492,14 +493,17 @@ namespace LoveMyShelf {
         }
     }
 
-    // A small notice in the lower-right corner of the LoveMyShelf window.
+    // A small notice in the lower-right corner of the LoveMyShelf window. Over a large view (a video playing, often in
+    // full screen) it goes to the top right instead, so it never covers the play bar. A notice that can open something
+    // has a button for it; a click anywhere else on the card does nothing, so a click meant for the window under it
+    // can't open a cover by mistake.
     internal sealed class UpscaleToast : Window {
         readonly DispatcherTimer timer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(15)};
         internal bool IsWorking {get {return kind==NoticeKind.Busy && !closed;}}
         readonly NoticeKind kind;
         // True when the notice closed because it was clicked (not by its timer or the ✕).
         internal bool WasClicked {get;private set;}
-        internal UpscaleToast(Window anchor,string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15) {
+        internal UpscaleToast(Window anchor,string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15,string button=null) {
             this.kind=kind;timer.Interval=TimeSpan.FromSeconds(seconds);
             WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;Topmost=true;ShowActivated=false;
             AllowsTransparency=true;Background=Brushes.Transparent;
@@ -521,8 +525,10 @@ namespace LoveMyShelf {
             Content=body;
             Loaded+=delegate {NoticeLook.Enter(card);};
             if(clicked!=null) {
-                Cursor=Cursors.Hand;
-                MouseLeftButtonUp+=delegate {WasClicked=true;Close();clicked();};
+                var act=UI.Btn(String.IsNullOrEmpty(button)?L.P("Open","열기"):button,()=>{if(closed)return;WasClicked=true;Close();clicked();},true);
+                act.HorizontalAlignment=HorizontalAlignment.Left;act.Margin=new Thickness(0,10,0,0);act.MinHeight=30;act.Padding=new Thickness(14,2,14,2);
+                var words=detail.Parent as Panel;
+                if(words!=null)words.Children.Add(act);
             }
             // A "working on it" notice stays until the work ends and the caller dismisses it.
             bool stays=kind==NoticeKind.Busy || keepOpen;
@@ -549,8 +555,33 @@ namespace LoveMyShelf {
         }
         // Closes the notice if it is still showing; safe to call more than once.
         internal void Dismiss() {if(!closed)Close();}
+        // Where a window is on the screen, in the same units as Left and Top (also when maximized or full screen).
+        static Rect OnScreen(Window window) {
+            var source=PresentationSource.FromVisual(window);
+            if(source==null || source.CompositionTarget==null)return Rect.Empty;
+            var toDips=source.CompositionTarget.TransformFromDevice;
+            return new Rect(toDips.Transform(window.PointToScreen(new Point(0,0))),toDips.Transform(window.PointToScreen(new Point(window.ActualWidth,window.ActualHeight))));
+        }
         void Place(Window anchor) {
             Rect area=SystemParameters.WorkArea;
+            // A large view under the corner where the notice would go: the notice goes to that view's top right,
+            // under its title bar, away from the play bar and the pause button.
+            try {
+                Rect corner=Rect.Empty;
+                if(anchor!=null && anchor.IsVisible && anchor.WindowState!=WindowState.Minimized) {
+                    var a=OnScreen(anchor);
+                    if(!a.IsEmpty)corner=new Rect(a.Right-ActualWidth,a.Bottom-ActualHeight-26,ActualWidth,ActualHeight);
+                }
+                if(corner.IsEmpty)corner=new Rect(area.Right-ActualWidth,area.Bottom-ActualHeight,ActualWidth,ActualHeight);
+                var views=Application.Current.Windows.OfType<Viewer>().Where(v=>v.IsVisible && v.WindowState!=WindowState.Minimized).ToList();
+                var view=anchor as Viewer;
+                if(view==null || !view.IsVisible || view.WindowState==WindowState.Minimized)
+                    view=views.FirstOrDefault(v=>{var r=OnScreen(v);return !r.IsEmpty && r.IntersectsWith(corner);});
+                if(view!=null) {
+                    var r=OnScreen(view);
+                    if(!r.IsEmpty){Left=r.Right-ActualWidth+2;Top=r.Top+40;return;}
+                }
+            } catch(Exception) {}
             if(anchor!=null && anchor.IsVisible && anchor.WindowState!=WindowState.Minimized) {
                 var source=PresentationSource.FromVisual(anchor);
                 if(source!=null && source.CompositionTarget!=null) {

@@ -740,15 +740,15 @@ namespace LoveMyShelf {
             foreach(var window in Application.Current.Windows.OfType<GalleryWindow>())window.settings.GifDefaultsChanged=false;
             try {settings.Copy().Save(store.Root);} catch(Exception) {return;}
             Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The GIF cover defaults have changed"),
-                L.T("GIF covers are now made as WebP, at high picture quality, 30 pictures a second and 1280 pixels tall. They are much smoother and sharper than before, so try making one. If you don't like it, you can change it any time, and you can type in the numbers you want. Click here to open those settings."),
-                ()=>GuideWindow.Open(this,"gif","gifFormat"),NoticeKind.Info,true)),DispatcherPriority.ApplicationIdle);
+                L.P("GIF covers are now made as WebP, at high picture quality, 30 pictures a second and 1280 pixels tall. They are much smoother and sharper than before, so try making one. If you don't like it, you can change it any time, and you can type in the numbers you want. [See the settings] opens them.","이제 GIF 표지를 WebP · 화질 높게 · 1초에 30장 · 세로 1280픽셀로 만들어요. 전보다 훨씬 부드럽고 선명하니 한 번 만들어 보세요. 마음에 안 들면 언제든 바꿀 수 있고, 원하는 숫자를 직접 넣을 수도 있어요. [설정 보기]를 누르면 그 설정이 열려요."),
+                ()=>GuideWindow.Open(this,"gif","gifFormat"),NoticeKind.Info,true,15,L.P("See the settings","설정 보기"))),DispatcherPriority.ApplicationIdle);
         }
         // Said once each time LoveMyShelf runs, when a video opens while a folder window is still up.
         internal void TipMinimize() {
             if(minimizeTipShown || !IsVisible || WindowState==WindowState.Minimized)return;
             minimizeTipShown=true;
-            Notify(L.T("Watching only the video?"),L.T("Minimize the folder window and LoveMyShelf uses less memory. Click here to minimize it right now."),
-                MinimizeAll,NoticeKind.Info,false,8);
+            Notify(L.T("Watching only the video?"),L.P("Minimize the folder window and LoveMyShelf uses less memory.","폴더 창을 최소화해 두면 LoveMyShelf가 메모리를 덜 써요."),
+                MinimizeAll,NoticeKind.Info,false,8,L.P("Minimize it now","지금 최소화하기"));
         }
         // Where the subtitle explorer was left, for every window.
         internal void SaveSubtitleBounds(string bounds) {
@@ -860,7 +860,7 @@ namespace LoveMyShelf {
                     try {updated.Save(store.Root);settings=updated;} catch(Exception) {return;}
                     Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("Not all folder tabs are showing"),
                         L.T("Roll the mouse wheel over the tabs and they move sideways. Click ▾ to see every folder at once."),
-                        ()=>OpenFolderList(),NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
+                        ()=>OpenFolderList(),NoticeKind.Info,false,15,L.P("See every folder","폴더 모두 보기"))),DispatcherPriority.ApplicationIdle);
                 }
             };
             // The faded edge is a button too: a click there slides the tabs that way.
@@ -1268,8 +1268,8 @@ namespace LoveMyShelf {
             var updated=settings.Copy();updated.SeenVersion=AppInfo.Version;
             try {updated.Save(store.Root);settings=updated;} catch(Exception) {return;}
             if(!AppInfo.IsNewer(AppInfo.Version,before))return;
-            Notify(L.F("Updated to version {0}",AppInfo.Version),L.T("Click here to see what changed."),
-                ()=>GuideWindow.Open(this,"news"),NoticeKind.Done,false,8);
+            Notify(L.F("Updated to version {0}",AppInfo.Version),L.P("See what changed in this version.","이번 버전에서 바뀐 내용을 볼 수 있어요."),
+                ()=>GuideWindow.Open(this,"news"),NoticeKind.Done,false,8,L.P("What's new","새 소식 보기"));
         }
         // An update that could not be finished put the version before it back. Said once, at the next start,
         // with the way that still works: the ZIP from the download page.
@@ -1280,9 +1280,9 @@ namespace LoveMyShelf {
             Notify(L.PF("Couldn’t update to the new version ({0})","새 버전({0})으로 업데이트하지 못했어요",undoneUpdate),
                 L.P("The update couldn’t be finished, so the version you were using was put back. Your covers and settings are as they were.",
                     "업데이트를 마치지 못해서 쓰던 버전으로 되돌려 두었어요. 만든 표지와 설정은 그대로예요.")+Environment.NewLine+
-                L.P("Click here to open the download page. Get the new ZIP, close LoveMyShelf, then unzip it over the folder you use now.",
-                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 LoveMyShelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
-                OpenReleasesPage,NoticeKind.Warning,true);
+                L.P("[Download page] opens the page. Get the new ZIP there, close LoveMyShelf, then unzip it over the folder you use now.",
+                    "[다운로드 페이지]를 누르면 페이지가 열려요. 거기서 새 ZIP을 받은 뒤 LoveMyShelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
+                OpenReleasesPage,NoticeKind.Warning,true,15,L.P("Download page","다운로드 페이지"));
         }
         async void CheckForUpdate() {
             string newer=await AppInfo.NewerVersionAsync();
@@ -1291,22 +1291,23 @@ namespace LoveMyShelf {
             if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             if(plan==null && AppUpdater.FromWinget) {
                 Notify(L.F("Version {0} is out",newer),
-                    L.P("Click here and LoveMyShelf closes, winget updates it, and it starts again. Your covers and settings stay as they are.",
-                        "여기를 누르면 LoveMyShelf가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
-                    UpdateWithWinget,NoticeKind.Info,true);
+                    L.P("[Update now] closes LoveMyShelf, winget updates it, and it starts again. Your covers and settings stay as they are.",
+                        "[지금 업데이트]를 누르면 LoveMyShelf가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
+                    UpdateWithWinget,NoticeKind.Info,true,15,L.P("Update now","지금 업데이트"));
                 return;
             }
             if(plan==null) {
                 if(newer==undoneUpdate)return; // just told, with the same way out
                 Notify(L.F("Version {0} is out",newer),
-                    L.T("Click here to open the download page. Get the new ZIP, close LoveMyShelf, then unzip it over the folder you use now. Your covers and settings stay as they are."),
-                    OpenReleasesPage,NoticeKind.Info);
+                    L.P("[Download page] opens the page. Get the new ZIP there, close LoveMyShelf, then unzip it over the folder you use now. Your covers and settings stay as they are.",
+                        "[다운로드 페이지]를 누르면 페이지가 열려요. 거기서 새 ZIP을 받은 뒤 LoveMyShelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요. 만든 표지와 설정은 그대로 남아요."),
+                    OpenReleasesPage,NoticeKind.Info,false,15,L.P("Download page","다운로드 페이지"));
                 return;
             }
             Notify(L.F("Version {0} is out",newer),
-                plan.Notes.Count>0?L.T("Click here to see what changed and update."):
-                    L.T("Click here to start the update. You can keep using LoveMyShelf while it downloads, and your covers and settings stay as they are."),
-                ()=>ShowUpdateNews(plan),NoticeKind.Info,true);
+                plan.Notes.Count>0?L.P("See what changed in the new version, then update from there.","새 버전에서 바뀐 내용을 보고, 거기서 바로 업데이트할 수 있어요."):
+                    L.P("[Update now] starts the update. You can keep using LoveMyShelf while it downloads, and your covers and settings stay as they are.","[지금 업데이트]를 누르면 업데이트를 시작해요. 다운로드하는 동안에도 계속 쓸 수 있고, 만든 표지와 설정은 그대로 남아요."),
+                ()=>ShowUpdateNews(plan),NoticeKind.Info,true,15,plan.Notes.Count>0?L.P("What's new","새 소식 보기"):L.P("Update now","지금 업데이트"));
         }
         void ShowUpdateNews(UpdatePlan plan) {
             if(plan.Notes.Count==0){DownloadUpdate(plan);return;}
@@ -1327,12 +1328,12 @@ namespace LoveMyShelf {
             catch(Exception) {
                 working.Dismiss();
                 if(!lifetime.IsCancellationRequested)
-                    Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                    Notify(L.T("Couldn’t get the update"),L.P("The program is as it was. You can get the new version from the download page.","프로그램은 그대로예요. 다운로드 페이지에서 새 버전을 받을 수 있어요."),OpenReleasesPage,NoticeKind.Warning,false,15,L.P("Download page","다운로드 페이지"));
             }
         }
         void OfferRestart(string stage) {
-            Notify(L.T("The update is ready"),L.T("Click here and LoveMyShelf closes for a moment, then starts again as the new version."),
-                ()=>RestartForUpdate(stage),NoticeKind.Done,true);
+            Notify(L.T("The update is ready"),L.P("[Restart now] closes LoveMyShelf for a moment, then it starts again as the new version.","[지금 다시 켜기]를 누르면 LoveMyShelf가 잠깐 꺼졌다가 새 버전으로 다시 켜져요."),
+                ()=>RestartForUpdate(stage),NoticeKind.Done,true,15,L.P("Restart now","지금 다시 켜기"));
         }
         static bool wingetStarted; // one PowerShell window, even if the notice is clicked twice or in two windows
         void UpdateWithWinget() {
@@ -1340,14 +1341,14 @@ namespace LoveMyShelf {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
             if(TransferQueue.Busy || CoverWork.Top!=null || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
                 if(TransferQueue.Busy)TransferWindow.ShowQueue(false);
-                Notify(L.T("Some work is still in progress"),L.T("So that the work isn't cut off, click here again after it is done."),
-                    UpdateWithWinget,NoticeKind.Info,true);
+                Notify(L.T("Some work is still in progress"),L.P("So that the work isn't cut off, press the button again after it is done.","작업이 끊기지 않도록, 끝난 뒤에 버튼을 다시 눌러 주세요."),
+                    UpdateWithWinget,NoticeKind.Info,true,15,L.P("Update now","지금 업데이트"));
                 return;
             }
             foreach(var window in windows.OfType<GalleryWindow>())window.FinishPendingCovers();
             try {AppUpdater.StartWingetUpgrade();wingetStarted=true;}
             catch(Exception) {
-                Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                Notify(L.T("Couldn’t get the update"),L.P("The program is as it was. You can get the new version from the download page.","프로그램은 그대로예요. 다운로드 페이지에서 새 버전을 받을 수 있어요."),OpenReleasesPage,NoticeKind.Warning,false,15,L.P("Download page","다운로드 페이지"));
                 return;
             }
             Application.Current.Shutdown();
@@ -1356,14 +1357,14 @@ namespace LoveMyShelf {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
             if(TransferQueue.Busy || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
                 if(TransferQueue.Busy)TransferWindow.ShowQueue(false);
-                Notify(L.T("Some work is still in progress"),L.T("So that the work isn't cut off, click here again after it is done."),
-                    ()=>RestartForUpdate(stage),NoticeKind.Info,true);
+                Notify(L.T("Some work is still in progress"),L.P("So that the work isn't cut off, press the button again after it is done.","작업이 끊기지 않도록, 끝난 뒤에 버튼을 다시 눌러 주세요."),
+                    ()=>RestartForUpdate(stage),NoticeKind.Info,true,15,L.P("Restart now","지금 다시 켜기"));
                 return;
             }
             foreach(var window in windows.OfType<GalleryWindow>())window.FinishPendingCovers();
             try {AppUpdater.StartApply(stage);}
             catch(Exception) {
-                Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                Notify(L.T("Couldn’t get the update"),L.P("The program is as it was. You can get the new version from the download page.","프로그램은 그대로예요. 다운로드 페이지에서 새 버전을 받을 수 있어요."),OpenReleasesPage,NoticeKind.Warning,false,15,L.P("Download page","다운로드 페이지"));
                 return;
             }
             Application.Current.Shutdown();
@@ -2628,14 +2629,14 @@ namespace LoveMyShelf {
             bool added=!photo.HasCrop && GalleryStore.RecordBase(photo)!=Path.GetFileName(photo.Folder);
             bool motion=offerMotion && picture==null && MotionMaker.Supports(updated.Original);
             Action makeGif=motion?(Action)(()=>ShowMakeGif(ActiveAppWindow(),updated)):null;
-            string gifLine=motion?" "+L.T("Click here to make a GIF cover from this JPG cover."):"";
+            string gifLine=motion?" "+L.P("[Make GIF cover] makes a moving cover from this JPG cover.","[GIF 표지 만들기]를 누르면 이 JPG 표지로 움직이는 표지를 만들어요."):"";
             if(picture!=null && !photo.HasCrop)
                 Notify(L.T("Added the picture as a cover"),added?L.T("The earlier covers are still there. To change the order, right-click a cover and choose Cover order."):L.T("To cut it differently later, open the cover and click Edit cover."),null);
             else if(added)
-                Notify(L.T("Made one more cover"),L.T("The earlier cover is still there. The new cover goes in the place that fits the order of the video’s scenes.")+gifLine,makeGif);
+                Notify(L.T("Made one more cover"),L.T("The earlier cover is still there. The new cover goes in the place that fits the order of the video’s scenes.")+gifLine,makeGif,NoticeKind.Done,false,15,L.T("Make GIF cover"));
             else if(motion && !(showAfter && OpenCoverAfterSave))
                 // The large view has its own Make GIF button; the notice is for when it doesn't open.
-                Notify(L.T("Cover saved"),gifLine.Trim(),makeGif);
+                Notify(L.T("Cover saved"),gifLine.Trim(),makeGif,NoticeKind.Done,false,15,L.T("Make GIF cover"));
             if(showAfter && OpenCoverAfterSave)justSaved=updated;
             if(updated.SavedToFallback)
                 Notify(L.T("Saved in the cover folder instead"),
@@ -2692,8 +2693,8 @@ namespace LoveMyShelf {
                 string shorter="";
                 if(result.Item1.Before<request.Before-0.05)shorter+=L.F("The original had only {0:0.#} s before the cover, so only that much went in.",result.Item1.Before)+" ";
                 if(result.Item1.After<request.After-0.05)shorter+=L.F("The original had only {0:0.#} s after the cover, so only that much went in.",result.Item1.After)+" ";
-                Notify(L.T("The GIF cover is ready"),shorter+L.T("Click here to see the GIF cover large."),
-                    ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,5);
+                Notify(L.T("The GIF cover is ready"),photo.Name+(shorter.Length>0?Environment.NewLine+shorter.Trim():""),
+                    ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,8,L.P("Open","열기"));
             } catch(OperationCanceledException) {}
             catch(Exception ex) {
                 working.Dismiss();
@@ -2732,8 +2733,8 @@ namespace LoveMyShelf {
             ShowWithoutPending();
             var toast=new UpscaleToast(ActiveAppWindow(),
                 chosen.Count==1?L.T("Moved the cover to the Recycle Bin"):L.F("Moved {0:N0} covers to the Recycle Bin",chosen.Count),
-                L.T("Click here within 3 seconds to undo. The original is still there."),
-                ()=>UndoCovers(pending),NoticeKind.Info,false,UndoSeconds);
+                L.P("[Undo] within 3 seconds puts it back. The original is still there.","3초 안에 [되돌리기]를 누르면 돌아와요. 원본은 그대로 있어요."),
+                ()=>UndoCovers(pending),NoticeKind.Info,false,UndoSeconds,L.P("Undo","되돌리기"));
             toast.Closed+=delegate {if(!toast.WasClicked)FinishCovers(pending);};
             toast.Show();
         }
@@ -3364,15 +3365,15 @@ namespace LoveMyShelf {
             Notify(L.P("It is in the file queue","파일 대기열에 넣었어요"),
                 L.P("The file queue shows how far it is. You can pause there, cancel, or change the order. If you close that window, the [⇄ Queue] button in the bottom bar of this window opens it again.",
                     "파일 대기열 창에서 얼마나 보냈는지 볼 수 있고, 일시정지·취소·순서 바꾸기도 거기서 해요. 그 창을 닫아도 이 창 아래 줄의 [⇄ 대기열] 버튼을 누르면 다시 열려요."),
-                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info);
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,false,15,L.P("Open the file queue","대기열 열기"));
         }
         // The file queue window was closed while files are still being sent.
         static void TellQueueGoesOn() {
             var window=Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault(w=>w.IsVisible);
             if(window==null)return;
             window.Notify(L.P("Still sending in the background","뒤에서 계속 보내고 있어요"),
-                L.P("Click the [⇄ Queue] button in the bottom bar, or this notice, to open the file queue again.","아래 줄의 [⇄ 대기열] 버튼이나 이 알림을 누르면 파일 대기열이 다시 열려요."),
-                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,false,8);
+                L.P("The [⇄ Queue] button in the bottom bar, or [Open the file queue] here, opens it again.","아래 줄의 [⇄ 대기열] 버튼이나 여기의 [대기열 열기]를 누르면 파일 대기열이 다시 열려요."),
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,false,8,L.P("Open the file queue","대기열 열기"));
         }
         // Jobs the last run left unfinished are back in the queue, paused.
         static bool leftoverTold;
@@ -3383,9 +3384,9 @@ namespace LoveMyShelf {
             if(left==0)return;
             ShowQueueButton();
             Notify(L.P("Unfinished jobs are in the file queue","끝내지 못한 작업이 파일 대기열에 있어요"),
-                L.PF("{0:N0} jobs from the last time are waiting, paused. Click here to open the file queue: [Go on] continues one from where it stopped, [Cancel] drops it.",
-                    "지난번에 보내던 작업 {0:N0}개가 멈춘 채 기다리고 있어요. 여기를 누르면 파일 대기열이 열려요. [이어서]를 누르면 멈춘 곳부터 계속하고, [취소]를 누르면 그만둬요.",left),
-                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,true);
+                L.PF("{0:N0} jobs from the last time are waiting, paused. [Open the file queue] opens it: [Go on] continues one from where it stopped, [Cancel] drops it.",
+                    "지난번에 보내던 작업 {0:N0}개가 멈춘 채 기다리고 있어요. [대기열 열기]를 누르면 파일 대기열이 열려요. [이어서]를 누르면 멈춘 곳부터 계속하고, [취소]를 누르면 그만둬요.",left),
+                ()=>TransferWindow.ShowQueue(true),NoticeKind.Info,true,15,L.P("Open the file queue","대기열 열기"));
         }
         // A job of the file queue has ended (done or cancelled): the notice, and what Ctrl+Z can put back.
         static void TransferEnded(TransferJob job) {
@@ -4327,14 +4328,14 @@ namespace LoveMyShelf {
                 .Where(w=>w.IsVisible && !(w is UpscaleToast) && !(w is VideoOverlay)).ToList();
             return windows.LastOrDefault(w=>w.IsEnabled && w.IsActive)??windows.LastOrDefault(w=>w.IsEnabled)??this;
         }
-        internal UpscaleToast Notify(string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15) {
+        internal UpscaleToast Notify(string title,string message,Action clicked,NoticeKind kind=NoticeKind.Done,bool keepOpen=false,double seconds=15,string button=null) {
             var toast=new UpscaleToast(ActiveAppWindow(),title,message,clicked==null?null:(Action)(()=>{
                 // A notice can be clicked while another window (the cover editor, Make GIF cover, a question) is open.
                 // Opening something on top of it would stack windows, so that window is brought forward instead.
                 var busy=BlockingWindow();
-                if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.T("Finish the work in the open window or close it, then click the notice again."),null,NoticeKind.Info);return;}
+                if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.P("Finish the work in the open window or close it, then press the button on the notice again.","열린 창의 작업을 끝내거나 창을 닫은 뒤, 알림의 버튼을 다시 눌러 주세요."),null,NoticeKind.Info);return;}
                 clicked();
-            }),kind,keepOpen,seconds);
+            }),kind,keepOpen,seconds,button);
             toast.Show();
             return toast;
         }
@@ -4345,8 +4346,8 @@ namespace LoveMyShelf {
         }
         void UpscaleFinished(Photo updated) {
             ReplaceShown(updated);
-            Notify(L.T("Upscaling finished"),updated.Name+Environment.NewLine+L.T("Click here to compare it side by side with the original cover and choose the one you like."),
-                ()=>ShowPendingChoice(updated,ActiveAppWindow()));
+            Notify(L.T("Upscaling finished"),updated.Name+Environment.NewLine+L.P("[Compare] shows it side by side with the original cover, so you can choose the one you like.","[비교해 보기]를 누르면 원래 표지와 나란히 비교해서 마음에 드는 쪽을 고를 수 있어요."),
+                ()=>ShowPendingChoice(updated,ActiveAppWindow()),NoticeKind.Done,false,15,L.P("Compare","비교해 보기"));
         }
         void ReplaceShown(Photo updated) {
             int index=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,updated.Folder,StringComparison.OrdinalIgnoreCase));
