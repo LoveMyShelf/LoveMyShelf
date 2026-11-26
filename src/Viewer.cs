@@ -232,7 +232,7 @@ namespace LoveMyShelf {
                 if(coverArea.Editing && e.ClickCount==1 && coverArea.Press(e.GetPosition(ui))) {
                     hit.CaptureMouse();surfaceClick.Stop();e.Handled=true;return;
                 }
-                if(!coverArea.Editing && PictureOverflows() && e.ClickCount==1){dragFrom=e.GetPosition(ui);panFrom=pan;hit.CaptureMouse();}
+                if(!coverArea.Editing && PictureOverflows() && e.ClickCount==1){dragFrom=e.GetPosition(ui);panFrom=pan;panning=true;hit.CaptureMouse();}
                 if(!motion)return;
                 surfaceClick.Stop();
                 if(e.ClickCount==2)SetPaused(!paused);
@@ -242,21 +242,27 @@ namespace LoveMyShelf {
             hit.MouseMove+=(s,e)=>{
                 if(coverArea.Dragging){coverArea.Drag(e.GetPosition(ui));return;}
                 hit.Cursor=coverArea.Editing?coverArea.CursorAt(e.GetPosition(ui)):null;
-                if(!hit.IsMouseCaptured)return;
+                if(!panning || !hit.IsMouseCaptured)return;
                 pan=panFrom+(e.GetPosition(ui)-dragFrom);ApplyZoom();
             };
             hit.MouseLeftButtonUp+=delegate {
                 if(coverArea.Dragging)coverArea.Release();
+                panning=false;
                 if(hit.IsMouseCaptured)hit.ReleaseMouseCapture();
             };
-            hit.LostMouseCapture+=delegate {if(coverArea.Dragging)coverArea.Release();};
+            hit.LostMouseCapture+=delegate {panning=false;if(coverArea.Dragging)coverArea.Release();};
             hit.MouseRightButtonUp+=(s,e)=>{ShowControls();e.Handled=true;};
             PreviewMouseWheel+=Wheel;
             ui.Children.Add(hit);
             coverArea=new CoverAreaLayer(AreaNow);
             coverArea.MakeCover=()=>{coverArea.StopEditing();UpdateAreaButton();StartCrop();};
             coverArea.Changed+=delegate {areaFile=coverArea.Area==null?null:CurrentPhoto.Original;UpdateAreaButton();};
-            coverArea.EditingChanged+=UpdateAreaButton;
+            coverArea.ReturnKeys=()=>{Keyboard.Focus(this);TakeKeys();};
+            // Drawing ended or stopped mid-drag (Esc, the next file): the mouse is let go and the cursor is plain again.
+            coverArea.EditingChanged+=delegate {
+                UpdateAreaButton();
+                if(!coverArea.Editing){hit.Cursor=null;if(!panning && hit.IsMouseCaptured)hit.ReleaseMouseCapture();}
+            };
             ui.Children.Add(coverArea); // over the picture, under the bar, the notices and the controls
             TextOptions.SetTextFormattingMode(cornerNote,TextFormattingMode.Ideal);
             TextOptions.SetTextFormattingMode(infoText,TextFormattingMode.Ideal);
@@ -439,7 +445,7 @@ namespace LoveMyShelf {
                 // (the defaults unless the person changed them: ViewerKeys).
                 // Typing a number for the cover box: the keys are the box's (Delete must never recycle the file).
                 if(coverArea.IsKeyboardFocusWithin) {
-                    if(key==Key.Escape){Keyboard.Focus(this);TakeKeys();e.Handled=true;}
+                    if(key==Key.Escape){coverArea.CancelTyping();e.Handled=true;}
                     return;
                 }
                 if(key==Key.F1){GuideWindow.Open(this,"large");e.Handled=true;return;}
@@ -965,6 +971,7 @@ namespace LoveMyShelf {
         double mediaTurn;       // the Windows player's own correction for a video stored sideways
         double zoom=1;          // against the upright picture's fit, so turning never changes the size
         Vector pan,panFrom;     // how far the middle of the picture sits from the middle of the view
+        bool panning;           // the left button is moving the picture (not drawing the cover box)
         Point dragFrom;
         DateTime turnRests;     // a held key rests a moment at every quarter turn, so it is easy to stop there
         // While O / P are in use a video rests as a still picture, because mpv stutters rebuilding itself for every

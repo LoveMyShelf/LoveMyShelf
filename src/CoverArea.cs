@@ -63,6 +63,11 @@ namespace LoveMyShelf {
         // Drawing turned on or off (the large view's button follows it).
         internal event Action EditingChanged;
         internal Action MakeCover;
+        // Gives the keyboard back to the large view (its shortcuts), after a number is typed or a button pressed.
+        internal Action ReturnKeys;
+        // A number typed and not applied yet: which place/size box, and whether a shape number.
+        TextBox numbersTyped;
+        bool shapeTyped;
         internal DrawnArea Area {get {return area==null?null:area.Copy();}}
         internal bool Editing {get {return editing;}}
         internal bool Dragging {get {return grip!=Grip.None;}}
@@ -84,13 +89,19 @@ namespace LoveMyShelf {
         // The large view says whether a box can be drawn now (a video, GIF or WebP is playing).
         internal bool Available {
             get {return available;}
-            set {if(available==value)return;available=value;if(!value){editing=false;grip=Grip.None;}Refresh();Told();}
+            set {
+                if(available==value)return;available=value;
+                if(!value){if(grip!=Grip.None){area=before;grip=Grip.None;}editing=false;Forget();LeaveKeys();}
+                Refresh();Told();
+            }
         }
         internal void StartEditing() {if(!available)return;editing=true;Refresh();Told();}
-        internal void StopEditing() {if(grip!=Grip.None)Release();editing=false;Refresh();Told();}
+        internal void StopEditing() {if(grip!=Grip.None)Release();Forget();LeaveKeys();editing=false;Refresh();Told();}
+        // Esc while typing a number: the typed text is dropped and the keys go back to the view.
+        internal void CancelTyping() {Forget();LeaveKeys();Refresh();}
         void Told() {if(EditingChanged!=null)EditingChanged();}
         internal void Clear() {
-            grip=Grip.None;
+            grip=Grip.None;Forget();
             if(area==null){Refresh();return;}
             area=null;Refresh();Raise();
         }
@@ -144,6 +155,7 @@ namespace LoveMyShelf {
             if(!editing)return false;
             var shown=view();
             if(!shown.HasValue || shown.Value.Picture.Width<=0 || !shown.Value.Room.Contains(p))return false;
+            Forget();LeaveKeys();
             var v=shown.Value;
             before=area==null?null:area.Copy();
             pressAt=p;
@@ -201,7 +213,7 @@ namespace LoveMyShelf {
                     if(size.Width<8 || size.Height<8)area=before;
                 }
             }
-            if(area!=null && upright>0)area=KeepOnPicture(area,upright);
+            if(area!=null && upright>0)area=KeepOnPicture(area,upright,locked?shape:0)??before;
             if(was==Grip.New && area!=null && locked && shape<=0 && upright>0)Keep(area.Aspect(upright));
             Refresh();
             if(!SameAs(before,area))Raise();
@@ -209,12 +221,13 @@ namespace LoveMyShelf {
         static bool SameAs(DrawnArea a,DrawnArea b) {return a==null?b==null:b!=null && a.Fraction==b.Fraction && a.Turn==b.Turn;}
         // Upright, a box reaching past the picture is cut to the picture (the black bands beside it are not part of it),
         // keeping its shape when the shape is kept. A turned box is left to the cover editor, which keeps the frame inside.
-        DrawnArea KeepOnPicture(DrawnArea a,double upright) {
+        // Null when nothing of it is on the picture.
+        static DrawnArea KeepOnPicture(DrawnArea a,double upright,double keepShape) {
             if(Math.Abs(a.Turn)>0.01)return a;
             var f=a.Fraction;f.Intersect(new Rect(0,0,1,1));
-            if(f.IsEmpty || f.Width<0.002 || f.Height<0.002)return before;
-            if(locked && shape>0 && upright>0) {
-                double want=shape/upright; // width over height in fractions
+            if(f.IsEmpty || f.Width<0.002 || f.Height<0.002)return null;
+            if(keepShape>0 && upright>0) {
+                double want=keepShape/upright; // width over height in fractions
                 if(f.Width/f.Height>want){double w=f.Height*want;f=new Rect(f.X+(f.Width-w)/2,f.Y,w,f.Height);}
                 else {double h=f.Width/want;f=new Rect(f.X,f.Y+(f.Height-h)/2,f.Width,h);}
             }
@@ -226,10 +239,10 @@ namespace LoveMyShelf {
         void Keep(double aspect) {if(aspect>0 && !Double.IsInfinity(aspect)){shape=aspect;lastShape=aspect;}}
         internal void SetLocked(bool on) {
             locked=on;
-            if(on && shape<=0) {
+            if(on) {
                 var shown=view();
-                if(area!=null && shown.HasValue)Keep(area.Aspect(shown.Value.Upright));
-                else if(lastShape>0)shape=lastShape;
+                if(area!=null && shown.HasValue && shown.Value.Upright>0)Keep(area.Aspect(shown.Value.Upright));
+                else if(shape<=0 && lastShape>0)shape=lastShape;
             }
             if(keep.IsChecked!=on)keep.IsChecked=on;
             GalleryWindow.RememberCropLock(on);
@@ -238,6 +251,7 @@ namespace LoveMyShelf {
         // Gives the box this shape (width over height in pixels) around its middle; with no box, one in the middle of the view.
         internal void SetShape(double aspect) {
             if(!(aspect>0) || Double.IsInfinity(aspect))return;
+            Forget();
             Keep(aspect);
             var shown=view();
             if(!shown.HasValue || shown.Value.Picture.Width<=0){Refresh();return;}
@@ -255,7 +269,7 @@ namespace LoveMyShelf {
             // Not bigger than the room.
             double fit=Math.Min(1,Math.Min(v.Room.Width*0.96/Math.Max(1,w),v.Room.Height*0.96/Math.Max(1,h)));
             area=FromScreen(v,middle,new Size(w*fit,h*fit),turn);
-            area=KeepOnPicture(area,v.Upright)??area;
+            area=KeepOnPicture(area,v.Upright,aspect)??area;
             Refresh();Raise();
         }
         static Size TurnedSize(Size s,double degrees) {
@@ -265,10 +279,11 @@ namespace LoveMyShelf {
         // Places the box by numbers: left, top, width and height in % of the picture.
         internal void Place(double x,double y,double w,double h) {
             if(Double.IsNaN(x+y+w+h) || Double.IsInfinity(x+y+w+h))return;
-            w=Math.Max(0.5,Math.Min(100,w));h=Math.Max(0.5,Math.Min(100,h));
-            x=Math.Max(0,Math.Min(100-w,x));y=Math.Max(0,Math.Min(100-h,y));
             var shown=view();
-            area=new DrawnArea {Fraction=new Rect(x/100,y/100,w/100,h/100),Turn=area!=null?area.Turn:shown.HasValue?shown.Value.Turn:0};
+            double turn=area!=null?area.Turn:shown.HasValue?shown.Value.Turn:0;
+            w=Math.Max(0.5,w);h=Math.Max(0.5,h);
+            if(Math.Abs(turn)<=0.01){w=Math.Min(100,w);h=Math.Min(100,h);x=Math.Max(0,Math.Min(100-w,x));y=Math.Max(0,Math.Min(100-h,y));}
+            area=new DrawnArea {Fraction=new Rect(x/100,y/100,w/100,h/100),Turn=turn};
             Refresh();Raise();
         }
 
@@ -287,8 +302,8 @@ namespace LoveMyShelf {
             card.SetResourceReference(Border.BackgroundProperty,"Paper");card.SetResourceReference(Border.BorderBrushProperty,"Line");
             card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
         }
-        static Button Small(string text,string tip,Action act,bool primary=false) {
-            var b=UI.Btn(text,act,primary);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.MinHeight=26;b.FontSize=12.5;b.Focusable=false;
+        Button Small(string text,string tip,Action act,bool primary=false) {
+            var b=UI.Btn(text,()=>{LeaveKeys();CommitTyped();act();},primary);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.MinHeight=26;b.FontSize=12.5;b.Focusable=false;
             if(tip!=null){b.ToolTip=tip;AutomationProperties.SetName(b,tip);}
             return b;
         }
@@ -323,7 +338,7 @@ namespace LoveMyShelf {
             keep.ToolTip=L.P("On: drawing and dragging a corner keep the shape and change only the size. The cover editor keeps it too.",
                 "켜면 그리거나 모서리를 끌어도 비율은 그대로이고 크기만 바뀌어요. 표지 만들기에서도 그대로 이어져요.");
             AutomationProperties.SetName(keep,L.P("Keep this shape","비율 고정"));
-            RoutedEventHandler flip=delegate {if(keep.IsChecked!=locked)SetLocked(keep.IsChecked==true);};
+            RoutedEventHandler flip=delegate {if(keep.IsChecked!=locked){LeaveKeys();CommitTyped();SetLocked(keep.IsChecked==true);}};
             keep.Checked+=flip;keep.Unchecked+=flip;
             shapes.Children.Add(keep);
             shapes.Children.Add(Label(L.P("Shape","비율")));
@@ -350,27 +365,30 @@ namespace LoveMyShelf {
             Dress(bar);
             bar.MaxWidth=720;
             Children.Add(bar);
-            // Numbers apply with Enter or once the keyboard leaves the box.
+            // Numbers apply with Enter (the keys then go back to the view) or once the keyboard leaves the group,
+            // so the boxes can be filled one after another, even when there is no box yet.
             foreach(var box in new[]{left,top,wide,tall}) {
                 var self=box;
-                bool typed=false;
-                self.TextChanged+=delegate {if(self.IsKeyboardFocusWithin)typed=true;};
-                Action apply=()=>{if(!typed)return;typed=false;ApplyNumbers(self);};
-                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){apply();e.Handled=true;}};
-                self.LostKeyboardFocus+=delegate {apply();};
+                self.TextChanged+=delegate {if(self.IsKeyboardFocusWithin)numbersTyped=self;};
+                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){LeaveKeys();CommitTyped();e.Handled=true;}};
             }
-            bool shapeTyped=false;
+            numbers.IsKeyboardFocusWithinChanged+=(s,e)=>{if(!(bool)e.NewValue && numbersTyped!=null){var c=numbersTyped;numbersTyped=null;ApplyNumbers(c);}};
             foreach(var box in new[]{across,down}) {
                 var self=box;
                 self.TextChanged+=delegate {if(self.IsKeyboardFocusWithin)shapeTyped=true;};
-                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){if(shapeTyped){shapeTyped=false;ApplyShapeNumbers();}e.Handled=true;}};
+                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){LeaveKeys();CommitTyped();e.Handled=true;}};
             }
-            var pairBox=new[]{across,down};
-            foreach(var box in pairBox)box.LostKeyboardFocus+=delegate {
+            foreach(var box in new[]{across,down})box.LostKeyboardFocus+=delegate {
                 if(across.IsKeyboardFocusWithin || down.IsKeyboardFocusWithin || !shapeTyped)return;
                 shapeTyped=false;ApplyShapeNumbers();
             };
         }
+        void Forget() {numbersTyped=null;shapeTyped=false;}
+        void CommitTyped() {
+            if(numbersTyped!=null){var c=numbersTyped;numbersTyped=null;ApplyNumbers(c);}
+            if(shapeTyped){shapeTyped=false;ApplyShapeNumbers();}
+        }
+        void LeaveKeys() {if(IsKeyboardFocusWithin && ReturnKeys!=null)ReturnKeys();}
         static void Tip(TextBox box,string name) {box.ToolTip=name;AutomationProperties.SetName(box,name);}
         static bool Read(TextBox box,out double value) {
             string text=box.Text.Trim().TrimEnd('%').Trim();
@@ -379,7 +397,14 @@ namespace LoveMyShelf {
         }
         void ApplyNumbers(TextBox changed) {
             double x,y,w,h;
-            if(!Read(left,out x) || !Read(top,out y) || !Read(wide,out w) || !Read(tall,out h)){Refresh();return;}
+            var now=area!=null?area.Fraction:new Rect(0.25,0.25,0.5,0.5);
+            bool gotX=Read(left,out x),gotY=Read(top,out y),gotW=Read(wide,out w),gotH=Read(tall,out h);
+            // Nothing readable typed: nothing changes (no box appears from empty or wrong text).
+            if(!gotX && !gotY && !gotW && !gotH){Refresh();return;}
+            if(!gotX)x=now.X*100;
+            if(!gotY)y=now.Y*100;
+            if(!gotW)w=now.Width*100;
+            if(!gotH)h=now.Height*100;
             var shown=view();
             if(locked && shape>0 && shown.HasValue && shown.Value.Upright>0) {
                 double want=shape/shown.Value.Upright; // width over height in fractions
