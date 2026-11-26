@@ -47,14 +47,42 @@ namespace LoveMyShelf {
             window.StateChanged+=delegate {Update();FitMaximized();};
             window.SizeChanged+=delegate {FitMaximized();};
             window.LocationChanged+=delegate {FitMaximized();}; // a maximized window moved to another screen (Win+Shift+arrow)
-            window.SourceInitialized+=delegate {FitMaximized();};
+            window.SourceInitialized+=delegate {
+                var source=HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
+                if(source!=null)source.AddHook(MaximizeToWorkArea);
+                FitMaximized();
+            };
             Update();
         }
 
-        // A maximized window with its own title bar (WindowChrome) is placed by Windows as if it still had its frame:
-        // about 7 points hang past every edge of the screen (11 pixels at 150%), so the title bar and the bottom row
-        // were cut. While maximized, the window keeps that much clear on each side, measured against the work area of
-        // the screen it is on (the taskbar stays visible). Every window with this title bar gets it.
+        // A window with its own title bar (WindowChrome) has no caption to Windows, and Windows maximizes such a window
+        // over the whole monitor, taskbar included, with its frame hanging past every edge (measured at 150%: 0-1080 on a
+        // work area of 0-1008, plus 11 pixels each side). Windows then treats it as full screen and the taskbar steps
+        // back, so whatever the window doesn't paint (the strip where the taskbar was) shows the window behind it
+        // (2026-11-27, "설명서 겸 옵션 하단 짤려서 나와").
+        // So the window is put on the work area of its own screen as Windows maximizes it: nothing hangs past, nothing
+        // is cut, the taskbar stays.
+        // Every window with this title bar gets it.
+        IntPtr MaximizeToWorkArea(IntPtr handle,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
+            // WM_WINDOWPOSCHANGING while maximized: the place Windows is about to give the window becomes the work area of
+            // the screen it lands on. (WM_GETMINMAXINFO can't do this: its sizes are for the primary screen, and a window
+            // maximized on a second screen with another size or scale came out the wrong size.)
+            if(message!=0x0046 || !IsZoomed(handle) || FullScreen.IsFull(window))return IntPtr.Zero;
+            var place=(WindowPlace)Marshal.PtrToStructure(lParam,typeof(WindowPlace));
+            if((place.Flags&0x0003)==0x0003)return IntPtr.Zero; // SWP_NOSIZE|SWP_NOMOVE: not a move or resize
+            var target=new Edges {Left=place.X,Top=place.Y,Right=place.X+place.Width,Bottom=place.Y+place.Height};
+            var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
+            IntPtr screen=(place.Flags&0x0003)==0?MonitorFromRect(ref target,2):MonitorFromWindow(handle,2);
+            if(!GetMonitorInfo(screen,ref info))return IntPtr.Zero;
+            place.X=info.Work.Left;place.Y=info.Work.Top;place.Width=info.Work.Right-info.Work.Left;place.Height=info.Work.Bottom-info.Work.Top;
+            place.Flags&=~0x0003;
+            Marshal.StructureToPtr(place,lParam,false);
+            return IntPtr.Zero;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct WindowPlace {public IntPtr Handle,After;public int X,Y,Width,Height;public int Flags;}
+        [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr window);
+        [DllImport("user32.dll")] static extern IntPtr MonitorFromRect(ref Edges rect,int flags);
+        // If a window still ends up past the work area anyway, it keeps that much clear (at most 16 points).
         internal void FitMaximized() {
             var none=new Thickness(0);
             if(window.WindowState!=WindowState.Maximized || FullScreen.IsFull(window)){if(window.BorderThickness!=none)window.BorderThickness=none;return;}
@@ -65,8 +93,9 @@ namespace LoveMyShelf {
             var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
             if(!GetWindowRect(handle,out outside) || !GetMonitorInfo(MonitorFromWindow(handle,2),ref info))return;
             var scale=source.CompositionTarget.TransformFromDevice;
-            var clear=new Thickness(Math.Max(0,info.Work.Left-outside.Left)*scale.M11,Math.Max(0,info.Work.Top-outside.Top)*scale.M22,
-                Math.Max(0,outside.Right-info.Work.Right)*scale.M11,Math.Max(0,outside.Bottom-info.Work.Bottom)*scale.M22);
+            Func<int,double,double> part=(pixels,unit)=>Math.Min(16,Math.Max(0,pixels*unit));
+            var clear=new Thickness(part(info.Work.Left-outside.Left,scale.M11),part(info.Work.Top-outside.Top,scale.M22),
+                part(outside.Right-info.Work.Right,scale.M11),part(outside.Bottom-info.Work.Bottom,scale.M22));
             if(window.BorderThickness!=clear)window.BorderThickness=clear;
         }
         [StructLayout(LayoutKind.Sequential)] struct Edges {public int Left,Top,Right,Bottom;}
