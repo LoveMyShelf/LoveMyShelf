@@ -155,6 +155,29 @@ namespace LoveMyShelf {
             box.SetResourceReference(Control.BorderBrushProperty,"StrongLine");box.SetResourceReference(PasswordBox.CaretBrushProperty,"Text");
             return box;
         }
+        // Under password boxes: what the keys type right now. A password box takes no Korean (Windows turns the Korean
+        // input off there), so letters always go in as English, even with the Korean/English key on Korean.
+        TextBlock KeyLine(params PasswordBox[] boxes) {
+            var line=Para("",false,13,6);
+            var timer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(300)};
+            int here=pageNumber;
+            Action update=()=>{
+                if(pageNumber!=here){timer.Stop();return;}
+                bool caps=Keyboard.IsKeyToggled(Key.CapsLock);
+                line.Text=NoticeLook.KeepWords("⌨  "+T("Goes in as English letters (this box takes no Korean)","영어로 들어가요(이 칸에는 한글이 안 들어가요)")+"  ·  "
+                    +(caps?T("Caps Lock is ON: capital letters","Caps Lock 켜짐: 대문자로 들어가요"):T("Caps Lock off","Caps Lock 꺼짐")));
+                if(caps)line.Foreground=new SolidColorBrush(NoticeLook.Amber);else line.SetResourceReference(TextBlock.ForegroundProperty,"Subtle");
+            };
+            timer.Tick+=delegate {update();};
+            foreach(var box in boxes) {
+                box.GotKeyboardFocus+=delegate {update();timer.Start();};
+                box.LostKeyboardFocus+=delegate {update();};
+                box.KeyUp+=delegate {update();};
+            }
+            Closed+=delegate {timer.Stop();};
+            update();
+            return line;
+        }
         sealed class Bar {internal Border Track,Fill;internal TextBlock Step,Detail;}
         Bar Progress() {
             var p=new Bar();
@@ -337,6 +360,7 @@ namespace LoveMyShelf {
             var againLabel=Para(T("Type it once more","한 번 더 넣어 주세요"),false,14,14);
             var again=Secret();page.Children.Add(again);
             againLabel.Visibility=again.Visibility=Visibility.Collapsed;
+            KeyLine(first,again);
             var message=Para("",false,13.5,10);message.Foreground=new SolidColorBrush(NoticeLook.Amber);message.Visibility=Visibility.Collapsed;
             Note(T("If you forget the password, nobody can open the backup. Write it down in a notebook or a memo on your phone.",
                 "비밀번호를 잊으면 아무도 백업을 열 수 없어요. 수첩이나 휴대폰 메모에 적어 두세요."),false);
@@ -453,6 +477,7 @@ namespace LoveMyShelf {
             page.Children.Add(choose);
             Sub(T("Password","비밀번호"));
             var secret=Secret();page.Children.Add(secret);
+            KeyLine(secret);
             var message=Para(problem??"",false,13.5,10);message.Foreground=new SolidColorBrush(NoticeLook.Amber);
             message.Visibility=problem==null?Visibility.Collapsed:Visibility.Visible;
             AtLeft(T("Cancel","취소"),Close);
