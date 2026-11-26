@@ -43,7 +43,7 @@ namespace LoveMyShelf {
         readonly Func<AreaView?> view;
         readonly Canvas canvas=new Canvas {IsHitTestVisible=false};
         readonly Path shade=new Path {Fill=new SolidColorBrush(Color.FromArgb(0x78,0,0,0))};
-        // "Enlarge the box": everything outside the box is black, so only the box plays.
+        // "View cut area large": everything outside the box is black, so only the box plays.
         readonly Path mask=new Path {Fill=Brushes.Black};
         readonly Path under=new Path {Stroke=new SolidColorBrush(Color.FromArgb(0xB0,0,0,0)),StrokeThickness=4};
         readonly Path line=new Path {Stroke=Brushes.White,StrokeThickness=2};
@@ -432,7 +432,7 @@ namespace LoveMyShelf {
         internal void Refresh() {
             edit.Content=editing?L.P("Done drawing (Enter)","다 그렸어요 (Enter)"):
                 area==null?L.P("▭ Start drawing","▭ 그리기 시작"):L.P("▭ Edit box","▭ 네모 고치기");
-            zoomBox.Content=enlarged?L.P("⛶ Back to previous view","⛶ 원래 보기"):L.P("⛶ Enlarge the box","⛶ 네모만 크게");
+            zoomBox.Content=enlarged?L.P("⛶ Back to previous view","⛶ 원래 보기"):L.P("⛶ View cut area large","⛶ 자를 곳 크게 보기");
             edit.IsEnabled=numbers.IsEnabled=shapes.IsEnabled=!enlarged;
             zoomBox.IsEnabled=make.IsEnabled=clear.IsEnabled=area!=null;
             if(keep.IsChecked!=locked)keep.IsChecked=locked;

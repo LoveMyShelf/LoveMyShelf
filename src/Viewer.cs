@@ -1581,11 +1581,11 @@ namespace LoveMyShelf {
                     drawBox.Content=coverArea.Editing?L.P("Done drawing","다 그렸어요"):
                         CoverArea==null?L.P("▭ Start drawing","▭ 그리기 시작"):L.P("▭ Edit box","▭ 네모 고치기");
                 });
-                var zoomBox=key(enlargedArea==null?L.P("⛶ Enlarge the box","⛶ 네모만 크게"):
+                var zoomBox=key(enlargedArea==null?L.P("⛶ View cut area large","⛶ 자를 곳 크게 보기"):
                     L.P("⛶ Back to previous view","⛶ 원래 보기"),ToggleAreaView,false);
                 live.Add(()=>{
                     zoomBox.IsEnabled=CoverArea!=null;
-                    zoomBox.Content=enlargedArea==null?L.P("⛶ Enlarge the box","⛶ 네모만 크게"):L.P("⛶ Back to previous view","⛶ 원래 보기");
+                    zoomBox.Content=enlargedArea==null?L.P("⛶ View cut area large","⛶ 자를 곳 크게 보기"):L.P("⛶ Back to previous view","⛶ 원래 보기");
                 });
                 var clearBox=key(L.P("Clear","지우기"),DeleteDrawnArea,false);
                 live.Add(()=>clearBox.IsEnabled=CoverArea!=null);
