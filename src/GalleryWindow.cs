@@ -262,7 +262,7 @@ namespace LoveMyShelf {
                 tile.ContextMenu=MenuStandIn;
                 ContextMenu single=null;
                 // With several tiles selected, right-clicking one of them acts on all of them.
-                // Love My Shelf's items, a line, then File Explorer's own menu for the file (see ShellMenu).
+                // LoveMyShelf's items, a line, then File Explorer's own menu for the file (see ShellMenu).
                 tile.ContextMenuOpening+=(s,e)=>{
                     if(single==null)single=buildMenu();
                     e.Handled=true;
@@ -722,7 +722,7 @@ namespace LoveMyShelf {
         internal static void MinimizeAll() {
             foreach(var window in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w.IsVisible).ToList())window.WindowState=WindowState.Minimized;
         }
-        // Said once, to someone who used Love My Shelf before the GIF cover defaults changed (Preferences.MoveToNewGifDefaults).
+        // Said once, to someone who used LoveMyShelf before the GIF cover defaults changed (Preferences.MoveToNewGifDefaults).
         // The options are saved right away, so the file carries the new mark and this is not said again.
         void TellGifDefaultsChanged() {
             if(!settings.GifDefaultsChanged)return;
@@ -732,11 +732,11 @@ namespace LoveMyShelf {
                 L.T("GIF covers are now made as WebP, at high picture quality, 30 pictures a second and 1280 pixels tall. They are much smoother and sharper than before, so try making one. If you don't like it, you can change it any time, and you can type in the numbers you want. Click here to open those settings."),
                 ()=>GuideWindow.Open(this,"gif","gifFormat"),NoticeKind.Info,true)),DispatcherPriority.ApplicationIdle);
         }
-        // Said once each time Love My Shelf runs, when a video opens while a folder window is still up.
+        // Said once each time LoveMyShelf runs, when a video opens while a folder window is still up.
         internal void TipMinimize() {
             if(minimizeTipShown || !IsVisible || WindowState==WindowState.Minimized)return;
             minimizeTipShown=true;
-            Notify(L.T("Watching only the video?"),L.T("Minimize the folder window and Love My Shelf uses less memory. Click here to minimize it right now."),
+            Notify(L.T("Watching only the video?"),L.T("Minimize the folder window and LoveMyShelf uses less memory. Click here to minimize it right now."),
                 MinimizeAll,NoticeKind.Info,false,8);
         }
         // Where the subtitle explorer was left, for every window.
@@ -776,7 +776,7 @@ namespace LoveMyShelf {
             allCrops=new Album(CollectionKey,L.T("Cover collection"));
             unfinished=new Album(UnfinishedKey,L.T("Unfinished cover collection"));
             this.moveToRecycleBin=moveToRecycleBin;
-            UI.WindowSetup(this,"Love My Shelf");
+            UI.WindowSetup(this,"LoveMyShelf");
             Width=Math.Min(1120,SystemParameters.WorkArea.Width);Height=Math.Min(800,SystemParameters.WorkArea.Height); MinWidth=440; MinHeight=340;
             var root=new DockPanel(); Content=root;
             var nav=UI.Bar(new Thickness(5,2,5,2));
@@ -803,7 +803,7 @@ namespace LoveMyShelf {
             }
             // One button for the guide and every setting: read how something works, then choose it right there.
             var guide=UI.Btn("",()=>ShowGuide("start"));guide.Margin=new Thickness(4,0,0,0);UI.Right(nav,guide);
-            // Folders are added from the folder tree now (right-click → Add to Love My Shelf, like pinning in File Explorer);
+            // Folders are added from the folder tree now (right-click → Add to LoveMyShelf, like pinning in File Explorer);
             // the old Add folder button stays only as Ctrl+O and the link on the empty screen.
             var open=UI.Btn("",PickFolder,true);open.Visibility=Visibility.Collapsed;UI.Right(nav,open);
             var newWindow=UI.Btn("",OpenAnotherWindow);newWindow.Margin=new Thickness(0,0,6,0);UI.Right(nav,newWindow);
@@ -863,7 +863,7 @@ namespace LoveMyShelf {
             treeButton.Padding=new Thickness(7,4,7,4);treeButton.VerticalAlignment=VerticalAlignment.Center;treeButton.Margin=new Thickness(0,0,6,0);
             DockPanel.SetDock(treeButton,Dock.Left);nav.Children.Add(treeButton);
             // Like File Explorer's top row: ← → ↑ ⟳ and the address bar. The folder tabs are gone (the tree's
-            // Love My Shelf group does their job); the tab strip is kept only out of sight.
+            // LoveMyShelf group does their job); the tab strip is kept only out of sight.
             folderList.Visibility=Visibility.Collapsed;
             foreach(var made in new[]{
                 Tuple.Create("M 15,9 L 3.5,9 M 8,4 L 3,9 L 8,14","Back","Alt+←",(Action)(()=>GoBack())),
@@ -1013,7 +1013,7 @@ namespace LoveMyShelf {
             if(treeIntro && !another)
                 ContentRendered+=delegate {
                     Dispatcher.BeginInvoke(new Action(()=>Notify(L.T("The folder list moved to the folder tree on the left"),
-                        L.T("Your Love My Shelf folders, This PC and Quick access are all there. It is the same as File Explorer. Open and close it with the button at the very top left (Ctrl+T)."),
+                        L.T("Your LoveMyShelf folders, This PC and Quick access are all there. It is the same as File Explorer. Open and close it with the button at the very top left (Ctrl+T)."),
                         null,NoticeKind.Info)),DispatcherPriority.ApplicationIdle);
                 };
             // The folders area and the photos share the rest, one above the other (which one is on top is an option).
@@ -1084,9 +1084,9 @@ namespace LoveMyShelf {
                 // The last folder window ends the program, and with it whatever the file queue is still sending.
                 if(!CoverWork.BelongsTo(this) && TransferQueue.Busy && !Application.Current.Windows.OfType<GalleryWindow>().Any(w=>w!=this && w.IsVisible)) {
                     TransferWindow.ShowQueue(false);
-                    var answer=MessageBox.Show(this,L.P("Files are still being sent, or are waiting to be sent.\n\nIf you close now, the queue stops where it is and is kept. The next time you start Love My Shelf, the unfinished jobs are in the file queue, and [Go on] continues them from where they stopped. Every file that has not been sent yet stays whole where it is.\n\nClose now?",
-                        "아직 보내고 있거나 기다리는 파일이 있어요.\n\n지금 닫으면 대기열을 그 자리에서 멈춰 두고 보관해요. 다음에 Love My Shelf를 켜면 끝내지 못한 작업이 파일 대기열에 남아 있고, [이어서]를 누르면 멈춘 곳부터 계속해요. 아직 보내지 않은 파일은 원래 자리에 온전히 남아 있어요.\n\n지금 닫을까요?"),
-                        "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No);
+                    var answer=MessageBox.Show(this,L.P("Files are still being sent, or are waiting to be sent.\n\nIf you close now, the queue stops where it is and is kept. The next time you start LoveMyShelf, the unfinished jobs are in the file queue, and [Go on] continues them from where they stopped. Every file that has not been sent yet stays whole where it is.\n\nClose now?",
+                        "아직 보내고 있거나 기다리는 파일이 있어요.\n\n지금 닫으면 대기열을 그 자리에서 멈춰 두고 보관해요. 다음에 러브마이셀프를 켜면 끝내지 못한 작업이 파일 대기열에 남아 있고, [이어서]를 누르면 멈춘 곳부터 계속해요. 아직 보내지 않은 파일은 원래 자리에 온전히 남아 있어요.\n\n지금 닫을까요?"),
+                        "LoveMyShelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No);
                     if(answer!=MessageBoxResult.Yes){e.Cancel=true;return;}
                     TransferQueue.Shutdown();
                 }
@@ -1149,7 +1149,7 @@ namespace LoveMyShelf {
                 if(folder && FolderTree.IsShelfRow(e.OriginalSource)) {
                     var over=FolderTree.EntryAt(e.OriginalSource);
                     if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ShowDropHint(L.T("Let go and it moves to this place in the list."));
-                    else ShowDropHint(L.F("Let go and the “{0}” folder is added to Love My Shelf.",Path.GetFileName(paths[0].TrimEnd('\\'))));
+                    else ShowDropHint(L.F("Let go and the “{0}” folder is added to LoveMyShelf.",Path.GetFileName(paths[0].TrimEnd('\\'))));
                 }
                 e.Handled=true;
             };
@@ -1159,7 +1159,7 @@ namespace LoveMyShelf {
                 if(paths!=null && paths.Length==1 && Directory.Exists(paths[0])) {
                     if(FolderTree.IsShelfRow(e.OriginalSource)) {
                         HideDropHint();
-                        // A Love My Shelf folder dropped on another one moves there in the list (like Quick access in File Explorer).
+                        // A LoveMyShelf folder dropped on another one moves there in the list (like Quick access in File Explorer).
                         var over=FolderTree.EntryAt(e.OriginalSource);
                         if(OnShelf(paths[0]) && over!=null && over.Kind=="tab")ReorderShelf(paths[0],over.Album);
                         else AddToShelf(paths[0]);
@@ -1215,7 +1215,7 @@ namespace LoveMyShelf {
                 if(coverSetupShown || another)return; // the first window already did this
                 coverSetupShown=true;
                 AppUpdater.ReportStarted();
-                // Started with a file from File Explorer's "Open with Love My Shelf".
+                // Started with a file from File Explorer's "Open with LoveMyShelf".
                 string outside=Program.PendingPath;Program.PendingPath=null;
                 if(outside!=null)OpenExternalFile(outside);
                 var sceneStore=store;var sceneToken=lifetime.Token;
@@ -1257,8 +1257,8 @@ namespace LoveMyShelf {
             Notify(L.PF("Couldn’t update to the new version ({0})","새 버전({0})으로 업데이트하지 못했어요",undoneUpdate),
                 L.P("The update couldn’t be finished, so the version you were using was put back. Your covers and settings are as they were.",
                     "업데이트를 마치지 못해서 쓰던 버전으로 되돌려 두었어요. 만든 표지와 설정은 그대로예요.")+Environment.NewLine+
-                L.P("Click here to open the download page. Get the new ZIP, close Love My Shelf, then unzip it over the folder you use now.",
-                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 Love My Shelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
+                L.P("Click here to open the download page. Get the new ZIP, close LoveMyShelf, then unzip it over the folder you use now.",
+                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 러브마이셀프를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
                 OpenReleasesPage,NoticeKind.Warning,true);
         }
         async void CheckForUpdate() {
@@ -1268,21 +1268,21 @@ namespace LoveMyShelf {
             if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             if(plan==null && AppUpdater.FromWinget) {
                 Notify(L.F("Version {0} is out",newer),
-                    L.P("Click here and Love My Shelf closes, winget updates it, and it starts again. Your covers and settings stay as they are.",
-                        "여기를 누르면 Love My Shelf가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
+                    L.P("Click here and LoveMyShelf closes, winget updates it, and it starts again. Your covers and settings stay as they are.",
+                        "여기를 누르면 러브마이셀프가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
                     UpdateWithWinget,NoticeKind.Info,true);
                 return;
             }
             if(plan==null) {
                 if(newer==undoneUpdate)return; // just told, with the same way out
                 Notify(L.F("Version {0} is out",newer),
-                    L.T("Click here to open the download page. Get the new ZIP, close Love My Shelf, then unzip it over the folder you use now. Your covers and settings stay as they are."),
+                    L.T("Click here to open the download page. Get the new ZIP, close LoveMyShelf, then unzip it over the folder you use now. Your covers and settings stay as they are."),
                     OpenReleasesPage,NoticeKind.Info);
                 return;
             }
             Notify(L.F("Version {0} is out",newer),
                 plan.Notes.Count>0?L.T("Click here to see what changed and update."):
-                    L.T("Click here to start the update. You can keep using Love My Shelf while it downloads, and your covers and settings stay as they are."),
+                    L.T("Click here to start the update. You can keep using LoveMyShelf while it downloads, and your covers and settings stay as they are."),
                 ()=>ShowUpdateNews(plan),NoticeKind.Info,true);
         }
         void ShowUpdateNews(UpdatePlan plan) {
@@ -1308,7 +1308,7 @@ namespace LoveMyShelf {
             }
         }
         void OfferRestart(string stage) {
-            Notify(L.T("The update is ready"),L.T("Click here and Love My Shelf closes for a moment, then starts again as the new version."),
+            Notify(L.T("The update is ready"),L.T("Click here and LoveMyShelf closes for a moment, then starts again as the new version."),
                 ()=>RestartForUpdate(stage),NoticeKind.Done,true);
         }
         static bool wingetStarted; // one PowerShell window, even if the notice is clicked twice or in two windows
@@ -1528,7 +1528,7 @@ namespace LoveMyShelf {
             string key=forwardStack[forwardStack.Count-1];forwardStack.RemoveAt(forwardStack.Count-1);
             backStack.Add(LocationKey(active));GoToLocation(key);
         }
-        // Up goes to the real folder above, even above a Love My Shelf folder (like File Explorer).
+        // Up goes to the real folder above, even above a LoveMyShelf folder (like File Explorer).
         internal bool GoUpFolder() {
             if(active==null || active.Source==null)return false;
             string parent=Path.GetDirectoryName(active.Source.TrimEnd('\\'));
@@ -1550,8 +1550,10 @@ namespace LoveMyShelf {
         internal void GoToTyped(string text) {
             string path=Environment.ExpandEnvironmentVariables((text??"").Trim().Trim('"'));
             if(path.Length==0)return;
-            if(path.StartsWith("Love My Shelf",StringComparison.OrdinalIgnoreCase)) {
-                string rest=path.Substring("Love My Shelf".Length).Trim('\\');
+            // The name as the address bar shows it, in either language, or written the old way with spaces.
+            string named=new[]{"LoveMyShelf","러브마이셀프","Love My Shelf"}.FirstOrDefault(n=>path.StartsWith(n,StringComparison.OrdinalIgnoreCase));
+            if(named!=null) {
+                string rest=path.Substring(named.Length).Trim('\\');
                 if(rest.Length==0 || String.Equals(rest,allCrops.Name,StringComparison.OrdinalIgnoreCase)){Select(allCrops);return;}
                 if(String.Equals(rest,unfinished.Name,StringComparison.OrdinalIgnoreCase)){Select(unfinished);return;}
             }
@@ -1584,7 +1586,7 @@ namespace LoveMyShelf {
             if(folded!=null)updated.TreeFolded=folded;
             try {updated.Save(store.Root);settings=updated;} catch(Exception) {}
         }
-        // Like pinning a folder to Quick access in File Explorer: the folder gets a tab and a row under Love My Shelf.
+        // Like pinning a folder to Quick access in File Explorer: the folder gets a tab and a row under LoveMyShelf.
         internal void AddToShelf(string path) {
             try {store.OpenFolder(path);} catch(Exception ex) {UI.Error(this,ex);return;}
             BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();tree.UnfoldShelfFolder(path);TreeSyncSoon();}
@@ -1759,7 +1761,7 @@ namespace LoveMyShelf {
                 button.Tag=item;
                 if(item.Source!=null) {
                     button.ToolTip=item.Source;
-                    var hide=new MenuItem {Header=L.T("Remove from Love My Shelf")};
+                    var hide=new MenuItem {Header=L.T("Remove from LoveMyShelf")};
                     hide.Click+=delegate {
                         try{
                             store.HideFolder(item);
@@ -2020,7 +2022,7 @@ namespace LoveMyShelf {
                 folderUnavailable?L.T("Check that the folder is still in its place, then press F5. If you unplugged a phone or a USB drive, connect it again."):
                 L.T(searching?"Search with another name, or clear the search box.":
                     ShowingTag?"Files on a drive that isn't connected come back when the drive is connected again. To put this tag on a file, right-click the file and click [Tags…].":
-                    ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to Love My Shelf and their subfolders, gather here.":
+                    ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to LoveMyShelf and their subfolders, gather here.":
                     pending?"Click [All] at the bottom left to see everything.":
                     coversOnly?"Open a folder and make a cover, and it gathers here.":"Choose another folder, or put photos or videos in this folder and press F5.");
             // Nothing added yet: point to the folder tree, where folders are added (and open it).
@@ -2031,8 +2033,8 @@ namespace LoveMyShelf {
             } else {
                 emptyAction.Content=L.T("Select a folder…");
                 if(noFolders && !folderUnavailable) {
-                    emptyTitle.Text=L.T("Add a folder to Love My Shelf");
-                    emptyHelp.Text=L.T("In the folder tree on the left, right-click a folder and click [Add to Love My Shelf]. You can also drag a folder from File Explorer onto this window.");
+                    emptyTitle.Text=L.T("Add a folder to LoveMyShelf");
+                    emptyHelp.Text=L.T("In the folder tree on the left, right-click a folder and click [Add to LoveMyShelf]. You can also drag a folder from File Explorer onto this window.");
                     if(treePanel.Visibility!=Visibility.Visible)ShowTree(true,false);
                 }
             }
@@ -2614,7 +2616,7 @@ namespace LoveMyShelf {
             // An edited GIF cover replaces the old file: it goes to the Recycle Bin and the new one takes its name.
             string old=photo.HasMotion?photo.MotionFile:null;
             var working=Notify(L.T("Making the GIF cover"),photo.Name+Environment.NewLine+
-                L.T("It is made by itself in the background, so you can keep using Love My Shelf meanwhile. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
+                L.T("It is made by itself in the background, so you can keep using LoveMyShelf meanwhile. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
             try {
                 var place=settings.CoverPlace;string coverDirectory=settings.CoverDirectory;
                 var result=await Task.Run(()=>{
@@ -3494,7 +3496,7 @@ namespace LoveMyShelf {
             ShellMenu.Show(this,own,ClipboardFiles(targets),MenuPoint(at,e),take,RefreshSoon,RangeHint);
         }
         // For a folder (in the folders area or the tree): Windows does what it does to folders, except Rename
-        // and Paste, which Love My Shelf does so covers follow.
+        // and Paste, which LoveMyShelf does so covers follow.
         internal void ShowFolderMenu(ContextMenu own,IList<string> folders,FrameworkElement at,ContextMenuEventArgs e) {
             bool renames=folders.Count==1 && Renamer.CanRenameFolder(folders[0]);
             var take=new ShellMenu.Takeovers {HideRename=!renames,Rename=renames?(Action)(()=>RenameFolder(folders[0])):null,
@@ -3521,8 +3523,8 @@ namespace LoveMyShelf {
                 if(node is ButtonBase || node is ScrollBar)return true;
             return false;
         }
-        // Love My Shelf's part of the blank-space menu: View (tile size, the folders' view and place), Sort by, Refresh;
-        // then Windows' own part for the folder on screen (New, Paste, Properties, ...). Paste is done by Love My Shelf.
+        // LoveMyShelf's part of the blank-space menu: View (tile size, the folders' view and place), Sort by, Refresh;
+        // then Windows' own part for the folder on screen (New, Paste, Properties, ...). Paste is done by LoveMyShelf.
         internal void ShowBackgroundMenu(FrameworkElement at,ContextMenuEventArgs e) {
             var own=new ContextMenu();
             var view=new MenuItem {Header=L.T("View")};
@@ -4081,7 +4083,7 @@ namespace LoveMyShelf {
             // An original with several cover tiles is one original.
             int items=covers?targets.Count:targets.Where(p=>p.Linked).GroupBy(p=>Path.GetDirectoryName(p.Folder)+"|"+p.Name,StringComparer.OrdinalIgnoreCase).Count();
             if(items>1 && MessageBox.Show(this,L.F(covers?"Move {0:N0} cover files to the Recycle Bin?":"Move {0:N0} originals to the Recycle Bin?",items),
-                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+                "LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             int first=targets.Min(p=>photos.IndexOf(p));
             if(covers)RecycleCovers(targets);
             else RecycleOriginals(targets);
@@ -4182,7 +4184,7 @@ namespace LoveMyShelf {
             string tag=ShownTag;if(tag==null)return;
             int files=Tags.FilesWith(tag).Sum(f=>f.Value.Count);
             if(MessageBox.Show(this,L.F("Take the tag “{0}” off {1:N0} files and delete it?\nThe files themselves stay where they are.",tag,files),
-                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+                "LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             try {Tags.Delete(tag);FaceNames.Rename(store,tag,null);Refresh();} catch(Exception ex) {UI.Error(this,ex);}
         }
         // The guide, opened on the section for where you are.
@@ -4343,7 +4345,7 @@ namespace LoveMyShelf {
             finally{choosingUpscale=false;}
         }
         async void ShowPendingChoice(Photo photo,Window owner=null) {await ShowUpscaleChoice(owner??this,photo);}
-        // "Open with Love My Shelf" from File Explorer: shows the file's folder, then opens the file large, like a
+        // "Open with LoveMyShelf" from File Explorer: shows the file's folder, then opens the file large, like a
         // photo viewer or video player does. A folder is just shown.
         internal void OpenExternalFile(string path) {
             try {

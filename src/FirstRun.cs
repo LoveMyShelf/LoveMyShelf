@@ -13,7 +13,7 @@ namespace LoveMyShelf {
 
         internal FirstRunWindow(Preferences settings) {
             this.settings=settings;
-            UI.WindowSetup(this,"Love My Shelf");
+            UI.WindowSetup(this,"LoveMyShelf");
             Width=Math.Min(520,SystemParameters.WorkArea.Width);SizeToContent=SizeToContent.Height;
             ResizeMode=ResizeMode.NoResize;
             var content=new DockPanel();
@@ -48,11 +48,11 @@ namespace LoveMyShelf {
 
         void ShowNotice() {
             page.Children.Clear();
-            Title="Love My Shelf";
-            var title=UI.Text(L.T("Welcome to Love My Shelf"),18);
+            Title="LoveMyShelf";
+            var title=UI.Text(L.T("Welcome to LoveMyShelf"),18);
             title.FontWeight=FontWeights.SemiBold;page.Children.Add(title);
             var lines=new[]{
-                L.T("Love My Shelf is a program that shows the photos, GIFs and videos in your folders at a glance, inside your own computer. It doesn’t upload anything to the internet.")
+                L.T("LoveMyShelf is a program that shows the photos, GIFs and videos in your folders at a glance, inside your own computer. It doesn’t upload anything to the internet.")
             };
             for(int i=0;i<lines.Length;i++) {
                 var text=UI.Text((i==0?"":"•  ")+NoticeLook.KeepWords(lines[i]),14,i>0);

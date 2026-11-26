@@ -104,7 +104,7 @@ namespace LoveMyShelf {
                 tile.ReleaseMouseCapture();
                 e.Handled=true;
                 var data=new DataObject(DataFormats.FileDrop,files.ToArray());
-                // Love My Shelf itself (the folder tree, folder tiles, another window) also gets the originals, to move them
+                // LoveMyShelf itself (the folder tree, folder tiles, another window) also gets the originals, to move them
                 // into a folder. Its "move" is the Link effect, which File Explorer and chat apps don't pick on their own
                 // (they still copy), so it is always offered when there are originals.
                 var originals=targets.Where(t=>t.Linked && File.Exists(t.Original)).Select(t=>t.Original).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -245,7 +245,7 @@ namespace LoveMyShelf {
             var files=pending;
             if(files==null || files.Count==0)return;
             var request=args.Request;
-            request.Data.Properties.Title=files.Count==1?Path.GetFileName(files[0]):L.F("{0} files from Love My Shelf",files.Count);
+            request.Data.Properties.Title=files.Count==1?Path.GetFileName(files[0]):L.F("{0} files from LoveMyShelf",files.Count);
             var deferral=request.GetDeferral();
             var items=new IStorageItem[files.Count];
             int left=files.Count;

@@ -303,7 +303,7 @@ namespace LoveMyShelf {
                     if(t.Result>=0)label.Text=NoticeLook.KeepWords(name+"  ·  "+PhotoBox.Size(t.Result));
                 },TaskScheduler.FromCurrentSynchronizationContext());
             }
-            if(boxChecks.Count==0)folderList.Children.Add(Line(T("Add folders to Love My Shelf first.","먼저 Love My Shelf에 폴더를 넣어 주세요."),true));
+            if(boxChecks.Count==0)folderList.Children.Add(Line(T("Add folders to LoveMyShelf first.","먼저 러브마이셀프에 폴더를 넣어 주세요."),true));
             var boxNote=Line(T("Each chosen folder becomes a locked box with the same password, in a folder beside the backups. Only folders that changed are made again. A box takes as much room as the photos in it.",
                 "고른 폴더마다 같은 비밀번호로 잠긴 상자를 백업 옆 폴더에 만들어요. 다음부터는 바뀐 폴더만 다시 만들어요. 상자는 안의 사진만큼 공간을 써요."),true,13);
             boxNote.Margin=new Thickness(0,0,0,6);
@@ -400,8 +400,8 @@ namespace LoveMyShelf {
         void MakeBackup(string password,bool samePassword) {
             NewPage(T("Making the backup","백업을 만들고 있어요"));
             var progress=Progress();
-            Para(T("You can keep using Love My Shelf meanwhile. Your last backup stays as it is until this one is checked.",
-                "그동안 Love My Shelf를 계속 써도 돼요. 이번 백업이 확인될 때까지 지난 백업은 그대로 있어요."),true,13,18);
+            Para(T("You can keep using LoveMyShelf meanwhile. Your last backup stays as it is until this one is checked.",
+                "그동안 러브마이셀프를 계속 써도 돼요. 이번 백업이 확인될 때까지 지난 백업은 그대로 있어요."),true,13,18);
             Button stop=null;
             stop=AtRight(T("Stop","멈추기"),()=>{if(busy!=null){busy.Cancel();stop.IsEnabled=false;}});
             var s=settings;
@@ -469,7 +469,7 @@ namespace LoveMyShelf {
             Sub(T("Backup file","백업 파일"));
             var name=Para(file??T("No backup file chosen yet","아직 고른 백업 파일이 없어요"),file==null,13.5,0);
             var choose=UI.Btn(T("Choose another backup file…","다른 백업 파일 고르기…"),()=>{
-                var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Love My Shelf backup (*.lmsbackup)|*"+BackupFile.Extension,
+                var dialog=new Microsoft.Win32.OpenFileDialog {Filter="LoveMyShelf backup (*.lmsbackup)|*"+BackupFile.Extension,
                     InitialDirectory=file!=null?Path.GetDirectoryName(file):settings.Destination};
                 if(dialog.ShowDialog(this)==true){file=dialog.FileName;name.Text=file;name.SetResourceReference(TextBlock.ForegroundProperty,"Text");}
             });
@@ -671,7 +671,7 @@ namespace LoveMyShelf {
                         plan.NewSource=String.IsNullOrEmpty(plan.BoxRelative)?folder:Path.Combine(folder,plan.BoxRelative);
                         any|=plan.Id==box.FolderId;
                     }
-                    // A box without records of its own still becomes a folder in Love My Shelf.
+                    // A box without records of its own still becomes a folder in LoveMyShelf.
                     if(!any)try {new GalleryStore(Backup.StoreRoot).OpenFolder(folder);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 }
                 return Backup.Apply(o,covers,report,token);
@@ -683,7 +683,7 @@ namespace LoveMyShelf {
                 r.Folders,r.Records,r.Covers,r.Tags));
             if(r.Skipped>0)Para(L.PF("{0} records were already here and kept as they are.","기록 {0}개는 이미 있어서 그대로 뒀어요.",r.Skipped),true,13,8);
             if(r.Later>0)Para(L.PF("{0} folders are left for later: restore the same backup again when you find them.","나중에 연결할 폴더가 {0}개 있어요. 찾으면 같은 백업으로 다시 복원해 주세요.",r.Later),true,13,8);
-            Note(T("If a folder doesn't show in the folder tree yet, close Love My Shelf and open it again.","새 폴더가 왼쪽 폴더 트리에 아직 안 보이면 Love My Shelf를 껐다 다시 켜 주세요."),false);
+            Note(T("If a folder doesn't show in the folder tree yet, close LoveMyShelf and open it again.","새 폴더가 왼쪽 폴더 트리에 아직 안 보이면 러브마이셀프를 껐다 다시 켜 주세요."),false);
             foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.RefreshSoon();
             AtRight(T("Close","닫기"),Close,true).IsDefault=true;
         }

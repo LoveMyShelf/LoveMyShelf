@@ -338,7 +338,7 @@ namespace LoveMyShelf {
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
                 similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
-                shelf.Header=L.T(owner.OnShelf(path)?"Remove from Love My Shelf":"Add to Love My Shelf");
+                shelf.Header=L.T(owner.OnShelf(path)?"Remove from LoveMyShelf":"Add to LoveMyShelf");
             };
             return menu;
         }

@@ -130,7 +130,7 @@ namespace LoveMyShelf {
         }
         static bool Number(string text,out double value) {return Double.TryParse(text,NumberStyles.Float,CultureInfo.InvariantCulture,out value);}
         static Rect Box(Window window) {return new Rect(window.Left,window.Top,window.ActualWidth,window.ActualHeight);}
-        // Screen pixels to WPF units. Love My Shelf uses one scale for every monitor (system DPI aware).
+        // Screen pixels to WPF units. LoveMyShelf uses one scale for every monitor (system DPI aware).
         static Rect Units(System.Drawing.Rectangle box,double scale) {
             return new Rect(box.Left/scale,box.Top/scale,box.Width/scale,box.Height/scale);
         }

@@ -66,7 +66,7 @@ namespace LoveMyShelf {
         internal static bool Supports(string path) {return IsPicture(path) || VideoFrames.Supports(path);}
 
         // Every photo and video in the folders (and the folders inside them), as File Explorer shows them.
-        // Love My Shelf's own cover files, hidden and system folders and folder links are left out.
+        // LoveMyShelf's own cover files, hidden and system folders and folder links are left out.
         internal static List<SimilarFile> List(IList<string> folders,bool inside,CancellationToken token,Action<int> progress) {
             var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var found=new List<SimilarFile>();
@@ -104,7 +104,7 @@ namespace LoveMyShelf {
             if(progress!=null)progress(found.Count);
             return found;
         }
-        // Whether Love My Shelf keeps a cover record for this original (shown on the tile, and it counts for "keep").
+        // Whether LoveMyShelf keeps a cover record for this original (shown on the tile, and it counts for "keep").
         internal static bool HasCover(GalleryStore store,string path) {
             try {
                 string record=System.IO.Path.Combine(store.AlbumFolderOf(System.IO.Path.GetDirectoryName(path)),"p-"+GalleryStore.KeyOf(System.IO.Path.GetFileName(path)));

@@ -820,17 +820,17 @@ namespace LoveMyShelf {
             var owner=SubtitleDialogOwner;
             int early=file.LinesBeforeZero;
             if(early>0 && MessageBox.Show(owner,L.F("{0:N0} lines get pushed to before the video starts, so they will be saved at the very start of the video. Save anyway?",early),
-                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Warning,MessageBoxResult.Cancel)!=MessageBoxResult.OK)return false;
+                "LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Warning,MessageBoxResult.Cancel)!=MessageBoxResult.OK)return false;
             try {
                 try {Subtitle=file.Save(SubtitleBackups);}
                 catch(SubtitleChangedException) {
                     if(MessageBox.Show(owner,L.T("Another program changed this file after the subtitle was opened. Overwrite it with what you see now?"),
-                        "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)return false;
+                        "LoveMyShelf",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)return false;
                     Subtitle=file.Save(SubtitleBackups,true);
                 }
             } catch(Exception ex) {
                 if(!(ex is IOException || ex is UnauthorizedAccessException))throw;
-                MessageBox.Show(owner,L.T("Couldn't save the subtitle file. It may be read-only or in use by another program.")+"\n"+ex.Message,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+                MessageBox.Show(owner,L.T("Couldn't save the subtitle file. It may be read-only or in use by another program.")+"\n"+ex.Message,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Warning);
                 return false;
             }
             RefreshSubtitle();
@@ -841,7 +841,7 @@ namespace LoveMyShelf {
         internal bool ConfirmSubtitles(bool canStay) {
             var file=Subtitle;
             if(file==null || !file.Dirty)return true;
-            var answer=MessageBox.Show(SubtitleDialogOwner,L.F("Save the changes to “{0}”?",System.IO.Path.GetFileName(file.Path)),"Love My Shelf",
+            var answer=MessageBox.Show(SubtitleDialogOwner,L.F("Save the changes to “{0}”?",System.IO.Path.GetFileName(file.Path)),"LoveMyShelf",
                 canStay?MessageBoxButton.YesNoCancel:MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.Yes);
             if(answer==MessageBoxResult.Cancel)return false;
             if(answer==MessageBoxResult.Yes) {
@@ -867,7 +867,7 @@ namespace LoveMyShelf {
                 return true;
             } catch(Exception ex) {
                 if(!(ex is IOException || ex is UnauthorizedAccessException || ex is System.IO.InvalidDataException || ex is FormatException || ex is OverflowException))throw;
-                MessageBox.Show(owner,L.T("Couldn't read the subtitle file")+"\n"+ex.Message,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+                MessageBox.Show(owner,L.T("Couldn't read the subtitle file")+"\n"+ex.Message,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Warning);
                 return false;
             }
         }
@@ -2105,7 +2105,7 @@ namespace LoveMyShelf {
                 if(!IsVisible || items[index]!=photo)return;
                 // The file may have been edited since (tags added, for example). The person knows best, so ask instead of refusing.
                 if(!matches && MessageBox.Show(this,L.F("The file “{0}” is a little different from the file this cover was made from. It may have been edited since then. Connect this cover to this file anyway?",System.IO.Path.GetFileName(path)),
-                    "Love My Shelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes) {
+                    "LoveMyShelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes) {
                     await Task.Run(()=>OriginalLocator.Link(photo,path));
                     if(!IsVisible || items[index]!=photo)return;
                     matches=true;

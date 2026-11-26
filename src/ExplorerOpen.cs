@@ -9,7 +9,7 @@ using System.Threading;
 using Microsoft.Win32;
 
 namespace LoveMyShelf {
-    // "Open with Love My Shelf" from File Explorer: the path in the command line, a second start that hands the
+    // "Open with LoveMyShelf" from File Explorer: the path in the command line, a second start that hands the
     // path to the running program, and the per-user Windows entries (no administrator needed) that put it in the menu.
     internal static class ExplorerOpen {
         const string AppFile="LoveMyShelf.exe",VerbName="LoveMyShelf";
@@ -73,7 +73,7 @@ namespace LoveMyShelf {
         // ---- Windows entries (current user only) ----
         static string AppKey {get {return @"Software\Classes\Applications\"+AppFile;}}
         static string VerbKey(string type) {return @"Software\Classes\SystemFileAssociations\"+type+@"\shell\"+VerbName;}
-        static string Label {get {return L.Korean?"Love My Shelf로 열기":"Open with Love My Shelf";}}
+        static string Label {get {return L.Korean?"러브마이셀프로 열기":"Open with LoveMyShelf";}}
         static string ExePath {get {return Assembly.GetExecutingAssembly().Location;}}
 
         // Puts the entries in when asked for, takes them out when not, and keeps the program's place current.
@@ -92,7 +92,7 @@ namespace LoveMyShelf {
             string exe=ExePath,command="\""+exe+"\" \"%1\"",label=Label;
             // Nothing to do when it is already written for this place and language.
             if(Read(AppKey+@"\shell\open\command",null)==command && Read(VerbKey(".jpg"),null)==label && Read(VerbKey(".jpg")+@"\command",null)==command)return;
-            Write(AppKey,"FriendlyAppName","Love My Shelf");
+            Write(AppKey,"FriendlyAppName","LoveMyShelf");
             Write(AppKey+@"\DefaultIcon",null,"\""+exe+"\",0");
             Write(AppKey+@"\shell\open",null,"");
             Write(AppKey+@"\shell\open\command",null,command);

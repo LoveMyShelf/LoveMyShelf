@@ -343,7 +343,7 @@ namespace LoveMyShelf {
         }
         static void StartWorker() {
             if(worker!=null)return;
-            worker=new Thread(Work) {IsBackground=true,Name="Love My Shelf file queue"};
+            worker=new Thread(Work) {IsBackground=true,Name="LoveMyShelf file queue"};
             worker.Start();
         }
 

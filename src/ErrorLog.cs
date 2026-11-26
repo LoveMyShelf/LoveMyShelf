@@ -85,8 +85,8 @@ namespace LoveMyShelf {
                     line.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(AppInfo.Version)
                         .Append("  ").Append(where).Append(Environment.NewLine).Append("    ")
                         .Append(text.Replace("\r\n","\n").Replace("\n",Environment.NewLine+"    ")).Append(Environment.NewLine);
-                    if(!always && count+1==PerPlace)line.Append("    (the same problem is not written again until Love My Shelf is restarted)").Append(Environment.NewLine);
-                    if(written==PerRun)line.Append("    (too many problems: nothing more is written until Love My Shelf is restarted)").Append(Environment.NewLine);
+                    if(!always && count+1==PerPlace)line.Append("    (the same problem is not written again until LoveMyShelf is restarted)").Append(Environment.NewLine);
+                    if(written==PerRun)line.Append("    (too many problems: nothing more is written until LoveMyShelf is restarted)").Append(Environment.NewLine);
                     Directory.CreateDirectory(Folder);
                     string path=Path;
                     // The upscaling, face-finding and update helpers are copies of this program and may write at the same

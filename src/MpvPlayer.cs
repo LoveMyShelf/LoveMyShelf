@@ -77,9 +77,9 @@ namespace LoveMyShelf {
             Option("hwdec","auto-safe");Option("hr-seek","yes");Option("loop-file","inf");
             Option("keep-open","no");Option("idle","yes");Option("audio-display","no");
             Option("background-color","#000000");Option("force-window","no");
-            Option("sub-auto","no"); // Love My Shelf finds and reads subtitle files itself (see Subtitles.cs)
+            Option("sub-auto","no"); // LoveMyShelf finds and reads subtitle files itself (see Subtitles.cs)
             Option("audio-device",audioDevice);
-            // Subtitles use Love My Shelf's own font (the fonts folder beside the exe), so they match the rest of the
+            // Subtitles use LoveMyShelf's own font (the fonts folder beside the exe), so they match the rest of the
             // program. ASS subtitles keep the fonts their maker chose. A player that doesn't know these keeps its own font.
             string fonts=System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"fonts");
             if(System.IO.File.Exists(System.IO.Path.Combine(fonts,"Pretendard-Bold.otf"))) {

@@ -120,7 +120,7 @@ namespace LoveMyShelf {
         internal bool Pinned;
     }
 
-    // The folder tree on the left of a folder window, made like File Explorer's navigation pane: Love My Shelf first
+    // The folder tree on the left of a folder window, made like File Explorer's navigation pane: LoveMyShelf first
     // (the cover collections and the added folders), then Windows 11's order — OneDrive, the pinned folders,
     // This PC and Network. Folders are read only when they are unfolded. Pictures are this app's own line drawings.
     internal sealed class FolderTree : TreeView {
@@ -146,7 +146,7 @@ namespace LoveMyShelf {
             // The fold arrow only folds and unfolds.
             PreviewMouseLeftButtonUp+=(s,e)=>{if(!OnArrow(e.OriginalSource) && SelectedItem!=null && ItemAt(e.OriginalSource)==SelectedItem){openSoon.Stop();OpenSelected();}};
             AddHandler(TreeViewItem.ExpandedEvent,new RoutedEventHandler(Unfolded));
-            // A folder row can be dragged like in File Explorer: onto Love My Shelf to add it, or out to another program.
+            // A folder row can be dragged like in File Explorer: onto LoveMyShelf to add it, or out to another program.
             Point? down=null;TreeViewItem pressed=null;
             PreviewMouseLeftButtonDown+=(s,e)=>{pressed=FolderRowAt(e.OriginalSource);down=pressed==null?(Point?)null:e.GetPosition(this);};
             PreviewMouseLeftButtonUp+=delegate {down=null;};
@@ -194,7 +194,7 @@ namespace LoveMyShelf {
             var entry=item==null?null:item.Tag as TreeEntry;
             return entry!=null && entry.Path!=null && Directory.Exists(entry.Path)?item:null;
         }
-        // A row in the Love My Shelf part of the tree (where a dropped folder is added, like File Explorer's Quick access).
+        // A row in the LoveMyShelf part of the tree (where a dropped folder is added, like File Explorer's Quick access).
         internal static bool IsShelfRow(object source) {
             for(var item=ItemAt(source);item!=null;item=ItemsControl.ItemsControlFromItemContainer(item) as TreeViewItem) {
                 var entry=item.Tag as TreeEntry;
@@ -213,7 +213,7 @@ namespace LoveMyShelf {
         internal void Build() {
             Items.Clear();
             var folded=new HashSet<string>((owner.Settings.TreeFolded??"").Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries));
-            var lms=Row(new TreeEntry {Kind="lms",Label="Love My Shelf",Group="lms"},false);
+            var lms=Row(new TreeEntry {Kind="lms",Label=Covers.AppName,Group="lms"},false);
             lms.Items.Add(Row(new TreeEntry {Kind="coverO",Label=owner.AllCropsAlbum.Name,Album=owner.AllCropsAlbum},false));
             lms.Items.Add(Row(new TreeEntry {Kind="coverX",Label=owner.UnfinishedAlbum.Name,Album=owner.UnfinishedAlbum},false));
             lms.Items.Add(Row(new TreeEntry {Kind="similar",Label=owner.SimilarAlbum.Name,Album=owner.SimilarAlbum},false));
@@ -298,7 +298,7 @@ namespace LoveMyShelf {
             var explorer=new MenuItem();explorer.Click+=delegate {
                 try {System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(entry.Path) {UseShellExecute=true});} catch(Exception ex) {UI.Error(owner,ex);}
             };
-            // Adding to Love My Shelf is the app's "Pin to Quick access".
+            // Adding to LoveMyShelf is the app's "Pin to Quick access".
             var shelf=new MenuItem();shelf.Click+=delegate {
                 if(owner.OnShelf(entry.Path))owner.RemoveFromShelf(entry.Path);else owner.AddToShelf(entry.Path);
             };
@@ -307,7 +307,7 @@ namespace LoveMyShelf {
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
                 similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
-                shelf.Header=L.T(owner.OnShelf(entry.Path)?"Remove from Love My Shelf":"Add to Love My Shelf");
+                shelf.Header=L.T(owner.OnShelf(entry.Path)?"Remove from LoveMyShelf":"Add to LoveMyShelf");
             };
             return menu;
         }

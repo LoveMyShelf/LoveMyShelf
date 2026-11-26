@@ -157,7 +157,7 @@ namespace LoveMyShelf {
             menu.Items.Add(add);
             var shelf=store.VisibleAlbums().Where(a=>a.Source!=null).ToList();
             if(shelf.Count>0) {
-                var all=new MenuItem {Header=S("Add every Love My Shelf folder","Love My Shelf 폴더 모두 넣기"),IsEnabled=!busy};
+                var all=new MenuItem {Header=S("Add every LoveMyShelf folder","러브마이셀프 폴더 모두 넣기"),IsEnabled=!busy};
                 all.Click+=delegate {foreach(var a in shelf)SimilarSearch.AddFolder(a.Source);};
                 menu.Items.Add(all);
             }
@@ -301,7 +301,7 @@ namespace LoveMyShelf {
             if(picked.Count==0 || !SimilarReady())return;
             if(groupOf.Values.Distinct().Any(g=>g.Files.All(o=>picked.Contains(o) || !File.Exists(o.Path)))) {
                 MessageBox.Show(this,S("Every file of a group is chosen. Leave at least one file of each group.","한 묶음의 파일이 모두 골라져 있어요. 묶음마다 적어도 하나는 남겨 주세요."),
-                    "Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Information);
+                    "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Information);
                 return;
             }
             string question=L.PF("Move the {0:N0} chosen files ({1}) to the Recycle Bin?\nYou can get them back from the Recycle Bin.",
@@ -316,7 +316,7 @@ namespace LoveMyShelf {
             if(picked.Any(f=>!groupOf[f].Exact))
                 question+="\n\n"+S("Some come from “nearly the same” groups. Those can differ a little from the one you keep, so check them once more.",
                     "‘거의 같은 사진’에서 고른 파일도 있어요. 남기는 사진과 조금 다를 수 있으니 한 번 더 확인해 주세요.");
-            if(MessageBox.Show(this,question,"Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+            if(MessageBox.Show(this,question,"LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             if(!SimilarReady() || lifetime.IsCancellationRequested)return; // another window started something while the question was open
             Begin();
             int skipped=0;string lastError=null;
@@ -364,7 +364,7 @@ namespace LoveMyShelf {
             if(covers>0 || tags.Count>0)
                 question+="\n\n"+L.PF("{0:N0} covers and {1:N0} tags of the copies move to the file that stays.","사본에 있던 표지 {0:N0}장과 태그 {1:N0}개는 남는 파일로 옮겨요.",covers,tags.Count)
                     +"\n"+S("If you get a copy back from the Recycle Bin later, its covers stay with this file.","나중에 휴지통에서 사본을 되살려도 표지는 이 파일에 남아 있어요.");
-            if(MessageBox.Show(this,question,"Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+            if(MessageBox.Show(this,question,"LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             if(!SimilarReady())return;
             var result=new Tidied();
             Begin();
@@ -460,7 +460,7 @@ namespace LoveMyShelf {
             question+="\n\n"+S("Files stay in:","남는 파일이 있는 폴더:")+"\n"+byFolder(groups.Select(g=>g.Item2));
             question+="\n\n"+S("To keep another file in a group, tidy up that group first with right-click [Keep only this one].",
                 "다른 파일을 남기고 싶은 묶음은 먼저 그 파일을 오른쪽 클릭해서 [이 파일만 남기고 사본 정리]로 정리해 주세요.");
-            if(MessageBox.Show(this,question,"Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+            if(MessageBox.Show(this,question,"LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             if(!SimilarReady() || lifetime.IsCancellationRequested)return;
             // Another window may have tidied some of them while the question was open: those are left out.
             groups=groups.Where(g=>SimilarSearch.Exact.Contains(g.Item1) && File.Exists(g.Item2.Path)).ToList();

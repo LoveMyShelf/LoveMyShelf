@@ -23,7 +23,7 @@ namespace LoveMyShelf {
     }
     // What was found on each cover is kept beside the cover's record as "faces.txt", so a cover is read only once.
     // It is worked out again when the cover is remade, and it goes away with the cover.
-    // The numbers describe a face; they stay in Love My Shelf's records on this computer.
+    // The numbers describe a face; they stay in LoveMyShelf's records on this computer.
     internal static class FaceFiles {
         const string FileName="faces.txt",Version="faces1";
         static readonly CultureInfo Inv=CultureInfo.InvariantCulture;

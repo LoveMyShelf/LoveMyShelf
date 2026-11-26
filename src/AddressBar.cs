@@ -19,7 +19,7 @@ namespace LoveMyShelf {
             VerticalContentAlignment=VerticalAlignment.Center,Padding=new Thickness(6,0,6,0),FontSize=12.5};
         readonly Popup suggestPopup=new Popup {Placement=PlacementMode.Bottom,StaysOpen=false,AllowsTransparency=true};
         readonly ListBox suggestions=new ListBox {MaxHeight=280,MinWidth=260,BorderThickness=new Thickness(1)};
-        // One part: its words, its folder (null for "This PC" and "Love My Shelf") and, for the cover collections, the album.
+        // One part: its words, its folder (null for "This PC" and "LoveMyShelf") and, for the cover collections, the album.
         sealed class Part {internal string Label,Path;internal Album Album;internal string Kind;}
         readonly List<Part> parts=new List<Part>();
         internal AddressBar(GalleryWindow owner) {
@@ -54,7 +54,7 @@ namespace LoveMyShelf {
             parts.Clear();
             if(active==null){Layout();return;}
             if(active.Source==null) {
-                parts.Add(new Part {Label="Love My Shelf",Kind="lms"});
+                parts.Add(new Part {Label=Covers.AppName,Kind="lms"});
                 parts.Add(new Part {Label=active.Name,Album=active});
             } else {
                 parts.Add(new Part {Label=L.T("This PC"),Kind="pc"});
@@ -111,7 +111,7 @@ namespace LoveMyShelf {
             if(part.Album!=null){owner.ShowAlbum(part.Album);return;}
             if(part.Path!=null)owner.NavigateTo(part.Path);
         }
-        // The list under a ›: the folders inside that part (the drives for This PC, the collections and folders for Love My Shelf).
+        // The list under a ›: the folders inside that part (the drives for This PC, the collections and folders for LoveMyShelf).
         void Inside(Part part,Button at) {
             var menu=new ContextMenu {PlacementTarget=at,Placement=PlacementMode.Bottom};
             if(part.Kind=="lms") {
@@ -133,7 +133,7 @@ namespace LoveMyShelf {
         // ----- Typing a path -----
         internal void BeginEdit() {
             var last=parts.LastOrDefault();
-            edit.Text=last==null?"":last.Path??(last.Album!=null?"Love My Shelf\\"+last.Label:"");
+            edit.Text=last==null?"":last.Path??(last.Album!=null?Covers.AppName+"\\"+last.Label:"");
             crumbs.Visibility=Visibility.Collapsed;edit.Visibility=Visibility.Visible;
             SetResourceReference(BorderBrushProperty,"Accent");
             Dispatcher.BeginInvoke(new Action(()=>{edit.Focus();Keyboard.Focus(edit);edit.SelectAll();}),System.Windows.Threading.DispatcherPriority.Input);

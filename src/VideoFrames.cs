@@ -126,7 +126,7 @@ namespace LoveMyShelf {
                 string exe=Path.Combine(dir.Trim('"'),name+".exe");
                 if(File.Exists(exe))return exe;
             }
-            throw new FileNotFoundException(name+L.T(".exe was not found. The Love My Shelf folder needs its tools folder. Unzip the downloaded ZIP file again from the start."));
+            throw new FileNotFoundException(name+L.T(".exe was not found. The LoveMyShelf folder needs its tools folder. Unzip the downloaded ZIP file again from the start."));
         }
         internal static string Quote(string path) {return "\""+path+"\"";}
         internal static Process Run(string name,string arguments) {

@@ -194,7 +194,7 @@ namespace LoveMyShelf {
         void DrawNews() {
             var now=Box(false);var top=new StackPanel();now.Child=top;
             var label=UI.Text(T("The version you're using now","지금 쓰고 있는 버전"),13,true);top.Children.Add(label);
-            var number=UI.Text("Love My Shelf "+AppInfo.Version,22);number.FontWeight=FontWeights.Bold;number.Margin=new Thickness(0,3,0,0);
+            var number=UI.Text("LoveMyShelf "+AppInfo.Version,22);number.FontWeight=FontWeights.Bold;number.Margin=new Thickness(0,3,0,0);
             number.SetResourceReference(TextBlock.ForegroundProperty,"Accent");top.Children.Add(number);
             cards.Children.Add(now);
             foreach(var note in AppUpdater.InstalledNotes(NewsVersionForChecks??AppInfo.Version)) {
@@ -225,7 +225,7 @@ namespace LoveMyShelf {
             AddLines(top,new[]{
                 T("You can change the keys used in the large view to the keys you like. Use it when you want them to match another program your hands are used to.",
                   "크게 보기에서 쓰는 단축키를 원하는 키로 바꿀 수 있어요. 손에 익은 다른 프로그램의 키와 맞추고 싶을 때 써 보세요."),
-                T("The guide, All shortcuts and the button tooltips always show the keys Love My Shelf started with. If you change a key here, press your new key instead of the one written there.",
+                T("The guide, All shortcuts and the button tooltips always show the keys LoveMyShelf started with. If you change a key here, press your new key instead of the one written there.",
                   "설명서, 단축키 모아 보기, 버튼 설명에는 언제나 처음 정해진 키로 적혀 있어요. 여기서 키를 바꿨다면 거기 적힌 키 대신 바꾼 키를 눌러 주세요."),
                 T("Click a key on the right, then press the key you want to use.",
                   "오른쪽의 키를 누른 다음, 쓰고 싶은 키를 키보드에서 누르면 돼요.")},7);
@@ -234,7 +234,7 @@ namespace LoveMyShelf {
                 T("{{Esc}} (close), {{F1}} (guide) and {{F11}} (full screen) can't be changed, so you can always find your way back.",
                   "{{Esc}}(닫기), {{F1}}(설명서), {{F11}}(전체 화면)은 바꿀 수 없어요. 어떻게 바꿔도 돌아갈 길이 남아 있게요."),
                 T("Only single keys can be used, not keys pressed together with Ctrl, Alt or Shift.","Ctrl·Alt·Shift와 함께 누르는 키는 쓸 수 없고, 키 하나만 쓸 수 있어요."),
-                T("If you get mixed up, [[Put all keys back]] at the bottom brings back the keys Love My Shelf started with.",
+                T("If you get mixed up, [[Put all keys back]] at the bottom brings back the keys LoveMyShelf started with.",
                   "헷갈리면 맨 아래 [[모두 원래대로]]를 누르세요. 처음 정해진 키로 한 번에 돌아가요.")});
             cards.Children.Add(intro);
 
@@ -863,20 +863,20 @@ namespace LoveMyShelf {
 
             // ----- Getting started -----
             var start=add("start",T("Getting started","처음 시작하기"));
-            start.Items.Add(new Card {Title=T("What kind of program Love My Shelf is","Love My Shelf는 이런 프로그램이에요"),
+            start.Items.Add(new Card {Title=T("What kind of program LoveMyShelf is","러브마이셀프는 이런 프로그램이에요"),
                 Lines=new[]{
-                    T("Love My Shelf lays out the photos, GIFs and videos in a folder as small pictures in a grid. You can see at a glance what is in the folder without opening the files one by one.",
+                    T("LoveMyShelf lays out the photos, GIFs and videos in a folder as small pictures in a grid. You can see at a glance what is in the folder without opening the files one by one.",
                       "폴더 안의 사진·GIF·영상을 작은 그림으로 바둑판처럼 펼쳐 보여 주는 프로그램이에요. 파일을 하나하나 열어 보지 않아도 폴더에 뭐가 있는지 한눈에 볼 수 있어요."),
                     T("You can make a cover for any file. A cover is a picture cut from the part of the file you like, or one scene if it is a video, in any shape: tall, square or wide. Once you make covers, the tiles show them, so files that looked alike are easy to tell apart.",
                       "어떤 파일이든 표지를 만들어 둘 수 있어요. 표지는 파일에서 마음에 드는 부분(영상이면 한 장면)만 골라 잘라 낸 그림이고, 세로·정사각형·가로 어떤 모양이든 돼요. 표지를 만들어 두면 칸에 표지가 보여서, 비슷비슷하던 파일도 쉽게 구별돼요."),
-                    T("The photo or video a cover is made from is called the original. Love My Shelf never changes or deletes the original. A cover is always saved as a new, separate file.",
-                      "표지를 만들 때 쓴 원래 사진이나 영상을 원본이라고 불러요. Love My Shelf는 원본을 절대 바꾸거나 지우지 않아요. 표지는 언제나 새 파일로 따로 저장돼요."),
+                    T("The photo or video a cover is made from is called the original. LoveMyShelf never changes or deletes the original. A cover is always saved as a new, separate file.",
+                      "표지를 만들 때 쓴 원래 사진이나 영상을 원본이라고 불러요. 러브마이셀프는 원본을 절대 바꾸거나 지우지 않아요. 표지는 언제나 새 파일로 따로 저장돼요."),
                     T("It doesn't upload your photos or videos anywhere on the internet. All the work happens only inside your computer.",
                       "사진이나 영상을 인터넷 어디에도 올리지 않아요. 모든 작업은 내 컴퓨터 안에서만 이루어져요.")}});
             start.Items.Add(new Card {Title=T("Your first cover in 4 steps","4단계로 첫 표지 만들기"),
                 Steps=new[]{
-                    T("In the folder tree on the left, right-click a folder that has photos or videos and click [[Add to Love My Shelf]] (it is like ‘Pin to Quick access’ in File Explorer). You can also drag the folder onto Love My Shelf in the tree, or drag it from File Explorer onto this window.",
-                      "왼쪽 폴더 트리에서 사진이나 영상이 들어 있는 폴더를 오른쪽 클릭하고 [[Love My Shelf에 추가]]를 눌러요(파일 탐색기의 ‘즐겨찾기에 고정’과 비슷해요). 폴더를 트리의 Love My Shelf 위로 끌어다 놓거나, 파일 탐색기에서 이 창으로 끌어다 놓아도 돼요."),
+                    T("In the folder tree on the left, right-click a folder that has photos or videos and click [[Add to LoveMyShelf]] (it is like ‘Pin to Quick access’ in File Explorer). You can also drag the folder onto LoveMyShelf in the tree, or drag it from File Explorer onto this window.",
+                      "왼쪽 폴더 트리에서 사진이나 영상이 들어 있는 폴더를 오른쪽 클릭하고 [[러브마이셀프에 추가]]를 눌러요(파일 탐색기의 ‘즐겨찾기에 고정’과 비슷해요). 폴더를 트리의 러브마이셀프 위로 끌어다 놓거나, 파일 탐색기에서 이 창으로 끌어다 놓아도 돼요."),
                     T("Photos and videos appear as small pictures (tiles) in a grid. Click a photo you like once. For a video, play it and click [[Pause]] near the scene you like.",
                       "사진과 영상이 작은 그림(칸)으로 바둑판처럼 나타나요. 마음에 드는 사진을 한 번 클릭해요. 영상이면 재생하다가 마음에 드는 장면 근처에서 [[일시정지]]를 눌러요."),
                     T("Click [[Make cover]]. Drag the picture with the mouse to set its position, and roll the wheel to set its size.",
@@ -910,8 +910,8 @@ namespace LoveMyShelf {
                     T("A file with a cover shows the cover in its tile.","표지를 만든 파일은 칸에 표지가 보여요."),
                     T("At the bottom left, [[All]] shows every tile, [[Finished]] shows only tiles with a cover, and [[Unfinished]] shows only tiles that have no cover yet.",
                       "왼쪽 아래의 [[전체]]는 모든 칸을, [[표지 O]]는 표지가 있는 칸만, [[표지 X]]는 아직 표지가 없는 칸만 보여 줘요. 여기서 X는 오류가 아니라 ‘아직 표지가 없다’는 뜻이에요."),
-                    T("[[Cover collection]] at the bottom middle gathers the covers of every folder in one place. [[Unfinished cover collection]] next to it gathers only the files that have no cover yet, from the folders you added to Love My Shelf and their subfolders.",
-                      "아래쪽 가운데의 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆의 [[표지 X 모음]]은 Love My Shelf에 추가한 폴더와 그 하위 폴더에서 아직 표지가 없는 파일만 모아 보여 줘요."),
+                    T("[[Cover collection]] at the bottom middle gathers the covers of every folder in one place. [[Unfinished cover collection]] next to it gathers only the files that have no cover yet, from the folders you added to LoveMyShelf and their subfolders.",
+                      "아래쪽 가운데의 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆의 [[표지 X 모음]]은 러브마이셀프에 추가한 폴더와 그 하위 폴더에서 아직 표지가 없는 파일만 모아 보여 줘요."),
                     T("When the window gets narrow, as when two windows are side by side, the names of the buttons at the bottom get shorter, like [[O set]] or [[O]], or turn into icons. [[New window]] and [[Guide & Options]] at the top turn into icons (⧉ ?) too. Point the mouse at one to see its full name.",
                       "창 두 개를 나란히 띄울 때처럼 창이 좁아지면 아래쪽 버튼 이름이 [[O 모음]], [[O]]처럼 짧아지거나 아이콘으로 바뀌어요. 위쪽의 [[새 창]]과 [[설명서 겸 옵션]]도 아이콘(⧉ ?)으로 바뀌어요. 마우스를 올리면 원래 이름이 나와요."),
                     T("Each time you click [[Cover size]] at the bottom right, the tile size changes through 4 steps.","오른쪽 아래의 [[표지 크기]]를 누를 때마다 칸 크기가 4단계로 바뀌어요.")}});
@@ -929,16 +929,16 @@ namespace LoveMyShelf {
                     T("In the new window, open the folder you want to move the files into (click its folder tab at the top).","새 창에서 파일을 옮겨 넣을 폴더를 열어요(위쪽의 폴더 탭을 누르면 돼요)."),
                     T("In the first window, select tiles and drag them onto the new window. A window you can drop on lights up at its edge and tells you how many will move. Let go of the mouse and they move.","처음 창에서 칸을 선택해 새 창으로 끌어다 놓아요. 놓을 수 있는 창은 가장자리가 밝아지면서 몇 개가 옮겨지는지 알려 줘요. 마우스를 놓으면 옮겨져요.")},
                 Lines=new[]{T("The covers made from a file go along with it, so their link to the original stays as it is. Hold {{Ctrl}} as you let go to copy instead of move.","파일로 만든 표지도 함께 따라가서 원본과의 연결이 그대로 유지돼요. {{Ctrl}}을 누른 채 놓으면 옮기지 않고 복사해요."),
-                    T("If the folder already has a file with the same name, Love My Shelf asks what to do. You can choose [[Replace]] (the existing file goes to the Recycle Bin), [[Skip]] or [[Keep both]] (a number is added after the name of the file being moved). Nothing is ever overwritten without asking.","옮길 폴더에 같은 이름의 파일이 이미 있으면 어떻게 할지 물어봐요. [[바꾸기]](기존 파일은 휴지통으로 가요), [[건너뛰기]], [[둘 다 남기기]](옮기는 파일 이름 뒤에 번호가 붙어요) 중에서 고를 수 있어요. 묻지 않고 덮어쓰는 일은 없어요."),
+                    T("If the folder already has a file with the same name, LoveMyShelf asks what to do. You can choose [[Replace]] (the existing file goes to the Recycle Bin), [[Skip]] or [[Keep both]] (a number is added after the name of the file being moved). Nothing is ever overwritten without asking.","옮길 폴더에 같은 이름의 파일이 이미 있으면 어떻게 할지 물어봐요. [[바꾸기]](기존 파일은 휴지통으로 가요), [[건너뛰기]], [[둘 다 남기기]](옮기는 파일 이름 뒤에 번호가 붙어요) 중에서 고를 수 있어요. 묻지 않고 덮어쓰는 일은 없어요."),
                     T("If you moved something by mistake, press {{Ctrl}} + {{Z}}. The files go back to where they were.","잘못 옮겼다면 {{Ctrl}} + {{Z}}를 누르세요. 파일이 원래 자리로 돌아가요.")},
                 Keys=new[]{K(T("Open one more window","창 하나 더 열기"),"Ctrl+","N"),K(T("Undo the last move","방금 옮긴 것 되돌리기"),"Ctrl+","Z")}});
             browse.Items.Add(new Card {Title=T("The file queue: sending a lot to another drive","파일 대기열: 다른 드라이브로 많이 보낼 때"),
-                Lines=new[]{T("Every move and copy lines up in the file queue and is sent one job at a time. Two jobs on the same hard drive at once only make both slow, so the queue never does that. While something is being sent, a [[⇄ Queue]] button with a percentage shows in the bottom bar. Click it and the file queue opens. If you close Love My Shelf in the middle, the queue is kept: the next time you start it, the unfinished jobs are waiting there, paused, and [[Go on]] continues them from where they stopped.",
-                      "옮기기와 복사는 모두 파일 대기열에 줄을 서고, 한 번에 한 작업씩 보내요. 같은 하드에 두 작업을 동시에 걸면 둘 다 느려지기만 해서, 대기열은 그렇게 하지 않아요. 보내는 동안에는 아래 줄에 퍼센트가 적힌 [[⇄ 대기열]] 버튼이 보여요. 그 버튼을 누르면 파일 대기열이 열려요. 중간에 Love My Shelf를 닫아도 대기열은 남아 있어요. 다음에 켜면 끝내지 못한 작업이 멈춘 채로 기다리고 있고, [[이어서]]를 누르면 멈춘 곳부터 계속해요."),
+                Lines=new[]{T("Every move and copy lines up in the file queue and is sent one job at a time. Two jobs on the same hard drive at once only make both slow, so the queue never does that. While something is being sent, a [[⇄ Queue]] button with a percentage shows in the bottom bar. Click it and the file queue opens. If you close LoveMyShelf in the middle, the queue is kept: the next time you start it, the unfinished jobs are waiting there, paused, and [[Go on]] continues them from where they stopped.",
+                      "옮기기와 복사는 모두 파일 대기열에 줄을 서고, 한 번에 한 작업씩 보내요. 같은 하드에 두 작업을 동시에 걸면 둘 다 느려지기만 해서, 대기열은 그렇게 하지 않아요. 보내는 동안에는 아래 줄에 퍼센트가 적힌 [[⇄ 대기열]] 버튼이 보여요. 그 버튼을 누르면 파일 대기열이 열려요. 중간에 러브마이셀프를 닫아도 대기열은 남아 있어요. 다음에 켜면 끝내지 못한 작업이 멈춘 채로 기다리고 있고, [[이어서]]를 누르면 멈춘 곳부터 계속해요."),
                     T("In the file queue you can see how far each job is, how fast it is going and about how long is left. [[Pause]] stops a job where it is and lets go of the file, so the drive can be removed safely; [[Go on]] continues from the same place. [[↑]], [[↓]] and [[To the front]] change the order of jobs that are waiting. A job that has not started can be changed between copy and move.",
                       "파일 대기열에서는 작업마다 얼마나 보냈는지, 속도가 얼마인지, 대략 얼마나 남았는지 볼 수 있어요. [[일시정지]]를 누르면 그 자리에서 멈추고 파일을 놓아 두어서 드라이브를 안전하게 뺄 수 있고, [[이어서]]를 누르면 같은 곳부터 계속해요. [[↑]], [[↓]], [[맨 앞으로]]로 기다리는 작업의 순서를 바꿔요. 아직 시작하지 않은 작업은 복사와 옮기기를 서로 바꿀 수 있어요."),
-                    T("Folders go too, with everything inside them. Drag a folder tile onto another window, a folder tile or the folder tree, or right-click a folder, choose [[Cut]] or [[Copy]], and press {{Ctrl}} + {{V}} in the folder it should go to. If that folder already has a folder with the same name, the two are joined, and you are asked only about files with the same name. The covers and tags of the files inside follow them, and a folder you had added to Love My Shelf stays added at its new place.",
-                      "폴더도 안에 든 것까지 통째로 보낼 수 있어요. 폴더 칸을 다른 창이나 폴더 칸, 폴더 트리 위로 끌어다 놓거나, 폴더를 오른쪽 클릭해 [[잘라내기]]나 [[복사]]를 고른 다음 보낼 폴더에서 {{Ctrl}} + {{V}}를 눌러요. 보낼 곳에 같은 이름의 폴더가 이미 있으면 두 폴더를 합치고, 이름이 같은 파일만 어떻게 할지 물어봐요. 안에 든 파일의 표지와 태그도 함께 따라가고, Love My Shelf에 추가해 둔 폴더는 새 위치에서도 추가된 채로 있어요."),
+                    T("Folders go too, with everything inside them. Drag a folder tile onto another window, a folder tile or the folder tree, or right-click a folder, choose [[Cut]] or [[Copy]], and press {{Ctrl}} + {{V}} in the folder it should go to. If that folder already has a folder with the same name, the two are joined, and you are asked only about files with the same name. The covers and tags of the files inside follow them, and a folder you had added to LoveMyShelf stays added at its new place.",
+                      "폴더도 안에 든 것까지 통째로 보낼 수 있어요. 폴더 칸을 다른 창이나 폴더 칸, 폴더 트리 위로 끌어다 놓거나, 폴더를 오른쪽 클릭해 [[잘라내기]]나 [[복사]]를 고른 다음 보낼 폴더에서 {{Ctrl}} + {{V}}를 눌러요. 보낼 곳에 같은 이름의 폴더가 이미 있으면 두 폴더를 합치고, 이름이 같은 파일만 어떻게 할지 물어봐요. 안에 든 파일의 표지와 태그도 함께 따라가고, 러브마이셀프에 추가해 둔 폴더는 새 위치에서도 추가된 채로 있어요."),
                     T("When a file is moved to another drive, the original is deleted only after the whole file has arrived and its covers and tags have followed. If the drive comes loose or the program closes in the middle, the original is still whole in its old place.",
                       "다른 드라이브로 옮길 때는 파일이 통째로 도착하고 표지와 태그까지 따라간 뒤에야 원본을 지워요. 중간에 드라이브가 빠지거나 프로그램이 꺼져도 원본은 원래 자리에 온전히 남아 있어요.")}});
             browse.Items.Add(new Setting {Id="dropAcross",SectionId="browse",Title=T("When files are dragged to another drive, copy or move?","다른 드라이브로 끌어다 놓으면 복사할까요, 옮길까요?"),
@@ -968,24 +968,24 @@ namespace LoveMyShelf {
             browse.Items.Add(new Card {Title=T("Tile positions don't change by themselves","칸 위치는 저절로 바뀌지 않아요"),
                 Lines=new[]{T("Even when you make, hide or delete a cover, the other tiles stay right where they are, so you don't lose your place. A deleted tile stays as an empty slot. To tidy up empty slots, press {{F5}} or choose a sort again.",
                     "표지를 만들거나 숨기거나 지워도 다른 칸은 제자리에 그대로 있어요. 그래서 보던 위치를 놓치지 않아요. 지운 칸은 빈칸으로 남아요. 빈칸을 정리하려면 {{F5}}를 누르거나 정렬을 다시 고르면 돼요."),
-                    T("The folders you added to Love My Shelf are in the folder tree on the left. Drag a folder onto another one in the tree to change their order. Right-click for [[Open in new window]] and [[Remove from Love My Shelf]]. The two collection buttons at the bottom middle are always there.",
-                      "Love My Shelf에 추가한 폴더는 왼쪽 폴더 트리에 있어요. 트리 안에서 폴더를 다른 폴더 위로 끌어다 놓으면 순서가 바뀌어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[Love My Shelf에서 제거]]가 있어요. 아래쪽 가운데의 모음 버튼 두 개는 항상 그 자리에 있어요.")}});
+                    T("The folders you added to LoveMyShelf are in the folder tree on the left. Drag a folder onto another one in the tree to change their order. Right-click for [[Open in new window]] and [[Remove from LoveMyShelf]]. The two collection buttons at the bottom middle are always there.",
+                      "러브마이셀프에 추가한 폴더는 왼쪽 폴더 트리에 있어요. 트리 안에서 폴더를 다른 폴더 위로 끌어다 놓으면 순서가 바뀌어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[러브마이셀프에서 제거]]가 있어요. 아래쪽 가운데의 모음 버튼 두 개는 항상 그 자리에 있어요.")}});
             browse.Items.Add(new Card {Title=T("Select many at once: hold the right button and drag","여러 개 한 번에 선택하기: 오른쪽 버튼을 누른 채 끌기"),
-                Lines=new[]{T("Hold the right mouse button and drag over the tiles. A rectangle appears, and every tile it touches is selected. The tiles sit close together, so you can start right on a tile. (This is Love My Shelf's own way. Dragging with the left button from an empty spot, as in File Explorer, works too.)",
-                    "마우스 오른쪽 버튼을 누른 채 칸 위로 끌어 보세요. 사각형이 생기고, 사각형에 닿은 칸이 모두 선택돼요. 칸끼리 붙어 있어서 칸 위에서 바로 시작해도 돼요. (Love My Shelf만의 방식이에요. 파일 탐색기처럼 빈 곳에서 왼쪽 버튼으로 끌어도 돼요.)"),
+                Lines=new[]{T("Hold the right mouse button and drag over the tiles. A rectangle appears, and every tile it touches is selected. The tiles sit close together, so you can start right on a tile. (This is LoveMyShelf's own way. Dragging with the left button from an empty spot, as in File Explorer, works too.)",
+                    "마우스 오른쪽 버튼을 누른 채 칸 위로 끌어 보세요. 사각형이 생기고, 사각형에 닿은 칸이 모두 선택돼요. 칸끼리 붙어 있어서 칸 위에서 바로 시작해도 돼요. (러브마이셀프만의 방식이에요. 파일 탐색기처럼 빈 곳에서 왼쪽 버튼으로 끌어도 돼요.)"),
                     T("Hold {{Ctrl}} while dragging to add to what is already selected (tiles already selected get unselected). Drag to the top or bottom edge and the screen scrolls along. {{Esc}} cancels. A right-click without dragging opens the menu as usual. It works the same way in the folders area.",
                       "{{Ctrl}}을 누른 채 끌면 이미 선택한 것에 추가돼요(이미 선택된 칸은 해제돼요). 위쪽이나 아래쪽 끝으로 끌면 화면이 따라서 스크롤돼요. {{Esc}}를 누르면 취소돼요. 끌지 않고 오른쪽 클릭만 하면 평소처럼 메뉴가 나와요. 폴더 영역에서도 똑같이 쓸 수 있어요.")}});
             browse.Items.Add(new Card {Title=T("Copy, cut and paste files","파일 복사·잘라내기·붙여넣기"),
                 Lines=new[]{T("{{Ctrl}} + {{C}} copies the selected files, {{Ctrl}} + {{X}} cuts them (they look faded until pasted), and {{Ctrl}} + {{V}} pastes into the folder you're looking at. It works the same way as File Explorer, so you can pass files back and forth with File Explorer and other windows. When files move, their covers go along, and {{Ctrl}} + {{Z}} undoes it.",
                     "{{Ctrl}} + {{C}}는 선택한 파일 복사, {{Ctrl}} + {{X}}는 잘라내기(붙여 넣을 때까지 흐리게 보여요), {{Ctrl}} + {{V}}는 지금 보고 있는 폴더에 붙여넣기예요. 파일 탐색기와 방식이 같아서 탐색기나 다른 창과도 파일을 주고받을 수 있어요. 파일을 옮기면 표지도 따라가고, {{Ctrl}} + {{Z}}로 되돌릴 수 있어요.")}});
             browse.Items.Add(new Card {Title=T("The right-click menu","오른쪽 클릭 메뉴"),
-                Lines=new[]{T("Right-click a file or folder and Love My Shelf's menu comes first, then, below a dividing line, the same menu as File Explorer (Open with, Share, Compress, Properties and so on. It is the full menu that Windows 11 shows only after you click ‘Show more options’). Delete, Rename, Cut, Copy and Paste in it are handled by Love My Shelf, so covers go along with their files. Right-click an empty spot and the folder's menu appears, as in File Explorer: View, Sort by, Refresh, Paste and Undo move, and below them New, Open in Terminal, Properties and so on.",
-                    "파일이나 폴더를 오른쪽 클릭하면 Love My Shelf 메뉴가 먼저 나오고, 구분선 아래에 파일 탐색기와 같은 메뉴가 나와요(연결 프로그램, 공유, 압축, 속성 등. Windows 11에서 ‘더 많은 옵션 표시’를 눌러야 나오는 전체 메뉴예요). 그 안의 삭제·이름 바꾸기·잘라내기·복사·붙여넣기는 Love My Shelf가 대신 처리해서 표지가 파일을 따라가요. 빈 곳을 오른쪽 클릭하면 파일 탐색기처럼 그 폴더의 메뉴가 나와요. 보기, 정렬 기준, 새로 고침, 붙여넣기, 이동 취소가 있고, 그 아래에 새로 만들기, 터미널에서 열기, 속성 등이 있어요.")}});
+                Lines=new[]{T("Right-click a file or folder and LoveMyShelf's menu comes first, then, below a dividing line, the same menu as File Explorer (Open with, Share, Compress, Properties and so on. It is the full menu that Windows 11 shows only after you click ‘Show more options’). Delete, Rename, Cut, Copy and Paste in it are handled by LoveMyShelf, so covers go along with their files. Right-click an empty spot and the folder's menu appears, as in File Explorer: View, Sort by, Refresh, Paste and Undo move, and below them New, Open in Terminal, Properties and so on.",
+                    "파일이나 폴더를 오른쪽 클릭하면 러브마이셀프 메뉴가 먼저 나오고, 구분선 아래에 파일 탐색기와 같은 메뉴가 나와요(연결 프로그램, 공유, 압축, 속성 등. Windows 11에서 ‘더 많은 옵션 표시’를 눌러야 나오는 전체 메뉴예요). 그 안의 삭제·이름 바꾸기·잘라내기·복사·붙여넣기는 러브마이셀프가 대신 처리해서 표지가 파일을 따라가요. 빈 곳을 오른쪽 클릭하면 파일 탐색기처럼 그 폴더의 메뉴가 나와요. 보기, 정렬 기준, 새로 고침, 붙여넣기, 이동 취소가 있고, 그 아래에 새로 만들기, 터미널에서 열기, 속성 등이 있어요.")}});
             browse.Items.Add(new Card {Title=T("A folder tree on the left, like File Explorer","파일 탐색기 같은 왼쪽 폴더 트리"),
-                Lines=new[]{T("Click the button at the very top left (or press {{Ctrl}} + {{T}}) to open and close the folder tree. Love My Shelf is at the top (the two collections and the folders you added), and below it is the same as File Explorer: your pinned folders, This PC with its drives, and the network.",
-                    "맨 왼쪽 위 버튼을 누르면(또는 {{Ctrl}} + {{T}}) 폴더 트리가 열리고 닫혀요. 맨 위에는 Love My Shelf(모음 두 개와 추가한 폴더들)가 있고, 그 아래는 파일 탐색기와 같아요. 즐겨찾기에 고정한 폴더, 내 PC와 드라이브, 네트워크가 있어요."),
-                    T("Click a folder to open it, and click ▸ or double-click to unfold the folders inside. Folders you haven't added to Love My Shelf can be opened this way too. Drag files onto a folder in the tree and they move to that folder.",
-                      "폴더를 누르면 그 폴더가 열리고, ▸를 누르거나 더블클릭하면 안의 폴더가 펼쳐져요. Love My Shelf에 추가하지 않은 폴더도 이렇게 바로 열 수 있어요. 파일을 트리의 폴더 위로 끌어다 놓으면 그 폴더로 옮겨져요."),
+                Lines=new[]{T("Click the button at the very top left (or press {{Ctrl}} + {{T}}) to open and close the folder tree. LoveMyShelf is at the top (the two collections and the folders you added), and below it is the same as File Explorer: your pinned folders, This PC with its drives, and the network.",
+                    "맨 왼쪽 위 버튼을 누르면(또는 {{Ctrl}} + {{T}}) 폴더 트리가 열리고 닫혀요. 맨 위에는 러브마이셀프(모음 두 개와 추가한 폴더들)가 있고, 그 아래는 파일 탐색기와 같아요. 즐겨찾기에 고정한 폴더, 내 PC와 드라이브, 네트워크가 있어요."),
+                    T("Click a folder to open it, and click ▸ or double-click to unfold the folders inside. Folders you haven't added to LoveMyShelf can be opened this way too. Drag files onto a folder in the tree and they move to that folder.",
+                      "폴더를 누르면 그 폴더가 열리고, ▸를 누르거나 더블클릭하면 안의 폴더가 펼쳐져요. 러브마이셀프에 추가하지 않은 폴더도 이렇게 바로 열 수 있어요. 파일을 트리의 폴더 위로 끌어다 놓으면 그 폴더로 옮겨져요."),
                     T("Drag the right border of the tree to change its width. Whether it is open, its width and the groups you folded stay the same the next time you start.",
                       "트리의 오른쪽 경계선을 끌면 너비가 바뀌어요. 열어 뒀는지, 너비, 접어 둔 항목은 다음에 켜도 그대로예요.")}});
             browse.Items.Add(new Setting {Id="foldersPlace",SectionId="browse",Title=T("Where should the folders be shown?","폴더는 어디에 보여 줄까요?"),
@@ -1074,8 +1074,8 @@ namespace LoveMyShelf {
             make.Items.Add(new Card {Title=T("A cover from a picture made elsewhere","밖에서 만든 그림으로 표지 만들기"),
                 Lines=new[]{T("Right-click a tile and choose [[Use a picture made elsewhere as a cover…]], then pick a picture file (JPG, PNG, WebP or BMP). The same Make cover screen opens with that picture, so you can cut, turn and brighten it in the same way. A poster or a picture you edited in another program can become the cover of a video or photo like this.",
                     "칸을 오른쪽 클릭하고 [[밖에서 만든 그림을 표지로…]]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 골라요. 그 그림으로 평소와 같은 표지 만들기 화면이 열려서, 똑같이 자르고 돌리고 밝기를 바꿀 수 있어요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요."),
-                    T("Love My Shelf keeps its own copy of the picture you picked. You can move or delete your picture file afterwards, and [[Edit cover]] still works. When you move the cover to the Recycle Bin, the finished cover file goes to the Recycle Bin and the kept copy is removed with it.",
-                      "고른 그림은 Love My Shelf가 사본을 따로 보관해요. 그래서 원래 그림 파일을 옮기거나 지워도 [[표지 수정]]을 쓸 수 있어요. 표지를 휴지통으로 보내면 완성된 표지 파일은 휴지통으로 가고, 보관해 둔 사본은 함께 지워져요."),
+                    T("LoveMyShelf keeps its own copy of the picture you picked. You can move or delete your picture file afterwards, and [[Edit cover]] still works. When you move the cover to the Recycle Bin, the finished cover file goes to the Recycle Bin and the kept copy is removed with it.",
+                      "고른 그림은 러브마이셀프가 사본을 따로 보관해요. 그래서 원래 그림 파일을 옮기거나 지워도 [[표지 수정]]을 쓸 수 있어요. 표지를 휴지통으로 보내면 완성된 표지 파일은 휴지통으로 가고, 보관해 둔 사본은 함께 지워져요."),
                     T("A cover made this way has no scene in the video, so [[Make GIF cover]] doesn't appear for it. Upscaling, sharing and the large view work as usual.",
                       "이렇게 만든 표지는 영상의 어느 장면인지 정보가 없어서 [[GIF 표지 만들기]]가 나오지 않아요. 업스케일, 공유, 크게 보기는 평소처럼 돼요.")}});
             make.Items.Add(new Card {Title=T("Changing the order of covers","표지 순서 바꾸기"),
@@ -1130,8 +1130,8 @@ namespace LoveMyShelf {
                         T("Whichever folder's photo it is made from, every cover gathers in the one cover folder chosen below. Good when you want to keep just the covers in one place.\nExample: cover folder › Puppy-cover-1a2b….jpg",
                           "어느 폴더의 사진으로 만들든 표지는 모두 아래에서 정한 표지 폴더 한 곳에 모여요. 표지만 한곳에 모아 두고 싶을 때 좋아요.\n예) 표지 폴더 › 강아지-cover-1a2b….jpg")),
                     new Choice(T("② Save it in the same folder as the original","② 원본과 같은 폴더에 저장하기"),
-                        T("The cover is saved together in the folder where the original is. The cover's name starts with the original's name, so when you sort by name in File Explorer, the cover comes right after the original. Good when you always want the original and the cover together. In Love My Shelf, this cover file doesn't take a tile of its own; it shows as the cover in the original's tile.\nExample: Photos › Puppy.jpg, Puppy_cover_1a2b….jpg",
-                          "표지가 원본이 있는 폴더에 함께 저장돼요. 표지 이름이 원본 이름으로 시작해서, 파일 탐색기에서 이름순으로 보면 원본 바로 다음에 표지가 나와요. 원본과 표지를 항상 붙여 두고 싶을 때 좋아요. Love My Shelf에서는 이 표지 파일이 칸을 따로 차지하지 않고, 원본 칸에 표지로 보여요.\n예) 사진 › 강아지.jpg, 강아지_cover_1a2b….jpg")),
+                        T("The cover is saved together in the folder where the original is. The cover's name starts with the original's name, so when you sort by name in File Explorer, the cover comes right after the original. Good when you always want the original and the cover together. In LoveMyShelf, this cover file doesn't take a tile of its own; it shows as the cover in the original's tile.\nExample: Photos › Puppy.jpg, Puppy_cover_1a2b….jpg",
+                          "표지가 원본이 있는 폴더에 함께 저장돼요. 표지 이름이 원본 이름으로 시작해서, 파일 탐색기에서 이름순으로 보면 원본 바로 다음에 표지가 나와요. 원본과 표지를 항상 붙여 두고 싶을 때 좋아요. 러브마이셀프에서는 이 표지 파일이 칸을 따로 차지하지 않고, 원본 칸에 표지로 보여요.\n예) 사진 › 강아지.jpg, 강아지_cover_1a2b….jpg")),
                     new Choice(T("③ Make a ‘Love My Shelf 표지’ folder inside the original's folder and save it there","③ 원본 폴더 안에 ‘Love My Shelf 표지’ 폴더를 만들어 저장하기"),
                         T("A folder named ‘Love My Shelf 표지’ is made automatically inside the original's folder, and covers are saved in it. Good when you want covers gathered per folder but don't want them mixed in among the originals.\nExample: Photos › Love My Shelf 표지 › Puppy-cover-1a2b….jpg",
                           "원본이 있는 폴더 안에 ‘Love My Shelf 표지’라는 폴더가 자동으로 생기고, 표지는 그 안에 저장돼요. 폴더별로 표지를 따로 모으고 싶지만 원본 사이에 섞이는 건 싫을 때 좋아요.\n예) 사진 › Love My Shelf 표지 › 강아지-cover-1a2b….jpg"))},
@@ -1184,8 +1184,8 @@ namespace LoveMyShelf {
                 p=>p.SceneStepMs,(p,v)=>p.SceneStepMs=v,v=>T((v/1000.0).ToString("0.###",System.Globalization.CultureInfo.InvariantCulture)+" s",(v/1000.0).ToString("0.###",System.Globalization.CultureInfo.InvariantCulture)+"초"),
                 v=>v==150?T("The closest together. Takes long to load","가장 촘촘해요. 불러오는 데 오래 걸려요"):v==200?T("Hardly misses even a blink or a wink","눈 깜빡임이나 윙크도 거의 놓치지 않아요"):v==500?T("The fastest. But the scenes are far apart","가장 빨라요. 대신 듬성듬성해요"):"",4));
             var stepSetting=(Setting)video.Items.Last();
-            stepSetting.Lines=new[]{T("In Love My Shelf, ‘one scene’ is this far apart everywhere. The scene list, the D and F keys, the preview pictures above the playback bar and the Make GIF cover window all move by this step. The smaller it is, the closer together the scenes are, but the longer they take to load. A video can't be divided more finely than the frames it has, so a smaller value is set to the closest one possible.",
-                "Love My Shelf에서 ‘한 장면’은 어디서든 이 간격이에요. 장면 고르기 목록, D·F 키, 재생바 위의 미리보기 그림, GIF 표지 만들기 창이 모두 이 간격으로 움직여요. 작을수록 촘촘하지만 불러오는 데 오래 걸려요. 영상이 원래 가진 프레임보다 더 잘게 나눌 수는 없어서, 그보다 작은 값을 넣으면 가장 가까운 값으로 맞춰져요.")};
+            stepSetting.Lines=new[]{T("In LoveMyShelf, ‘one scene’ is this far apart everywhere. The scene list, the D and F keys, the preview pictures above the playback bar and the Make GIF cover window all move by this step. The smaller it is, the closer together the scenes are, but the longer they take to load. A video can't be divided more finely than the frames it has, so a smaller value is set to the closest one possible.",
+                "러브마이셀프에서 ‘한 장면’은 어디서든 이 간격이에요. 장면 고르기 목록, D·F 키, 재생바 위의 미리보기 그림, GIF 표지 만들기 창이 모두 이 간격으로 움직여요. 작을수록 촘촘하지만 불러오는 데 오래 걸려요. 영상이 원래 가진 프레임보다 더 잘게 나눌 수는 없어서, 그보다 작은 값을 넣으면 가장 가까운 값으로 맞춰져요.")};
             Typed(stepSetting,T("seconds","초"),0.03,2,0.01,1000);
             video.Items.Add(new Setting {Id="capture",SectionId="video",Title=T("Where should pictures captured with the / key be saved?","/ 키로 캡처한 사진은 어디에 저장할까요?"),
                 Lines=new[]{T("While watching a video, press the {{/}} key near the arrow keys, or right-click the screen and click [[Capture scene]], and the scene you see is saved as a picture right away. The file name includes the original's name and the time in the video. The original stays as it is.",
@@ -1220,15 +1220,15 @@ namespace LoveMyShelf {
                     T("Choose the speed and the play style. The speed changes by 0.1× at a time with [[−]] and [[+]] (or {{X}} and {{C}}), from 0.2× to 4×; hold one and it keeps changing, and {{Z}} returns it to 1×. {{V}} goes straight to 2×, and pressing it again returns to 1×. [[Loop]] keeps repeating from start to end, [[Back and forth]] goes to the end and then comes back in reverse, and [[Backward]] plays in reverse from the end.","속도와 재생 방식을 골라요. 속도는 [[−]]와 [[+]](또는 {{X}}, {{C}})로 0.1배씩 바꿔요. 0.2배부터 4배까지 되고, 누르고 있으면 계속 바뀌어요. {{Z}}를 누르면 1배로 돌아와요. {{V}}를 누르면 바로 2배가 되고, 한 번 더 누르면 1배로 돌아와요. [[반복]]은 처음부터 끝까지를 계속 반복하고, [[왕복]]은 끝까지 갔다가 거꾸로 돌아오고, [[거꾸로]]는 끝에서부터 거꾸로 재생해요."),
                     T("When you change the part, the preview shows at the top right away. If you like it, click [[Make]]. The window closes right away and the real file is made in the background. To see how it will be saved first, click [[See how the real file looks]] on the left. (If you choose ‘By itself in the background’ in the settings below, the real file is made by itself while you wait and the preview changes to it.)","구간을 바꾸면 위쪽에 미리보기가 바로 나와요. 마음에 들면 [[만들기]]를 눌러요. 창은 바로 닫히고 실제 파일은 뒤에서 만들어져요. 저장될 모습을 먼저 보고 싶으면 왼쪽의 [[실제 모습 미리 보기]]를 눌러요. (아래 설정에서 ‘뒤에서 알아서 만들기’를 골라 두면, 기다리는 동안 실제 파일이 저절로 만들어지고 미리보기가 그 파일로 바뀌어요.)")},
                 Keys=new[]{K(T("Move the handle you last held one scene at a time","마지막에 잡은 손잡이를 한 장면씩 옮기기"),"←","→"),K(T("See earlier and later scenes","앞뒤 장면 보기"),T("Wheel","휠")),K(T("Bring the start or the end to a place outside the part","구간 바깥으로 시작이나 끝 옮기기"),T("Double-click","더블클릭")),K(T("Original speed / 0.1× slower / 0.1× faster / 2×","원래 속도 / 0.1배 느리게 / 0.1배 빠르게 / 2배"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")},
-                Tips=new[]{T("The making runs by itself in the background, so you can keep using Love My Shelf meanwhile. When it's done, a notice appears at the bottom right.","만드는 작업은 뒤에서 알아서 진행되니까 그동안 Love My Shelf를 계속 써도 돼요. 다 되면 오른쪽 아래에 알려 드려요.")}});
+                Tips=new[]{T("The making runs by itself in the background, so you can keep using LoveMyShelf meanwhile. When it's done, a notice appears at the bottom right.","만드는 작업은 뒤에서 알아서 진행되니까 그동안 러브마이셀프를 계속 써도 돼요. 다 되면 오른쪽 아래에 알려 드려요.")}});
             gif.Items.Add(new Card {Title=T("GIF, WebP, MP4: what's the difference?","GIF·WebP·MP4는 무엇이 다른가요?"),
                 Lines=new[]{T("A GIF cover can be saved in one of three file formats. None of the three has sound. The sizes below are for a cover 3 seconds long, at 15 pictures a second and 960 pixels tall.",
                     "GIF 표지는 세 가지 파일 형식 중 하나로 저장할 수 있어요. 셋 다 소리는 들어가지 않아요. 아래 용량은 3초 길이, 1초에 15장, 세로 960픽셀로 만들었을 때 기준이에요.")}});
             gif.Items.Add(new Card {Title="GIF",
                 Lines=new[]{T("The most widely used format for moving pictures, so it moves almost everywhere.",
                     "가장 널리 쓰이는 움직이는 그림 형식이라 거의 모든 곳에서 움직여요."),
-                    T("But each picture can use only up to 256 colors. So where colors change smoothly, as on faces or under stage lights, tiny dot patterns or step-like lines can appear. Love My Shelf mixes the dots evenly so that it shows as little as possible.",
-                      "대신 그림 한 장에 색을 256가지까지만 쓸 수 있어요. 그래서 얼굴이나 조명처럼 색이 부드럽게 이어지는 부분에 자잘한 점무늬나 계단 같은 줄이 생길 수 있어요. Love My Shelf는 점을 고르게 섞어서 최대한 티가 나지 않게 만들어요."),
+                    T("But each picture can use only up to 256 colors. So where colors change smoothly, as on faces or under stage lights, tiny dot patterns or step-like lines can appear. LoveMyShelf mixes the dots evenly so that it shows as little as possible.",
+                      "대신 그림 한 장에 색을 256가지까지만 쓸 수 있어요. 그래서 얼굴이나 조명처럼 색이 부드럽게 이어지는 부분에 자잘한 점무늬나 계단 같은 줄이 생길 수 있어요. 러브마이셀프는 점을 고르게 섞어서 최대한 티가 나지 않게 만들어요."),
                     T("Its files are the biggest of the three: usually 7 to 13 MB for the example above. The longer and bigger you make it, the faster the size grows.",
                       "셋 중 용량이 가장 커요. 위 기준으로 보통 7~13MB예요. 길고 크게 만들수록 용량이 빠르게 늘어요.")},
                 Tips=new[]{
@@ -1238,8 +1238,8 @@ namespace LoveMyShelf {
                     "구글이 만든 비교적 새로운 형식이에요. GIF처럼 움직이면서도 색을 훨씬 곱게 담고, 용량은 GIF의 10분의 1 정도예요(위 기준으로 약 1MB)."),
                     T("But some places don't support it yet. In older programs and some apps, only the first scene shows as a still picture, or it doesn't open at all.",
                       "대신 아직 지원하지 않는 곳이 있어요. 오래된 프로그램이나 일부 앱에서는 첫 장면만 멈춘 그림으로 보이거나 아예 열리지 않아요."),
-                    T("It is the best for keeping and viewing inside Love My Shelf. It moves smoothly in the tiles and takes up little space.",
-                      "Love My Shelf 안에서 모아 두고 보기에는 가장 좋아요. 칸에서도 부드럽게 움직이고 용량도 적게 차지해요.")},
+                    T("It is the best for keeping and viewing inside LoveMyShelf. It moves smoothly in the tiles and takes up little space.",
+                      "러브마이셀프 안에서 모아 두고 보기에는 가장 좋아요. 칸에서도 부드럽게 움직이고 용량도 적게 차지해요.")},
                 Tips=new[]{T("It moves like a GIF on Discord too.","디스코드에서도 GIF처럼 움직여요.")}});
             gif.Items.Add(new Card {Title="MP4",
                 Lines=new[]{T("A video format. Of the three, its size is the smallest (about 0.8 MB for the example above) and its picture quality is the best.",
@@ -1248,7 +1248,7 @@ namespace LoveMyShelf {
                       "대신 그림이 아니라 동영상으로 취급돼요. 올리는 곳에 따라 재생 버튼이 붙거나, 눌러야 재생되거나, 한 번만 재생되고 멈출 수 있어요. 계속 반복 재생될지는 올리는 곳에 따라 달라요."),
                     T("It can be viewed anywhere that videos can be posted.","동영상을 올릴 수 있는 곳이라면 어디서든 볼 수 있어요.")}});
             gif.Items.Add(new Card {Title=T("Which one is good to choose?","어떤 걸 고르면 좋을까요?"),
-                Lines=new[]{T("Not sure → WebP: smooth colors, and the best for keeping and viewing in Love My Shelf. It moves on Discord too.","잘 모르겠다면 → WebP: 색이 곱고, Love My Shelf 안에서 모아 보기에 가장 좋아요. 디스코드에서도 움직여요."),
+                Lines=new[]{T("Not sure → WebP: smooth colors, and the best for keeping and viewing in LoveMyShelf. It moves on Discord too.","잘 모르겠다면 → WebP: 색이 곱고, 러브마이셀프 안에서 모아 보기에 가장 좋아요. 디스코드에서도 움직여요."),
                     T("Posting it where WebP doesn't move → GIF: it moves wherever you post it.","WebP가 움직이지 않는 곳에 올릴 거라면 → GIF: 어디에 올려도 움직여요."),
                     T("Fine with it going up as a video → MP4: the smallest size and sharp.","동영상으로 올라가도 괜찮다면 → MP4: 용량이 가장 작고 선명해요.")}});
             gif.Items.Add(new Setting {Id="gifFormat",SectionId="gif",Title=T("Which format should a GIF cover start as?","GIF 표지를 처음에 어떤 형식으로 만들까요?"),
@@ -1365,8 +1365,8 @@ namespace LoveMyShelf {
                       "{{Tab}}을 누르면 화면 왼쪽 위에 파일 정보가 나와요. 파일 이름, 어느 드라이브의 어느 폴더에 있는지, 형식과 용량, 영상이면 화면 크기와 fps 같은 것들이에요. 한 번 더 누르면 사라져요."),
                     T("Press {{Delete}} and the original file you are looking at goes to the Recycle Bin and the next file opens. There is no confirmation window, and you can restore it from the Windows Recycle Bin. A large view opened from ‘Cover collection’ doesn't delete originals.",
                       "{{Delete}}를 누르면 지금 보는 원본 파일이 휴지통으로 가고 다음 파일이 열려요. 확인 창은 뜨지 않고, Windows 휴지통에서 되살릴 수 있어요. ‘표지 O 모음’에서 연 크게 보기에서는 원본을 지우지 않아요."),
-                    T("In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was. Maximize leaves full screen and becomes a maximized window. This is the same in every Love My Shelf window.",
-                      "전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 최대화를 누르면 전체 화면이 끝나고 최대화된 창이 돼요. Love My Shelf의 모든 창이 같아요.")},
+                    T("In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was. Maximize leaves full screen and becomes a maximized window. This is the same in every LoveMyShelf window.",
+                      "전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 최대화를 누르면 전체 화면이 끝나고 최대화된 창이 돼요. 러브마이셀프의 모든 창이 같아요.")},
                 Keys=new[]{K(T("Previous / next file","이전 파일 / 다음 파일"),"K","L"),K(T("Play or pause","재생 / 일시정지"),"Space"),
                     K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
                     K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark / Milky","밝기 방식: 부드럽게 / 어두운 곳 보기 / 뽀얗게"),"R"),
@@ -1378,8 +1378,8 @@ namespace LoveMyShelf {
             large.Items.Add(new Card {Title=T("Subtitles and sync","자막과 싱크 맞추기"),
                 Lines=new[]{T("If there is a subtitle file (SMI, SRT, ASS, VTT) with the same name as the video, it shows automatically. If one file has both Korean and English, Korean shows first.",
                     "영상과 이름이 같은 자막 파일(SMI, SRT, ASS, VTT)이 있으면 자동으로 표시돼요. 한 파일에 한국어와 영어가 함께 들어 있으면 한국어가 먼저 표시돼요."),
-                    T("Subtitles show in the same font as Love My Shelf. A font or size written inside an SMI or SRT file is not followed (colors are kept). ASS subtitles show in the fonts their maker chose.",
-                    "자막은 Love My Shelf와 같은 글꼴로 표시돼요. SMI·SRT 파일 안에 적힌 글꼴이나 크기는 따르지 않아요(색은 그대로예요). ASS 자막은 만든 사람이 정해 둔 글꼴 그대로 나와요.")},
+                    T("Subtitles show in the same font as LoveMyShelf. A font or size written inside an SMI or SRT file is not followed (colors are kept). ASS subtitles show in the fonts their maker chose.",
+                    "자막은 러브마이셀프와 같은 글꼴로 표시돼요. SMI·SRT 파일 안에 적힌 글꼴이나 크기는 따르지 않아요(색은 그대로예요). ASS 자막은 만든 사람이 정해 둔 글꼴 그대로 나와요.")},
                 Steps=new[]{T("Right-click the video screen and click [[Open the subtitle explorer]].","영상 화면을 오른쪽 클릭하고 [[자막 탐색기 열기]]를 눌러요."),
                     T("Pause at the moment a line of speech starts.","대사가 시작되는 순간에 일시정지해요."),
                     T("Click the subtitle line for that speech once. One click only selects the line, and the video doesn't move.","그 대사에 해당하는 자막 줄을 한 번 클릭해요. 한 번 클릭하면 줄만 선택되고 영상은 움직이지 않아요."),
@@ -1387,7 +1387,7 @@ namespace LoveMyShelf {
                     T("If it fits, click [[Save]] to write it over the subtitle file.","잘 맞으면 [[저장]]을 눌러 자막 파일에 덮어써요.")},
                 Tips=new[]{T("Double-click a subtitle line and the video goes to that spot.","자막 줄을 더블클릭하면 영상이 그 위치로 이동해요."),
                     T("If only the later part is off, choose [[Move only this line and after]] from the ▾ next to the sync button.","뒷부분만 어긋난다면 싱크 버튼 옆의 ▾에서 [[이 줄부터 뒤만 옮기기]]를 골라요."),
-                    T("Saving changes only the times that moved and the sentences you fixed. The subtitle's first state is kept separately in Love My Shelf's records folder.","저장하면 바뀐 시간과 고친 문장만 달라져요. 자막의 처음 상태는 Love My Shelf 기록 폴더에 따로 보관돼요."),
+                    T("Saving changes only the times that moved and the sentences you fixed. The subtitle's first state is kept separately in LoveMyShelf's records folder.","저장하면 바뀐 시간과 고친 문장만 달라져요. 자막의 처음 상태는 러브마이셀프 기록 폴더에 따로 보관돼요."),
                     T("Subtitles inside a video file also show as usual, but only separate subtitle files can be listed and synced.","영상 파일 안에 들어 있는 자막도 그대로 표시되지만, 목록으로 보고 싱크를 맞추는 건 별도의 자막 파일만 돼요.")}});
             large.Items.Add(new Card {Title=T("Cover or original","표지 또는 원본"),
                 Lines=new[]{T("[[View original]] and [[View cover]] switch between the cover and the original.","[[원본 보기]]와 [[표지 보기]]로 표지와 원본을 서로 바꿔 볼 수 있어요."),
@@ -1396,7 +1396,7 @@ namespace LoveMyShelf {
             large.Items.Add(new Setting {Id="upscaleDevice",SectionId="large",Title=T("What should do the upscaling?","업스케일링은 무엇으로 할까요?"),
                 Lines=new[]{T("Which one is faster depends on the computer. Graphics built into a laptop (such as Intel's) can be even slower than the processor. With a separate graphics card (such as NVIDIA or AMD), the graphics card can be much faster.",
                     "컴퓨터마다 어느 쪽이 빠른지 달라요. 노트북에 들어 있는 그래픽(인텔 내장 그래픽 등)은 오히려 CPU보다 느릴 수 있어요. 따로 꽂힌 그래픽카드(NVIDIA·AMD 등)가 있으면 그래픽카드가 훨씬 빠를 수 있어요."),
-                    T("If the graphics card doesn't work or its result looks wrong, Love My Shelf switches to the processor by itself and finishes the cover.",
+                    T("If the graphics card doesn't work or its result looks wrong, LoveMyShelf switches to the processor by itself and finishes the cover.",
                     "그래픽카드로 하다가 안 되거나 결과가 이상하면, 알아서 CPU로 바꿔서 끝까지 만들어요.")},
                 Choices=new[]{new Choice(T("Processor (CPU)","CPU (컴퓨터의 두뇌)"),T("The starting choice. It works the same on every computer. The computer gets a little busy while it runs.","처음 설정이에요. 어느 컴퓨터에서나 똑같이 잘 돼요. 하는 동안 컴퓨터가 조금 바빠져요.")),
                     new Choice(T("Graphics card","그래픽카드"),T("Good for a computer with a separate graphics card. The processor stays less busy while it runs.","따로 꽂힌 그래픽카드가 있는 컴퓨터에 좋아요. 하는 동안 CPU가 덜 바빠져요."))},
@@ -1422,8 +1422,8 @@ namespace LoveMyShelf {
                 "영상 위에 나오는 자막의 크기예요. 영상을 보다가 화면을 오른쪽 클릭하면 나오는 조작 창의 [[자막 크기]]에서 10%씩 바꿀 수도 있어요. 거기서 바꾼 크기도 여기에 저장되고, 다음 영상에도 그대로 쓰여요.")};
             Typed(subtitleSetting,"%",50,300,5);
             large.Items.Add(new Card {Title=T("When you watch only a video, minimize the folder window","영상만 볼 때는 폴더 창을 최소화해 보세요"),
-                Lines=new[]{T("About 5 seconds after the folder window is minimized, it lets go of the pictures it had read to show in the tiles, so Love My Shelf uses less memory. The video window keeps playing as it is.",
-                    "폴더 창을 최소화하면 5초쯤 뒤에, 칸에 보여 주려고 읽어 둔 그림들을 메모리에서 내려놓아요. 그만큼 Love My Shelf가 메모리를 덜 써요. 영상 창은 그대로 재생돼요."),
+                Lines=new[]{T("About 5 seconds after the folder window is minimized, it lets go of the pictures it had read to show in the tiles, so LoveMyShelf uses less memory. The video window keeps playing as it is.",
+                    "폴더 창을 최소화하면 5초쯤 뒤에, 칸에 보여 주려고 읽어 둔 그림들을 메모리에서 내려놓아요. 그만큼 러브마이셀프가 메모리를 덜 써요. 영상 창은 그대로 재생돼요."),
                     T("Bring the folder window back and only the pictures of the tiles on screen are read again.",
                     "폴더 창을 다시 올리면 화면에 보이는 칸의 그림만 새로 읽어요."),
                     T("While watching a video, right-click the screen and click [[Minimize the folder window]]. If several folder windows are open, the memory is let go once all of them are minimized.",
@@ -1437,7 +1437,7 @@ namespace LoveMyShelf {
                     T("Click the message box of a chat app and press {{Ctrl}} + {{V}}. The files are attached.","채팅 앱의 메시지 입력창을 클릭하고 {{Ctrl}} + {{V}}를 눌러요. 파일이 첨부돼요."),
                     T("You can also just drag the tile onto the chat window.","칸을 채팅창으로 바로 끌어다 놓아도 돼요.")},
                 Lines=new[]{T("Click [[Share…]] in the same menu and the Windows share window opens. Choose the app to send with there.","같은 메뉴의 [[공유…]]를 누르면 Windows 공유 창이 열려요. 거기서 보낼 앱을 고르면 돼요.")},
-                Tips=new[]{T("Love My Shelf never uploads anything to the internet itself. Sending is always done by the app you chose.","Love My Shelf가 직접 인터넷에 올리는 일은 없어요. 보내는 건 언제나 내가 고른 앱이 해요.")}});
+                Tips=new[]{T("LoveMyShelf never uploads anything to the internet itself. Sending is always done by the app you chose.","러브마이셀프가 직접 인터넷에 올리는 일은 없어요. 보내는 건 언제나 내가 고른 앱이 해요.")}});
             share.Items.Add(new Setting {Id="share",SectionId="share",Title=T("What should Copy, Share and dragging send?","복사·공유·끌어다 놓기를 하면 무엇을 보낼까요?"),
                 Lines=new[]{T("Right-click a tile to choose differently just this once.","칸을 오른쪽 클릭하면 이번 한 번만 다르게 골라 보낼 수도 있어요.")},
                 Choices=new[]{new Choice(T("Cover and original","표지와 원본 함께"),T("Sends both the cover and the original photo or video.","표지와 원본 사진(영상)을 모두 보내요.")),
@@ -1447,7 +1447,7 @@ namespace LoveMyShelf {
             share.Items.Add(Numbers("shareLimit",T("Ask before sending big videos?","큰 영상은 보내기 전에 물어볼까요?"),new[]{10,20,50,100},20,
                 p=>p.ShareLimitMB,(p,v)=>p.ShareLimitMB=v,v=>v+"MB",
                 v=>v==10?T("For apps that take only small files","작은 파일만 받는 앱용"):v==20?T("Discord's limit for free users","디스코드 무료 사용자 제한"):v==50?T("For apps that take bigger files","더 큰 파일을 받는 앱용"):T("Almost never asks","거의 묻지 않아요"),4));
-            ((Setting)share.Items.Last()).Lines=new[]{T("If an original video is too big, a chat app may not accept it. For example, a free Discord user can upload up to 20 MB per file. When an original video is bigger than the size chosen below, Love My Shelf asks whether to [[Send it as it is]] or [[Send only 10 seconds around the cover scene]].",
+            ((Setting)share.Items.Last()).Lines=new[]{T("If an original video is too big, a chat app may not accept it. For example, a free Discord user can upload up to 20 MB per file. When an original video is bigger than the size chosen below, LoveMyShelf asks whether to [[Send it as it is]] or [[Send only 10 seconds around the cover scene]].",
                 "원본 영상이 너무 크면 채팅 앱에 올라가지 않을 수 있어요. 예를 들어 디스코드 무료 사용자는 파일 하나에 20MB까지 올릴 수 있어요. 원본 영상이 아래에서 고른 용량보다 크면 [[그대로 보내기]]와 [[표지 장면 앞뒤로 10초만 보내기]] 중 어느 쪽으로 할지 물어봐요.")};
             Typed((Setting)share.Items.Last(),"MB",1,2000,5);
 
@@ -1459,15 +1459,15 @@ namespace LoveMyShelf {
                     T("In the large view, when there is empty space on the right of the screen, the other covers of the same original appear small. Click one to switch to it. In full screen they hide when the mouse stays still and come back when it moves.","크게 볼 때 화면 오른쪽에 여백이 있으면 같은 원본의 다른 표지들이 작게 나와요. 누르면 그 표지로 바뀌어요. 전체 화면에서는 마우스를 가만히 두면 숨고, 움직이면 다시 나와요.")}});
             tidy.Items.Add(new Card {Title=T("Hiding and deleting covers","표지 숨기기와 삭제"),
                 Lines=new[]{T("Right-click a tile and these menu items are there.","칸을 오른쪽 클릭하면 이런 메뉴가 있어요."),
-                    T("[[Hide this cover]] leaves the file as it is and only stops showing it in Love My Shelf. [[Show this cover again]] brings it back.","[[이 표지 숨기기]]는 파일은 그대로 두고 Love My Shelf에서만 보이지 않게 해요. [[이 표지 다시 표시]]로 되돌릴 수 있어요."),
+                    T("[[Hide this cover]] leaves the file as it is and only stops showing it in LoveMyShelf. [[Show this cover again]] brings it back.","[[이 표지 숨기기]]는 파일은 그대로 두고 러브마이셀프에서만 보이지 않게 해요. [[이 표지 다시 표시]]로 되돌릴 수 있어요."),
                     T("[[Move this cover file to the Recycle Bin]] deletes only the cover. The original stays as it is. If there is a GIF cover too, this item changes to [[Move both the JPG and GIF covers to the Recycle Bin]], and [[Move only the GIF cover to the Recycle Bin]] deletes only the GIF cover and keeps the JPG cover. Hide and show then change to [[Hide both the JPG and GIF covers]] and [[Show both the JPG and GIF covers again]].","[[이 표지 파일 휴지통으로 보내기]]는 표지만 지워요. 원본은 그대로예요. GIF 표지도 있으면 이 메뉴가 [[JPG·GIF 표지 모두 휴지통으로 보내기]]로 바뀌고, [[GIF 표지만 휴지통으로 보내기]]를 누르면 GIF 표지만 지우고 JPG 표지는 남겨 둬요. 숨기기와 다시 표시도 이때는 [[JPG·GIF 표지 모두 숨기기]], [[JPG·GIF 표지 모두 다시 표시]]로 바뀌어요."),
                     T("If you deleted a cover by mistake, click the notice that shows at the bottom right for 3 seconds. The cover comes right back. Keep the mouse over the notice and it waits without disappearing.","표지를 실수로 지웠다면 오른쪽 아래에 3초 동안 나오는 알림을 누르세요. 표지가 그대로 돌아와요. 알림 위에 마우스를 올려 두면 알림이 사라지지 않고 기다려요."),
                     T("[[Move the original file to the Recycle Bin]] deletes the original photo or video itself. You can restore it from the Recycle Bin.","[[원본 파일 휴지통으로 보내기]]는 원본 사진이나 영상 자체를 지워요. 휴지통에서 복원할 수 있어요.")}});
             tidy.Items.Add(new Card {Title=T("If you moved an original somewhere else","원본을 다른 곳으로 옮겼다면"),
-                Lines=new[]{T("Love My Shelf remembers where each original was. An original that you renamed in File Explorer or moved within the same drive is usually found again by itself. When it can't be found, the tile shows the small saved preview instead.",
-                    "Love My Shelf는 원본이 어디에 있었는지 기억해요. 파일 탐색기에서 이름을 바꾸거나 같은 드라이브 안에서 옮긴 원본은 대부분 저절로 다시 찾아요. 찾지 못했을 때는 칸에 저장해 둔 작은 미리보기가 대신 보여요."),
+                Lines=new[]{T("LoveMyShelf remembers where each original was. An original that you renamed in File Explorer or moved within the same drive is usually found again by itself. When it can't be found, the tile shows the small saved preview instead.",
+                    "러브마이셀프는 원본이 어디에 있었는지 기억해요. 파일 탐색기에서 이름을 바꾸거나 같은 드라이브 안에서 옮긴 원본은 대부분 저절로 다시 찾아요. 찾지 못했을 때는 칸에 저장해 둔 작은 미리보기가 대신 보여요."),
                     T("In that case, open it large, click [[Find the original again]] and choose the file in its new place. Then it works as before.","그럴 때는 크게 열어서 [[원본 다시 찾기]]를 누르고, 옮긴 위치의 파일을 골라 주세요. 그러면 전처럼 쓸 수 있어요.")},
-                Tips=new[]{T("If you rename with {{F2}} inside Love My Shelf, its records change along with it, so this doesn't happen.","Love My Shelf 안에서 {{F2}}로 이름을 바꾸면 기록도 함께 바뀌어서 이런 일이 생기지 않아요.")}});
+                Tips=new[]{T("If you rename with {{F2}} inside LoveMyShelf, its records change along with it, so this doesn't happen.","러브마이셀프 안에서 {{F2}}로 이름을 바꾸면 기록도 함께 바뀌어서 이런 일이 생기지 않아요.")}});
 
             // ----- Backup and restore -----
             var backup=add("backup",T("Backup and restore","백업·복원"));
@@ -1477,7 +1477,7 @@ namespace LoveMyShelf {
                     T("The password is kept nowhere. If you forget it, nobody can open the backup.","비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도 백업을 열 수 없어요."),
                     T("If you like, the original photos and videos can be kept too, as locked photo boxes with the same password. Any 7-Zip opens them with that password.",
                         "원하면 원본 사진·영상도 같은 비밀번호로 ‘잠긴 사진 상자’에 넣어 둘 수 있어요. 7-Zip으로 그 비밀번호를 넣으면 열려요."),
-                    T("When it's time, Love My Shelf reminds you when it starts (every week unless you change it).","백업할 때가 되면 Love My Shelf를 켤 때 알려 드려요(바꾸지 않으면 1주일마다).")}});
+                    T("When it's time, LoveMyShelf reminds you when it starts (every week unless you change it).","백업할 때가 되면 러브마이셀프를 켤 때 알려 드려요(바꾸지 않으면 1주일마다).")}});
 
             backup.Items.Add(new Card {Title=T("See your covers on your phone","휴대폰에서 표지 보기"),
                 Lines=new[]{T("Right-click a blank spot in a folder and choose [[Send to phone…]]. The covers on screen are copied into a Google Drive or OneDrive folder in the order shown, as 001_name.jpg, 002_name.jpg … Open that folder in the same app on your phone and sort it by name.",
@@ -1498,15 +1498,15 @@ namespace LoveMyShelf {
                 Choices=new[]{new Choice("한국어",""),new Choice("English","")},Columns=2,
                 Get=p=>p.Korean?0:1,Set=(p,i)=>p.Korean=i==0});
             screen.Items.Add(new Setting {Id="updates",SectionId="screen",Title=T("Should we tell you when a new version is out?","새 버전이 나오면 알려 드릴까요?"),
-                Lines=new[]{T("When this is on, Love My Shelf checks GitHub for a new version once each time it starts. No photos or personal information are sent. If there is a new version, a notice appears at the bottom right. Click the notice and it downloads and updates automatically, and your covers and settings stay as they are.",
-                    "켜 두면 Love My Shelf를 켤 때마다 한 번씩 GitHub에 새 버전이 있는지 확인해요. 이때 사진이나 개인 정보는 전혀 보내지 않아요. 새 버전이 있으면 오른쪽 아래에 알려 드려요. 그 알림을 누르면 자동으로 다운로드해서 업데이트하고, 만든 표지와 설정은 그대로 남아요.")},
+                Lines=new[]{T("When this is on, LoveMyShelf checks GitHub for a new version once each time it starts. No photos or personal information are sent. If there is a new version, a notice appears at the bottom right. Click the notice and it downloads and updates automatically, and your covers and settings stay as they are.",
+                    "켜 두면 러브마이셀프를 켤 때마다 한 번씩 GitHub에 새 버전이 있는지 확인해요. 이때 사진이나 개인 정보는 전혀 보내지 않아요. 새 버전이 있으면 오른쪽 아래에 알려 드려요. 그 알림을 누르면 자동으로 다운로드해서 업데이트하고, 만든 표지와 설정은 그대로 남아요.")},
                 Choices=new[]{new Choice(T("Get notices","알림 받기"),""),new Choice(T("Turn notices off","알림 끄기"),T("It never connects to the internet.","인터넷에 전혀 접속하지 않아요."))},
                 Default=0,Columns=2,Get=p=>p.CheckUpdates?0:1,Set=(p,i)=>p.CheckUpdates=i==0});
-            screen.Items.Add(new Setting {Id="explorerMenu",SectionId="screen",Title=T("Add Love My Shelf to File Explorer's right-click menu?","파일 탐색기 오른쪽 클릭 메뉴에 넣을까요?"),
-                Lines=new[]{T("Right-click a photo or video in File Explorer and choose [[Open with Love My Shelf]]. The file opens large, and its folder opens behind it. On Windows 11, click [[Show more options]] first (or press {{Shift+F10}}). It is also in [[Open with]].",
-                    "파일 탐색기에서 사진이나 영상을 오른쪽 클릭하고 [[Love My Shelf로 열기]]를 고르세요. 파일이 크게 열리고, 그 폴더가 뒤에 열려요. Windows 11에서는 먼저 [[더 많은 옵션 표시]]를 누르거나 {{Shift+F10}}을 누르세요. [[연결 프로그램]]에도 들어 있어요."),
-                    T("It is added only for your Windows account and needs no administrator permission. Turn it off and it is removed right away. If you move the Love My Shelf folder, start Love My Shelf once so the menu finds it again.",
-                    "지금 쓰는 Windows 계정에만 추가되고, 관리자 권한은 필요 없어요. 끄면 바로 지워져요. Love My Shelf 폴더를 옮겼다면 Love My Shelf를 한 번 켜야 메뉴가 새 위치를 찾아요.")},
+            screen.Items.Add(new Setting {Id="explorerMenu",SectionId="screen",Title=T("Add LoveMyShelf to File Explorer's right-click menu?","파일 탐색기 오른쪽 클릭 메뉴에 넣을까요?"),
+                Lines=new[]{T("Right-click a photo or video in File Explorer and choose [[Open with LoveMyShelf]]. The file opens large, and its folder opens behind it. On Windows 11, click [[Show more options]] first (or press {{Shift+F10}}). It is also in [[Open with]].",
+                    "파일 탐색기에서 사진이나 영상을 오른쪽 클릭하고 [[러브마이셀프로 열기]]를 고르세요. 파일이 크게 열리고, 그 폴더가 뒤에 열려요. Windows 11에서는 먼저 [[더 많은 옵션 표시]]를 누르거나 {{Shift+F10}}을 누르세요. [[연결 프로그램]]에도 들어 있어요."),
+                    T("It is added only for your Windows account and needs no administrator permission. Turn it off and it is removed right away. If you move the LoveMyShelf folder, start LoveMyShelf once so the menu finds it again.",
+                    "지금 쓰는 Windows 계정에만 추가되고, 관리자 권한은 필요 없어요. 끄면 바로 지워져요. 러브마이셀프 폴더를 옮겼다면 러브마이셀프를 한 번 켜야 메뉴가 새 위치를 찾아요.")},
                 Choices=new[]{new Choice(T("Add it","넣기"),""),new Choice(T("Don't add it","넣지 않기"),"")},
                 Default=0,Columns=2,Get=p=>p.ExplorerMenu?0:1,Set=(p,i)=>p.ExplorerMenu=i==0});
 
@@ -1531,9 +1531,9 @@ namespace LoveMyShelf {
             // ----- Tell us what's inconvenient (the button is drawn by FeedbackWindow.GuidePanel) -----
             var feedback=add("feedback",T("Tell us what's inconvenient","불편한 점 알려 주기"));
             feedback.Items.Add(new Card {Title=T("Something doesn't work, or could be easier?","안 되는 게 있거나 더 편했으면 하나요?"),
-                Lines=new[]{T("Something that doesn't work, something awkward, or something you wish it had: tell us any time. Every message is read and used to make Love My Shelf better.",
-                    "안 되는 것, 불편한 것, 있었으면 하는 기능을 언제든 알려 주세요. 하나하나 다 읽어 보고 Love My Shelf를 고치는 데 써요."),
-                    T("Press the button below and write it. Love My Shelf opens a Google Form in your browser with what you wrote filled in; press [[Submit]] at the bottom of it and it's sent.",
+                Lines=new[]{T("Something that doesn't work, something awkward, or something you wish it had: tell us any time. Every message is read and used to make LoveMyShelf better.",
+                    "안 되는 것, 불편한 것, 있었으면 하는 기능을 언제든 알려 주세요. 하나하나 다 읽어 보고 러브마이셀프를 고치는 데 써요."),
+                    T("Press the button below and write it. LoveMyShelf opens a Google Form in your browser with what you wrote filled in; press [[Submit]] at the bottom of it and it's sent.",
                         "아래 버튼을 누르고 내용을 적으세요. 브라우저에 쓰신 내용이 채워진 구글 설문지가 열리고, 맨 아래 [[제출]]을 누르면 보내져요."),
                     T("The version goes along unless you untick it. Recent error records go only if you tick them, with folders and file names hidden, and you can read and edit them before sending. Photos and videos themselves are never sent.",
                         "버전은 체크를 풀지 않으면 함께 가요. 최근 오류 기록은 체크했을 때만 가고, 폴더 경로와 파일 이름을 가린 채 보내기 전에 직접 읽고 고칠 수 있어요. 사진·영상 파일 자체는 보내지 않아요.")},
@@ -1545,14 +1545,14 @@ namespace LoveMyShelf {
                 Lines=new[]{T("This is a window Windows shows the first time you run a program it doesn't know well yet. Click [[More info]], then [[Run anyway]].",
                     "Windows가 아직 잘 모르는 프로그램을 처음 실행할 때 띄우는 창이에요. [[추가 정보]]를 누른 다음 [[실행]]을 누르면 돼요.")}});
             help.Items.Add(new Card {Title=T("Video scenes don't show up","영상의 장면이 안 나와요"),
-                Lines=new[]{T("The Love My Shelf folder needs the tools folder inside it. Unzip the downloaded ZIP file again from the start so that all the files are together in one folder.",
-                    "Love My Shelf 폴더 안에 tools 폴더가 있어야 해요. 다운로드한 ZIP 파일의 압축을 처음부터 다시 풀어서 모든 파일이 한 폴더에 함께 있게 해 주세요.")}});
+                Lines=new[]{T("The LoveMyShelf folder needs the tools folder inside it. Unzip the downloaded ZIP file again from the start so that all the files are together in one folder.",
+                    "러브마이셀프 폴더 안에 tools 폴더가 있어야 해요. 다운로드한 ZIP 파일의 압축을 처음부터 다시 풀어서 모든 파일이 한 폴더에 함께 있게 해 주세요.")}});
             help.Items.Add(new Card {Title=T("Videos stutter","영상이 끊겨요"),
                 Lines=new[]{T("For smooth playback, the libmpv-2.dll file must be in the same folder as LoveMyShelf.exe. It is included when you unzip the whole ZIP file.",
                     "부드럽게 재생하려면 LoveMyShelf.exe와 같은 폴더에 libmpv-2.dll 파일이 있어야 해요. ZIP 파일 전체의 압축을 풀면 함께 들어 있어요.")}});
-            help.Items.Add(new Card {Title=T("‘Love My Shelf is already running’ appears","‘Love My Shelf가 이미 실행 중이에요’라고 나와요"),
-                Lines=new[]{T("Only one Love My Shelf can run at a time. Click the Love My Shelf that is already running on the taskbar at the bottom of the screen.",
-                    "Love My Shelf는 한 번에 하나만 실행할 수 있어요. 화면 아래 작업 표시줄에서 이미 실행 중인 Love My Shelf를 눌러 보세요.")}});
+            help.Items.Add(new Card {Title=T("‘LoveMyShelf is already running’ appears","‘러브마이셀프가 이미 실행 중이에요’라고 나와요"),
+                Lines=new[]{T("Only one LoveMyShelf can run at a time. Click the LoveMyShelf that is already running on the taskbar at the bottom of the screen.",
+                    "러브마이셀프는 한 번에 하나만 실행할 수 있어요. 화면 아래 작업 표시줄에서 이미 실행 중인 러브마이셀프를 눌러 보세요.")}});
             help.Items.Add(new Card {Title=T("Text is hard to read","글씨가 잘 안 보여요"),
                 Lines=new[]{T("Try changing the screen mode in [[Screen, language, updates]].","[[화면·언어·새 버전]]에서 화면 모드를 바꿔 보세요.")}});
 

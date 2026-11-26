@@ -9,10 +9,10 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 
 namespace LoveMyShelf {
-    // The right-click menu like File Explorer: Love My Shelf's own items first, a line, then the very menu Windows gives
+    // The right-click menu like File Explorer: LoveMyShelf's own items first, a line, then the very menu Windows gives
     // File Explorer for these files or folders (Open with, Share, Compress, Properties and what other programs add).
     // It is Windows' own full menu (Windows 11 shows it under "Show more options"), drawn by Windows.
-    // Delete, Rename, Cut, Copy and Paste are done by Love My Shelf instead, so covers stay with their originals.
+    // Delete, Rename, Cut, Copy and Paste are done by LoveMyShelf instead, so covers stay with their originals.
     internal static class ShellMenu {
         [ComImport,Guid("000214E6-0000-0000-C000-000000000046"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         interface IShellFolder {
@@ -129,13 +129,13 @@ namespace LoveMyShelf {
         const uint CMF_NORMAL=0,CMF_EXPLORE=4,CMF_CANRENAME=0x10,CMF_EXTENDEDVERBS=0x100;
         const int OwnFirst=1,ShellFirst=0x1000,ShellLast=0x7FFF;
 
-        // What Love My Shelf does itself for the matching Windows items (null: leave that item to Windows).
+        // What LoveMyShelf does itself for the matching Windows items (null: leave that item to Windows).
         internal sealed class Takeovers {internal Action Delete,Rename,Cut,Copy,Paste;internal bool HideRename,LiftDelete;}
 
         // Shows the menu at a screen point (in device pixels). Paths must be in one folder for the Windows part;
-        // otherwise (Cover collection, for example) only Love My Shelf's items show.
+        // otherwise (Cover collection, for example) only LoveMyShelf's items show.
         // The menu of a folder's empty space (File Explorer's right click on blank space: New, Paste, Properties,
-        // Open in Terminal and what programs add), under Love My Shelf's own items (View, Sort by, Refresh).
+        // Open in Terminal and what programs add), under LoveMyShelf's own items (View, Sort by, Refresh).
         internal static void ShowBackground(Window owner,ContextMenu own,string folder,Point screen,Takeovers takeovers,Action afterWindows) {
             Show(owner,own,null,screen,takeovers,afterWindows,null,folder);
         }
@@ -151,7 +151,7 @@ namespace LoveMyShelf {
                 own.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,own));
                 int id=OwnFirst;
                 Add(menu,own.Items,actions,ref id);
-                // A quiet reminder line at the end of Love My Shelf's part (range selection).
+                // A quiet reminder line at the end of LoveMyShelf's part (range selection).
                 if(hint!=null){AppendMenu(menu,MF_SEPARATOR,UIntPtr.Zero,null);AppendMenu(menu,MF_STRING|MF_GRAYED,(UIntPtr)(uint)(ShellFirst-1),hint);}
                 // The Windows part.
                 var usable=(paths??new string[0]).Where(p=>File.Exists(p) || Directory.Exists(p)).ToList();
@@ -279,7 +279,7 @@ namespace LoveMyShelf {
             int count=GetMenuItemCount(menu);
             if(count>0 && IsLine(menu,count-1))DeleteMenu(menu,(uint)(count-1),MF_BYPOSITION);
         }
-        // Love My Shelf's own menu, item by item (submenus too), as Windows menu items.
+        // LoveMyShelf's own menu, item by item (submenus too), as Windows menu items.
         static void Add(IntPtr menu,ItemCollection items,Dictionary<int,MenuItem> actions,ref int id) {
             foreach(var entry in items) {
                 if(entry is Separator){AppendMenu(menu,MF_SEPARATOR,UIntPtr.Zero,null);continue;}

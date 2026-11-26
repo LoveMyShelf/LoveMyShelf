@@ -40,7 +40,7 @@ namespace LoveMyShelf {
             }
             string s=b.ToString().Trim().TrimEnd('.',' ');
             if(s.Length>max){int cut=max;if(Char.IsLowSurrogate(s[cut]))cut--;s=s.Substring(0,cut).TrimEnd('.',' ');}
-            return s.Length==0?"Love My Shelf":s;
+            return s.Length==0?"LoveMyShelf":s;
         }
 
         internal sealed class Plan {

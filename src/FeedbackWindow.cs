@@ -12,13 +12,13 @@ using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace LoveMyShelf {
-    // "Tell us what's inconvenient": the person writes here, sees everything that would go along, and Love My Shelf opens
-    // a Google Form in the browser with it filled in. Nothing is sent by Love My Shelf itself: the person presses [Submit]
+    // "Tell us what's inconvenient": the person writes here, sees everything that would go along, and LoveMyShelf opens
+    // a Google Form in the browser with it filled in. Nothing is sent by LoveMyShelf itself: the person presses [Submit]
     // on the form. No sign-in is needed (the form has no file question and no one-response limit).
     internal sealed class FeedbackWindow : Window {
         static string T(string en,string ko) {return L.P(en,ko);}
 
-        // The form of the Love My Shelf Google account (lovemyshelf.app@outlook.com). The numbers are the form's fields;
+        // The form of the LoveMyShelf Google account (lovemyshelf.app@outlook.com). The numbers are the form's fields;
         // they stay the same as long as those questions are not deleted and made again.
         internal const string FormPage="https://docs.google.com/forms/d/e/1FAIpQLSe08XYMQMcURksoFYLe0Nu-LZP_WOlPUL6godRQnYT__MUxlg/viewform";
         const string KindField="entry.774059150",TextField="entry.227508215",VersionField="entry.1968224065",
@@ -69,7 +69,7 @@ namespace LoveMyShelf {
                     Title,MessageBoxButton.YesNo,MessageBoxImage.Question);
                 if(answer!=MessageBoxResult.Yes)e.Cancel=true;
             };
-            versionLine="Love My Shelf "+AppInfo.Version;
+            versionLine="LoveMyShelf "+AppInfo.Version;
             windowsLine=WindowsName();
             errorsFound=RecentErrors();
             errors=errorsFound;
@@ -80,8 +80,8 @@ namespace LoveMyShelf {
             var box=new Border {CornerRadius=new CornerRadius(14),BorderThickness=new Thickness(1),Padding=new Thickness(20,16,20,18),Margin=new Thickness(0,0,0,14)};
             box.SetResourceReference(Border.BackgroundProperty,"CardBack");box.SetResourceReference(Border.BorderBrushProperty,"CardLine");
             var stack=new StackPanel();box.Child=stack;
-            stack.Children.Add(Line(T("Write it in Love My Shelf, then press [Submit] once on the form that opens. No sign-in is needed.",
-                "Love My Shelf에서 쓰고, 열리는 설문지에서 [제출]만 한 번 누르면 돼요. 로그인하지 않아도 돼요."),false,14));
+            stack.Children.Add(Line(T("Write it in LoveMyShelf, then press [Submit] once on the form that opens. No sign-in is needed.",
+                "러브마이셀프에서 쓰고, 열리는 설문지에서 [제출]만 한 번 누르면 돼요. 로그인하지 않아도 돼요."),false,14));
             var button=UI.Btn(T("Tell us what's inconvenient…","불편한 점 알려 주기…"),()=>Show(Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault()??guide),true);
             button.Padding=new Thickness(16,0,16,0);button.MinHeight=36;button.Margin=new Thickness(0,12,0,0);button.HorizontalAlignment=HorizontalAlignment.Left;
             stack.Children.Add(button);
@@ -139,8 +139,8 @@ namespace LoveMyShelf {
         // ---------------- Writing ----------------
         void WritePage() {
             NewPage(T("Tell us what's inconvenient","불편한 점 알려 주기"));
-            Para(T("Something that doesn't work, something awkward, or something you wish it had: write it freely. Every message is read, and it helps make Love My Shelf better.",
-                "안 되는 것, 불편한 것, 있었으면 하는 기능을 편하게 적어 주세요. 하나하나 다 읽어 보고 Love My Shelf를 고치는 데 써요."));
+            Para(T("Something that doesn't work, something awkward, or something you wish it had: write it freely. Every message is read, and it helps make LoveMyShelf better.",
+                "안 되는 것, 불편한 것, 있었으면 하는 기능을 편하게 적어 주세요. 하나하나 다 읽어 보고 러브마이셀프를 고치는 데 써요."));
 
             Sub(T("What is it about?","어떤 이야기인가요?"));
             var kinds=new WrapPanel();
@@ -171,9 +171,9 @@ namespace LoveMyShelf {
             version.Checked+=delegate {withVersion=true;};version.Unchecked+=delegate {withVersion=false;};
             bool any=errorsFound.Length>0;
             var errorTick=Tick(T("Recent error records","최근 오류 기록"),
-                any?T("Folders, file names and your Windows user name are hidden as far as Love My Shelf can tell. Check it below and delete anything you'd rather not send.",
+                any?T("Folders, file names and your Windows user name are hidden as far as LoveMyShelf can tell. Check it below and delete anything you'd rather not send.",
                     "폴더 경로, 파일 이름, Windows 사용자 이름은 최대한 가렸어요. 아래에서 확인하고 보내기 싫은 부분은 지워도 돼요.")
-                   :T("Love My Shelf hasn't recorded any errors.","Love My Shelf가 적어 둔 오류가 없어요."),any && withErrors);
+                   :T("LoveMyShelf hasn't recorded any errors.","러브마이셀프가 적어 둔 오류가 없어요."),any && withErrors);
             errorTick.IsEnabled=any;
             var errorBox=Box(errors,true,150);errorBox.FontSize=12;errorBox.FontFamily=new FontFamily("Consolas, Malgun Gothic");errorBox.MaxLength=12000;
             errorBox.Margin=new Thickness(24,4,0,0);errorBox.Visibility=any && withErrors?Visibility.Visible:Visibility.Collapsed;

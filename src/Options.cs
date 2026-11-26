@@ -45,7 +45,7 @@ namespace LoveMyShelf {
         public bool VerifyCopies;
         // How many times the notice that points at the queue button in the bottom bar has been shown (it stops after 3).
         public int QueueTips;
-        public bool ExplorerMenu=true;   // on unless turned off; "Open with Love My Shelf" in File Explorer's right-click menu
+        public bool ExplorerMenu=true;   // on unless turned off; "Open with LoveMyShelf" in File Explorer's right-click menu
         public GifPlayback GridGif=GifPlayback.Hover;
         public ShareContent Share;
         // Discord's free upload limit went from 10 MB to 20 MB in August 2026.

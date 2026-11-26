@@ -129,7 +129,7 @@ namespace LoveMyShelf {
 0.0
 //!HOOK MAIN
 //!BIND HOOKED
-//!DESC Love My Shelf brightness
+//!DESC LoveMyShelf brightness
 // pow never gets 0: some GPUs turn pow(0, y) into NaN.
 vec4 hook() {
     vec4 color = HOOKED_texOff(0);

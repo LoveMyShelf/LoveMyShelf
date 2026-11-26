@@ -37,8 +37,8 @@ namespace LoveMyShelf {
         internal static void Open(Window owner,GalleryStore store) {
             if(open!=null){if(open.WindowState==WindowState.Minimized)open.WindowState=WindowState.Normal;open.Activate();return;}
             if(!FaceEngine.Available) {
-                MessageBox.Show(owner,L.T("The files for finding faces are missing. Check that the Love My Shelf folder has its faces folder and its upscale folder."),
-                    "Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Information);
+                MessageBox.Show(owner,L.T("The files for finding faces are missing. Check that the LoveMyShelf folder has its faces folder and its upscale folder."),
+                    "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Information);
                 return;
             }
             open=new FaceWindow(store) {Owner=owner};
@@ -52,7 +52,7 @@ namespace LoveMyShelf {
             Width=Math.Min(900,SystemParameters.WorkArea.Width);Height=Math.Min(720,SystemParameters.WorkArea.Height);MinWidth=420;MinHeight=280;
             var root=new DockPanel();var bar=new WindowTitleBar(this);root.Children.Add(bar);Content=root;
             var top=new StackPanel {Margin=new Thickness(18,10,18,8)};DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
-            var about=UI.Text(NoticeLook.KeepWords(L.T("Love My Shelf looks for faces on your covers and puts faces that look alike together. Give a group a name, and that name becomes a tag on the originals of those covers. The pictures never leave this computer.")),13,true);
+            var about=UI.Text(NoticeLook.KeepWords(L.T("LoveMyShelf looks for faces on your covers and puts faces that look alike together. Give a group a name, and that name becomes a tag on the originals of those covers. The pictures never leave this computer.")),13,true);
             about.TextWrapping=TextWrapping.Wrap;about.Margin=new Thickness(0,0,0,10);
             var actions=new WrapPanel();
             start=UI.Btn(L.T("Find faces"),StartScan,true);start.FontSize=14;start.MinHeight=32;start.Padding=new Thickness(16,0,16,0);start.Margin=new Thickness(0,0,6,4);
@@ -146,7 +146,7 @@ namespace LoveMyShelf {
             forget.IsEnabled=!busy && !loading && byCover.Count>0;
             int faces=byCover.Values.Sum(f=>f.Count);
             if(loading)status.Text=L.T("Loading…");
-            else if(busy)status.Text=L.F("Looking for faces: {0:N0} of {1:N0} covers · {2:N0} faces so far. You can keep using Love My Shelf meanwhile.",readSoFar,scanTotal,foundSoFar);
+            else if(busy)status.Text=L.F("Looking for faces: {0:N0} of {1:N0} covers · {2:N0} faces so far. You can keep using LoveMyShelf meanwhile.",readSoFar,scanTotal,foundSoFar);
             else if(covers.Count==0)status.Text=L.T("There are no covers yet. Make some covers first.");
             else if(unread.Count==0)status.Text=L.F("All {0:N0} covers were read · {1:N0} faces",covers.Count,faces);
             else if(byCover.Count==0)status.Text=L.F("{0:N0} covers haven't been read yet. Click [Find faces] to start.",unread.Count);
@@ -167,12 +167,12 @@ namespace LoveMyShelf {
             } catch(Exception ex) {error=ex.Message;}
             if(scan==job)scan=null;
             if(closed)return;
-            if(error!=null)MessageBox.Show(this,error,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+            if(error!=null)MessageBox.Show(this,error,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Warning);
             LoadAll();
         }
         void ForgetAll() {
-            if(MessageBox.Show(this,L.T("Delete everything Love My Shelf worked out about faces?\nThe tags you already gave stay. The covers and originals are not touched."),
-                "Love My Shelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+            if(MessageBox.Show(this,L.T("Delete everything LoveMyShelf worked out about faces?\nThe tags you already gave stay. The covers and originals are not touched."),
+                "LoveMyShelf",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
             FaceFiles.ClearAll(store);
             LoadAll();
         }
@@ -323,7 +323,7 @@ namespace LoveMyShelf {
             }
             return row;
         }
-        void Hint(string text) {MessageBox.Show(this,text,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Information);}
+        void Hint(string text) {MessageBox.Show(this,text,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Information);}
         List<Face> Chosen(IEnumerable<Face> faces) {return faces.Where(f=>selected.Contains(f)).ToList();}
         // ----- Face pictures -----
         FrameworkElement FacePanel(List<Face> faces,int first) {

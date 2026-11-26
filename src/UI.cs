@@ -9,8 +9,8 @@ using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
 
-[assembly: AssemblyTitle("Love My Shelf")]
-[assembly: AssemblyProduct("Love My Shelf")]
+[assembly: AssemblyTitle("LoveMyShelf")]
+[assembly: AssemblyProduct("LoveMyShelf")]
 [assembly: AssemblyDescription("Create portrait covers from local photos and video frames.")]
 [assembly: AssemblyVersion(LoveMyShelf.AppInfo.Version+".0")]
 [assembly: AssemblyFileVersion(LoveMyShelf.AppInfo.Version+".0")]
@@ -58,7 +58,7 @@ namespace LoveMyShelf {
             };
         }
         public static void Error(Window w,Exception ex) {
-            MessageBox.Show(w,ex.Message,"Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Warning);
+            MessageBox.Show(w,ex.Message,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Warning);
         }
         public static DockPanel Bar(Thickness margin) { return new DockPanel { Margin=margin,LastChildFill=true }; }
         public static void Right(DockPanel p, UIElement e) { DockPanel.SetDock(e,Dock.Right); p.Children.Add(e); }
@@ -170,11 +170,11 @@ namespace LoveMyShelf {
             // Most often the very first start, before a language was chosen: go by the language Windows is in, as the first window does.
             bool korean=languageChosen?L.Korean:System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ko";
             var answer=MessageBox.Show(korean?
-                "Love My Shelf에 필요한 파일이 옆에 없어요. 압축 파일 안에서 바로 켰거나, LoveMyShelf.exe만 따로 꺼내서 켠 것 같아요.\n\n"+
+                "러브마이셀프에 필요한 파일이 옆에 없어요. 압축 파일 안에서 바로 켰거나, LoveMyShelf.exe만 따로 꺼내서 켠 것 같아요.\n\n"+
                 "받은 ZIP 파일을 오른쪽 클릭해서 압축을 전부 푼 다음, 풀린 폴더에서 LoveMyShelf.exe를 다시 켜 주세요. "+
                 "바탕 화면에서 바로 켜고 싶으면 exe는 그 폴더에 그대로 두고 바로 가기를 만들어 주세요.\n\n"+
                 "그래도 지금 켤까요? 영상은 Windows 기본 재생기로 나오고, 일부 기능이 안 될 수 있어요.":
-                "Some files Love My Shelf needs are not next to it. It looks like it was started from inside the ZIP file, or LoveMyShelf.exe was taken out on its own.\n\n"+
+                "Some files LoveMyShelf needs are not next to it. It looks like it was started from inside the ZIP file, or LoveMyShelf.exe was taken out on its own.\n\n"+
                 "Right-click the ZIP file you downloaded, unpack all of it, and start LoveMyShelf.exe again from the folder that comes out. "+
                 "To start it from the desktop, leave the exe in that folder and make a shortcut.\n\n"+
                 "Open it anyway? Videos will play in the Windows player, and some features won't work.",
@@ -208,7 +208,7 @@ namespace LoveMyShelf {
                 Environment.Exit(SimilarEngine.RunChild(args[1],args[2]));
                 return;
             }
-            string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with Love My Shelf"
+            string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with LoveMyShelf"
             // Asked by taking it, not by whether it was already there: the update helper keeps it open, without holding
             // it, while it waits for this new version to start, and that must not look like a second copy running.
             using(var guard=new Mutex(false,AppUpdater.AppMutex)) {
@@ -217,7 +217,7 @@ namespace LoveMyShelf {
                 if(!first) {
                     // Hand the file to the program that is already running instead of complaining.
                     if(openPath!=null && ExplorerOpen.Send(openPath))return;
-                    MessageBox.Show(L.T("Love My Shelf is already running."),"Love My Shelf"); return;
+                    MessageBox.Show(L.T("LoveMyShelf is already running."),"LoveMyShelf"); return;
                 }
                 // After the one-copy check, so starting it twice from the ZIP shows this once, and a file sent on goes straight through.
                 if(!AllUnpacked(Preferences.Load(root).LanguageChosen))return;
@@ -260,16 +260,16 @@ namespace LoveMyShelf {
                     }
                     if(!running) {
                         ErrorLog.Serious("Could not open",ex);
-                        MessageBox.Show(ex.Message,L.T("Could not open Love My Shelf"),MessageBoxButton.OK,MessageBoxImage.Error);
+                        MessageBox.Show(ex.Message,L.T("Could not open LoveMyShelf"),MessageBoxButton.OK,MessageBoxImage.Error);
                     } else {
                         // A problem nothing was ready for, in the middle of use.
                         ErrorLog.Serious("Crash",ex);
                         ErrorLog.RunBeforeCrash();
                         // The windows are still there, in whatever state the problem left them: this window may be cut short by them.
                         try {
-                            MessageBox.Show(L.PF("Love My Shelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}\n\nIf you tell us through Guide & Options (F1) → [Tell us what's inconvenient], we'll fix it.",
-                                "문제가 생겨서 Love My Shelf를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n설명서 겸 옵션(F1) → [불편한 점 알려 주기]로 알려 주시면 고칠게요.",ex.Message,ErrorLog.Path),
-                                "Love My Shelf",MessageBoxButton.OK,MessageBoxImage.Error);
+                            MessageBox.Show(L.PF("LoveMyShelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}\n\nIf you tell us through Guide & Options (F1) → [Tell us what's inconvenient], we'll fix it.",
+                                "문제가 생겨서 러브마이셀프를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n설명서 겸 옵션(F1) → [불편한 점 알려 주기]로 알려 주시면 고칠게요.",ex.Message,ErrorLog.Path),
+                                "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Error);
                         } catch(Exception again) {ErrorLog.Serious("While telling about the crash",again);}
                     }
                 }

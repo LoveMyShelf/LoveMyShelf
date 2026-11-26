@@ -34,7 +34,7 @@ namespace LoveMyShelf {
             ToolTip=State==1?L.T("Only some of the chosen files have this tag. Click to put it on all of them."):null;
         }
     }
-    // Puts tags on the chosen originals and takes them off. Tags are kept only in Love My Shelf's own records.
+    // Puts tags on the chosen originals and takes them off. Tags are kept only in LoveMyShelf's own records.
     internal sealed class TagWindow : Window {
         readonly List<Photo> targets;
         readonly WrapPanel chips=new WrapPanel();
@@ -61,7 +61,7 @@ namespace LoveMyShelf {
             var scroll=new ScrollViewer {Content=chips,MaxHeight=Math.Min(230,Math.Max(64,SystemParameters.WorkArea.Height-250)),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Margin=new Thickness(0,12,0,0)};
             page.Children.Add(scroll);
             note.TextWrapping=TextWrapping.Wrap;note.Margin=new Thickness(0,6,0,0);page.Children.Add(note);
-            var promise=UI.Text(NoticeLook.KeepWords(L.T("Tags are kept only inside Love My Shelf. The original files and their names are never changed.")),12,true);
+            var promise=UI.Text(NoticeLook.KeepWords(L.T("Tags are kept only inside LoveMyShelf. The original files and their names are never changed.")),12,true);
             promise.TextWrapping=TextWrapping.Wrap;promise.Margin=new Thickness(0,8,0,0);page.Children.Add(promise);
             var actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
             var cancel=UI.Btn(L.T("Cancel"),()=>DialogResult=false);cancel.IsCancel=true;

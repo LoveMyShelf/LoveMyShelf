@@ -8,7 +8,7 @@ using System.Xml.Linq;
 namespace LoveMyShelf {
     // Tags belong to an original (never to one cover), and the original itself is never touched:
     // each folder's record folder keeps one "tags.xml" that lists its files' tags by file name.
-    // Moving or renaming a file inside Love My Shelf carries its tags along (see Moved).
+    // Moving or renaming a file inside LoveMyShelf carries its tags along (see Moved).
     internal static class Tags {
         const string FileName="tags.xml";
         internal const int MaxLength=40;

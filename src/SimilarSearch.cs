@@ -193,8 +193,8 @@ namespace LoveMyShelf {
                         // the ones after it are read by a new copy.
                         for(int tries=0;left.Count>0 && tries<20;tries++) {
                             int before=at+batch.Count-left.Count;
-                            string problem=reader.Read(left,n=>Say(L.PF("Reading the photos… {0:N0} of {1:N0}. You can keep using Love My Shelf meanwhile.",
-                                "사진 읽는 중… {1:N0}개 중 {0:N0}개. 그동안 Love My Shelf를 계속 써도 돼요.",before+n,total)));
+                            string problem=reader.Read(left,n=>Say(L.PF("Reading the photos… {0:N0} of {1:N0}. You can keep using LoveMyShelf meanwhile.",
+                                "사진 읽는 중… {1:N0}개 중 {0:N0}개. 그동안 러브마이셀프를 계속 써도 돼요.",before+n,total)));
                             token.ThrowIfCancellationRequested();
                             var unread=left.Where(f=>!f.HasHash && !f.Failed && !f.Moving).ToList();
                             if(problem==null || unread.Count==0)break;

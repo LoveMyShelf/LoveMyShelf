@@ -1,10 +1,10 @@
-# Love My Shelf guide
+# LoveMyShelf guide
 
 [한국어 설명서](GUIDE.ko.md) · [Back to README](README.md#english)
 
-### What kind of program Love My Shelf is
+### What kind of program LoveMyShelf is
 
-Love My Shelf is a program that lays out a folder piled with photos, GIFs and videos like a grid and shows it at a glance. You can tell what is there without opening the files one by one. When you find a file you like, you can pick one photo or one scene of a video and cut it into a picture of any shape (tall, square or wide). A picture made this way is called a **cover**. Once you make a cover, its tile shows the cover, so you recognize it right away the next time you open the folder.
+LoveMyShelf is a program that lays out a folder piled with photos, GIFs and videos like a grid and shows it at a glance. You can tell what is there without opening the files one by one. When you find a file you like, you can pick one photo or one scene of a video and cut it into a picture of any shape (tall, square or wide). A picture made this way is called a **cover**. Once you make a cover, its tile shows the cover, so you recognize it right away the next time you open the folder.
 
 The original file is never changed. A cover is saved as a separate JPG file in the folder you chose.
 
@@ -42,18 +42,18 @@ In **Guide & Options → Screen, language, updates**, choose **Follow Windows** 
 
 ### Main screen
 
-- To add a folder, right-click it in the folder tree on the left and click **Add to Love My Shelf** (it is like ‘Pin to Quick access’ in File Explorer). You can also drag the folder onto Love My Shelf in the tree, or drag it from File Explorer onto this window. **Ctrl+O** opens the folder selection window. Folders you added show under Love My Shelf in the tree.
-- Right-click a folder in the tree and click **Remove from Love My Shelf** to take it off the list. The actual folder and files stay as they are.
+- To add a folder, right-click it in the folder tree on the left and click **Add to LoveMyShelf** (it is like ‘Pin to Quick access’ in File Explorer). You can also drag the folder onto LoveMyShelf in the tree, or drag it from File Explorer onto this window. **Ctrl+O** opens the folder selection window. Folders you added show under LoveMyShelf in the tree.
+- Right-click a folder in the tree and click **Remove from LoveMyShelf** to take it off the list. The actual folder and files stay as they are.
 - With the **All / Finished / Unfinished** buttons at the bottom left, you can choose which tiles in the folder to see: everything, only those with a cover, or only those that have no cover yet.
-- **Unfinished cover collection** gathers in one place only the files that have no cover yet, from the folders you added to Love My Shelf and their subfolders. Even if you add a whole drive, Windows system folders are left out. Good for making covers one after another.
+- **Unfinished cover collection** gathers in one place only the files that have no cover yet, from the folders you added to LoveMyShelf and their subfolders. Even if you add a whole drive, Windows system folders are left out. Good for making covers one after another.
 - **Cover collection** gathers the covers made in every folder on one screen. If one original has several covers, all of them show.
 - Click the **Sort** button at the bottom right and the choices unfold upward (it is the same as sorting in File Explorer). Choose one of **File name**, **Date modified**, **File size**, **File type** and **Cover creation order**, and which end comes first (for example A → Z or Newest first), and the folder is read again and sorted in that order. **Shuffle** at the very bottom mixes them at random. A shuffled order is temporary, so choosing a sort again brings the original order back.
 - Each time you click **Cover size**, the tile size changes through 4 steps.
 - The top row is the same as File Explorer: **←** back (**Backspace**, **Alt+←**, the mouse's back button), **→** forward (**Alt+→**), **↑** the folder above (**Alt+↑**) and **⟳** refresh, and the **address bar** shows where you are now. In the address bar, click a folder name to go to that folder, or click the **›** after a name to see the list of folders inside it. Click the empty part (or press **Ctrl+L**) to type or paste a path; folder names are suggested as you type.
-- Click the button at the very top left (or press **Ctrl+T**) and the **folder tree** opens on the left, like File Explorer. Love My Shelf is at the top (the two collections and the folders you added), and below it are your pinned folders, This PC and the network. Click a folder to open it, and click **▸** to unfold the folders inside. Drag files onto a folder in the tree and they move to that folder. To change the order of the folders you added to Love My Shelf, drag one onto another in the tree.
+- Click the button at the very top left (or press **Ctrl+T**) and the **folder tree** opens on the left, like File Explorer. LoveMyShelf is at the top (the two collections and the folders you added), and below it are your pinned folders, This PC and the network. Click a folder to open it, and click **▸** to unfold the folders inside. Drag files onto a folder in the tree and they move to that folder. To change the order of the folders you added to LoveMyShelf, drag one onto another in the tree.
 - **Selecting many:** hold the right mouse button and drag over the tiles, and every tile the rectangle touches is selected (drag while holding Ctrl to add, Esc cancels, and the left button works too from an empty spot).
 - **Ctrl+C / Ctrl+X / Ctrl+V** copy, cut and paste files. It works the same way as File Explorer. When files move, their covers go along, and Ctrl+Z undoes it.
-- Right-click a file or folder and Love My Shelf's menu comes first, then, below a dividing line, File Explorer's full menu. Right-click an empty spot and the folder's menu appears (View, Sort by, Refresh, Paste, Undo move, and below them New, Open in Terminal, Properties and so on).
+- Right-click a file or folder and LoveMyShelf's menu comes first, then, below a dividing line, File Explorer's full menu. Right-click an empty spot and the folder's menu appears (View, Sort by, Refresh, Paste, Undo move, and below them New, Open in Terminal, Properties and so on).
 - The subfolders in a folder gather separately in a folders area above the photos (you can change it to below in Options), set apart by a horizontal line. Click **View** on that line to choose a view as in File Explorer: icons, list, details, tiles or content. Double-click a folder to go into it, and come back with **←** or **Backspace**. Drag files onto a folder and they move to that folder. In a place with only folders and no photos or videos, the folders unfold by themselves even if you folded them.
 - After adding or moving files, press **F5** to refresh the screen.
 - Click the **magnifier** at the top right (or press **Ctrl+F**) and the search box opens. Type something and only the files whose names contain it stay. Press **Esc** to clear the search and close the box.
@@ -127,10 +127,10 @@ Tip: pressing **D** or **F** during playback pauses and moves one scene back or 
 - Inside the large view, **View cover** and **View original** switch between the two.
 - **Edit cover** opens the Make cover screen with the framing you saved. Good when you want to change only a little. For a video, the scene you saved opens.
 - **Add cover** in the large view (or **Make one more cover** when you right-click a tile) makes one more cover from the same original. Use it when you want another scene or another framing. The covers you made before stay as they are. In the folder view, that many tiles show side by side. A video's new cover goes in the place that fits the time order of the scenes in the video. These tiles are all made from the same original, so Delete (the original goes to the Recycle Bin and all of that original's tiles disappear), Rename, moving to another folder and Open file location apply once to the one original, whichever tile you use. **Cover collection** also shows one tile for each cover.
-- **A cover from a picture made elsewhere**: right-click a tile and choose **Use a picture made elsewhere as a cover…**, then pick a picture file (JPG, PNG, WebP or BMP). The same Make cover screen opens with that picture, so you can cut, turn and brighten it in the same way. A poster or a picture you edited in another program can become the cover of a video or photo like this. Love My Shelf keeps its own copy of the picture you picked, so you can move or delete your picture file afterwards and **Edit cover** still works. When you move the cover to the Recycle Bin, the finished cover file goes to the Recycle Bin and the kept copy is removed with it. A cover made this way has no scene in the video, so **Make GIF cover** doesn't appear for it.
+- **A cover from a picture made elsewhere**: right-click a tile and choose **Use a picture made elsewhere as a cover…**, then pick a picture file (JPG, PNG, WebP or BMP). The same Make cover screen opens with that picture, so you can cut, turn and brighten it in the same way. A poster or a picture you edited in another program can become the cover of a video or photo like this. LoveMyShelf keeps its own copy of the picture you picked, so you can move or delete your picture file afterwards and **Edit cover** still works. When you move the cover to the Recycle Bin, the finished cover file goes to the Recycle Bin and the kept copy is removed with it. A cover made this way has no scene in the video, so **Make GIF cover** doesn't appear for it.
 - **Changing the order of covers**: when one original has two or more covers, right-click a cover and open **Cover order**: **Move forward**, **Move back**, **Move to the very front (the first cover)** and **Back to the automatic order**. Once you move a cover yourself, that original keeps your order, and a cover you make later goes to the end.
 - Right-click a tile and click **Open with default app** to open it in the program set as the default in Windows.
-- The other way round, right-click a photo or video in File Explorer and click **Open with Love My Shelf**: the folder that holds the file opens with that file right in the large view (on Windows 11, click **Show more options** first, or press **Shift+F10**). It is on from the start, and you can turn it off in **Guide & Options → Screen, language, updates**.
+- The other way round, right-click a photo or video in File Explorer and click **Open with LoveMyShelf**: the folder that holds the file opens with that file right in the large view (on Windows 11, click **Show more options** first, or press **Shift+F10**). It is on from the start, and you can turn it off in **Guide & Options → Screen, language, updates**.
 
 ### JPG covers and GIF covers
 
@@ -162,7 +162,7 @@ None of the three has sound. The sizes below are for a cover 3 seconds long, at 
 - **GIF**: the most widely used format for moving pictures, so it moves almost everywhere. But each picture can use only up to 256 colors, so where colors change smoothly, as on faces or under stage lights, tiny dot patterns or step-like lines can appear. Its files are the biggest of the three (usually 7 to 13 MB).
   - Discord: it moves (free users can upload up to 20 MB per file). X (Twitter): up to 15 MB on a computer and 5 MB on a phone.
 - **WebP**: a fairly new format made by Google. It moves like a GIF but holds colors much more smoothly, and its size is about a tenth of a GIF (about 1 MB). But in older programs and some apps, only the first scene shows as a still picture, or it doesn't open at all.
-  - It moves like a GIF on Discord too. It is the best for keeping and viewing inside Love My Shelf.
+  - It moves like a GIF on Discord too. It is the best for keeping and viewing inside LoveMyShelf.
 - **MP4**: a video format. Of the three, its size is the smallest (about 0.8 MB) and its picture quality is the best. But it is treated as a video, not a picture, so depending on where you post it, it may get a play button or play once and stop.
 
 If you're not sure, choose WebP (it is selected at first); if you'll post it where WebP doesn't move, GIF; if you're fine with it going up as a video, MP4.
@@ -205,8 +205,8 @@ If you're not sure, choose WebP (it is selected at first); if you'll post it whe
 - In windowed mode the playback bar is always below the video, as in PotPlayer, so it doesn't cover the video. In full screen, move the mouse to the very bottom and the playback bar and buttons appear over the video; move it to the very top and the title bar appears.
 - **Double-click** the video to pause or play again.
 - The large view fills the window from top to bottom. A wide photo may look a little cut off at the sides. The black bars at the top and bottom of a saved cover don't show.
-- In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was; maximize leaves full screen and becomes a maximized window. This is the same in every Love My Shelf window.
-- When you watch only a video, try minimizing the folder window. About 5 seconds later it lets go of the pictures it had read to show in the tiles, so Love My Shelf uses less memory. While watching a video, right-click the screen and click **Minimize the folder window**. Bring the folder window back and only the pictures of the tiles on screen are read again.
+- In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was; maximize leaves full screen and becomes a maximized window. This is the same in every LoveMyShelf window.
+- When you watch only a video, try minimizing the folder window. About 5 seconds later it lets go of the pictures it had read to show in the tiles, so LoveMyShelf uses less memory. While watching a video, right-click the screen and click **Minimize the folder window**. Bring the folder window back and only the pictures of the tiles on screen are read again.
 
 ### Changing the large view’s shortcuts
 
@@ -218,7 +218,7 @@ If you're not sure, choose WebP (it is selected at first); if you'll post it whe
 
 If there is a subtitle file (SMI, SRT, ASS, VTT) with the same name as the video, it shows automatically. If one file has both Korean and English, Korean shows first. In full screen, while the playback bar is showing, the subtitles move up above the playback bar so they aren't covered.
 
-Subtitles show in the same font as Love My Shelf. A font or size written inside an SMI or SRT file is not followed (colors are kept), and ASS subtitles show in the fonts their maker chose. Change the subtitle size by 10% at a time (50 to 300%) with **Subtitle size** in the controls window that opens when you right-click the screen, or choose it in **Guide & Options → Large view**. The size you set is used for the next video too.
+Subtitles show in the same font as LoveMyShelf. A font or size written inside an SMI or SRT file is not followed (colors are kept), and ASS subtitles show in the fonts their maker chose. Change the subtitle size by 10% at a time (50 to 300%) with **Subtitle size** in the controls window that opens when you right-click the screen, or choose it in **Guide & Options → Large view**. The size you set is used for the next video too.
 
 1. Right-click the video screen and click **Open the subtitle explorer**.
 2. Pause at the moment a line of speech starts.
@@ -228,7 +228,7 @@ Subtitles show in the same font as Love My Shelf. A font or size written inside 
 
 - Double-click a subtitle line and the video goes to that spot.
 - If only the later part is off, choose **Move only this line and after** from the ▾ next to the sync button.
-- Saving changes only the times that moved and the sentences you fixed. The subtitle's first state is kept separately in Love My Shelf's records folder.
+- Saving changes only the times that moved and the sentences you fixed. The subtitle's first state is kept separately in LoveMyShelf's records folder.
 - Subtitles inside a video file also show as usual, but only separate subtitle files can be listed and synced.
 
 ### Built-in video player
@@ -237,7 +237,7 @@ The ZIP includes `libmpv-2.dll`, the playback engine of the free player mpv. It 
 
 ### Font
 
-Love My Shelf's text is shown in Pretendard, a free font made with both Korean and Latin letters in mind. The font files are in the `fonts` folder in the same folder as `LoveMyShelf.exe`, so they aren't installed on your PC. Without this folder, text is shown in Segoe UI and Malgun Gothic.
+LoveMyShelf's text is shown in Pretendard, a free font made with both Korean and Latin letters in mind. The font files are in the `fonts` folder in the same folder as `LoveMyShelf.exe`, so they aren't installed on your PC. Without this folder, text is shown in Segoe UI and Malgun Gothic.
 
 ### Upscale (making a small cover sharper with AI)
 
@@ -254,7 +254,7 @@ Both JPG files stay where the cover is saved. The upscaled file's name ends in `
 ### Tidying up
 
 - **When one original has several covers**: a number like **2/5** shows at the bottom right of the tile. It means the second of 5 covers. Covers of the same original always stay together even when you sort or shuffle, with number 1 on the left. Covers from pictures made elsewhere come first, in the order you added them, and then a video's covers are placed in the time order of their scenes in the video, regardless of the order you made them. An original whose covers you arranged yourself keeps your order. Point at a cover and all the covers made from the same original get a colored outline. In the large view, when there is empty space on the right of the screen, the other covers of the same original appear small; click one to switch to it. In full screen they hide when the mouse stays still and come back when it moves.
-- **Hide this cover**: leaves the file as it is and only stops showing it in Love My Shelf. It leaves **Cover collection**, and the tile in the folder view shows the original (the tile of a cover you made as one more disappears from the folder view). Click **Show this cover again** to bring it back. If you hid another cover of the same original, **Show hidden covers again** appears when you right-click the tile in the folder view.
+- **Hide this cover**: leaves the file as it is and only stops showing it in LoveMyShelf. It leaves **Cover collection**, and the tile in the folder view shows the original (the tile of a cover you made as one more disappears from the folder view). Click **Show this cover again** to bring it back. If you hid another cover of the same original, **Show hidden covers again** appears when you right-click the tile in the folder view.
 - **Move this cover file to the Recycle Bin**: sends the cover JPG (together with the upscaled file and the GIF cover, if there are any) to the Windows Recycle Bin and removes it from the list. The original stays as it is. If there is a GIF cover too, the item's name changes to **Move both the JPG and GIF covers to the Recycle Bin**, and one more item appears: **Move only the GIF cover to the Recycle Bin**. If you send only the GIF cover, the JPG cover stays, and restoring the GIF file from the Recycle Bin connects it again. Hide and show also apply to both covers, so their names change to **Hide both the JPG and GIF covers** and **Show both the JPG and GIF covers again**.
 - **If you deleted a cover by mistake**: when you send a cover to the Recycle Bin, a notice shows at the bottom right for 3 seconds. Click the notice within that time and the cover comes right back. Keep the mouse over the notice and it waits without disappearing.
 - **Move the original file to the Recycle Bin**: sends the original photo or video itself to the Windows Recycle Bin. You can restore it from the Recycle Bin.
@@ -264,13 +264,13 @@ Both JPG files stay where the cover is saved. The upscaled file's name ends in `
 ### Tags and finding people by face
 
 - **Putting on a tag**: Right-click a tile and click **Tags…**. Type a name and press Enter, and the tag is on. Tags you used before show below, so one click is enough. You can select several tiles and tag them at once. A tag goes on the original, not on one cover, so an original with several covers needs it only once.
-- **Where tags are kept**: Only in Love My Shelf's records. The original files and their names are never changed. When you move or rename a file inside Love My Shelf, its tags go with it. A file renamed in File Explorer, or moved within the same drive, is mostly found again by itself and its tags follow. If you did that while the program was open, press F5. A file moved to another drive loses its tags unless it has a cover.
+- **Where tags are kept**: Only in LoveMyShelf's records. The original files and their names are never changed. When you move or rename a file inside LoveMyShelf, its tags go with it. A file renamed in File Explorer, or moved within the same drive, is mostly found again by itself and its tags follow. If you did that while the program was open, press F5. A file moved to another drive loses its tags unless it has a cover.
 - **Seeing a tag's files together**: Click **Tags** at the bottom center to see the list of tags and how many files each one is on. Click a tag, and the files with that tag are gathered from every folder. Right-click a tile on this screen and **Take the tag “name” off** appears. At the bottom of the same list you can rename or delete the tag you are looking at.
 - **Search**: The search box finds file names and tags together. Put # in front, like `#name`, and it looks at tags only.
-- **Finding people by face**: Click **Find people by face…** at the bottom of the **Tags** list. Click **Find faces**, and Love My Shelf looks for faces on your covers and shows faces that look alike together. Type a name for a group and click **Name them and tag**, and that name becomes a tag on the originals of those covers. The program doesn't know who anyone is; it only gathers faces that look alike. You give the names.
+- **Finding people by face**: Click **Find people by face…** at the bottom of the **Tags** list. Click **Find faces**, and LoveMyShelf looks for faces on your covers and shows faces that look alike together. Type a name for a group and click **Name them and tag**, and that name becomes a tag on the originals of those covers. The program doesn't know who anyone is; it only gathers faces that look alike. You give the names.
 - **When the groups are wrong**: If one person is split into several groups, move the slider left. If different people are in one group, move it right. It starts at 0.36. Click faces to choose them, then click **Take the chosen faces out** or **The chosen faces are not name**, and only those faces leave. Give two groups the same name and they become one person.
 - **After making new covers**: Open the window again and click **Find faces on new covers**. Faces that look like a person you named are shown apart under that person, and the tag goes on only when you click **Yes, they are name**. Tags are never put on without asking.
-- **The pictures never leave**: Finding faces runs on this computer only. Nothing is sent over the internet. The numbers that describe a face are kept in Love My Shelf's record folder, and **Delete all face information…** removes all of them. Tags you already gave stay.
+- **The pictures never leave**: Finding faces runs on this computer only. Nothing is sent over the internet. The numbers that describe a face are kept in LoveMyShelf's record folder, and **Delete all face information…** removes all of them. Tags you already gave stay.
 
 ### Copy, share, drag and drop
 
@@ -281,7 +281,7 @@ Right-click a tile and click **Copy** or <b>Share…</b>, or drag the tile onto 
 - What is sent is set in **Guide & Options → Sharing**. You can choose **Cover and original** (default), **Cover only** or **Original only**. Right-click a tile to choose differently just this once. A GIF cover made from a cover is sent along with the cover.
 - If an original video is bigger than the size set in Guide & Options (default 20 MB), copying or sharing asks whether to **Send it as it is** or **Send only 10 seconds around the cover scene**. Dragging always sends the file as it is.
 
-Love My Shelf never uploads anything to the internet itself. It only hands the files to Windows, and where they go is decided in the app you chose.
+LoveMyShelf never uploads anything to the internet itself. It only hands the files to Windows, and where they go is decided in the app you chose.
 
 ### What you can set in Guide & Options
 
@@ -300,21 +300,21 @@ Most settings that choose a number have a **Type your own** card under their cho
 
 - **Covers:** in the place you set in Guide & Options, as ordinary JPG files (GIF covers made as GIF, WebP or MP4 are there too).
 - **Program records** (folder list, cover framing, settings): `%LOCALAPPDATA%\LoveMyShelf\Folders`. Paste it into File Explorer's address bar to open it.
-- **Originals:** right where they were. Love My Shelf only reads the originals.
+- **Originals:** right where they were. LoveMyShelf only reads the originals.
 - The internet is used only to check for a new version and, after you click to update, to download the new files. No photos or personal information are sent. You can turn it off in **Guide & Options → Screen, language, updates**.
 
-When a new version is out, click the notice at the bottom right, then click once more on the notice that says it is ready, and Love My Shelf starts again as the new version. Your covers and records stay as they are. Only when coming from version 1.0.3 or earlier, one last time, close the program and extract the new ZIP over the old folder.
+When a new version is out, click the notice at the bottom right, then click once more on the notice that says it is ready, and LoveMyShelf starts again as the new version. Your covers and records stay as they are. Only when coming from version 1.0.3 or earlier, one last time, close the program and extract the new ZIP over the old folder.
 
 ### FFmpeg for video covers
 
 `ffmpeg.exe` and `ffprobe.exe` are used when choosing scenes from a video. The two files and the DLL files they need are already in the `tools` folder in the same folder as `LoveMyShelf.exe`, so there is nothing to prepare. Leave the `tools` folder right where it is.
 
-If you delete the `tools` folder, Love My Shelf looks for an FFmpeg registered on `PATH`. To use a different FFmpeg, replace `ffmpeg.exe` and `ffprobe.exe` in `tools`. For a "shared" build, the DLL files must be replaced too.
+If you delete the `tools` folder, LoveMyShelf looks for an FFmpeg registered on `PATH`. To use a different FFmpeg, replace `ffmpeg.exe` and `ffprobe.exe` in `tools`. For a "shared" build, the DLL files must be replaced too.
 
 ### If something goes wrong
 
 - **A ‘Windows protected your PC’ window pops up** → Click **More info → Run anyway**. The window appears because the program isn't signed.
-- **‘Love My Shelf is already running’ appears** → Only one can run at a time. Click the Love My Shelf that is already running on the taskbar.
+- **‘LoveMyShelf is already running’ appears** → Only one can run at a time. Click the LoveMyShelf that is already running on the taskbar.
 - **‘.exe was not found’ appears when making a video cover** → The `tools` folder is missing or some files are gone. Extract the whole ZIP again.
 - **The Upscale button doesn't show** → The cover is already 1920 pixels tall or more, or there is no `upscale` folder in the same folder as `LoveMyShelf.exe`.
 - **A video doesn't play or stutters** → Check that `libmpv-2.dll` is in the same folder as `LoveMyShelf.exe`. You can also right-click the tile and click **Open with default app** to watch it.
@@ -333,6 +333,6 @@ It builds with the C# compiler and WPF of the .NET Framework 4.x that is in Wind
 
 ### License
 
-Love My Shelf is free software under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE). Under this license, anyone may use, share and modify it. The bundled components follow their own licenses. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+LoveMyShelf is free software under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE). Under this license, anyone may use, share and modify it. The bundled components follow their own licenses. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Contact: lovemyshelf.app@outlook.com

@@ -185,7 +185,7 @@ namespace LoveMyShelf {
         // decoded by frame number, so this stays apart from FrameTime and never changes which picture is read.
         internal double? SavedSceneMs;
         internal double? SceneMs {get {return Picture!=null?null:FrameTime??SavedSceneMs??(FrameIndex<=0?(double?)0:null);}}
-        // A cover cut from a picture made outside Love My Shelf: the name of the copy kept in the record folder.
+        // A cover cut from a picture made outside LoveMyShelf: the name of the copy kept in the record folder.
         // It has no scene, so it has no scene time and no GIF cover, and Edit cover opens this copy instead of the original.
         internal string Picture;
         internal bool IsOutside {get {return Picture!=null;}}
@@ -476,7 +476,7 @@ namespace LoveMyShelf {
             var all=FolderPhotos(album,out skipped);
             return SortCoverFamilies(all,sort,descending);
         }
-        // Everything without a cover in the Love My Shelf folders and all the folders inside them.
+        // Everything without a cover in the LoveMyShelf folders and all the folders inside them.
         // A folder inside two added folders counts once. Stopping early returns what was found so far.
         internal List<Photo> UnfinishedCovers(out int skipped,System.Threading.CancellationToken token=default(System.Threading.CancellationToken),Action<int> found=null) {
             skipped=0;
@@ -553,7 +553,7 @@ namespace LoveMyShelf {
             return Directory.EnumerateFiles(path).Any(f=>(ImageExtensions.Contains(Path.GetExtension(f)) || VideoFrames.Supports(f)) && !SharedCoverFiles.IsBesideCover(f));
         }
         // The hidden record of a folder inside an added one. Covers saved there need it to appear in the cover collection.
-        // It is complete before it appears, so it never shows as a Love My Shelf folder for a moment.
+        // It is complete before it appears, so it never shows as a LoveMyShelf folder for a moment.
         Album RecordsFor(string path) {
             string folder=AlbumFolderOf(path),name=Path.GetFileName(path);
             if(name.Length==0)name=path;
@@ -887,7 +887,7 @@ namespace LoveMyShelf {
         internal Photo Reframe(Photo old,BitmapSource preview,Rect crop,int? frameIndex,double rotation,
             double? frameTime,int frameTimeOffset,CoverOutputMode mode,int maxHeight,System.Threading.CancellationToken token,
             string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null) {
-            // picture: a picture made outside Love My Shelf that the cover is cut from, instead of the original.
+            // picture: a picture made outside LoveMyShelf that the cover is cut from, instead of the original.
             // The original stays the file the cover belongs to, so where the cover is saved and how it is found again don't change.
             if(coverDirectory!=null){mode=CoverOutputMode.Native;maxHeight=0;}
             bool native=mode==CoverOutputMode.Native;

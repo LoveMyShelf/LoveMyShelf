@@ -39,15 +39,20 @@
       titleEn="GIF covers and upscaling follow the cover's shape"
       textKo="움직이는 GIF 표지, 표지 옆 목록, 업스케일링이 모두 표지 모양을 그대로 따라가요. 가로로 긴 표지의 GIF는 [가로 크기]로 크기를 정해요."
       textEn="Moving GIF covers, the list of covers beside a large cover, and upscaling all keep the cover's shape. For a wide cover's GIF, the size is set as [Width]."/>
-  </release>
+      <item group="better" icon="sparkle"
+      titleKo="이름을 러브마이셀프로 붙여 써요"
+      titleEn="The name is now written LoveMyShelf"
+      textKo="프로그램 이름을 화면과 설명서 모두 붙여서 써요. 한국어 화면에서는 러브마이셀프, 영어 화면에서는 LoveMyShelf예요. 표지를 넣어 두는 ‘Love My Shelf 표지’ 같은 폴더 이름은 그대로라서 만든 표지와 기록은 그대로 이어져요."
+      textEn="The program's name is now written joined on screen and in the guide: LoveMyShelf (러브마이셀프 on Korean screens). Folder names such as ‘Love My Shelf 표지’ stay the same, so your covers and records carry on as they are."/>
+</release>
   <release version="1.0.8"
     summaryKo="비슷한 사진을 모아 나란히 비교하며 정리할 수 있어요. 표지·태그·기록을 비밀번호로 잠가 백업하고, 컴퓨터를 바꿔도 되살릴 수 있어요."
     summaryEn="Gather similar photos and tidy them up by comparing side by side. Back up your covers, tags and records locked with a password, and bring them back on another computer.">
     <item group="new" icon="image"
       titleKo="비슷한 사진 모음"
       titleEn="A collection of similar photos"
-      textKo="폴더 트리의 Love My Shelf 아래 [비슷한 사진 모음]을 누르고 [찾기]를 눌러요. 똑같은 파일과 거의 같은 사진을 묶음으로 모아 보여 줘요. 묶음마다 남기기 좋은 사진에 ‘남기기 추천’이 붙고, 칸 아래쪽에 해상도·형식·용량과 무엇이 다른지 적혀 있어요. 폴더를 오른쪽 클릭하고 [비슷한 사진 찾기…]를 눌러 그 폴더만 찾을 수도 있어요."
-      textEn="Click [Similar photos] under Love My Shelf in the folder tree, then click [Find]. Identical files and nearly identical photos are shown together in groups. In each group, the photo worth keeping is marked ‘Suggested to keep’, and the bottom of each tile shows its resolution, format, size and how it differs. You can also right-click a folder and click [Find similar photos…] to look in that folder only."/>
+      textKo="폴더 트리의 러브마이셀프 아래 [비슷한 사진 모음]을 누르고 [찾기]를 눌러요. 똑같은 파일과 거의 같은 사진을 묶음으로 모아 보여 줘요. 묶음마다 남기기 좋은 사진에 ‘남기기 추천’이 붙고, 칸 아래쪽에 해상도·형식·용량과 무엇이 다른지 적혀 있어요. 폴더를 오른쪽 클릭하고 [비슷한 사진 찾기…]를 눌러 그 폴더만 찾을 수도 있어요."
+      textEn="Click [Similar photos] under LoveMyShelf in the folder tree, then click [Find]. Identical files and nearly identical photos are shown together in groups. In each group, the photo worth keeping is marked ‘Suggested to keep’, and the bottom of each tile shows its resolution, format, size and how it differs. You can also right-click a folder and click [Find similar photos…] to look in that folder only."/>
     <item group="new" icon="check"
       titleKo="나란히 비교하며 남길 사진 고르기"
       titleEn="Compare side by side and choose what to keep"
@@ -77,7 +82,7 @@
       titleKo="압축을 덜 풀고 켰을 때 알려 줘요"
       titleEn="A notice when the ZIP wasn’t fully unpacked"
       textKo="받은 ZIP 안에서 바로 켜거나 LoveMyShelf.exe만 꺼내서 켜면 필요한 파일이 없어서 영상이 안 나올 수 있어요. 이제 그럴 때 ‘압축을 전부 풀어 주세요’ 창으로 알려 줘요."
-      textEn="If you start Love My Shelf from inside the ZIP, or take out only LoveMyShelf.exe, files it needs are missing and videos may not play. Now a ‘Please unpack the whole ZIP first’ window tells you so."/>
+      textEn="If you start LoveMyShelf from inside the ZIP, or take out only LoveMyShelf.exe, files it needs are missing and videos may not play. Now a ‘Please unpack the whole ZIP first’ window tells you so."/>
     <item group="fixed" icon="check"
       titleKo="작은 문제 네 가지를 고쳤어요"
       titleEn="Four small problems fixed"
@@ -141,7 +146,7 @@
       titleKo="다른 드라이브로 옮길 때 원본을 한 번 더 확인하고 지워요"
       titleEn="The original is checked once more before it is deleted when moving to another drive"
       textKo="파일을 다른 드라이브로 옮기면 복사가 끝난 뒤에 원본을 지워요. 이제 지우기 직전에, 복사할 때와 달라진 점이 없는지 한 번 더 확인해요. 그사이 원본이 바뀌었으면 지우지 않고 알려 줘요. 멈췄다가 이어서 보낼 때도 같은 파일이 맞는지 확인해요."
-      textEn="When you move a file to another drive, the original is deleted after the copy is finished. Now, right before deleting, Love My Shelf checks once more that nothing has changed since it was copied. If the original has changed in the meantime, it is not deleted and you are told. When a paused job goes on, it also checks that the file is still the same one."/>
+      textEn="When you move a file to another drive, the original is deleted after the copy is finished. Now, right before deleting, LoveMyShelf checks once more that nothing has changed since it was copied. If the original has changed in the meantime, it is not deleted and you are told. When a paused job goes on, it also checks that the file is still the same one."/>
     <item group="better" icon="news"
       titleKo="문제가 생기면 이 컴퓨터에 기록을 남겨요"
       titleEn="When something goes wrong, a record is kept on this computer"
@@ -160,8 +165,8 @@
     <item group="fixed" icon="download"
       titleKo="알림을 눌러도 업데이트되지 않던 문제"
       titleEn="The update did not go through when the notice was clicked"
-      textKo="새 버전 알림을 눌러 업데이트하면 ‘Love My Shelf가 이미 실행 중이에요’라는 창이 뜨고 쓰던 버전으로 돌아가던 문제를 고쳤어요. 업데이트를 마치지 못하면 쓰던 버전이 다시 켜지면서 알려 줘요. 그 알림을 누르면 다운로드 페이지가 열려요."
-      textEn="Fixed a problem where updating from the new version notice showed a window saying ‘Love My Shelf is already running’ and went back to the version you were using. If an update can’t be finished, the version you were using starts again and tells you. Click that notice to open the download page."/>
+      textKo="새 버전 알림을 눌러 업데이트하면 ‘러브마이셀프가 이미 실행 중이에요’라는 창이 뜨고 쓰던 버전으로 돌아가던 문제를 고쳤어요. 업데이트를 마치지 못하면 쓰던 버전이 다시 켜지면서 알려 줘요. 그 알림을 누르면 다운로드 페이지가 열려요."
+      textEn="Fixed a problem where updating from the new version notice showed a window saying ‘LoveMyShelf is already running’ and went back to the version you were using. If an update can’t be finished, the version you were using starts again and tells you. Click that notice to open the download page."/>
   </release>
   <release version="1.0.6"
     summaryKo="영상을 보면서 GIF 표지 구간을 바로 정하고, 돌리거나 확대한 화면 그대로 표지를 만들 수 있어요. 화면을 오른쪽 클릭하면 모든 조작이 키와 함께 한눈에 보여요."
@@ -192,18 +197,18 @@
     <item group="new" icon="image"
       titleKo="밖에서 만든 그림을 표지로"
       titleEn="Use a picture made elsewhere as a cover"
-      textKo="칸을 오른쪽 클릭하고 [밖에서 만든 그림을 표지로…]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 고르면, 그 그림으로 평소와 같은 표지 만들기 화면이 열려요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요. 고른 그림은 Love My Shelf가 사본을 따로 보관해 둬요."
-      textEn="Right-click a tile, click [Use a picture made elsewhere as a cover…], then pick a picture file (JPG, PNG, WebP or BMP), and the usual Make cover screen opens with that picture. A poster or a picture touched up in another program can be the cover of a video or photo. Love My Shelf keeps its own copy of the picture you picked."/>
+      textKo="칸을 오른쪽 클릭하고 [밖에서 만든 그림을 표지로…]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 고르면, 그 그림으로 평소와 같은 표지 만들기 화면이 열려요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요. 고른 그림은 러브마이셀프가 사본을 따로 보관해 둬요."
+      textEn="Right-click a tile, click [Use a picture made elsewhere as a cover…], then pick a picture file (JPG, PNG, WebP or BMP), and the usual Make cover screen opens with that picture. A poster or a picture touched up in another program can be the cover of a video or photo. LoveMyShelf keeps its own copy of the picture you picked."/>
     <item group="new" icon="order"
       titleKo="표지 순서 바꾸기"
       titleEn="Change the order of covers"
       textKo="원본 하나에 표지가 두 장 이상 있으면, 표지를 오른쪽 클릭하고 [표지 순서]에서 앞으로, 뒤로, 맨 앞으로(첫 번째 표지) 옮길 수 있어요. 직접 옮긴 원본은 정한 순서를 그대로 지키고, [자동 순서로 되돌리기]를 누르면 영상 속 장면의 시간 순서로 돌아가요."
       textEn="When one original has two or more covers, right-click a cover and move it forward, back, or to the very front (the first cover) under [Cover order]. An original you arranged yourself keeps your order, and [Back to the automatic order] returns it to the order of the scenes in the video."/>
     <item group="new" icon="folder"
-      titleKo="파일 탐색기에서 [Love My Shelf로 열기]"
-      titleEn="[Open with Love My Shelf] in File Explorer"
-      textKo="파일 탐색기에서 사진이나 영상을 오른쪽 클릭하면 [Love My Shelf로 열기]가 나와요(Windows 11에서는 먼저 [더 많은 옵션 표시]를 누르거나 Shift+F10을 누르세요). 누르면 그 파일이 든 폴더가 열리고 그 파일이 바로 크게 보여요. Love My Shelf가 이미 켜져 있어도 돼요. 처음부터 켜져 있고, 설명서 겸 옵션의 [화면·언어·새 버전]에서 끌 수 있어요."
-      textEn="Right-click a photo or video in File Explorer and [Open with Love My Shelf] is there (on Windows 11, click [Show more options] first, or press Shift+F10). Click it and the folder that holds the file opens with that file right in the large view. It works even when Love My Shelf is already running. It is on from the start, and you can turn it off under [Screen, language, updates] in Guide &amp; Options."/>
+      titleKo="파일 탐색기에서 [러브마이셀프로 열기]"
+      titleEn="[Open with LoveMyShelf] in File Explorer"
+      textKo="파일 탐색기에서 사진이나 영상을 오른쪽 클릭하면 [러브마이셀프로 열기]가 나와요(Windows 11에서는 먼저 [더 많은 옵션 표시]를 누르거나 Shift+F10을 누르세요). 누르면 그 파일이 든 폴더가 열리고 그 파일이 바로 크게 보여요. 러브마이셀프가 이미 켜져 있어도 돼요. 처음부터 켜져 있고, 설명서 겸 옵션의 [화면·언어·새 버전]에서 끌 수 있어요."
+      textEn="Right-click a photo or video in File Explorer and [Open with LoveMyShelf] is there (on Windows 11, click [Show more options] first, or press Shift+F10). Click it and the folder that holds the file opens with that file right in the large view. It works even when LoveMyShelf is already running. It is on from the start, and you can turn it off under [Screen, language, updates] in Guide &amp; Options."/>
     <item group="new" icon="play"
       titleKo="모니터마다 다른 스피커"
       titleEn="A different speaker for each monitor"
@@ -218,8 +223,8 @@
     <item group="new" icon="play"
       titleKo="자막 크기 조절과 같은 글꼴"
       titleEn="Subtitle size, and the same font"
-      textKo="자막이 Love My Shelf와 같은 글꼴로 표시돼요. 크기는 화면을 오른쪽 클릭하면 나오는 조작 창의 [자막 크기]에서 10%씩 바꾸거나, 설명서 겸 옵션의 [크게 보기]에서 고를 수 있어요. 바꾼 크기는 다음 영상에도 그대로 쓰여요."
-      textEn="Subtitles show in the same font as Love My Shelf. Change the size by 10% at a time with [Subtitle size] in the controls window that opens when you right-click the screen, or choose it under [Large view] in Guide &amp; Options. The size you set is used for the next video too."/>
+      textKo="자막이 러브마이셀프와 같은 글꼴로 표시돼요. 크기는 화면을 오른쪽 클릭하면 나오는 조작 창의 [자막 크기]에서 10%씩 바꾸거나, 설명서 겸 옵션의 [크게 보기]에서 고를 수 있어요. 바꾼 크기는 다음 영상에도 그대로 쓰여요."
+      textEn="Subtitles show in the same font as LoveMyShelf. Change the size by 10% at a time with [Subtitle size] in the controls window that opens when you right-click the screen, or choose it under [Large view] in Guide &amp; Options. The size you set is used for the next video too."/>
     <item group="better" icon="sparkle"
       titleKo="새로워진 GIF 표지 만들기 창"
       titleEn="A renewed Make GIF cover window"
@@ -230,7 +235,7 @@
       titleKo="GIF 표지 기본값: WebP · 화질 높게 · 1초에 30장 · 세로 1280픽셀"
       titleEn="GIF cover defaults: WebP · high quality · 30 pictures a second · 1280 pixels tall"
       textKo="GIF 표지가 처음부터 더 부드럽고 선명하게 만들어져요. 이미 쓰고 계신 분께는 한 번 알려 드리고, 새 기본값으로 한 번 만들어 보시길 권해요. 마음에 들지 않으면 설명서 겸 옵션의 [GIF 표지 만들기]에서 숫자를 직접 넣어 바꿀 수 있어요. 미리보기는 구간을 바꾸면 바로 나오고, 실제 파일은 [만들기]를 눌렀을 때 만들어요(뒤에서 알아서 만들게 바꿀 수도 있어요)."
-      textEn="GIF covers are made smoother and sharper from the start. If you were already using Love My Shelf, you are told once, and we suggest trying the new defaults once. If you don't like them, you can type your own numbers under [Making GIF covers] in Guide &amp; Options. The preview shows as soon as you change the part, and the real file is made when you click [Make] (you can also have it made by itself in the background)."/>
+      textEn="GIF covers are made smoother and sharper from the start. If you were already using LoveMyShelf, you are told once, and we suggest trying the new defaults once. If you don't like them, you can type your own numbers under [Making GIF covers] in Guide &amp; Options. The preview shows as soon as you change the part, and the real file is made when you click [Make] (you can also have it made by itself in the background)."/>
     <item group="better" icon="check"
       titleKo="표지를 만드는 동안 다른 창도 쓸 수 있어요"
       titleEn="Use other windows while making a cover"
@@ -244,8 +249,8 @@
     <item group="better" icon="check"
       titleKo="전체 화면에서도 최소화·최대화 버튼"
       titleEn="Minimize and maximize buttons in full screen too"
-      textKo="전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. Love My Shelf의 모든 창이 같아요."
-      textEn="Even in full screen, the minimize and maximize buttons at the top right can be clicked right away. Minimize and bring it back, and it returns in full screen as it was. Every Love My Shelf window works the same."/>
+      textKo="전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 러브마이셀프의 모든 창이 같아요."
+      textEn="Even in full screen, the minimize and maximize buttons at the top right can be clicked right away. Minimize and bring it back, and it returns in full screen as it was. Every LoveMyShelf window works the same."/>
     <item group="better" icon="download"
       titleKo="폴더 창을 최소화하면 메모리를 덜 써요"
       titleEn="Minimizing the folder window uses less memory"
@@ -426,8 +431,8 @@
     <item group="new" icon="folder"
       titleKo="왼쪽 폴더 트리"
       titleEn="Folder tree on the left"
-      textKo="Love My Shelf에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요."
-      textEn="Your Love My Shelf folders, Quick access, OneDrive, This PC and network locations in one place."
+      textKo="러브마이셀프에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요."
+      textEn="Your LoveMyShelf folders, Quick access, OneDrive, This PC and network locations in one place."
       keys="Ctrl+T"/>
     <item group="new" icon="folder"
       titleKo="주소창과 뒤로·앞으로·위로"
@@ -511,8 +516,8 @@
       textEn="The icon fills its frame, so it no longer looks small on the taskbar."/>
   </release>
   <release version="1.0.0"
-    summaryKo="Love My Shelf의 첫 버전이에요."
-    summaryEn="The first version of Love My Shelf.">
+    summaryKo="러브마이셀프의 첫 버전이에요."
+    summaryEn="The first version of LoveMyShelf.">
     <item group="new" icon="folder"
       titleKo="쌓인 폴더를 한눈에"
       titleEn="Big folders at a glance"

@@ -223,12 +223,12 @@ namespace LoveMyShelf {
             for(int i=0;i<outputs.Length;i++)outputNames[i]=Marshal.StringToHGlobalAnsi(outputs[i]);
             outputName=outputNames[0];
             IntPtr module=LoadLibraryEx(library,IntPtr.Zero,AlteredSearchPath);
-            if(module==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder.")+" ("+Marshal.GetLastWin32Error()+")");
+            if(module==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the LoveMyShelf folder has its upscale folder.")+" ("+Marshal.GetLastWin32Error()+")");
             IntPtr getBase=GetProcAddress(module,"OrtGetApiBase");
-            if(getBase==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder."));
+            if(getBase==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the LoveMyShelf folder has its upscale folder."));
             IntPtr apiBase=((GetApiBaseFn)Marshal.GetDelegateForFunctionPointer(getBase,typeof(GetApiBaseFn)))();
             api=((GetApiFn)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(apiBase,0),typeof(GetApiFn)))(ApiVersion);
-            if(api==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the Love My Shelf folder has its upscale folder."));
+            if(api==IntPtr.Zero)throw new IOException(L.T("Could not load the upscaling tool. Check that the LoveMyShelf folder has its upscale folder."));
             errorMessage=Fn<ErrorMessageFn>(2);
             run=Fn<RunFn>(9);
             createTensor=Fn<CreateTensorFn>(49);

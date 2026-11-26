@@ -15,7 +15,7 @@ namespace LoveMyShelf {
     // no compression because photos and videos don't get smaller, in 2 GB parts). The originals are never touched.
     // One box per folder; a box is made again only when something in its folder changed or the password changed.
     // The password goes to 7-Zip through its input, never on its command line, so other programs can't read it there.
-    // Any 7-Zip can open a box with the same password, also without Love My Shelf.
+    // Any 7-Zip can open a box with the same password, also without LoveMyShelf.
     internal static class PhotoBox {
         internal static string SevenZip() {
             string here=AppDomain.CurrentDomain.BaseDirectory;

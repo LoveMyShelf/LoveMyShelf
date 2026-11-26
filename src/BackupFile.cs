@@ -137,7 +137,7 @@ namespace LoveMyShelf {
             internal Reader(Stream file,string password) {
                 this.file=file;
                 var header=ReadExactly(HeaderLength,true);
-                for(int i=0;i<8;i++)if(header[i]!=Magic[i])throw new DamagedException("not a Love My Shelf backup");
+                for(int i=0;i<8;i++)if(header[i]!=Magic[i])throw new DamagedException("not a LoveMyShelf backup");
                 if(header[8]!=1 || header[9]!=0)throw new DamagedException("newer backup format");
                 // Only the settings this version writes: a changed header can't make the computer do huge work.
                 if(BitConverter.ToInt32(header,10)!=MemoryKiB || BitConverter.ToInt32(header,14)!=Passes ||

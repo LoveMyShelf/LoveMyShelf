@@ -231,7 +231,7 @@ namespace LoveMyShelf {
             return String.Join("\n",WebUtility.HtmlDecode(OwnFont(text)).Split('\n').Select(l=>l.Replace('\u00A0',' ').Trim()).Where(l=>l.Length>0));
         }
         // A font name or size written in the subtitle is left out on screen (the file keeps it), so every subtitle
-        // shows in Love My Shelf's font at the size the person chose. Colors stay.
+        // shows in LoveMyShelf's font at the size the person chose. Colors stay.
         static readonly Regex FontTag=new Regex(@"<font\b[^>]*>",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
         static readonly Regex FontLook=new Regex(@"\s+(?:face|size)\s*=\s*(?:""[^""]*""|'[^']*'|[^\s>]+)",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
         static string OwnFont(string text) {return FontTag.Replace(text,m=>FontLook.Replace(m.Value,""));}
@@ -327,7 +327,7 @@ namespace LoveMyShelf {
             var t=TimeSpan.FromMilliseconds(ms);
             return String.Format(CultureInfo.InvariantCulture,"{0:00}:{1:00}:{2:00},{3:000}",(int)t.TotalHours,t.Minutes,t.Seconds,t.Milliseconds);
         }
-        // Overwrites the subtitle. The very first version is kept in Love My Shelf's own folder, and the file is only
+        // Overwrites the subtitle. The very first version is kept in LoveMyShelf's own folder, and the file is only
         // replaced once the whole new one has been written. Returns the file as it is now on disk.
         internal SubtitleFile Save(string backupFolder,bool evenIfChanged=false) {
             var info=new FileInfo(Path);

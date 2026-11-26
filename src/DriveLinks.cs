@@ -58,7 +58,7 @@ namespace LoveMyShelf {
 
     // Keeps covers attached to their files when external drives come and go. Records are filed under the folder's
     // full path, so a new drive letter would otherwise look like a different folder. Nothing here touches the
-    // originals or the cover files themselves; only Love My Shelf's own records are moved or corrected.
+    // originals or the cover files themselves; only LoveMyShelf's own records are moved or corrected.
     internal static class DriveLinks {
         const string HoldingFolder="records-waiting-for-drive",Ticket="relink.xml",VolumeFile="volume.txt",CoverVolumeFile="cover-volume.txt";
         const string HiddenTabFile="hide-folder-tab";
@@ -161,7 +161,7 @@ namespace LoveMyShelf {
                 }
             }
         }
-        // The original was renamed or moved outside Love My Shelf and was found again on the same drive.
+        // The original was renamed or moved outside LoveMyShelf and was found again on the same drive.
         static void AddFound(string record,Album album,string name,uint volume,string found,string atHome,DriveLayout drives,List<Plan> plans) {
             if(found==null || Paths.Equals(found,atHome))return;
             string folder=Path.GetDirectoryName(found),root=drives.RootOf(found);

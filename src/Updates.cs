@@ -69,7 +69,7 @@ namespace LoveMyShelf {
 
     // One-click update. A release carries a signed list of every program file. Only files that differ are
     // downloaded, each is checked against the list, and a small copy of this program swaps them in after
-    // Love My Shelf closes. If the swap or the first start fails, the previous files are put back.
+    // LoveMyShelf closes. If the swap or the first start fails, the previous files are put back.
     // Covers and settings live outside the program folder and are never touched.
     internal static class AppUpdater {
         internal const string ApplySwitch="--apply-update";
@@ -150,10 +150,10 @@ namespace LoveMyShelf {
         internal static void StartWingetUpgrade() {
             bool machine=FromWinget && wingetMachine==true;
             const string script=
-                "$Host.UI.RawUI.WindowTitle='Love My Shelf update';"+
+                "$Host.UI.RawUI.WindowTitle='LoveMyShelf update';"+
                 "$id=[int]$env:LMS_PID;"+
                 "Wait-Process -Id $id -Timeout 120 -ErrorAction SilentlyContinue;"+
-                "if(Get-Process -Id $id -ErrorAction SilentlyContinue){Write-Host 'Love My Shelf is still running. Close it and try again.';Read-Host 'Press Enter to close';exit 1}"+
+                "if(Get-Process -Id $id -ErrorAction SilentlyContinue){Write-Host 'LoveMyShelf is still running. Close it and try again.';Read-Host 'Press Enter to close';exit 1}"+
                 "winget upgrade --id $env:LMS_WINGET_ID --exact --source winget;"+
                 "if($LASTEXITCODE -eq 0){if(Test-Path -LiteralPath $env:LMS_EXE){Start-Process -FilePath $env:LMS_EXE}}"+
                 "else{Write-Host '';Read-Host 'Press Enter to close'}";
