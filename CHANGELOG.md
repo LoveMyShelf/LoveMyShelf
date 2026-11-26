@@ -7,6 +7,18 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 ---
 
+## 1.1.1 · (다음 판)
+
+폴더 창을 전체 화면으로 둔 채 다른 창을 최대화해도 아래가 잘려 보이지 않아요.
+
+- **최대화해도 아래가 잘려 보이지 않아요:** 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요.
+
+Maximizing a window while the folder window is in full screen no longer looks cut off at the bottom.
+
+- **Nothing is cut off at the bottom when you maximize:** With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed.
+
+---
+
 ## 1.1.0 · 2026-11-27
 
 GIF 표지 글자 꾸미기와 부드러움·크기 숫자 입력, 영상 위에 자를 곳 네모 그리기, 재생바 구간 반복이 생겼어요. 아이폰 사진(HEIC)도 열리고, 파일 형식이나 태그 여러 개로 골라 볼 수 있어요.
@@ -28,7 +40,6 @@ GIF 표지 글자 꾸미기와 부드러움·크기 숫자 입력, 영상 위에
 - **원하는 파일 형식만 골라 보기:** 폴더 창 위쪽, 돋보기 바로 왼쪽의 [형식 ▾]를 눌러 보세요. 이 폴더에 있는 형식(JPG, PNG, MP4 …)과 개수가 한 번에 보여요. 형식 하나를 누르면 그 형식만 보이고, 다른 형식을 누르면 더해지고, 다시 누르면 빠져요. [사진]이나 [영상]을 누르면 그 묶음 전부, [모든 형식]을 누르면 다시 전부 보여요. 아래에는 '16개 중 11개'처럼 몇 개가 보이는지 나와요. 다른 폴더를 열면 모든 형식으로 돌아오고, 뒤로 가기로 돌아오면 고른 형식이 그대로예요.
 - **태그 여러 개를 함께 보기:** 아래 줄 [태그]에서 태그 하나를 누르면 전처럼 그 태그 모아 보기가 열려요. 이제 목록이 닫히지 않아서, 다른 태그를 이어서 누르면 두 태그가 붙은 파일이 함께 보여요. 보고 있는 태그를 다시 누르면 빠지고, 둘 이상일 때는 맨 위 [고른 태그 모두 풀기]로 태그를 열기 전 폴더로 바로 돌아가요.
 - **가로 표지 때문에 줄 끝이 비지 않게:** 가로로 긴 표지는 칸 두 개를 차지해서, 줄 끝에 걸리면 다음 줄로 넘어가고 그 자리가 비곤 했어요. 이제 바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요. 순서는 딱 한 칸만 바뀌고, 한 원본에서 만든 표지 묶음은 갈라지지 않아요. 예전처럼 순서를 그대로 두고 싶으면 설명서 겸 옵션의 '가로 표지 때문에 줄 끝이 비면 어떻게 할까요?'에서 [빈칸 그대로]를 고르면 돼요.
-- **최대화해도 아래가 잘려 보이지 않아요:** 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요.
 
 Style the text on GIF covers and type their smoothness and size, draw where to cut over a video, and repeat a part from the playback bar. iPhone photos (HEIC) open too, and you can show only some file types or several tags together.
 
@@ -49,7 +60,6 @@ Style the text on GIF covers and type their smoothness and size, draw where to c
 - **Show only the file types you pick:** Click [Type ▾] at the top of the folder window, just left of the magnifier. You see the types in this folder (JPG, PNG, MP4 …) and how many of each. Click a type and only that type shows; click another to add it, and click it again to take it out. [Photos] or [Videos] picks that whole group, and [All types] shows everything again. At the bottom it says how many show, like '11 of 16'. Opening another folder starts with all types, and going Back brings your pick back.
 - **See several tags together:** Click a tag in [Tags] at the bottom and its view opens, as before. Now the list stays open, so clicking another tag shows the files with either tag together. Click a shown tag again to take it out. With two or more, [Clear the picked tags] at the top goes straight back to the folder you were in.
 - **No empty cell at the end of a row because of a wide cover:** A wide cover takes two cells, so at the end of a row it moved to the next row and left that cell empty. Now the next one-cell file goes into that cell. The order changes by just one place, and the covers of one original stay together. To keep the order exactly as before, choose [Leave it empty] under 'When a wide cover leaves a cell empty at the end of a row?' in Guide & Options.
-- **Nothing is cut off at the bottom when you maximize:** With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed.
 
 ---
 

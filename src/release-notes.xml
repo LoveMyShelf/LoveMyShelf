@@ -11,6 +11,15 @@
      &amp;#10; starts a new paragraph. [Button name] in the text is drawn as a chip. Nothing is ever folded away:
      write so the whole page reads easily from top to bottom. -->
 <notes>
+  <release version="1.1.1"
+    summaryKo="폴더 창을 전체 화면으로 둔 채 다른 창을 최대화해도 아래가 잘려 보이지 않아요."
+    summaryEn="Maximizing a window while the folder window is in full screen no longer looks cut off at the bottom.">
+    <item group="fixed" icon="check"
+      titleKo="최대화해도 아래가 잘려 보이지 않아요"
+      titleEn="Nothing is cut off at the bottom when you maximize"
+      textKo="폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요."
+      textEn="With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed."/>
+  </release>
   <release version="1.1.0"
     summaryKo="GIF 표지 글자 꾸미기와 부드러움·크기 숫자 입력, 영상 위에 자를 곳 네모 그리기, 재생바 구간 반복이 생겼어요. 아이폰 사진(HEIC)도 열리고, 파일 형식이나 태그 여러 개로 골라 볼 수 있어요."
     summaryEn="Style the text on GIF covers and type their smoothness and size, draw where to cut over a video, and repeat a part from the playback bar. iPhone photos (HEIC) open too, and you can show only some file types or several tags together.">
@@ -140,11 +149,6 @@
       textEn="A wide cover takes two cells, so at the end of a row it moved to the next row and left that cell empty. Now the next one-cell file goes into that cell. The order changes by just one place, and the covers of one original stay together.&#10;To keep the order exactly as before, choose [Leave it empty] under 'When a wide cover leaves a cell empty at the end of a row?' in Guide &amp; Options."
       boldKo="바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요"
       boldEn="the next one-cell file goes into that cell"/>
-    <item group="fixed" icon="check"
-      titleKo="최대화해도 아래가 잘려 보이지 않아요"
-      titleEn="Nothing is cut off at the bottom when you maximize"
-      textKo="폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요."
-      textEn="With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed."/>
   </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
