@@ -38,6 +38,14 @@ Love My Shelf itself is licensed under the GNU General Public License v3.0 (see 
 - License: GNU General Public License v3.0 (this build enables GPL components). Full text: `tools/LICENSE-ffmpeg.txt`.
 - Corresponding source: available from the links above. If you cannot obtain it there, open an issue at https://github.com/LoveMyShelf/LoveMyShelf/issues or email lovemyshelf.app@outlook.com and we will provide the complete corresponding source for this binary for at least three years after the release.
 
+## 7-Zip (`tools/7z.exe`, `tools/7z.dll`)
+
+- What it does: makes and opens the **locked photo boxes** (7z archives locked with AES-256) of Backup and restore. The password is passed to 7-Zip through its input, never on its command line.
+- Version: 7-Zip 25.01 (x64), 2025-08-03, the unmodified `7z.exe` and `7z.dll` from the official Windows installer, <https://www.7-zip.org/download.html>. SHA-256: `7z.exe` `4cd7d776c686427226a151789d2d61f0b2ed2c392148cc4e69c0238362fafecf`, `7z.dll` `5bd20fb38499d95c39594f41d4781b6181b3304b7f1f4d06b0182f514e7eaa74`.
+- Copyright (C) 1999-2025 Igor Pavlov.
+- License: GNU LGPL 2.1 or later for most of the code; parts of `7z.dll` are under the GNU LGPL with the unRAR license restriction (the RAR decompression code may not be used to re-create the RAR compression algorithm), the BSD 3-clause License, and the BSD 2-clause License. Full text: `tools/LICENSE-7zip.txt`.
+- Source: <https://www.7-zip.org/download.html> (7-Zip source code) and <https://github.com/ip7z/7zip>. If you cannot obtain it there, open an issue at https://github.com/LoveMyShelf/LoveMyShelf/issues or email lovemyshelf.app@outlook.com and we will provide the corresponding source for at least three years after the release.
+
 ## Pretendard (`fonts/Pretendard-*.otf`)
 
 - What it does: the typeface used for all text in Love My Shelf.
