@@ -3608,18 +3608,23 @@ namespace LoveMyShelf {
         // For a folder (in the folders area or the tree): Windows does what it does to folders, except Rename
         // and Paste, which LoveMyShelf does so covers follow.
         internal void ShowFolderMenu(ContextMenu own,IList<string> folders,FrameworkElement at,ContextMenuEventArgs e) {
-            bool renames=folders.Count==1 && Renamer.CanRenameFolder(folders[0]);
-            var take=new ShellMenu.Takeovers {HideRename=!renames,Rename=renames?(Action)(()=>RenameFolder(folders[0])):null,
-                LiftDelete=true,Paste=folders.Count==1?(Action)(()=>PasteFromClipboard(folders[0])):null};
-            ShellMenu.Show(this,own,folders,MenuPoint(at,e),take,()=>{
-                // The folder on screen was just deleted: go to the nearest folder still there, like File Explorer.
-                if(active!=null && active.Source!=null && !Directory.Exists(active.Source)) {
-                    string up=Path.GetDirectoryName(active.Source.TrimEnd(Path.DirectorySeparatorChar));
-                    while(up!=null && !Directory.Exists(up))up=Path.GetDirectoryName(up);
-                    if(up!=null)NavigateTo(up);
-                }
-                RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
-            });
+            string folder=folders.Count==1?folders[0]:null;
+            var rename=new MenuItem {Header=L.T("Rename"),InputGestureText="F2",IsEnabled=folder!=null && Renamer.CanRenameFolder(folder)};
+            rename.Click+=delegate {RenameFolder(folder);};
+            var take=new ShellMenu.Takeovers {HideRename=true,LiftDelete=true,
+                Paste=folder!=null?(Action)(()=>PasteFromClipboard(folder)):null};
+            own.Items.Insert(0,rename);
+            try {
+                ShellMenu.Show(this,own,folders,MenuPoint(at,e),take,()=>{
+                    // The folder on screen was just deleted: go to the nearest folder still there, like File Explorer.
+                    if(active!=null && active.Source!=null && !Directory.Exists(active.Source)) {
+                        string up=Path.GetDirectoryName(active.Source.TrimEnd(Path.DirectorySeparatorChar));
+                        while(up!=null && !Directory.Exists(up))up=Path.GetDirectoryName(up);
+                        if(up!=null)NavigateTo(up);
+                    }
+                    RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+                });
+            } finally {own.Items.Remove(rename);}
         }
         DispatcherTimer refreshSoon;
         // After Windows ran something from its menu (it may have changed files), read the folder again shortly.
@@ -3682,7 +3687,35 @@ namespace LoveMyShelf {
             string folder=active!=null?active.Source:null;
             if(folder==null){ShellMenu.Show(this,own,new string[0],MenuPoint(at,e),null,null);return;}
             var take=new ShellMenu.Takeovers {Paste=()=>PasteFromClipboard(null)};
-            ShellMenu.ShowBackground(this,own,folder,MenuPoint(at,e),take,()=>{RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}});
+            ISet<string> before=null;
+            try {before=new HashSet<string>(Directory.EnumerateDirectories(folder).Select(Path.GetFileName),StringComparer.OrdinalIgnoreCase);}
+            catch(IOException) {} catch(UnauthorizedAccessException) {}
+            ShellMenu.ShowBackground(this,own,folder,MenuPoint(at,e),take,()=>{
+                RefreshSoon();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
+                StartRenameOfNewFolder(folder,before);
+            });
+        }
+        internal async void StartRenameOfNewFolder(string parent,ISet<string> before) {
+            if(before==null || lifetime.IsCancellationRequested)return;
+            var token=lifetime.Token;
+            var timeout=Task.Delay(2000,token);
+            // Windows can return from the menu command before the folder exists.
+            try {
+                do {
+                    var reading=Task.Run(()=>Directory.EnumerateDirectories(parent)
+                        .Where(path=>!before.Contains(Path.GetFileName(path)) && !before.Contains(path)).Take(2).ToArray());
+                    if(await Task.WhenAny(reading,timeout)!=reading || token.IsCancellationRequested)return;
+                    var added=await reading;
+                    if(added.Length>1)return;
+                    if(added.Length==1) {
+                        if(active!=null && ShellPlaces.Same(active.Source,parent))ReloadKeepingPlace();
+                        RenameFolder(added[0]);
+                        return;
+                    }
+                    await Task.WhenAny(Task.Delay(100,token),timeout);
+                } while(!timeout.IsCompleted);
+            } catch(IOException) {} catch(UnauthorizedAccessException) {}
+            catch(Exception quiet) {ErrorLog.Quiet(quiet);} // never ends the program over a name box that didn't open
         }
 
         // ---------- Copy, cut and paste (Ctrl+C, Ctrl+X, Ctrl+V), shared with File Explorer and other programs ----------

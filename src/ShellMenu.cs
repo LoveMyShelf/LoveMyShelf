@@ -197,9 +197,10 @@ namespace LoveMyShelf {
                             menuOne=shell as IContextMenu;menuThree=shell as IContextMenu3;menuTwo=shell as IContextMenu2;
                             int ownCount=GetMenuItemCount(menu);
                             if(ownCount>0)AppendMenu(menu,MF_SEPARATOR,UIntPtr.Zero,null);
-                            uint flags=CMF_NORMAL|CMF_EXPLORE|CMF_CANRENAME|((System.Windows.Input.Keyboard.Modifiers&System.Windows.Input.ModifierKeys.Shift)!=0?CMF_EXTENDEDVERBS:0);
+                            bool hideRename=takeovers!=null && takeovers.HideRename;
+                            uint flags=CMF_NORMAL|CMF_EXPLORE|(hideRename?0:CMF_CANRENAME)|((System.Windows.Input.Keyboard.Modifiers&System.Windows.Input.ModifierKeys.Shift)!=0?CMF_EXTENDEDVERBS:0);
                             menuOne.QueryContextMenu(menu,(uint)GetMenuItemCount(menu),ShellFirst,ShellLast,flags);
-                            if(takeovers!=null && takeovers.HideRename)Remove(menu,menuOne,"rename");
+                            if(hideRename)Remove(menu,menuOne,"rename");
                             // Windows puts Delete at the very bottom of a menu that programs have made long.
                             if(takeovers!=null && takeovers.LiftDelete)Lift(menu,menuOne,"delete",ownCount);
                         }

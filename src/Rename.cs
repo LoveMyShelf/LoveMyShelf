@@ -250,6 +250,7 @@ namespace LoveMyShelf {
     // Small window to type a new name. The extension stays as it is, like File Explorer.
     internal sealed class RenameWindow : Window {
         internal string NewName {get;private set;}
+        internal TextBox NameBox {get;private set;}
         internal RenameWindow(Window owner,string name,bool folder=false) {
             UI.WindowSetup(this,L.T("Rename"));Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;ResizeMode=ResizeMode.NoResize;
@@ -261,6 +262,7 @@ namespace LoveMyShelf {
             var row=new DockPanel {Margin=new Thickness(0,6,0,0)};
             var ext=UI.Text(extension,14,true);ext.Margin=new Thickness(6,0,0,0);DockPanel.SetDock(ext,Dock.Right);row.Children.Add(ext);
             var box=new TextBox {Text=stem,Padding=new Thickness(6),FontSize=14};
+            NameBox=box;
             System.Windows.Automation.AutomationProperties.SetName(box,L.T("New name"));
             row.Children.Add(box);page.Children.Add(row);
             var hint=UI.Text(NoticeLook.KeepWords(L.T(folder?"The link between the files inside and their covers stays as it is.":"The JPG covers, upscaled covers and GIF covers made from this file get the same new name too.")),12,true);
