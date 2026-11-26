@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 
 namespace LoveMyShelf {
@@ -14,7 +15,35 @@ namespace LoveMyShelf {
     internal enum ShareContent { CoverAndOriginal, CoverOnly, OriginalOnly }
 
     internal sealed class Preferences {
-        internal const int EditorPreviewSide=2200;
+        static int editorPreviewSide=2200;
+        internal static int EditorPreviewSide {get {return editorPreviewSide;}}
+        internal void ApplyEditorPreviewSide() {editorPreviewSide=GifLargeScenes?3840:2200;}
+        // GraphicsCards chooses the adapter index. Read its display name for the GIF options.
+        static readonly Lazy<string> gifGraphicsCard=new Lazy<string>(ReadGifGraphicsCard);
+        internal static string GifGraphicsCard {get {return gifGraphicsCard.Value;}}
+        [DllImport("dxgi.dll")] static extern int CreateDXGIFactory1(ref Guid id,out IntPtr factory);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int EnumGifAdapter(IntPtr factory,uint index,out IntPtr adapter);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int ReadGifAdapter(IntPtr adapter,IntPtr description);
+        static string ReadGifGraphicsCard() {
+            IntPtr factory=IntPtr.Zero,adapter=IntPtr.Zero,description=IntPtr.Zero;
+            try {
+                var id=new Guid("770aae78-f26f-4dba-a829-253c83d1b387"); // IDXGIFactory1
+                if(CreateDXGIFactory1(ref id,out factory)<0 || factory==IntPtr.Zero)return null;
+                var enumerate=(EnumGifAdapter)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory),12*IntPtr.Size),typeof(EnumGifAdapter));
+                if(enumerate(factory,(uint)GraphicsCards.Fastest(),out adapter)<0 || adapter==IntPtr.Zero)return null;
+                var describe=(ReadGifAdapter)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(Marshal.ReadIntPtr(adapter),10*IntPtr.Size),typeof(ReadGifAdapter));
+                // DXGI_ADAPTER_DESC1 starts with 128 wide characters. The flags follow the IDs, memory sizes and LUID.
+                int flagsOffset=128*2+4*4+3*IntPtr.Size+8;
+                description=Marshal.AllocHGlobal(flagsOffset+IntPtr.Size);
+                if(describe(adapter,description)<0 || (Marshal.ReadInt32(description,flagsOffset)&2)!=0)return null;
+                return Marshal.PtrToStringUni(description);
+            } catch(Exception) {return null;}
+            finally {
+                if(description!=IntPtr.Zero)Marshal.FreeHGlobal(description);
+                if(adapter!=IntPtr.Zero)Marshal.Release(adapter);
+                if(factory!=IntPtr.Zero)Marshal.Release(factory);
+            }
+        }
         internal const string SubfolderName="Love My Shelf 표지";
         public bool Korean, Descending;
         // False until the person picks a language on the first launch.
@@ -58,6 +87,7 @@ namespace LoveMyShelf {
         public int GifQuality;           // 0 high, 1 normal, 2 smaller file
         public int GifFps=30;
         public int GifHeight=1280;
+        public bool GifHighFps,GifLargeSize,GifLargeScenes;
         // True for one start: the options file was written before the defaults changed, so a notice says they did.
         internal bool GifDefaultsChanged;
         public int SceneStepMs=200;      // scene step: milliseconds between scenes everywhere a scene is picked (what used to be "frames")
@@ -157,8 +187,11 @@ namespace LoveMyShelf {
                     GifStripSeconds=ReadNumber(xml,"gifStrip",2,120,4),
                     GifFormat=IndexOr(new[]{"gif","webp","mp4"},(string)xml.Attribute("gifFormat"),1),
                     GifQuality=IndexOr(new[]{"high","normal","small"},(string)xml.Attribute("gifQuality"),0),
-                    GifFps=ReadNumber(xml,"gifFps",5,60,30),
-                    GifHeight=ReadNumber(xml,"gifHeight",240,2160,1280),
+                    GifFps=ReadNumber(xml,"gifFps",1,60,30),
+                    GifHeight=ReadNumber(xml,"gifHeight",240,3840,1280),
+                    GifHighFps=(string)xml.Attribute("gifHighFps")=="on",
+                    GifLargeSize=(string)xml.Attribute("gifLargeSize")=="on",
+                    GifLargeScenes=(string)xml.Attribute("gifLargeScenes")=="on",
                     GifSideTenths=ReadNumber(xml,"gifSide",1,300,10),
                     SceneStepMs=ReadNumber(xml,"sceneStep",30,2000,200),
                     GifPreviewStepMs=ReadPreviewStep(xml),
@@ -294,7 +327,9 @@ namespace LoveMyShelf {
                     new XAttribute("gifFormat",new[]{"gif","webp","mp4"}[Math.Max(0,Math.Min(2,GifFormat))]),
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),
                     new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),new XAttribute("gifDefaults",2),
-                    new XAttribute("gifReal",GifAutoMake?"auto":"ask"),new XAttribute("gifMakeDelay",GifMakeDelayMs),
+                    GifHighFps?new XAttribute("gifHighFps","on"):null,
+                GifLargeSize?new XAttribute("gifLargeSize","on"):null,GifLargeScenes?new XAttribute("gifLargeScenes","on"):null,
+                new XAttribute("gifReal",GifAutoMake?"auto":"ask"),new XAttribute("gifMakeDelay",GifMakeDelayMs),
                     WebpEffort==0?null:new XAttribute("webpEffort",WebpEffort),UpscaleGpu?new XAttribute("upscaleDevice","gpu"):null,SubtitleScale==100?null:new XAttribute("subtitleSize",SubtitleScale),
                     new XAttribute("largePhoto",OpenPhotoOriginal?"original":"cover"),
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),

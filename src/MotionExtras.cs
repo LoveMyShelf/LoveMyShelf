@@ -77,23 +77,54 @@ namespace LoveMyShelf {
             string text=(r.Text??"").Replace("\r"," ").Replace("\n"," ").Trim();
             if(text.Length>0) {
                 Directory.CreateDirectory(work);
-                string textFile=Path.Combine(work,"text.txt"),font=FontFile();
+                string textFile=Path.Combine(work,"text.txt"),font=TextFonts.PathOf(r.Font);
                 File.WriteAllText(textFile,text,new UTF8Encoding(false));
-                string fontCopy=Path.Combine(work,"font"+Path.GetExtension(font));
-                File.Copy(font,fontCopy,true);
+                string fontCopy=FontCopy(font,work);
                 int px=Math.Max(8,(int)Math.Round(outH*Math.Max(2,Math.Min(40,r.TextSize))/100.0));
-                int border=Math.Max(1,(int)Math.Round(px/12.0));
+                int border=TextLook.EdgePixels(r,px),pad=r.Band?TextLook.BandPad(px):0;
+                // Room kept at the picture's edges, so the edge and the band are never cut off there.
+                int keep=Math.Max(border,pad);
+                string k=keep.ToString(CultureInfo.InvariantCulture);
                 // Top, middle, bottom; or the middle of the text at a place of your own, kept inside the picture.
-                string x="(w-text_w)/2",y=r.TextPlace==0?"h*0.04":r.TextPlace==1?"(h-text_h)/2":"h-text_h-h*0.04";
+                string x="(w-text_w)/2",y=r.TextPlace==0?"max("+k+"\\,h*0.04)":r.TextPlace==1?"(h-text_h)/2":"min(h-text_h-"+k+"\\,h-text_h-h*0.04)";
                 if(r.TextPlace==3) {
-                    x="max(0\\,min(w-text_w\\,w*"+N(Math.Max(0,Math.Min(100,r.TextX))/100)+"-text_w/2))";
-                    y="max(0\\,min(h-text_h\\,h*"+N(Math.Max(0,Math.Min(100,r.TextY))/100)+"-text_h/2))";
+                    x="max("+k+"\\,min(w-text_w-"+k+"\\,w*"+N(Math.Max(0,Math.Min(100,r.TextX))/100)+"-text_w/2))";
+                    y="max("+k+"\\,min(h-text_h-"+k+"\\,h*"+N(Math.Max(0,Math.Min(100,r.TextY))/100)+"-text_h/2))";
                 }
                 steps.Append("drawtext=fontfile=").Append(Quote(fontCopy)).Append(":textfile=").Append(Quote(textFile))
-                    .Append(":expansion=none:fontsize=").Append(px).Append(":fontcolor=white:borderw=").Append(border)
-                    .Append(":bordercolor=black:x=").Append(x).Append(":y=").Append(y).Append(',');
+                    .Append(":expansion=none:fontsize=").Append(px).Append(":fontcolor=").Append(TextLook.Hex(r.TextColor));
+                if(border>0)steps.Append(":borderw=").Append(border).Append(":bordercolor=").Append(TextLook.Hex(r.EdgeColor));
+                if(r.Band)steps.Append(":box=1:boxcolor=").Append(TextLook.Hex(r.BandColor)).Append('@').Append(N(Math.Max(0,Math.Min(100,r.BandStrength))/100))
+                    .Append(":boxborderw=").Append(pad);
+                steps.Append(":x=").Append(x).Append(":y=").Append(y).Append(',');
             }
             return steps.Length==0?null:steps.ToString(0,steps.Length-1);
+        }
+        // FFmpeg's font reader can't open a path with letters outside English (a folder named "사진", a Korean user
+        // name): it then quietly draws with a fallback font that has no Korean letters. So the font is copied once to
+        // a folder under ProgramData, whose path is plain, and used from there. Only if that path isn't plain either,
+        // the copy beside the file is used (as before).
+        internal static string FontCopy(string font,string work) {
+            try {
+                string folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"LoveMyShelf","fonts");
+                if(folder.All(ch=>ch<128 && ch!=(char)39)) {
+                    var info=new FileInfo(font);
+                    uint hash=2166136261;foreach(char ch in info.FullName.ToLowerInvariant()+"|"+info.Length+"|"+info.LastWriteTimeUtc.Ticks)hash=(hash^ch)*16777619; // the same every run
+                    string key=hash.ToString("X8",CultureInfo.InvariantCulture);
+                    string copy=Path.Combine(folder,Path.GetFileNameWithoutExtension(font).Where(ch=>ch<128 && Char.IsLetterOrDigit(ch)).Aggregate("",(s,ch)=>s+ch)+"-"+key+Path.GetExtension(font).ToLowerInvariant());
+                    if(!File.Exists(copy) || new FileInfo(copy).Length!=info.Length) {
+                        Directory.CreateDirectory(folder);
+                        if(File.Exists(copy))File.Delete(copy); // a broken copy from before
+                        string part=copy+"."+Guid.NewGuid().ToString("N")+".tmp";
+                        File.Copy(font,part,true);
+                        try {File.Move(part,copy);} catch(IOException) {File.Delete(part);} // another window copied it first
+                    }
+                    if(File.Exists(copy) && new FileInfo(copy).Length==info.Length)return copy;
+                }
+            } catch(Exception ex) {ErrorLog.Quiet(ex);}
+            string local=Path.Combine(work,"font"+Path.GetExtension(font));
+            File.Copy(font,local,true);
+            return local;
         }
         // A path for a filter option: forward slashes, the drive's colon escaped, inside single quotes.
         static string Quote(string path) {
@@ -149,49 +180,64 @@ namespace LoveMyShelf {
         }
     }
 
-    // The line of text over the GIF window's preview, drawn like the file will have it (white with a black edge).
+    // The line of text over the GIF window's preview, drawn like the file will have it (its font, colors, edge and band).
     // It can be dragged to any place (then the place is "Your own"); while the made file's own pictures play (they
     // already have the text), only a dashed box shows where it is, and it can still be dragged.
     internal sealed class TextMark : FrameworkElement {
         string text="";int place=2;double size=8,across=50,down=50;bool boxOnly;
+        MotionRequest look=new MotionRequest();
         Rect box=Rect.Empty;
         Point grabbed;bool dragging,moved;
         // While dragging: the middle of the text as percents of the width and the height. Then once when let go.
         internal event Action<double,double> Moving;
         internal event Action Moved;
-        internal void Set(string value,int where,double percent,double x,double y,bool onlyBox) {
+        internal void Set(string value,int where,double percent,double x,double y,bool onlyBox,MotionRequest style) {
             text=(value??"").Replace("\r"," ").Replace("\n"," ").Trim();place=where;size=percent;across=x;down=y;boxOnly=onlyBox;
+            if(style!=null)look=style;
             InvalidateVisual();
         }
         internal TextMark() {Cursor=Cursors.SizeAll;ToolTip=L.P("Drag the text to move it","글자를 끌어서 옮겨요");}
-        FormattedText Measure(out double x,out double y) {
-            x=y=0;
+        // The text's shape at its place, and the room kept at the picture's edges (for the edge and the band).
+        Geometry Shape(out Rect bounds,out double edge,out double pad) {
+            bounds=Rect.Empty;edge=pad=0;
             if(text.Length==0 || ActualHeight<=0)return null;
             double px=Math.Max(6,ActualHeight*Math.Max(2,Math.Min(40,size))/100);
-            var family=Application.Current.Resources["AppFont"] as FontFamily??new FontFamily("Malgun Gothic");
-            var f=new FormattedText(text,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface(family,FontStyles.Normal,FontWeights.Bold,FontStretches.Normal),px,Brushes.White,1);
+            bool missing;
+            Geometry shape=TextFonts.Outline(TextFonts.PathOf(look.Font),text,px,out missing);
+            if(shape==null) {
+                var family=Application.Current.Resources["AppFont"] as FontFamily??new FontFamily("Malgun Gothic");
+                shape=new FormattedText(text,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface(family,FontStyles.Normal,FontWeights.Bold,FontStretches.Normal),px,Brushes.White,1).BuildGeometry(new Point(0,0));
+            }
+            var ink=shape.Bounds;
+            if(ink.IsEmpty)return null;
+            edge=look.EdgeSize<0?Math.Max(1,px/12):look.EdgeSize<=0?0:Math.Max(1,px*look.EdgeSize/100);
+            pad=look.Band?Math.Max(2,px*0.22):0;
+            double keep=Math.Max(edge,pad),x,y;
             if(place==3) {
                 // The same rule as the file: the middle of the text at the place picked, kept inside the picture.
-                x=Math.Max(0,Math.Min(ActualWidth-f.Width,ActualWidth*across/100-f.Width/2));
-                y=Math.Max(0,Math.Min(ActualHeight-f.Height,ActualHeight*down/100-f.Height/2));
+                x=Math.Max(keep,Math.Min(ActualWidth-ink.Width-keep,ActualWidth*across/100-ink.Width/2));
+                y=Math.Max(keep,Math.Min(ActualHeight-ink.Height-keep,ActualHeight*down/100-ink.Height/2));
             } else {
-                x=(ActualWidth-f.Width)/2;
-                y=place==0?ActualHeight*0.04:place==1?(ActualHeight-f.Height)/2:ActualHeight-f.Height-ActualHeight*0.04;
+                x=(ActualWidth-ink.Width)/2;
+                y=place==0?Math.Max(keep,ActualHeight*0.04):place==1?(ActualHeight-ink.Height)/2:Math.Min(ActualHeight-ink.Height-keep,ActualHeight-ink.Height-ActualHeight*0.04);
             }
-            return f;
+            shape=shape.Clone();shape.Transform=new TranslateTransform(x-ink.X,y-ink.Y);
+            bounds=new Rect(x,y,ink.Width,ink.Height);
+            return shape;
         }
         protected override void OnRender(DrawingContext dc) {
-            double x,y;var f=Measure(out x,out y);
-            if(f==null){box=Rect.Empty;return;}
-            box=new Rect(x,y,f.Width,f.Height);
+            Rect at;double edge,pad;
+            var shape=Shape(out at,out edge,out pad);
+            if(shape==null){box=Rect.Empty;return;}
+            box=at;
             if(!boxOnly) {
-                var shape=f.BuildGeometry(new Point(x,y));
-                dc.DrawGeometry(null,new Pen(Brushes.Black,Math.Max(1,ActualHeight*size/100/12)*2){LineJoin=PenLineJoin.Round},shape);
-                dc.DrawGeometry(Brushes.White,null,shape);
+                if(look.Band)dc.DrawRectangle(new SolidColorBrush(TextLook.ColorOf(look.BandColor,look.BandStrength/100)),null,Rect.Inflate(at,pad,pad));
+                if(edge>0)dc.DrawGeometry(null,new Pen(new SolidColorBrush(TextLook.ColorOf(look.EdgeColor)),edge*2){LineJoin=PenLineJoin.Round},shape);
+                dc.DrawGeometry(new SolidColorBrush(TextLook.ColorOf(look.TextColor)),null,shape);
             }
             // A dashed box: while the pointer is on the text, while dragging, or where the made file has its text.
             if(boxOnly || dragging || IsMouseOver) {
-                var outline=Rect.Inflate(box,4,3);
+                var outline=Rect.Inflate(box,4+pad,3+pad);
                 dc.DrawRectangle(null,new Pen(Brushes.Black,3),outline);
                 dc.DrawRectangle(null,new Pen(Brushes.White,1.5){DashStyle=DashStyles.Dash},outline);
             }

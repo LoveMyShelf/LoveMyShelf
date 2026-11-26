@@ -406,16 +406,25 @@ namespace LoveMyShelf {
         }
         // A button name drawn like the button itself, so people know what to look for on the screen.
         static Border ButtonChip(string label,double size) {
-            var chip=new Border {CornerRadius=new CornerRadius(6),BorderThickness=new Thickness(1),Padding=new Thickness(7,0,7,1)};
+            var chip=new Border {CornerRadius=new CornerRadius(6),BorderThickness=new Thickness(1),Padding=new Thickness(7,1,7,1)};
             chip.SetResourceReference(Border.BackgroundProperty,"Panel");chip.SetResourceReference(Border.BorderBrushProperty,"StrongLine");
-            var text=UI.Text(label,Math.Max(12,size-1));text.FontWeight=FontWeights.SemiBold;chip.Child=text;
+            var text=ChipWords(label,Math.Max(12,size-1));chip.Child=text;
             return chip;
+        }
+        // The words in a chip. Pretendard's own line is about 1.7 times the letters, which made a chip 26 tall in a
+        // sentence line of 22, and the line shaved its border off. A line of 1.3 times keeps the chip inside the
+        // sentence line (21 at most), so nothing is cut and the sentence spacing stays even.
+        // gallery-checks\layout-check\run.ps1 fails when a chip is taller than its line again.
+        static TextBlock ChipWords(string label,double size) {
+            var text=UI.Text(label,size);text.FontWeight=FontWeights.SemiBold;
+            text.LineHeight=Math.Round(size*1.3);text.LineStackingStrategy=LineStackingStrategy.BlockLineHeight;
+            return text;
         }
         // A key drawn like a small rounded keyboard key.
         internal static Border KeyChip(string label) {
             var key=new Border {CornerRadius=new CornerRadius(6),BorderThickness=new Thickness(1,1,1,2),Padding=new Thickness(7,0,7,1),MinWidth=26};
             key.SetResourceReference(Border.BackgroundProperty,"Raised");key.SetResourceReference(Border.BorderBrushProperty,"StrongLine");
-            var text=UI.Text(label,12);text.FontWeight=FontWeights.SemiBold;text.HorizontalAlignment=HorizontalAlignment.Center;
+            var text=ChipWords(label,12);text.HorizontalAlignment=HorizontalAlignment.Center;
             key.Child=text;return key;
         }
         static Border Box(bool setting) {
@@ -1277,18 +1286,36 @@ namespace LoveMyShelf {
                     new Choice(T("Normal","보통"),T("This is enough for most covers.","대부분의 표지는 이걸로 충분해요.")),
                     new Choice(T("Low","낮게"),T("The size gets smaller. A GIF uses only 128 colors, so stripes may show in shadows on faces.","용량이 작아져요. GIF는 색을 128가지만 써서 얼굴 그림자에 줄무늬가 보일 수 있어요."))},
                 Default=0,Get=p=>p.GifQuality,Set=(p,i)=>p.GifQuality=i});
-            gif.Items.Add(Numbers("gifFps",T("How many pictures per second? (smoothness)","1초에 몇 장으로 만들까요? (부드러움)"),MotionWindow.Rates,30,
+            var gifPrefs=Prefs;
+            var gifRates=MotionWindow.Presets(true,gifPrefs.GifHighFps);
+            var gifSizes=MotionWindow.Presets(false,gifPrefs.GifLargeSize);
+            gif.Items.Add(Numbers("gifFps",T("How many pictures per second? (smoothness)","1초에 몇 장으로 만들까요? (부드러움)"),gifRates,30,
                 p=>p.GifFps,(p,v)=>p.GifFps=v,v=>T(v+" a second","1초에 "+v+"장"),
                 v=>v==10?T("Looks choppy · small size","뚝뚝 끊겨 보여요 · 용량이 작아요"):v==15?T("A good balance of smoothness and size","부드러움과 용량이 적당해요"):v==24?T("Same as movies","영화와 같아요"):v==30?T("Very smooth","아주 부드러워요"):"",3));
             ((Setting)gif.Items.Last()).Lines=new[]{T("A moving picture is many pictures shown quickly one after another. The more pictures per second, the smoother it is, but the bigger the size gets. At 30 a second the size is about twice that at 15.",
                 "움직이는 그림은 그림 여러 장을 빠르게 넘겨서 보여 주는 거예요. 1초에 넘기는 장수가 많을수록 부드럽지만 그만큼 용량도 커져요. 1초에 30장이면 15장일 때보다 용량이 약 2배가 돼요.")};
-            Typed((Setting)gif.Items.Last(),T("pictures","장"),5,60,1);
-            gif.Items.Add(Numbers("gifHeight",T("How tall should it be?","세로 크기는 얼마로 할까요?"),MotionWindow.Heights,1280,
+            Typed((Setting)gif.Items.Last(),T("pictures","장"),1,MotionWindow.FpsLimit(gifPrefs.GifHighFps),1);
+            gif.Items.Add(Numbers("gifHeight",L.P("What size should it start at?","크기는 얼마로 시작할까요?"),gifSizes,1280,
                 p=>p.GifHeight,(p,v)=>p.GifHeight=v,v=>T(v+" pixels",v+"픽셀"),
                 v=>v==480?T("For viewing small in a chat","채팅에 올려 작게 볼 때"):v==960?T("Sharp on most screens","대부분의 화면에서 선명해요"):v==1280?T("Very sharp","아주 선명해요"):"",3));
-            ((Setting)gif.Items.Last()).Lines=new[]{T("The number of pixels in the GIF cover's height. The bigger, the sharper, but the bigger the size gets. Twice as tall makes the size about four times as big. It is never made bigger than the original (if the original is smaller, it is made at the original's size).",
-                "GIF 표지의 세로 픽셀 수예요. 클수록 선명하지만 용량이 커져요. 세로가 2배가 되면 용량은 약 4배가 돼요. 원본보다 크게 만들지는 않아요(원본이 더 작으면 원본 크기로 만들어요).")};
-            Typed((Setting)gif.Items.Last(),T("pixels","픽셀"),240,2160,10);
+            ((Setting)gif.Items.Last()).Lines=new[]{T("The size is the width of a wide cover or the height of a tall cover. The bigger, the sharper, but the bigger the size gets. Twice as tall makes the size about four times as big. It is never made bigger than the original (if the original is smaller, it is made at the original's size).",
+                "가로로 긴 표지는 가로 크기, 세로로 긴 표지는 세로 크기예요. 클수록 선명하지만 용량이 커져요. 세로가 2배가 되면 용량은 약 4배가 돼요. 원본보다 크게 만들지는 않아요(원본이 더 작으면 원본 크기로 만들어요).")};
+            Typed((Setting)gif.Items.Last(),T("pixels","픽셀"),240,MotionWindow.SizeLimit(gifPrefs.GifLargeSize),10);
+            gif.Items.Add(new Card {Title=L.P("Advanced","고급")});
+            var gifSwitches=new[]{new Choice(L.P("Off","끄기"),""),new Choice(L.P("On","켜기"),"")};
+            gif.Items.Add(new Setting {Id="gifHighFps",SectionId="gif",Title=L.P("Allow high frame rates (up to 60 a second)","높은 프레임 허용 (1초에 60장까지)"),
+                Lines=new[]{L.P("Keeps the motion of 60 fps video. Files get bigger, and making them and previewing them take longer.",
+                    "60fps 영상의 움직임을 그대로 살려요. 대신 파일이 커지고 만들기와 미리보기가 느려져요.")},
+                Choices=gifSwitches,Columns=2,Default=0,Get=p=>p.GifHighFps?1:0,Set=(p,i)=>p.GifHighFps=i==1});
+            gif.Items.Add(new Setting {Id="gifLargeSize",SectionId="gif",Title=L.P("Allow large sizes (up to 3840 px, 4K)","큰 크기 허용 (3840px, 4K까지)"),
+                Lines=new[]{L.P("Keeps 4K originals sharp. It takes much more memory and time, so it suits a PC with a graphics card or a fast PC.",
+                    "4K 원본을 선명하게 살려요. 메모리와 시간이 크게 늘어서, 그래픽카드가 있거나 빠른 PC에 맞아요.")},
+                Choices=gifSwitches,Columns=2,Default=0,Get=p=>p.GifLargeSize?1:0,Set=(p,i)=>p.GifLargeSize=i==1,
+                Extra=w=>UI.Text(L.P("Graphics card ","그래픽카드 ")+(Preferences.GifGraphicsCard??L.P("Unknown","이름을 확인하지 못했어요")),13,true)});
+            gif.Items.Add(new Setting {Id="gifLargeScenes",SectionId="gif",Title=L.P("Read scenes at a larger size too","장면 고르기도 큰 화질로 읽기"),
+                Lines=new[]{L.P("Choose a scene and Make cover read at 3840 px instead of 2200 px. Moving between scenes may be slower.",
+                    "장면 고르기와 표지 만들기 화면이 2200px 대신 3840px로 읽어요. 장면을 넘길 때 느려질 수 있어요.")},
+                Choices=gifSwitches,Columns=2,Default=0,Get=p=>p.GifLargeScenes?1:0,Set=(p,i)=>p.GifLargeScenes=i==1});
             gif.Items.Add(new Setting {Id="gifSide",SectionId="gif",Title=T("How many seconds before and after the cover at first?","처음에 표지 앞뒤로 몇 초를 잡을까요?"),
                 Lines=new[]{T("When the Make GIF cover window opens, the two handles sit before and after the cover's scene. This sets how many seconds from the cover's scene each one sits at first. With 1.5 seconds, it is 1.5 before + 1.5 after, 3 seconds in all. You can change it any time by dragging the handles in the window.",
                     "GIF 표지 만들기 창을 열면 손잡이 두 개가 표지 장면의 앞과 뒤에 놓여 있어요. 처음에 표지 장면에서 각각 몇 초 떨어진 곳에 놓을지 정해요. 1.5초면 앞 1.5초 + 뒤 1.5초로 모두 3초짜리가 돼요. 창에서 손잡이를 끌어 언제든 바꿀 수 있어요.")},

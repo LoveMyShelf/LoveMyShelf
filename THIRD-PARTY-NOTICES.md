@@ -53,6 +53,15 @@ LoveMyShelf itself is licensed under the GNU General Public License v3.0 (see `L
 - Copyright (c) 2021, Kil Hyung-jin, with Reserved Font Name 'Pretendard'. Includes glyphs from Source Han Sans (Adobe), Inter (The Inter Project Authors), and M PLUS 1 (The M+ FONTS Project Authors).
 - License: SIL Open Font License 1.1. Full text: `fonts/OFL.txt`.
 
+## Fonts for the text on moving covers (`fonts/BlackHanSans-Regular.ttf`, `fonts/DoHyeon-Regular.ttf`, `fonts/GowunDodum-Regular.ttf`)
+
+- What they do: extra fonts to pick for the line of text on a GIF cover (Make GIF cover → More choices → Text style).
+- Source: the unmodified font files from the Google Fonts repository, <https://github.com/google/fonts> (`ofl/blackhansans`, `ofl/dohyeon`, `ofl/gowundodum`).
+- Black Han Sans: Copyright 2015 The Black Han Sans Project Authors (<https://github.com/zesstype/Black-Han-Sans>). License text: `fonts/OFL-BlackHanSans.txt`.
+- Do Hyeon: Copyright 2018 The Do Hyeon Project Authors. License text: `fonts/OFL-DoHyeon.txt`.
+- Gowun Dodum: Copyright 2021 The Gowun Dodum Project Authors (<https://github.com/yangheeryu/Gowun-Dodum>). License text: `fonts/OFL-GowunDodum.txt`.
+- License: SIL Open Font License 1.1 for all three. Pictures made with them are not covered by the license and can be used freely.
+
 ## README images and demo videos
 
 - `docs/images/icon.png` is LoveMyShelf's own icon (the 256 px image from `src/gallery.ico`).
