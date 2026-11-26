@@ -1198,6 +1198,7 @@ namespace LoveMyShelf {
                 DrivesChangedSoon(0.3); // a drive may have a new letter since last time
                 TellIfUpdated();
                 TellIfUpdateUndone();
+                BackupWindow.RemindIfDue(this);
                 TellGifDefaultsChanged();
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {

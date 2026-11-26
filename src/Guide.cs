@@ -184,6 +184,7 @@ namespace LoveMyShelf {
             }
             if(sections[index].Id=="all")DrawOverview();
             if(sections[index].Id=="news")DrawNews();
+            if(sections[index].Id=="backup")cards.Children.Add(BackupWindow.GuidePanel(this));
             if(sections[index].Id=="advanced")DrawAdvanced();
             else {waitingFor=null;clashFor=null;keyNote=null;}
             if(toTop)scroller.ScrollToTop();
@@ -1446,6 +1447,16 @@ namespace LoveMyShelf {
                     "Love My Shelf는 원본이 어디에 있었는지 기억해요. 파일 탐색기에서 이름을 바꾸거나 같은 드라이브 안에서 옮긴 원본은 대부분 저절로 다시 찾아요. 찾지 못했을 때는 칸에 저장해 둔 작은 미리보기가 대신 보여요."),
                     T("In that case, open it large, click [[Find the original again]] and choose the file in its new place. Then it works as before.","그럴 때는 크게 열어서 [[원본 다시 찾기]]를 누르고, 옮긴 위치의 파일을 골라 주세요. 그러면 전처럼 쓸 수 있어요.")},
                 Tips=new[]{T("If you rename with {{F2}} inside Love My Shelf, its records change along with it, so this doesn't happen.","Love My Shelf 안에서 {{F2}}로 이름을 바꾸면 기록도 함께 바뀌어서 이런 일이 생기지 않아요.")}});
+
+            // ----- Backup and restore -----
+            var backup=add("backup",T("Backup and restore","백업·복원"));
+            backup.Items.Add(new Card {Title=T("Keep your covers and tags safe","표지와 태그를 안전하게 남겨 두기"),
+                Lines=new[]{T("A backup keeps your covers, tags and records in one file locked with your password. Put it in Google Drive, OneDrive or on an external drive, and if this computer breaks you can bring everything back on another one.",
+                    "백업은 표지·태그·기록을 비밀번호로 잠근 파일 하나에 담아요. 구글 드라이브, OneDrive, 외장 하드에 넣어 두면 컴퓨터가 고장 나도 다른 컴퓨터에서 그대로 되살릴 수 있어요."),
+                    T("The password is kept nowhere. If you forget it, nobody can open the backup.","비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도 백업을 열 수 없어요."),
+                    T("If you like, the original photos and videos can be kept too, as locked photo boxes with the same password. Any 7-Zip opens them with that password.",
+                        "원하면 원본 사진·영상도 같은 비밀번호로 ‘잠긴 사진 상자’에 넣어 둘 수 있어요. 7-Zip으로 그 비밀번호를 넣으면 열려요."),
+                    T("When it's time, Love My Shelf reminds you when it starts (every week unless you change it).","백업할 때가 되면 Love My Shelf를 켤 때 알려 드려요(바꾸지 않으면 1주일마다).")}});
 
             // ----- Screen, language and updates -----
             var screen=add("screen",T("Screen, language, updates","화면·언어·새 버전"));
