@@ -1,8 +1,10 @@
 using System;
 using System.Windows;
+using System.Runtime.InteropServices;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Shell;
@@ -42,9 +44,39 @@ namespace LoveMyShelf {
             title.SetBinding(TextBlock.TextProperty,new Binding("Title"){Source=window});
             Children.Add(title);
             WindowChrome.SetWindowChrome(window,chrome);
-            window.StateChanged+=delegate {Update();};
+            window.StateChanged+=delegate {Update();FitMaximized();};
+            window.SizeChanged+=delegate {FitMaximized();};
+            window.LocationChanged+=delegate {FitMaximized();}; // a maximized window moved to another screen (Win+Shift+arrow)
+            window.SourceInitialized+=delegate {FitMaximized();};
             Update();
         }
+
+        // A maximized window with its own title bar (WindowChrome) is placed by Windows as if it still had its frame:
+        // about 7 points hang past every edge of the screen (11 pixels at 150%), so the title bar and the bottom row
+        // were cut. While maximized, the window keeps that much clear on each side, measured against the work area of
+        // the screen it is on (the taskbar stays visible). Every window with this title bar gets it.
+        internal void FitMaximized() {
+            var none=new Thickness(0);
+            if(window.WindowState!=WindowState.Maximized || FullScreen.IsFull(window)){if(window.BorderThickness!=none)window.BorderThickness=none;return;}
+            IntPtr handle=new WindowInteropHelper(window).Handle;
+            var source=PresentationSource.FromVisual(window);
+            if(handle==IntPtr.Zero || source==null || source.CompositionTarget==null)return;
+            Edges outside;
+            var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
+            if(!GetWindowRect(handle,out outside) || !GetMonitorInfo(MonitorFromWindow(handle,2),ref info))return;
+            var scale=source.CompositionTarget.TransformFromDevice;
+            var clear=new Thickness(Math.Max(0,info.Work.Left-outside.Left)*scale.M11,Math.Max(0,info.Work.Top-outside.Top)*scale.M22,
+                Math.Max(0,outside.Right-info.Work.Right)*scale.M11,Math.Max(0,outside.Bottom-info.Work.Bottom)*scale.M22);
+            if(window.BorderThickness!=clear)window.BorderThickness=clear;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct Edges {public int Left,Top,Right,Bottom;}
+        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct ScreenInfo {
+            public int Size;public Edges Monitor,Work;public int Flags;
+            [MarshalAs(UnmanagedType.ByValTStr,SizeConst=32)] public string Device;
+        }
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Edges edges);
+        [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr window,int flags);
+        [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern bool GetMonitorInfo(IntPtr monitor,ref ScreenInfo info);
 
         // Set by FullScreen: leaves full screen and maximizes the window.
         internal Action MaximizeFromFull;
