@@ -186,25 +186,30 @@ namespace LoveMyShelf {
             // From here on, whatever ends the program without warning leaves its reason in errors.txt (the helpers too).
             ErrorLog.WatchCrashes();
             // The update helper: a copy of this program that swaps the files after the app has closed.
-            if(args.Length==3 && args[0]==AppUpdater.ApplySwitch) {
-                Environment.Exit(AppUpdater.RunApply(args[1],args[2]));
-                return;
+            if(args.Length>0 && args[0]==AppUpdater.ApplySwitch) {
+                if(AppInfo.Packaged)return;
+                if(args.Length==3) {
+                    Environment.Exit(AppUpdater.RunApply(args[1],args[2]));
+                    return;
+                }
             }
-            string data=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string root=Path.Combine(data,"LoveMyShelf","Folders");
-            L.Korean=Preferences.Load(root).Korean;
+            string root=Path.Combine(AppInfo.DataRoot,"Folders");
+            bool upscale=(args.Length==3 || args.Length==4) && args[0]==UpscaleEngine.ChildSwitch;
+            bool faces=args.Length==3 && args[0]==FaceEngine.ChildSwitch;
+            bool similar=args.Length==3 && args[0]==SimilarEngine.ChildSwitch;
+            if(!AppInfo.Packaged || upscale || faces || similar)L.Korean=Preferences.Load(root).Korean;
             // Background upscaling runs in a separate copy of this program, without a window.
-            if((args.Length==3 || args.Length==4) && args[0]==UpscaleEngine.ChildSwitch) {
+            if(upscale) {
                 Environment.Exit(UpscaleEngine.RunChild(args[1],args[2],args.Length==4 && args[3]==UpscaleEngine.GpuSwitch));
                 return;
             }
             // Finding faces runs the same way.
-            if(args.Length==3 && args[0]==FaceEngine.ChildSwitch) {
+            if(faces) {
                 Environment.Exit(FaceEngine.RunChild(args[1],args[2]));
                 return;
             }
             // So does reading pictures for "Find similar photos".
-            if(args.Length==3 && args[0]==SimilarEngine.ChildSwitch) {
+            if(similar) {
                 Environment.Exit(SimilarEngine.RunChild(args[1],args[2]));
                 return;
             }
@@ -217,7 +222,13 @@ namespace LoveMyShelf {
                 if(!first) {
                     // Hand the file to the program that is already running instead of complaining.
                     if(openPath!=null && ExplorerOpen.Send(openPath))return;
+                    if(AppInfo.Packaged)L.Korean=Preferences.Load(root).Korean;
                     MessageBox.Show(L.T("LoveMyShelf is already running."),"LoveMyShelf"); return;
+                }
+                if(AppInfo.Packaged) {
+                    // Only the main Store instance can import, before it reads the copied settings.
+                    StoreImport.Run();
+                    L.Korean=Preferences.Load(root).Korean;
                 }
                 // After the one-copy check, so starting it twice from the ZIP shows this once, and a file sent on goes straight through.
                 if(!AllUnpacked(Preferences.Load(root).LanguageChosen))return;

@@ -1047,8 +1047,7 @@ namespace LoveMyShelf {
             PlaceSubtitles(); // ASS and plain subtitles are placed differently
         }
         string SubtitleBackups {get {
-            string data=home!=null?System.IO.Path.GetDirectoryName(home.Store.Root):
-                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf");
+            string data=home!=null?System.IO.Path.GetDirectoryName(home.Store.Root):AppInfo.DataRoot;
             return System.IO.Path.Combine(data,"Subtitle backups");
         }}
         Window SubtitleDialogOwner {get {return explorer!=null && explorer.IsVisible?(Window)explorer:this;}}

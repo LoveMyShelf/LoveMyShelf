@@ -1566,12 +1566,12 @@ namespace LoveMyShelf {
             screen.Items.Add(new Setting {Id="language",SectionId="screen",Title=T("Which language should it show in?","어떤 언어로 표시할까요?"),
                 Choices=new[]{new Choice("한국어",""),new Choice("English","")},Columns=2,
                 Get=p=>p.Korean?0:1,Set=(p,i)=>p.Korean=i==0});
-            screen.Items.Add(new Setting {Id="updates",SectionId="screen",Title=T("Should we tell you when a new version is out?","새 버전이 나오면 알려 드릴까요?"),
+            if(!AppInfo.Packaged)screen.Items.Add(new Setting {Id="updates",SectionId="screen",Title=T("Should we tell you when a new version is out?","새 버전이 나오면 알려 드릴까요?"),
                 Lines=new[]{T("When this is on, LoveMyShelf checks GitHub for a new version once each time it starts. No photos or personal information are sent. If there is a new version, a notice appears at the bottom right. Press the button on the notice and it downloads and updates automatically, and your covers and settings stay as they are.",
                     "켜 두면 LoveMyShelf를 켤 때마다 한 번씩 GitHub에 새 버전이 있는지 확인해요. 이때 사진이나 개인 정보는 전혀 보내지 않아요. 새 버전이 있으면 오른쪽 아래에 알려 드려요. 알림의 버튼을 누르면 자동으로 다운로드해서 업데이트하고, 만든 표지와 설정은 그대로 남아요.")},
                 Choices=new[]{new Choice(T("Get notices","알림 받기"),""),new Choice(T("Turn notices off","알림 끄기"),T("It never connects to the internet.","인터넷에 전혀 접속하지 않아요."))},
                 Default=0,Columns=2,Get=p=>p.CheckUpdates?0:1,Set=(p,i)=>p.CheckUpdates=i==0});
-            screen.Items.Add(new Setting {Id="explorerMenu",SectionId="screen",Title=T("Add LoveMyShelf to File Explorer's right-click menu?","파일 탐색기 오른쪽 클릭 메뉴에 넣을까요?"),
+            if(!AppInfo.Packaged)screen.Items.Add(new Setting {Id="explorerMenu",SectionId="screen",Title=T("Add LoveMyShelf to File Explorer's right-click menu?","파일 탐색기 오른쪽 클릭 메뉴에 넣을까요?"),
                 Lines=new[]{T("Right-click a photo or video in File Explorer and choose [[Open with LoveMyShelf]]. The file opens large, and its folder opens behind it. On Windows 11, click [[Show more options]] first (or press {{Shift+F10}}). It is also in [[Open with]].",
                     "파일 탐색기에서 사진이나 영상을 오른쪽 클릭하고 [[LoveMyShelf로 열기]]를 고르세요. 파일이 크게 열리고, 그 폴더가 뒤에 열려요. Windows 11에서는 먼저 [[더 많은 옵션 표시]]를 누르거나 {{Shift+F10}}을 누르세요. [[연결 프로그램]]에도 들어 있어요."),
                     T("It is added only for your Windows account and needs no administrator permission. Turn it off and it is removed right away. If you move the LoveMyShelf folder, start LoveMyShelf once so the menu finds it again.",

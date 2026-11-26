@@ -10,7 +10,7 @@ using System.Threading;
 using System.Xml.Linq;
 
 namespace LoveMyShelf {
-    // Backup settings and what this computer remembers about its backups. Kept in %LOCALAPPDATA%\LoveMyShelf\backup.xml,
+    // Backup settings and what this computer remembers about its backups. Kept in the app's data folder as backup.xml,
     // outside the records, so a restore never brings another computer's settings along.
     // The password is never kept: only a check value made the same slow way as the backup's key (Argon2id), so the app
     // can say "this is the same password as last time" without opening a file in the cloud.
@@ -111,7 +111,7 @@ namespace LoveMyShelf {
         // The checks point this at a folder of made-up records.
         internal static string RootForChecks;
         internal static string StoreRoot {
-            get {if(RootForChecks!=null)return RootForChecks;return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf","Folders");}
+            get {if(RootForChecks!=null)return RootForChecks;return Path.Combine(AppInfo.DataRoot,"Folders");}
         }
         internal const string BoxFolderName="Love My Shelf 사진 상자";
         static readonly string[] CoverAttributes={"coverFile","upscaleFile","motionFile"};

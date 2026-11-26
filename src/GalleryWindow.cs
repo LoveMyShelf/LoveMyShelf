@@ -1249,6 +1249,9 @@ namespace LoveMyShelf {
                 TellIfUpdateUndone();
                 BackupWindow.RemindIfDue(this);
                 TellGifDefaultsChanged();
+                if(StoreImport.TakeNotice())
+                    Notify("LoveMyShelf",L.P("Your covers and records from the GitHub version were brought over. From now on the Store version keeps its own.",
+                        "GitHub판에서 만든 표지와 기록을 가져왔어요. 이제부터 스토어판 기록은 따로 저장돼요."),null);
                 // The first start with range selection: tell about it once, a little after the window appears.
                 if(!settings.MarqueeTipShown && settings.MarqueeUses==0) {
                     var updated=settings.Copy();updated.MarqueeTipShown=true;
@@ -1275,6 +1278,7 @@ namespace LoveMyShelf {
         // with the way that still works: the ZIP from the download page.
         static string undoneUpdate; // one for all the folder windows
         void TellIfUpdateUndone() {
+            if(AppInfo.Packaged)return;
             undoneUpdate=AppUpdater.UndoneUpdate();
             if(undoneUpdate==null)return;
             Notify(L.PF("Couldn’t update to the new version ({0})","새 버전({0})으로 업데이트하지 못했어요",undoneUpdate),
@@ -1285,6 +1289,7 @@ namespace LoveMyShelf {
                 OpenReleasesPage,NoticeKind.Warning,true,15,L.P("Download page","다운로드 페이지"));
         }
         async void CheckForUpdate() {
+            if(AppInfo.Packaged)return;
             string newer=await AppInfo.NewerVersionAsync();
             if(newer==null || lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             var plan=await AppUpdater.LoadAsync(newer);

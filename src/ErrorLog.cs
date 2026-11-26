@@ -21,7 +21,7 @@ namespace LoveMyShelf {
         // Set only by the checks (gallery-checks\safety), so what they break on purpose stays out of the real file.
         internal static string FolderForChecks;
         internal static string Folder {
-            get {if(FolderForChecks!=null)return FolderForChecks;return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf");}
+            get {if(FolderForChecks!=null)return FolderForChecks;return AppInfo.DataRoot;}
         }
         internal static string Path {get {return System.IO.Path.Combine(Folder,"errors.txt");}}
 
@@ -94,7 +94,7 @@ namespace LoveMyShelf {
                     Mutex turn=null;
                     bool mine=false;
                     try {
-                        turn=new Mutex(false,"Local\\LoveMyShelfErrorLog");
+                        turn=new Mutex(false,@"Local\LoveMyShelfErrorLog"+AppInfo.InstanceSuffix);
                         try {mine=turn.WaitOne(300);} catch(AbandonedMutexException) {mine=true;}
                     } catch(Exception) {}
                     try {

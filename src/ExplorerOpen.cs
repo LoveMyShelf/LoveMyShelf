@@ -31,7 +31,7 @@ namespace LoveMyShelf {
         static string PipeName {get {
             string user;
             try {user=System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;} catch(Exception) {user=Environment.UserName;}
-            return "LoveMyShelf.Open."+user;
+            return "LoveMyShelf.Open."+user+AppInfo.InstanceSuffix;
         }}
         [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int processId);
 
@@ -77,6 +77,7 @@ namespace LoveMyShelf {
 
         // Puts the entries in when asked for, takes them out when not, and keeps the program's place current.
         internal static void Sync(Preferences prefs) {
+            if(AppInfo.Packaged)return;
             if(prefs.ExplorerMenu)Register();else Unregister();
         }
 

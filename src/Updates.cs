@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,6 +22,33 @@ namespace LoveMyShelf {
         internal const string LastWithoutNotice="1.0.4";
         internal const string ReleasesPage="https://github.com/LoveMyShelf/LoveMyShelf/releases/latest";
         const string LatestApi="https://api.github.com/repos/LoveMyShelf/LoveMyShelf/releases/latest";
+
+        internal static readonly bool Packaged=HasPackage();
+        internal static readonly string LegacyDataRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf");
+        internal static readonly string DataRoot=FindDataRoot();
+        internal static readonly string InstanceSuffix=Packaged?".Store":"";
+
+        [DllImport("kernel32.dll",CharSet=CharSet.Unicode,ExactSpelling=true)]
+        static extern int GetCurrentPackageFullName(ref int length,StringBuilder name);
+        static bool HasPackage() {
+            // Only a clear "yes" counts (0, or 122 = "your buffer is too small for the name"). 15700 means no package;
+            // anything else unexpected is treated as not packaged, so the normal names and folders stay in use.
+            const int Ok=0,BufferTooSmall=122;
+            try {
+                int length=0;
+                int result=GetCurrentPackageFullName(ref length,null);
+                return result==Ok || result==BufferTooSmall;
+            } catch(Exception) {return false;}
+        }
+        static string FindDataRoot() {
+            if(Packaged) {
+                try {return PackageDataRoot();} catch(Exception) {}
+            }
+            return LegacyDataRoot;
+        }
+        // Keep WinRT type resolution inside the fallback's try block.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        static string PackageDataRoot() {return Windows.Storage.ApplicationData.Current.LocalFolder.Path;}
 
         // Asks GitHub once for the newest release tag. Sends nothing but a plain request;
         // returns null when offline, when GitHub can't be reached, or when this copy is current.
@@ -78,8 +106,8 @@ namespace LoveMyShelf {
     // Covers and settings live outside the program folder and are never touched.
     internal static class AppUpdater {
         internal const string ApplySwitch="--apply-update";
-        internal const string AppMutex=@"Local\LoveMyShelf.Personal.v1";
-        internal const string ReadyEvent=@"Local\LoveMyShelf.UpdateStarted";
+        internal static readonly string AppMutex=@"Local\LoveMyShelf.Personal.v1"+AppInfo.InstanceSuffix;
+        internal static readonly string ReadyEvent=@"Local\LoveMyShelf.UpdateStarted"+AppInfo.InstanceSuffix;
         internal const string PublicKey="<RSAKeyValue><Modulus>sFUj0/1LRAQsgw+WnRgj5o6mtqZ9sfkuoO3ZYZYllTdNg3OtGqGaR2nmPSyAxquOrEniWi3ccyyy6GWBwing/v+ybD/dQZK4t8pJ2t+/u2HdfNkXGZeieyjYHi594TafAT33jIDg/6hZeVTt6uyZRqeI1+p5/n59nXhdYo/c3bHUN0x56KvsQtjeq08kotn9kot5ObMaXrvelmXz2Ad+8nCkqykqB/AiOsceUsNW+GiHSjbvlsbcDzEcAEVQp5T34gNXGdLpq4LLC/OVJdmHX2TDhbpFBeDxbeIVrpO3M5WXeK+RfnlUDOxD9LRdaFo8l8y62dHQEf7VLdsr/JgH9PjL5BoD9mbDX+KciLmlFktITdvncw1CwmS2sli2T4DuP/disP5UZBlfGJy0Z0qqlfjLGlNjwooICUEDQgibxAXKMThwiLi1u/hIjbTpFfs+D1RvJ0UOMdhuzevc8LAnz3q7/5uZqw8c0uddj9xPZVrrKTE+ju6N3wCh3BchZXqh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
         const string DownloadPrefix="https://github.com/LoveMyShelf/LoveMyShelf/releases/download/";
         const string ManifestName="LoveMyShelf-update.xml",SignatureName="LoveMyShelf-update.sig";
@@ -177,7 +205,7 @@ namespace LoveMyShelf {
             Process.Start(start);
         }
 
-        static string UpdateRoot {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf","Update");}}
+        static string UpdateRoot {get {return Path.Combine(AppInfo.DataRoot,"Update");}}
         static string Staged(string stage,UpdateFile file) {return Path.Combine(stage,"files",file.RelativePath.Replace('/',Path.DirectorySeparatorChar));}
         static string Installed(string appDir,UpdateFile file) {return Path.Combine(appDir,file.RelativePath.Replace('/',Path.DirectorySeparatorChar));}
 
@@ -514,6 +542,7 @@ namespace LoveMyShelf {
         // Only this installed copy changes it: a ZIP copy elsewhere leaves the installer's record alone.
         const string SetupKey=@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1D3C2A-8B4E-4F7A-9C35-2E61B0D74A58}_is1";
         static void SyncInstalledVersion(string appDir) {
+            if(AppInfo.Packaged)return;
             using(var look=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SetupKey,false)) {
                 if(look==null)return;
                 string place=look.GetValue("InstallLocation") as string;
@@ -538,6 +567,7 @@ namespace LoveMyShelf {
 
         internal static void ReportStarted() {
             reported=true;
+            if(AppInfo.Packaged)return;
             try {
                 EventWaitHandle ready;
                 if(EventWaitHandle.TryOpenExisting(ReadyEvent,out ready))using(ready)ready.Set();
