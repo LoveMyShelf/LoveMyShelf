@@ -18,18 +18,7 @@
 
 받는 파일은 약 220MB예요. 영상 재생기와 AI 기능(표지를 4배 크고 선명하게, 얼굴로 사람 찾기)이 모두 들어 있어서 그래요. AI 기능은 인터넷에 올리지 않고 내 컴퓨터 안에서만 돌아가요.
 
-## 한눈에 보기
-
-| | |
-|---|---|
-| 무엇인가요 | 파일 탐색기처럼 쓰는 사진·움짤·영상 갤러리. 파일마다 내가 고른 장면을 9:16 표지로 붙여요 |
-| 가격 | 완전 무료. 광고, 가입, 유료 기능이 없어요 |
-| 소스 | 전부 공개 ([GPL-3.0](LICENSE)) |
-| 컴퓨터 | Windows 10, Windows 11 (64비트). .NET Framework 4.8이 필요해요(Windows 10 1903 이후에는 이미 들어 있어요) |
-| 설치 | ZIP을 풀고 `LoveMyShelf.exe`를 켜면 끝. 설치하지 않아도 돼요 |
-| 인터넷 | GitHub에서 새 버전을 확인하고, 업데이트를 누르면 그때 받아요. 확인도 끌 수 있어요. 사진·영상·사용 기록은 밖으로 보내지 않아요 |
-| 원본 파일 | 표지를 만들어도 원본은 그대로예요. 표지는 따로 저장돼요 |
-| 언어 | 한국어, English |
+광고, 가입, 유료 기능 없이 **완전 무료**예요. 소스 코드도 전부 공개돼 있어요(GPL-3.0). ZIP을 풀고 `LoveMyShelf.exe`를 켜면 바로 쓸 수 있고, 따로 설치할 건 없어요. 인터넷은 새 버전이 나왔는지 볼 때만 쓰는데, 이것도 끌 수 있어요.
 
 ## 이럴 때 좋아요
 
@@ -135,7 +124,7 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 
 ## 쓸 수 있는 컴퓨터와 파일
 
-- Windows 10 또는 11 (64비트)
+- Windows 10 또는 11 (64비트). .NET Framework 4.8이 필요한데, Windows 10 1903 이후에는 이미 들어 있어요.
 - 사진: JPG(JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
 - 영상: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG(MPEG), MTS, M2TS, TS, 3GP
 - 자막: SMI, SRT, ASS, VTT
@@ -187,18 +176,7 @@ It was made by having the top AI models of three companies (Anthropic Claude Fab
 
 The download is about 220 MB because it includes a video player and AI features (4× larger, sharper covers and finding people by face). The AI features run only on your computer and upload nothing.
 
-## At a glance
-
-| | |
-|---|---|
-| What it is | A photo, GIF and video gallery you use like File Explorer. Give each file a 9:16 cover from a scene you choose |
-| Price | Completely free. No ads, no sign-up, no paid features |
-| Source | All public ([GPL-3.0](LICENSE)) |
-| Computer | Windows 10, Windows 11 (64-bit). Needs .NET Framework 4.8 (already included in Windows 10 1903 and later) |
-| Install | Extract the ZIP and start `LoveMyShelf.exe`. Nothing to install |
-| Internet | Checks GitHub for a new version, and downloads it only when you click update. The check can be turned off. Photos, videos and usage records are never sent anywhere |
-| Original files | Making covers leaves them as they are. Covers are saved separately |
-| Languages | Korean, English |
+It's **completely free**: no ads, no sign-up, no paid features, and all the source code is public (GPL-3.0). Extract the ZIP and start `LoveMyShelf.exe`; there's nothing to install. The internet is used only to check for a new version, and you can turn that off too.
 
 ## When to use it
 
@@ -298,7 +276,7 @@ Light and dark themes. Korean and English.
 
 ## Computers and files
 
-- Windows 10 or 11 (64-bit)
+- Windows 10 or 11 (64-bit). Needs .NET Framework 4.8, which Windows 10 1903 and later already include.
 - Photos: JPG (JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
 - Videos: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG (MPEG), MTS, M2TS, TS, 3GP
 - Subtitles: SMI, SRT, ASS, VTT
