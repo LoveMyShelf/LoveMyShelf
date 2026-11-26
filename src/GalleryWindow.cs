@@ -628,7 +628,7 @@ namespace LoveMyShelf {
         readonly CancellationTokenSource lifetime=new CancellationTokenSource();
         internal string PlaybackDirectory { get { return Path.Combine(store.Root,"Playback"); } }
         readonly ListBox grid=new ListBox();
-        // 'AI야 일해라': the big writing panel at the top (AiWorkPanel.cs).
+        // The small writing box at the bottom of the folder tree (AiWorkPanel.cs).
         AiWorkPanel aiWork;
         readonly TextBlock count=UI.Text("",11,true), emptyTitle=UI.Text("",20), marqueeHint=UI.Text("",11.5,true);
         readonly TextBlock emptyHelp=UI.Text("",14,true);
@@ -922,8 +922,6 @@ namespace LoveMyShelf {
             };
             nav.SizeChanged+=delegate {updateTopBar();};
             var line=UI.Use(new Border { Height=1 },Border.BackgroundProperty,"Line"); DockPanel.SetDock(line,Dock.Top);root.Children.Add(line);
-            // Full width under the address row, above the folder tree and the tiles. Big at start, a one-line strip later.
-            aiWork=new AiWorkPanel(this,another);DockPanel.SetDock(aiWork,Dock.Top);root.Children.Add(aiWork);
             // Inside a folder opened from a folder tile: [↑] and the way down from the tab, each part clickable.
             pathRow.Margin=new Thickness(5,3,5,3);
             DockPanel.SetDock(pathRow,Dock.Top);root.Children.Add(pathRow);
@@ -1017,8 +1015,11 @@ namespace LoveMyShelf {
             treeEdge.DragDelta+=(s,e)=>{treePanel.Width=Math.Max(160,Math.Min(400,treePanel.Width+e.HorizontalChange));};
             treeEdge.DragCompleted+=delegate {SaveTree(null,(int)Math.Round(treePanel.Width),null);};
             var treeLine=UI.Use(new Border {Width=1,HorizontalAlignment=HorizontalAlignment.Right},Border.BackgroundProperty,"Line");
-            var treeGrid=new Grid();treeGrid.Children.Add(tree);treeGrid.Children.Add(treeLine);
-            treeEdge.HorizontalAlignment=HorizontalAlignment.Right;treeEdge.Margin=new Thickness(0,0,-2,0);treeGrid.Children.Add(treeEdge);
+            // Under the folders, the writing box: the tree scrolls above it, the box keeps its height.
+            aiWork=new AiWorkPanel(this);Grid.SetRow(aiWork,1);aiWork.Margin=new Thickness(0,0,1,0);
+            var treeGrid=new Grid();treeGrid.RowDefinitions.Add(new RowDefinition {MinHeight=100});treeGrid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            Grid.SetRowSpan(treeLine,2);treeGrid.Children.Add(tree);treeGrid.Children.Add(aiWork);treeGrid.Children.Add(treeLine);
+            treeEdge.HorizontalAlignment=HorizontalAlignment.Right;treeEdge.Margin=new Thickness(0,0,-2,0);Grid.SetRowSpan(treeEdge,2);treeGrid.Children.Add(treeEdge);
             treePanel.Child=treeGrid;treePanel.Width=settings.TreeWidth;
             DockPanel.SetDock(treePanel,Dock.Left);root.Children.Add(treePanel);
             // The folder tabs moved into the tree: the first start after that opens the tree once (it was closed by default),
@@ -1188,7 +1189,7 @@ namespace LoveMyShelf {
                 }
             };
             PreviewKeyDown+=(s,e)=>{
-                if(aiWork!=null && aiWork.IsKeyboardFocusWithin)return; // typing in 'AI야 일해라': Backspace, F5 and the rest stay there
+                if(aiWork!=null && aiWork.Typing)return; // typing in the writing box: Backspace, F5 and the rest stay there
                 if(e.Key==Key.F5) {Refresh();StartCoverMigration();DrivesChangedSoon(0.3);e.Handled=true;} // F5 also looks again for files renamed or moved outside
                 else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.O) {
                     PickFolder(); e.Handled=true;
@@ -1486,7 +1487,6 @@ namespace LoveMyShelf {
                 catch(Exception ex) {UI.Error(this,ex);return;}
             }
             bool changed=active==null || !String.Equals(LocationKey(active),LocationKey(album),StringComparison.OrdinalIgnoreCase);
-            if(changed && active!=null && aiWork!=null)aiWork.Shrink(); // another folder: the panel becomes its one-line strip
             if(changed && active!=null && !historyMove) {
                 backStack.Add(LocationKey(active));backFormats.Add(new HashSet<string>(chosenFormats,chosenFormats.Comparer));
                 forwardStack.Clear();forwardFormats.Clear();
@@ -1600,6 +1600,11 @@ namespace LoveMyShelf {
             return pathRow.Children.OfType<FrameworkElement>().Select(e=>e is TextBlock?((TextBlock)e).Text:e is Button && ((Button)e).Content is string?(string)((Button)e).Content:"[↑]");
         }
         internal void ToggleTree() {ShowTree(treePanel.Visibility!=Visibility.Visible,true);}
+        // Opens the folder tree if it is closed and puts the caret in the writing box under it.
+        internal void ShowAiWork() {
+            if(treePanel.Visibility!=Visibility.Visible)ShowTree(true,true);
+            aiWork.FocusBox();
+        }
         void ShowTree(bool open,bool remember) {
             treePanel.Visibility=open?Visibility.Visible:Visibility.Collapsed;
             UI.Use(treeButton,Control.BorderBrushProperty,open?"Accent":"Line");
@@ -3611,7 +3616,7 @@ namespace LoveMyShelf {
             own.Items.Add(refresh);
             var phone=new MenuItem {Header=L.P("Send to phone…","휴대폰으로 보내기…")};phone.Click+=delegate {SendToPhone();};
             own.Items.Add(phone);
-            var tell=new MenuItem {Header=L.P("AI, get to work","AI야 일해라")};tell.Click+=delegate {aiWork.Expand(true);};
+            var tell=new MenuItem {Header=L.P("Write to the AI that made this…","이걸 만든 AI한테 적기…")};tell.Click+=delegate {ShowAiWork();};
             own.Items.Add(tell);
             // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
             own.Items.Add(new Separator());
@@ -4066,7 +4071,7 @@ namespace LoveMyShelf {
         }
         void ExplorerKeys(object sender,KeyEventArgs e) {
             // Typing in a text box (search, the address bar, renaming): its keys stay there, never on the tiles.
-            if(e.Handled || search.IsKeyboardFocusWithin || (aiWork!=null && aiWork.IsKeyboardFocusWithin) || Keyboard.FocusedElement is TextBox || (address!=null && address.Editing) || !IsActiveWindowForKeys)return;
+            if(e.Handled || search.IsKeyboardFocusWithin || (aiWork!=null && aiWork.Typing) || Keyboard.FocusedElement is TextBox || (address!=null && address.Editing) || !IsActiveWindowForKeys)return;
             var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
             bool shift=(Keyboard.Modifiers&ModifierKeys.Shift)!=0,control=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
             switch(key) {

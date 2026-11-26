@@ -267,8 +267,8 @@ namespace LoveMyShelf {
                         ErrorLog.RunBeforeCrash();
                         // The windows are still there, in whatever state the problem left them: this window may be cut short by them.
                         try {
-                            MessageBox.Show(L.PF("LoveMyShelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}\n\nWrite it in [AI, get to work] at the top of the folder window and we'll fix it.",
-                                "문제가 생겨서 LoveMyShelf를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n폴더 창 맨 위 [AI야 일해라] 칸에 적어 주시면 고칠게요.",ex.Message,ErrorLog.Path),
+                            MessageBox.Show(L.PF("LoveMyShelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}\n\nWrite it in the box at the bottom of the folder tree on the left and we'll fix it.",
+                                "문제가 생겨서 LoveMyShelf를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n왼쪽 폴더 트리 맨 아래 칸에 적어 주시면 고칠게요.",ex.Message,ErrorLog.Path),
                                 "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Error);
                         } catch(Exception again) {ErrorLog.Serious("While telling about the crash",again);}
                     }

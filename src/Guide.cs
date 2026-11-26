@@ -1589,12 +1589,12 @@ namespace LoveMyShelf {
             keys.Items.Add(new Card {Title=T("Making a GIF cover","GIF 표지 만들기"),Keys=new[]{
                 K(T("Move a handle one scene at a time","손잡이를 한 장면씩 옮기기"),"←","→"),K(T("Speed","속도"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")}});
 
-            // ----- AI, get to work (the button is drawn by AiWorkPanel.GuidePanel) -----
-            var feedback=add("feedback",T("AI, get to work","AI야 일해라"));
-            feedback.Items.Add(new Card {Title=T("AI, get to work","AI야 일해라"),
-                Lines=new[]{T("Write whatever comes to mind in [[AI, get to work]] at the top of the folder window, then press [[Send]].",
-                    "폴더 창 맨 위 [[AI야 일해라]] 칸에 생각나는 대로 적고 [[보내기]]를 누르면 돼요.")},
-                Tips=new[]{T("You can also right-click a blank spot in a folder and choose [[AI, get to work]].","폴더의 빈 곳을 오른쪽 클릭하고 [[AI야 일해라]]를 눌러도 돼요.")}});
+            // ----- Writing to the AI (the button is drawn by AiWorkPanel.GuidePanel) -----
+            var feedback=add("feedback",T("Write to the AI","AI한테 적기"));
+            feedback.Items.Add(new Card {Title=T("Write to the AI","AI한테 적기"),
+                Lines=new[]{T("At the bottom of the folder tree on the left, write whatever you like and press [[Send]].",
+                    "왼쪽 폴더 트리 맨 아래 칸에 하고 싶은 말을 적고 [[보내기]]를 누르면 돼요.")},
+                Tips=new[]{T("You can also right-click a blank spot in a folder and choose [[Write to the AI that made this…]].","폴더의 빈 곳을 오른쪽 클릭하고 [[이걸 만든 AI한테 적기…]]를 눌러도 돼요.")}});
 
             // ----- Help -----
             var help=add("help",T("If something goes wrong","문제가 생겼을 때"));
