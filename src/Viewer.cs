@@ -282,6 +282,24 @@ namespace LoveMyShelf {
             // The marks of the GIF cover part lie over the bar and never take a click from it.
             var seekHost=new Grid();seekHost.Children.Add(seek);seekHost.Children.Add(partMarks);transport.Children.Add(seekHost);
             seek.SizeChanged+=delegate {ShowPart();};
+            // Right-click the bar twice: the part between the two places plays again and again (the same part as [ and ]).
+            // Only a right-click that starts and ends on the bar counts, and not while the left button drags the bar.
+            bool seekRight=false;
+            seek.PreviewMouseRightButtonDown+=(s,e)=>{
+                if(!motion || e.LeftButton==MouseButtonState.Pressed)return;
+                seekRight=true;e.Handled=true;
+            };
+            seek.MouseLeave+=delegate {seekRight=false;};
+            seek.PreviewMouseRightButtonUp+=(s,e)=>{
+                if(!seekRight)return;
+                seekRight=false;e.Handled=true;
+                if(!motion || duration<=1 || seek.ActualWidth<=12)return;
+                double x=e.GetPosition(seek).X;
+                double ms=Math.Max(0,Math.Min(1,(x-5)/(seek.ActualWidth-10)))*duration;
+                if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)ClearPart();else PointPart(ms);
+            };
+            seek.ToolTip=L.P("Right-click two places on the bar: the part between them repeats. Shift + right-click clears it.",
+                "재생바의 두 곳을 오른쪽 클릭하면 그 사이가 반복돼요. Shift+오른쪽 클릭이면 지워져요.");
             seekPreview=new SeekPreview(ui,seek);
             seek.ValueChanged+=(s,e)=>{
                 if(sync || !motion)return;
@@ -602,6 +620,26 @@ namespace LoveMyShelf {
             else if(which==1)ShowCornerNote(longest+L.F("GIF cover part starts at {0} · press ] where it ends",Stamp(at)));
             else ShowCornerNote(longest+L.F("GIF cover part ends at {0} · press [ where it starts",Stamp(at)));
             ShowPart();
+        }
+        // A right-click on the bar: the first marks one place, the second the other (whichever comes first is the start),
+        // and the part between them repeats from its start. A third right-click begins a new part at that place.
+        void PointPart(double at) {
+            if(!PartIsHere || (partStart.HasValue && partEnd.HasValue) || (!partStart.HasValue && !partEnd.HasValue)) {
+                partStart=at;partEnd=null;partFile=CurrentPhoto.Original;partJump.Reset();partInside=false;
+                ShowCornerNote(L.P("Repeat from "+Stamp(at)+" · right-click the other end on the bar",Stamp(at)+"부터 · 재생바에서 다른 끝을 오른쪽 클릭해 주세요"));
+                ShowPart();return;
+            }
+            double first=partStart??partEnd.Value;
+            double from=Math.Min(first,at),to=Math.Max(first,at);
+            double gap=Math.Max(50,Scenes.StepMs);
+            if(to-from<gap){ShowCornerNote(L.P("Too close · right-click a little farther away","너무 가까워요 · 조금 더 떨어진 곳을 오른쪽 클릭해 주세요"));return;}
+            if(to-from>PartLongestMs){ShowCornerNote(L.F("A GIF cover part can be up to {0} s",(int)(PartLongestMs/1000)));return;}
+            partStart=from;partEnd=to;partFile=CurrentPhoto.Original;
+            ShowCornerNote(L.F("GIF cover part {0} – {1} · {2:0.0} s",Stamp(from),Stamp(to),(to-from)/1000));
+            ShowPart();
+            // It plays from the start of the part and keeps repeating it.
+            // The player may report the old place for a moment after the jump; LoopPart waits for it (as when it loops).
+            partInside=true;partJump.Restart();SeekTo(from);
         }
         void ClearPart() {
             bool had=PartIsHere && (partStart.HasValue || partEnd.HasValue);

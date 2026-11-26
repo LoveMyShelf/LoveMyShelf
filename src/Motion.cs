@@ -352,7 +352,8 @@ namespace LoveMyShelf {
             hintCaps=new TextBlock[3];hintWords=new TextBlock[3];
             hints.Children.Add(Hint(0,L.T("Drag"),L.T("Set the start and the end with the handles")));
             hints.Children.Add(wheelHint=Hint(1,L.T("Wheel"),L.T("See earlier and later scenes")));
-            hints.Children.Add(Hint(2,L.T("Double-click"),L.T("Outside the part, the part grows to there")));
+            hints.Children.Add(Hint(2,L.T("Double-click"),L.P("Outside the part it grows to there; inside, the end on that side of the cover comes there",
+                "구간 바깥이면 그곳까지 늘어나고, 안쪽이면 표지 장면 쪽 기준으로 가까운 끝이 그곳으로 와요")));
             var words=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
             words.Children.Add(help);words.Children.Add(hints);hintBar=words;
             stripFrame=new Border {Child=strip,CornerRadius=new CornerRadius(6),ClipToBounds=true,Margin=new Thickness(0,8,0,0)};
@@ -1017,9 +1018,15 @@ namespace LoveMyShelf {
             strip.CaptureMouse();e.Handled=true;
         }
         // A double click outside the chosen part brings the nearer end there: left of it the start, right of it the end.
+        // Inside the part it pulls an end in to there, the one on that side of the cover's scene: before the cover's
+        // scene the start, after it the end (a cover scene outside the part: the nearer end).
         internal bool DoubleClickStrip(double x) {
             int which=x<X(start)?1:x>X(end)?2:0;
-            if(which==0)return false;
+            if(which==0) {
+                double at=Ms(x),moment=source.Moment;
+                if(moment>start && moment<end)which=at<moment?1:2;
+                else which=at-start<=end-at?1:2;
+            }
             activeHandle=which;
             PlaceHandle(which,Ms(x));
             Layout();UpdateChips();UpdateSummary();SchedulePrepare();
