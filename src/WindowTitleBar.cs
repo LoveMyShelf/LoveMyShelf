@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Runtime.InteropServices;
 using System.Windows.Automation;
@@ -20,6 +22,7 @@ namespace LoveMyShelf {
 
         public WindowTitleBar(Window window,Action toggleFullscreen=null) {
             this.window=window;
+            lock(bars)bars.Add(new WeakReference(this));
             Height=30;SetResourceReference(BackgroundProperty,"Paper");
             UseLayoutRounding=true;
             SetDock(this,Dock.Top);
@@ -74,11 +77,42 @@ namespace LoveMyShelf {
             var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
             IntPtr screen=(place.Flags&0x0003)==0?MonitorFromRect(ref target,2):MonitorFromWindow(handle,2);
             if(!GetMonitorInfo(screen,ref info))return IntPtr.Zero;
-            place.X=info.Work.Left;place.Y=info.Work.Top;place.Width=info.Work.Right-info.Work.Left;place.Height=info.Work.Bottom-info.Work.Top;
+            // While one of our windows is in full screen on that screen, the taskbar there is hidden anyway: the work
+            // area would leave a strip at the bottom where the full-screen window behind shows through (measured on the
+            // person's PC 2026-11-27: folder window full screen 0-1080, guide maximized 0-1008, its bottom row showing
+            // under the guide). Then a maximized window takes the whole screen too.
+            var area=FullScreenOn(screen)?info.Monitor:info.Work;
+            place.X=area.Left;place.Y=area.Top;place.Width=area.Right-area.Left;place.Height=area.Bottom-area.Top;
             place.Flags&=~0x0003;
             Marshal.StructureToPtr(place,lParam,false);
             return IntPtr.Zero;
         }
+        static readonly List<WeakReference> bars=new List<WeakReference>();
+        // True when one of this program's windows is in full screen on that screen.
+        static bool FullScreenOn(IntPtr screen) {
+            if(Application.Current==null)return false;
+            foreach(Window other in Application.Current.Windows) {
+                if(!other.IsVisible || other.WindowState==WindowState.Minimized || !FullScreen.IsFull(other))continue;
+                IntPtr handle=new WindowInteropHelper(other).Handle;
+                if(handle!=IntPtr.Zero && MonitorFromWindow(handle,2)==screen)return true;
+            }
+            return false;
+        }
+        // Called when a window goes into or out of full screen: maximized windows take the whole screen or the work
+        // area again (the hook above picks which as they are placed).
+        internal static void RefitMaximized() {
+            List<WindowTitleBar> live;
+            lock(bars){bars.RemoveAll(r=>!r.IsAlive);live=bars.Select(r=>r.Target as WindowTitleBar).Where(t=>t!=null).ToList();}
+            foreach(var bar in live) {
+                var w=bar.window;
+                if(w.WindowState!=WindowState.Maximized || FullScreen.IsFull(w) || !w.IsVisible)continue;
+                IntPtr handle=new WindowInteropHelper(w).Handle;
+                Edges now;
+                if(handle==IntPtr.Zero || !GetWindowRect(handle,out now))continue;
+                SetWindowPos(handle,IntPtr.Zero,now.Left,now.Top,now.Right-now.Left,now.Bottom-now.Top,0x0014); // SWP_NOZORDER|SWP_NOACTIVATE
+            }
+        }
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
         [StructLayout(LayoutKind.Sequential)] struct WindowPlace {public IntPtr Handle,After;public int X,Y,Width,Height;public int Flags;}
         [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr window);
         [DllImport("user32.dll")] static extern IntPtr MonitorFromRect(ref Edges rect,int flags);
@@ -91,11 +125,13 @@ namespace LoveMyShelf {
             if(handle==IntPtr.Zero || source==null || source.CompositionTarget==null)return;
             Edges outside;
             var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
-            if(!GetWindowRect(handle,out outside) || !GetMonitorInfo(MonitorFromWindow(handle,2),ref info))return;
+            IntPtr screen=MonitorFromWindow(handle,2);
+            if(!GetWindowRect(handle,out outside) || !GetMonitorInfo(screen,ref info))return;
+            var area=FullScreenOn(screen)?info.Monitor:info.Work; // the same place the window is put on
             var scale=source.CompositionTarget.TransformFromDevice;
             Func<int,double,double> part=(pixels,unit)=>Math.Min(16,Math.Max(0,pixels*unit));
-            var clear=new Thickness(part(info.Work.Left-outside.Left,scale.M11),part(info.Work.Top-outside.Top,scale.M22),
-                part(outside.Right-info.Work.Right,scale.M11),part(outside.Bottom-info.Work.Bottom,scale.M22));
+            var clear=new Thickness(part(area.Left-outside.Left,scale.M11),part(area.Top-outside.Top,scale.M22),
+                part(outside.Right-area.Right,scale.M11),part(outside.Bottom-area.Bottom,scale.M22));
             if(window.BorderThickness!=clear)window.BorderThickness=clear;
         }
         [StructLayout(LayoutKind.Sequential)] struct Edges {public int Left,Top,Right,Bottom;}

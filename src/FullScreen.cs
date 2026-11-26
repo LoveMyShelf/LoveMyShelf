@@ -74,6 +74,8 @@ namespace LoveMyShelf {
                 window.WindowState=oldState;
             }
             active=full;titleBar.Update();
+            // Maximized windows on this screen follow: the whole screen while this one is full, the work area after.
+            window.Dispatcher.BeginInvoke(new Action(WindowTitleBar.RefitMaximized),System.Windows.Threading.DispatcherPriority.Background);
             if(changed!=null)changed(full);
             if(save && remember!=null) remember(full);
         }
