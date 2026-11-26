@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -41,15 +42,23 @@ namespace LoveMyShelf {
                     "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Information);
                 return;
             }
-            open=new FaceWindow(store) {Owner=owner};
+            open=new FaceWindow(store,owner);
             open.Show();
         }
         string LikenessFile {get {return Path.Combine(store.Root,"face-likeness.txt");}}
-        internal FaceWindow(GalleryStore store) {
+        internal FaceWindow(GalleryStore store,Window owner=null) {
             this.store=store;
             UI.WindowSetup(this,L.T("Find people by face"));ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
-            Width=Math.Min(900,SystemParameters.WorkArea.Width);Height=Math.Min(720,SystemParameters.WorkArea.Height);MinWidth=420;MinHeight=280;
+            Owner=owner;
+            var area=SystemParameters.WorkArea.Size;
+            var source=owner==null?null:PresentationSource.FromVisual(owner);
+            if(source!=null && source.CompositionTarget!=null) {
+                var work=System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(owner).Handle).WorkingArea;
+                var size=source.CompositionTarget.TransformFromDevice.Transform(new Vector(work.Width,work.Height));
+                area=new Size(size.X,size.Y);
+            }
+            Width=Math.Min(900,area.Width);Height=Math.Min(650,area.Height);MinWidth=Math.Min(420,Width);MinHeight=Math.Min(280,Height);
             var root=new DockPanel();var bar=new WindowTitleBar(this);root.Children.Add(bar);Content=root;
             var top=new StackPanel {Margin=new Thickness(18,10,18,8)};DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
             var about=UI.Text(NoticeLook.KeepWords(L.T("LoveMyShelf looks for faces on your covers and puts faces that look alike together. Give a group a name, and that name becomes a tag on the originals of those covers. The pictures never leave this computer.")),13,true);
@@ -60,28 +69,32 @@ namespace LoveMyShelf {
             stop.Visibility=Visibility.Collapsed;
             status.TextWrapping=TextWrapping.Wrap;status.Margin=new Thickness(0,0,0,4);
             actions.Children.Add(start);actions.Children.Add(stop);actions.Children.Add(status);top.Children.Add(actions);
-            var row=new DockPanel {Margin=new Thickness(0,8,0,0)};
+            var row=new Grid {Margin=new Thickness(0,8,0,0)};
+            row.ColumnDefinitions.Add(new ColumnDefinition {MaxWidth=260});
+            row.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(2,GridUnitType.Star),MinWidth=likeness.MinWidth});
+            row.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+            row.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
             var question=UI.Text(L.T("How alike must two faces be to count as one person?"),13);question.Margin=new Thickness(0,0,10,0);
-            question.TextWrapping=TextWrapping.Wrap;question.MaxWidth=260;
-            DockPanel.SetDock(question,Dock.Left);row.Children.Add(question);
-            var reset=UI.Btn(L.T("Reset"),()=>{likeness.Value=DefaultLikeness;});reset.Margin=new Thickness(8,0,0,0);
-            DockPanel.SetDock(reset,Dock.Right);row.Children.Add(reset);
-            likenessText.MinWidth=44;likenessText.TextAlignment=TextAlignment.Center;likenessText.Margin=new Thickness(8,0,0,0);
-            DockPanel.SetDock(likenessText,Dock.Right);row.Children.Add(likenessText);
+            question.TextWrapping=TextWrapping.Wrap;
+            row.Children.Add(question);
             likeness.VerticalAlignment=VerticalAlignment.Center;
             System.Windows.Automation.AutomationProperties.SetName(likeness,L.T("How alike must two faces be to count as one person?"));
-            row.Children.Add(likeness);top.Children.Add(row);
+            Grid.SetColumn(likeness,1);row.Children.Add(likeness);
+            likenessText.MinWidth=44;likenessText.TextAlignment=TextAlignment.Center;likenessText.Margin=new Thickness(8,0,0,0);
+            Grid.SetColumn(likenessText,2);row.Children.Add(likenessText);
+            var reset=UI.Btn(L.T("Reset"),()=>{likeness.Value=DefaultLikeness;});reset.Margin=new Thickness(8,0,0,0);
+            Grid.SetColumn(reset,3);row.Children.Add(reset);top.Children.Add(row);
             var ends=new DockPanel {Margin=new Thickness(0,2,0,0)};
             var tight=UI.Text(L.T("Strict (splits more) →"),12,true);DockPanel.SetDock(tight,Dock.Right);ends.Children.Add(tight);
             ends.Children.Add(UI.Text(L.T("← Loose (joins more)"),12,true));top.Children.Add(ends);
             var help=UI.Text(NoticeLook.KeepWords(L.T("If one person is split into several groups, move it left. If different people are in one group, move it right. Click faces to choose them, then say who they are or aren't.")),12,true);
             help.TextWrapping=TextWrapping.Wrap;help.Margin=new Thickness(0,0,0,10);
-            forget=UI.Btn(L.T("Delete all face information…"),ForgetAll);forget.HorizontalAlignment=HorizontalAlignment.Left;forget.Margin=new Thickness(0,4,0,0);
+            forget=UI.Btn(L.T("Delete all face information…"),ForgetAll);forget.HorizontalAlignment=HorizontalAlignment.Left;forget.Margin=new Thickness(0,4,0,18);
             // Only the buttons and the slider stay in place; the explanations scroll with the faces, so a short screen keeps its room for them.
             var page=new StackPanel();
             page.Children.Add(about);page.Children.Add(help);page.Children.Add(list);page.Children.Add(forget);
             var scroller=new ScrollViewer {Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
-                Padding=new Thickness(18,0,12,18)};
+                Padding=new Thickness(18,0,12,0)};
             root.Children.Add(scroller);
 
             double saved;
