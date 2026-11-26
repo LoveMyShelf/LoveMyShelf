@@ -185,6 +185,7 @@ namespace LoveMyShelf {
             if(sections[index].Id=="all")DrawOverview();
             if(sections[index].Id=="news")DrawNews();
             if(sections[index].Id=="backup")cards.Children.Add(BackupWindow.GuidePanel(this));
+            if(sections[index].Id=="feedback")cards.Children.Add(FeedbackWindow.GuidePanel(this));
             if(sections[index].Id=="advanced")DrawAdvanced();
             else {waitingFor=null;clashFor=null;keyNote=null;}
             if(toTop)scroller.ScrollToTop();
@@ -1526,6 +1527,17 @@ namespace LoveMyShelf {
                 K(T("Brightness","밝기"),"Q","W","E"),K(T("Brightness style","밝기 방식"),"R"),K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});
             keys.Items.Add(new Card {Title=T("Making a GIF cover","GIF 표지 만들기"),Keys=new[]{
                 K(T("Move a handle one scene at a time","손잡이를 한 장면씩 옮기기"),"←","→"),K(T("Speed","속도"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")}});
+
+            // ----- Tell us what's inconvenient (the button is drawn by FeedbackWindow.GuidePanel) -----
+            var feedback=add("feedback",T("Tell us what's inconvenient","불편한 점 알려 주기"));
+            feedback.Items.Add(new Card {Title=T("Something doesn't work, or could be easier?","안 되는 게 있거나 더 편했으면 하나요?"),
+                Lines=new[]{T("Something that doesn't work, something awkward, or something you wish it had: tell us any time. Every message is read and used to make Love My Shelf better.",
+                    "안 되는 것, 불편한 것, 있었으면 하는 기능을 언제든 알려 주세요. 하나하나 다 읽어 보고 Love My Shelf를 고치는 데 써요."),
+                    T("Press the button below and write it. Love My Shelf opens a Google Form in your browser with what you wrote filled in; press [[Submit]] at the bottom of it and it's sent.",
+                        "아래 버튼을 누르고 내용을 적으세요. 브라우저에 쓰신 내용이 채워진 구글 설문지가 열리고, 맨 아래 [[제출]]을 누르면 보내져요."),
+                    T("The version goes along unless you untick it. Recent error records go only if you tick them, with folders and file names hidden, and you can read and edit them before sending. Photos and videos themselves are never sent.",
+                        "버전은 체크를 풀지 않으면 함께 가요. 최근 오류 기록은 체크했을 때만 가고, 폴더 경로와 파일 이름을 가린 채 보내기 전에 직접 읽고 고칠 수 있어요. 사진·영상 파일 자체는 보내지 않아요.")},
+                Tips=new[]{T("You can also right-click a blank spot in a folder and choose [[Tell us what's inconvenient…]].","폴더의 빈 곳을 오른쪽 클릭하고 [[불편한 점 알려 주기…]]를 눌러도 돼요.")}});
 
             // ----- Help -----
             var help=add("help",T("If something goes wrong","문제가 생겼을 때"));
