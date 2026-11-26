@@ -185,7 +185,7 @@ namespace LoveMyShelf {
             if(sections[index].Id=="all")DrawOverview();
             if(sections[index].Id=="news")DrawNews();
             if(sections[index].Id=="backup")cards.Children.Add(BackupWindow.GuidePanel(this));
-            if(sections[index].Id=="feedback")cards.Children.Add(FeedbackWindow.GuidePanel(this));
+            if(sections[index].Id=="feedback")cards.Children.Add(AiWorkPanel.GuidePanel(this));
             if(sections[index].Id=="advanced")DrawAdvanced();
             else {waitingFor=null;clashFor=null;keyNote=null;}
             if(toTop)scroller.ScrollToTop();
@@ -1589,16 +1589,12 @@ namespace LoveMyShelf {
             keys.Items.Add(new Card {Title=T("Making a GIF cover","GIF 표지 만들기"),Keys=new[]{
                 K(T("Move a handle one scene at a time","손잡이를 한 장면씩 옮기기"),"←","→"),K(T("Speed","속도"),"Z","X","C","V"),K(T("Pause / play the preview","미리보기 일시정지 / 재생"),"Space")}});
 
-            // ----- Tell us what you'd like (the button is drawn by FeedbackWindow.GuidePanel) -----
-            var feedback=add("feedback",T("Tell us what you'd like","바라는 점 알려 주기"));
-            feedback.Items.Add(new Card {Title=T("Is there something you'd like?","바라는 게 있나요?"),
-                Lines=new[]{T("A feature you'd like, something awkward or something that doesn't work: tell us any time. Tell us what you'd like, and we'll do our best to add it.",
-                    "있었으면 하는 기능, 불편한 것, 안 되는 것 무엇이든 편하게 알려 주세요. 바라는 걸 알려 주시면 최대한 넣어 드릴게요."),
-                    T("Press the button below and write it. LoveMyShelf opens a Google Form in your browser with what you wrote filled in; press [[Submit]] at the bottom of it and it's sent.",
-                        "아래 버튼을 누르고 내용을 적으세요. 브라우저에 쓰신 내용이 채워진 구글 설문지가 열리고, 맨 아래 [[제출]]을 누르면 보내져요."),
-                    T("The version goes along unless you untick it. Recent error records go only if you tick them, with folders and file names hidden, and you can read and edit them before sending. Photos and videos themselves are never sent.",
-                        "버전은 체크를 풀지 않으면 함께 가요. 최근 오류 기록은 체크했을 때만 가고, 폴더 경로와 파일 이름을 가린 채 보내기 전에 직접 읽고 고칠 수 있어요. 사진·영상 파일 자체는 보내지 않아요.")},
-                Tips=new[]{T("You can also right-click a blank spot in a folder and choose [[Tell us what you'd like…]].","폴더의 빈 곳을 오른쪽 클릭하고 [[바라는 점 알려 주기…]]를 눌러도 돼요.")}});
+            // ----- AI, get to work (the button is drawn by AiWorkPanel.GuidePanel) -----
+            var feedback=add("feedback",T("AI, get to work","AI야 일해라"));
+            feedback.Items.Add(new Card {Title=T("AI, get to work","AI야 일해라"),
+                Lines=new[]{T("Write whatever comes to mind in [[AI, get to work]] at the top of the folder window, then press [[Send]].",
+                    "폴더 창 맨 위 [[AI야 일해라]] 칸에 생각나는 대로 적고 [[보내기]]를 누르면 돼요.")},
+                Tips=new[]{T("You can also right-click a blank spot in a folder and choose [[AI, get to work]].","폴더의 빈 곳을 오른쪽 클릭하고 [[AI야 일해라]]를 눌러도 돼요.")}});
 
             // ----- Help -----
             var help=add("help",T("If something goes wrong","문제가 생겼을 때"));

@@ -628,6 +628,8 @@ namespace LoveMyShelf {
         readonly CancellationTokenSource lifetime=new CancellationTokenSource();
         internal string PlaybackDirectory { get { return Path.Combine(store.Root,"Playback"); } }
         readonly ListBox grid=new ListBox();
+        // 'AI야 일해라': the big writing panel at the top (AiWorkPanel.cs).
+        AiWorkPanel aiWork;
         readonly TextBlock count=UI.Text("",11,true), emptyTitle=UI.Text("",20), marqueeHint=UI.Text("",11.5,true);
         readonly TextBlock emptyHelp=UI.Text("",14,true);
         readonly Button allCropsButton,unfinishedButton,emptyAction,sortButton;
@@ -920,6 +922,8 @@ namespace LoveMyShelf {
             };
             nav.SizeChanged+=delegate {updateTopBar();};
             var line=UI.Use(new Border { Height=1 },Border.BackgroundProperty,"Line"); DockPanel.SetDock(line,Dock.Top);root.Children.Add(line);
+            // Full width under the address row, above the folder tree and the tiles. Big at start, a one-line strip later.
+            aiWork=new AiWorkPanel(this,another);DockPanel.SetDock(aiWork,Dock.Top);root.Children.Add(aiWork);
             // Inside a folder opened from a folder tile: [↑] and the way down from the tab, each part clickable.
             pathRow.Margin=new Thickness(5,3,5,3);
             DockPanel.SetDock(pathRow,Dock.Top);root.Children.Add(pathRow);
@@ -1129,6 +1133,7 @@ namespace LoveMyShelf {
             WatchRest();
             Activated+=delegate {TakeOverSettings();};
             localize=delegate {
+                if(aiWork!=null)aiWork.Localize();
                 open.Content=L.T("Add folder");emptyAction.Content=L.T("Select a folder…");
                 newWindow.Content=L.T("New window");newWindow.ToolTip=L.T("Open one more window and you can drag files between two folders")+" (Ctrl+N)";
                 AutomationProperties.SetName(newWindow,L.T("New window"));
@@ -1183,6 +1188,7 @@ namespace LoveMyShelf {
                 }
             };
             PreviewKeyDown+=(s,e)=>{
+                if(aiWork!=null && aiWork.IsKeyboardFocusWithin)return; // typing in 'AI야 일해라': Backspace, F5 and the rest stay there
                 if(e.Key==Key.F5) {Refresh();StartCoverMigration();DrivesChangedSoon(0.3);e.Handled=true;} // F5 also looks again for files renamed or moved outside
                 else if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.O) {
                     PickFolder(); e.Handled=true;
@@ -1480,6 +1486,7 @@ namespace LoveMyShelf {
                 catch(Exception ex) {UI.Error(this,ex);return;}
             }
             bool changed=active==null || !String.Equals(LocationKey(active),LocationKey(album),StringComparison.OrdinalIgnoreCase);
+            if(changed && active!=null && aiWork!=null)aiWork.Shrink(); // another folder: the panel becomes its one-line strip
             if(changed && active!=null && !historyMove) {
                 backStack.Add(LocationKey(active));backFormats.Add(new HashSet<string>(chosenFormats,chosenFormats.Comparer));
                 forwardStack.Clear();forwardFormats.Clear();
@@ -3604,7 +3611,7 @@ namespace LoveMyShelf {
             own.Items.Add(refresh);
             var phone=new MenuItem {Header=L.P("Send to phone…","휴대폰으로 보내기…")};phone.Click+=delegate {SendToPhone();};
             own.Items.Add(phone);
-            var tell=new MenuItem {Header=L.P("Tell us what you'd like…","바라는 점 알려 주기…")};tell.Click+=delegate {FeedbackWindow.Show(this);};
+            var tell=new MenuItem {Header=L.P("AI, get to work","AI야 일해라")};tell.Click+=delegate {aiWork.Expand(true);};
             own.Items.Add(tell);
             // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
             own.Items.Add(new Separator());
@@ -4059,7 +4066,7 @@ namespace LoveMyShelf {
         }
         void ExplorerKeys(object sender,KeyEventArgs e) {
             // Typing in a text box (search, the address bar, renaming): its keys stay there, never on the tiles.
-            if(e.Handled || search.IsKeyboardFocusWithin || Keyboard.FocusedElement is TextBox || (address!=null && address.Editing) || !IsActiveWindowForKeys)return;
+            if(e.Handled || search.IsKeyboardFocusWithin || (aiWork!=null && aiWork.IsKeyboardFocusWithin) || Keyboard.FocusedElement is TextBox || (address!=null && address.Editing) || !IsActiveWindowForKeys)return;
             var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
             bool shift=(Keyboard.Modifiers&ModifierKeys.Shift)!=0,control=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
             switch(key) {

@@ -29,6 +29,15 @@
       boldKo="[▭ 자를 곳 ▾] 하나만 누르면|그린 부분만 창 가득 크게"
       boldEn="Click [▭ Where to cut ▾]|just the part you drew"
       keys="Enter Esc Ctrl+Z"/>
+    <item group="new" icon="news"
+      titleKo="AI야 일해라: 생각나는 대로 적고 [보내기]"
+      titleEn="AI, get to work: write anything and press [Send]"
+      textKo="프로그램을 켜면 폴더 창 맨 위에 [AI야 일해라] 칸이 크게 보여요. 생각나는 대로 적고 [보내기]를 한 번 누르면 끝이에요. 브라우저도 로그인도 필요 없어요.&#10;칸에는 처음부터 앱 버전이 적혀 있어요. 지워도 괜찮아요. 칸에 쓴 글 말고는 아무것도 보내지 않아요.&#10;휠을 굴리거나 다른 폴더로 가거나 파일을 열면 한 줄로 작아지고, 그 줄을 누르면 다시 커져요. 다 못 쓴 글은 이 컴퓨터에 남았다가 다음에 켤 때 그대로 나와요.&#10;설명서 겸 옵션의 '바라는 점 알려 주기' 창은 이 칸으로 바뀌었어요."
+      textEn="When the program starts, an [AI, get to work] box shows large at the top of the folder window. Write whatever comes to mind and press [Send] once. No browser, no sign-in.&#10;The box starts with the app version written in it. Deleting it is fine. Nothing but what is in the box is sent.&#10;Scrolling the wheel, going to another folder or opening a file shrinks it to one line; click that line to make it big again. Text you haven't sent stays on this computer and comes back next time.&#10;The 'Tell us what you'd like' window in Guide &amp; Options became this box."
+      boldKo="[보내기]를 한 번|칸에 쓴 글 말고는 아무것도 보내지 않아요"
+      boldEn="press [Send] once|Nothing but what is in the box is sent"
+      tryKo="폴더 창 맨 위 칸에 한 줄 적고 [보내기]를 눌러 보세요."
+      tryEn="Write one line in the box at the top of the folder window and press [Send]."/>
   </release>
   <release version="1.0.11"
     summaryKo="재생바를 오른쪽 클릭 두 번 하면 그 구간이 계속 반복돼요. 영상 위에 자를 곳을 네모로 그려 둘 수 있고, 표지를 자를 땐 이제 사진이 가만히 있어요."
