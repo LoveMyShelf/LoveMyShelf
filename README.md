@@ -6,7 +6,7 @@
 
 세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)가 토큰을 아끼지 않고 서로 토론하게 해서 만들었고, 제가 매일 하루 종일 쓰면서 불편한 걸 하나씩 고쳤어요. 쓰시는 분은 시간이나 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓰시면 돼요.
 
-### [⬇ 러브마이셀프 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
+### [⬇ LoveMyShelf 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
 [English is below](#english) · [설명서](GUIDE.ko.md) · [바뀐 점](CHANGELOG.md)
 
@@ -23,15 +23,15 @@
 ## 이럴 땐 다른 프로그램이 나아요
 
 - 아이폰 사진(HEIC), 카메라 RAW, AVIF 파일을 봐야 할 때: 아직 못 열어요.
-- 사진을 보정하거나 그림을 편집하고 싶을 때: 러브마이셀프는 편집 프로그램이 아니에요.
-- 휴대폰 사진을 클라우드로 자동으로 모으고 싶을 때: 러브마이셀프는 내 컴퓨터 폴더만 봐요.
+- 사진을 보정하거나 그림을 편집하고 싶을 때: LoveMyShelf는 편집 프로그램이 아니에요.
+- 휴대폰 사진을 클라우드로 자동으로 모으고 싶을 때: LoveMyShelf는 내 컴퓨터 폴더만 봐요.
 - Mac이나 리눅스를 쓸 때: Windows 전용이에요.
 
 ## 다른 프로그램과 비교
 
 각 프로그램의 공식 소개에서 확인한 것만 적었어요(2026년 11월 기준).
 
-| | 러브마이셀프 | 파일 탐색기 | Microsoft 사진 | XnView MP | ImageGlass |
+| | LoveMyShelf | 파일 탐색기 | Microsoft 사진 | XnView MP | ImageGlass |
 |---|---|---|---|---|---|
 | 가격 | 무료 | Windows 기본 | Windows 기본 | 개인·교육·비영리 무료, 회사는 유료 | Classic 무료, Pro 유료 |
 | 소스 공개 | 예 (GPL-3.0) | 아니요 | 아니요 | 아니요 | Classic은 예 (GPL-3.0) |
@@ -57,7 +57,7 @@
 
 다운로드 폴더나 짤 폴더에 파일이 수천 개 쌓이면 원하는 걸 찾기 힘들어요. 썸네일은 작고 영상은 엉뚱한 첫 장면만 떠서 결국 하나씩 열어 보게 돼요.
 
-러브마이셀프는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일들을 큰 썸네일로 나란히 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **표지**로 저장하면(세로·정사각형·가로 어떤 모양이든), 그 파일은 다음부터 그 표지로 보여요.
+LoveMyShelf는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일들을 큰 썸네일로 나란히 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **표지**로 저장하면(세로·정사각형·가로 어떤 모양이든), 그 파일은 다음부터 그 표지로 보여요.
 
 ## 이렇게 써요
 

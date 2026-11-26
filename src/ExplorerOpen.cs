@@ -73,7 +73,7 @@ namespace LoveMyShelf {
         // ---- Windows entries (current user only) ----
         static string AppKey {get {return @"Software\Classes\Applications\"+AppFile;}}
         static string VerbKey(string type) {return @"Software\Classes\SystemFileAssociations\"+type+@"\shell\"+VerbName;}
-        static string Label {get {return L.Korean?"러브마이셀프로 열기":"Open with LoveMyShelf";}}
+        static string Label {get {return L.Korean?"LoveMyShelf로 열기":"Open with LoveMyShelf";}}
         static string ExePath {get {return Assembly.GetExecutingAssembly().Location;}}
 
         // Puts the entries in when asked for, takes them out when not, and keeps the program's place current.

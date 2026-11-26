@@ -157,7 +157,7 @@ namespace LoveMyShelf {
             menu.Items.Add(add);
             var shelf=store.VisibleAlbums().Where(a=>a.Source!=null).ToList();
             if(shelf.Count>0) {
-                var all=new MenuItem {Header=S("Add every LoveMyShelf folder","러브마이셀프 폴더 모두 넣기"),IsEnabled=!busy};
+                var all=new MenuItem {Header=S("Add every LoveMyShelf folder","LoveMyShelf 폴더 모두 넣기"),IsEnabled=!busy};
                 all.Click+=delegate {foreach(var a in shelf)SimilarSearch.AddFolder(a.Source);};
                 menu.Items.Add(all);
             }

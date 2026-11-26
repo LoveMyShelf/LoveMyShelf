@@ -1092,7 +1092,7 @@ namespace LoveMyShelf {
                 if(!CoverWork.BelongsTo(this) && TransferQueue.Busy && !Application.Current.Windows.OfType<GalleryWindow>().Any(w=>w!=this && w.IsVisible)) {
                     TransferWindow.ShowQueue(false);
                     var answer=MessageBox.Show(this,L.P("Files are still being sent, or are waiting to be sent.\n\nIf you close now, the queue stops where it is and is kept. The next time you start LoveMyShelf, the unfinished jobs are in the file queue, and [Go on] continues them from where they stopped. Every file that has not been sent yet stays whole where it is.\n\nClose now?",
-                        "아직 보내고 있거나 기다리는 파일이 있어요.\n\n지금 닫으면 대기열을 그 자리에서 멈춰 두고 보관해요. 다음에 러브마이셀프를 켜면 끝내지 못한 작업이 파일 대기열에 남아 있고, [이어서]를 누르면 멈춘 곳부터 계속해요. 아직 보내지 않은 파일은 원래 자리에 온전히 남아 있어요.\n\n지금 닫을까요?"),
+                        "아직 보내고 있거나 기다리는 파일이 있어요.\n\n지금 닫으면 대기열을 그 자리에서 멈춰 두고 보관해요. 다음에 LoveMyShelf를 켜면 끝내지 못한 작업이 파일 대기열에 남아 있고, [이어서]를 누르면 멈춘 곳부터 계속해요. 아직 보내지 않은 파일은 원래 자리에 온전히 남아 있어요.\n\n지금 닫을까요?"),
                         "LoveMyShelf",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No);
                     if(answer!=MessageBoxResult.Yes){e.Cancel=true;return;}
                     TransferQueue.Shutdown();
@@ -1265,7 +1265,7 @@ namespace LoveMyShelf {
                 L.P("The update couldn’t be finished, so the version you were using was put back. Your covers and settings are as they were.",
                     "업데이트를 마치지 못해서 쓰던 버전으로 되돌려 두었어요. 만든 표지와 설정은 그대로예요.")+Environment.NewLine+
                 L.P("Click here to open the download page. Get the new ZIP, close LoveMyShelf, then unzip it over the folder you use now.",
-                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 러브마이셀프를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
+                    "여기를 누르면 다운로드 페이지가 열려요. 새 ZIP을 받은 뒤 LoveMyShelf를 끄고, 지금 쓰는 폴더에 덮어쓰기로 압축을 풀면 돼요."),
                 OpenReleasesPage,NoticeKind.Warning,true);
         }
         async void CheckForUpdate() {
@@ -1276,7 +1276,7 @@ namespace LoveMyShelf {
             if(plan==null && AppUpdater.FromWinget) {
                 Notify(L.F("Version {0} is out",newer),
                     L.P("Click here and LoveMyShelf closes, winget updates it, and it starts again. Your covers and settings stay as they are.",
-                        "여기를 누르면 러브마이셀프가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
+                        "여기를 누르면 LoveMyShelf가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
                     UpdateWithWinget,NoticeKind.Info,true);
                 return;
             }

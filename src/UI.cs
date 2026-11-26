@@ -170,7 +170,7 @@ namespace LoveMyShelf {
             // Most often the very first start, before a language was chosen: go by the language Windows is in, as the first window does.
             bool korean=languageChosen?L.Korean:System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ko";
             var answer=MessageBox.Show(korean?
-                "러브마이셀프에 필요한 파일이 옆에 없어요. 압축 파일 안에서 바로 켰거나, LoveMyShelf.exe만 따로 꺼내서 켠 것 같아요.\n\n"+
+                "LoveMyShelf에 필요한 파일이 옆에 없어요. 압축 파일 안에서 바로 켰거나, LoveMyShelf.exe만 따로 꺼내서 켠 것 같아요.\n\n"+
                 "받은 ZIP 파일을 오른쪽 클릭해서 압축을 전부 푼 다음, 풀린 폴더에서 LoveMyShelf.exe를 다시 켜 주세요. "+
                 "바탕 화면에서 바로 켜고 싶으면 exe는 그 폴더에 그대로 두고 바로 가기를 만들어 주세요.\n\n"+
                 "그래도 지금 켤까요? 영상은 Windows 기본 재생기로 나오고, 일부 기능이 안 될 수 있어요.":
@@ -268,7 +268,7 @@ namespace LoveMyShelf {
                         // The windows are still there, in whatever state the problem left them: this window may be cut short by them.
                         try {
                             MessageBox.Show(L.PF("LoveMyShelf ran into a problem and has to close.\n\n{0}\n\nWhat happened is written in this file:\n{1}\n\nIf you tell us through Guide & Options (F1) → [Tell us what you'd like], we'll fix it.",
-                                "문제가 생겨서 러브마이셀프를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n설명서 겸 옵션(F1) → [바라는 점 알려 주기]로 알려 주시면 고칠게요.",ex.Message,ErrorLog.Path),
+                                "문제가 생겨서 LoveMyShelf를 닫아야 해요.\n\n{0}\n\n무슨 일이 있었는지 이 파일에 적어 두었어요:\n{1}\n\n설명서 겸 옵션(F1) → [바라는 점 알려 주기]로 알려 주시면 고칠게요.",ex.Message,ErrorLog.Path),
                                 "LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Error);
                         } catch(Exception again) {ErrorLog.Serious("While telling about the crash",again);}
                     }

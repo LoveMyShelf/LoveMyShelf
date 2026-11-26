@@ -9,7 +9,7 @@ namespace LoveMyShelf {
     internal static class Covers {
         internal const double Tall=9.0/16;
         // The program's name as the folder tree and the address bar show it (written joined; Korean text spells it out).
-        internal static string AppName {get {return L.P("LoveMyShelf","러브마이셀프");}}
+        internal static string AppName {get {return "LoveMyShelf";}}
         // Width over height of each cell shape, in the order the options list them.
         internal static readonly double[] Shapes={9.0/16,3.0/4,1.0};
         internal static readonly string[] ShapeKeys={"9:16","3:4","1:1"};

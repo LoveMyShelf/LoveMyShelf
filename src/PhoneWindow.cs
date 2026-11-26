@@ -203,7 +203,7 @@ namespace LoveMyShelf {
             progressBar.BorderThickness=new Thickness(0);
             page.Children.Add(progressBar);
             var detail=Para("",true,13,10);
-            Para(T("You can keep using LoveMyShelf meanwhile.","그동안 러브마이셀프를 계속 써도 돼요."),true,13,14);
+            Para(T("You can keep using LoveMyShelf meanwhile.","그동안 LoveMyShelf를 계속 써도 돼요."),true,13,14);
             var cts=new CancellationTokenSource();busy=cts;
             AtRight(T("Stop","멈추기"),()=>cts.Cancel());
             PhoneExport.Progress latest=null;

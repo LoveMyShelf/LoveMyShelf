@@ -22,13 +22,18 @@
     <item group="fixed" icon="check"
       titleKo="설치 파일로 깐 경우 앱 목록의 버전도 바뀌어요"
       titleEn="Settings › Apps shows the new version for an installed copy"
-      textKo="설치 파일로 깐 러브마이셀프를 업데이트하면 Windows 설정의 [앱] 목록에 보이는 버전도 새 버전으로 바뀌어요."
+      textKo="설치 파일로 깐 LoveMyShelf를 업데이트하면 Windows 설정의 [앱] 목록에 보이는 버전도 새 버전으로 바뀌어요."
       textEn="If you installed LoveMyShelf with the setup file, the version shown in Windows Settings › Apps now changes too when it updates."/>
       <item group="better" icon="image"
       titleKo="표지 자를 때 사진이 가만히 있어요"
       titleEn="The picture stays still while you cut a cover"
       textKo="이제 표지 만들기에서 틀을 끌어도 사진이 확대·축소되지 않고 가만히 있어요. 틀만 사진 위에서 움직이고 커지고 작아지며, 틀 바깥은 어둡게 보여요. 사진과 틀이 다 보이게 하려면 [화면에 맞추기]를 눌러요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [🔍 틀 따라 사진 확대·축소]를 켜요. 고른 것은 기억해요."
       textEn="In Make cover, the picture no longer zooms in and out while you drag the frame: it stays still and only the frame moves and changes size over it, with the outside dimmed. [Fit to the window] shows the whole picture and the frame. To zoom with the frame as before, turn on [🔍 Zoom the picture with the frame]. Your choice is remembered."/>
+    <item group="better" icon="news"
+      titleKo="이름은 영어 LoveMyShelf로만 써요"
+      titleEn="The name is written only as LoveMyShelf"
+      textKo="한국어 화면과 설명서에서도 프로그램 이름을 한글로 쓰지 않고 영어 LoveMyShelf로만 써요. 폴더 이름과 만든 표지, 기록은 그대로예요."
+      textEn="Korean screens and the Korean guide now also write the program's name only as LoveMyShelf, not in Hangul. Folder names, your covers and records stay as they are."/>
 </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
@@ -104,7 +109,7 @@
     <item group="new" icon="image"
       titleKo="비슷한 사진 모음"
       titleEn="A collection of similar photos"
-      textKo="폴더 트리의 러브마이셀프 아래 [비슷한 사진 모음]을 누르고 [찾기]를 눌러요. 똑같은 파일과 거의 같은 사진을 묶음으로 모아 보여 줘요. 묶음마다 남기기 좋은 사진에 ‘남기기 추천’이 붙고, 칸 아래쪽에 해상도·형식·용량과 무엇이 다른지 적혀 있어요. 폴더를 오른쪽 클릭하고 [비슷한 사진 찾기…]를 눌러 그 폴더만 찾을 수도 있어요."
+      textKo="폴더 트리의 LoveMyShelf 아래 [비슷한 사진 모음]을 누르고 [찾기]를 눌러요. 똑같은 파일과 거의 같은 사진을 묶음으로 모아 보여 줘요. 묶음마다 남기기 좋은 사진에 ‘남기기 추천’이 붙고, 칸 아래쪽에 해상도·형식·용량과 무엇이 다른지 적혀 있어요. 폴더를 오른쪽 클릭하고 [비슷한 사진 찾기…]를 눌러 그 폴더만 찾을 수도 있어요."
       textEn="Click [Similar photos] under LoveMyShelf in the folder tree, then click [Find]. Identical files and nearly identical photos are shown together in groups. In each group, the photo worth keeping is marked ‘Suggested to keep’, and the bottom of each tile shows its resolution, format, size and how it differs. You can also right-click a folder and click [Find similar photos…] to look in that folder only."/>
     <item group="new" icon="check"
       titleKo="나란히 비교하며 남길 사진 고르기"
@@ -218,7 +223,7 @@
     <item group="fixed" icon="download"
       titleKo="알림을 눌러도 업데이트되지 않던 문제"
       titleEn="The update did not go through when the notice was clicked"
-      textKo="새 버전 알림을 눌러 업데이트하면 ‘러브마이셀프가 이미 실행 중이에요’라는 창이 뜨고 쓰던 버전으로 돌아가던 문제를 고쳤어요. 업데이트를 마치지 못하면 쓰던 버전이 다시 켜지면서 알려 줘요. 그 알림을 누르면 다운로드 페이지가 열려요."
+      textKo="새 버전 알림을 눌러 업데이트하면 ‘LoveMyShelf가 이미 실행 중이에요’라는 창이 뜨고 쓰던 버전으로 돌아가던 문제를 고쳤어요. 업데이트를 마치지 못하면 쓰던 버전이 다시 켜지면서 알려 줘요. 그 알림을 누르면 다운로드 페이지가 열려요."
       textEn="Fixed a problem where updating from the new version notice showed a window saying ‘LoveMyShelf is already running’ and went back to the version you were using. If an update can’t be finished, the version you were using starts again and tells you. Click that notice to open the download page."/>
   </release>
   <release version="1.0.6"
@@ -250,7 +255,7 @@
     <item group="new" icon="image"
       titleKo="밖에서 만든 그림을 표지로"
       titleEn="Use a picture made elsewhere as a cover"
-      textKo="칸을 오른쪽 클릭하고 [밖에서 만든 그림을 표지로…]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 고르면, 그 그림으로 평소와 같은 표지 만들기 화면이 열려요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요. 고른 그림은 러브마이셀프가 사본을 따로 보관해 둬요."
+      textKo="칸을 오른쪽 클릭하고 [밖에서 만든 그림을 표지로…]를 누른 다음 그림 파일(JPG, PNG, WebP, BMP)을 고르면, 그 그림으로 평소와 같은 표지 만들기 화면이 열려요. 포스터나 다른 프로그램에서 손본 그림을 영상이나 사진의 표지로 쓸 수 있어요. 고른 그림은 LoveMyShelf가 사본을 따로 보관해 둬요."
       textEn="Right-click a tile, click [Use a picture made elsewhere as a cover…], then pick a picture file (JPG, PNG, WebP or BMP), and the usual Make cover screen opens with that picture. A poster or a picture touched up in another program can be the cover of a video or photo. LoveMyShelf keeps its own copy of the picture you picked."/>
     <item group="new" icon="order"
       titleKo="표지 순서 바꾸기"
@@ -258,9 +263,9 @@
       textKo="원본 하나에 표지가 두 장 이상 있으면, 표지를 오른쪽 클릭하고 [표지 순서]에서 앞으로, 뒤로, 맨 앞으로(첫 번째 표지) 옮길 수 있어요. 직접 옮긴 원본은 정한 순서를 그대로 지키고, [자동 순서로 되돌리기]를 누르면 영상 속 장면의 시간 순서로 돌아가요."
       textEn="When one original has two or more covers, right-click a cover and move it forward, back, or to the very front (the first cover) under [Cover order]. An original you arranged yourself keeps your order, and [Back to the automatic order] returns it to the order of the scenes in the video."/>
     <item group="new" icon="folder"
-      titleKo="파일 탐색기에서 [러브마이셀프로 열기]"
+      titleKo="파일 탐색기에서 [LoveMyShelf로 열기]"
       titleEn="[Open with LoveMyShelf] in File Explorer"
-      textKo="파일 탐색기에서 사진이나 영상을 오른쪽 클릭하면 [러브마이셀프로 열기]가 나와요(Windows 11에서는 먼저 [더 많은 옵션 표시]를 누르거나 Shift+F10을 누르세요). 누르면 그 파일이 든 폴더가 열리고 그 파일이 바로 크게 보여요. 러브마이셀프가 이미 켜져 있어도 돼요. 처음부터 켜져 있고, 설명서 겸 옵션의 [화면·언어·새 버전]에서 끌 수 있어요."
+      textKo="파일 탐색기에서 사진이나 영상을 오른쪽 클릭하면 [LoveMyShelf로 열기]가 나와요(Windows 11에서는 먼저 [더 많은 옵션 표시]를 누르거나 Shift+F10을 누르세요). 누르면 그 파일이 든 폴더가 열리고 그 파일이 바로 크게 보여요. LoveMyShelf가 이미 켜져 있어도 돼요. 처음부터 켜져 있고, 설명서 겸 옵션의 [화면·언어·새 버전]에서 끌 수 있어요."
       textEn="Right-click a photo or video in File Explorer and [Open with LoveMyShelf] is there (on Windows 11, click [Show more options] first, or press Shift+F10). Click it and the folder that holds the file opens with that file right in the large view. It works even when LoveMyShelf is already running. It is on from the start, and you can turn it off under [Screen, language, updates] in Guide &amp; Options."/>
     <item group="new" icon="play"
       titleKo="모니터마다 다른 스피커"
@@ -276,7 +281,7 @@
     <item group="new" icon="play"
       titleKo="자막 크기 조절과 같은 글꼴"
       titleEn="Subtitle size, and the same font"
-      textKo="자막이 러브마이셀프와 같은 글꼴로 표시돼요. 크기는 화면을 오른쪽 클릭하면 나오는 조작 창의 [자막 크기]에서 10%씩 바꾸거나, 설명서 겸 옵션의 [크게 보기]에서 고를 수 있어요. 바꾼 크기는 다음 영상에도 그대로 쓰여요."
+      textKo="자막이 LoveMyShelf와 같은 글꼴로 표시돼요. 크기는 화면을 오른쪽 클릭하면 나오는 조작 창의 [자막 크기]에서 10%씩 바꾸거나, 설명서 겸 옵션의 [크게 보기]에서 고를 수 있어요. 바꾼 크기는 다음 영상에도 그대로 쓰여요."
       textEn="Subtitles show in the same font as LoveMyShelf. Change the size by 10% at a time with [Subtitle size] in the controls window that opens when you right-click the screen, or choose it under [Large view] in Guide &amp; Options. The size you set is used for the next video too."/>
     <item group="better" icon="sparkle"
       titleKo="새로워진 GIF 표지 만들기 창"
@@ -302,7 +307,7 @@
     <item group="better" icon="check"
       titleKo="전체 화면에서도 최소화·최대화 버튼"
       titleEn="Minimize and maximize buttons in full screen too"
-      textKo="전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 러브마이셀프의 모든 창이 같아요."
+      textKo="전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. LoveMyShelf의 모든 창이 같아요."
       textEn="Even in full screen, the minimize and maximize buttons at the top right can be clicked right away. Minimize and bring it back, and it returns in full screen as it was. Every LoveMyShelf window works the same."/>
     <item group="better" icon="download"
       titleKo="폴더 창을 최소화하면 메모리를 덜 써요"
@@ -484,7 +489,7 @@
     <item group="new" icon="folder"
       titleKo="왼쪽 폴더 트리"
       titleEn="Folder tree on the left"
-      textKo="러브마이셀프에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요."
+      textKo="LoveMyShelf에 추가한 폴더, 즐겨찾기, OneDrive, 내 PC, 네트워크를 한곳에서 열 수 있어요."
       textEn="Your LoveMyShelf folders, Quick access, OneDrive, This PC and network locations in one place."
       keys="Ctrl+T"/>
     <item group="new" icon="folder"
@@ -569,7 +574,7 @@
       textEn="The icon fills its frame, so it no longer looks small on the taskbar."/>
   </release>
   <release version="1.0.0"
-    summaryKo="러브마이셀프의 첫 버전이에요."
+    summaryKo="LoveMyShelf의 첫 버전이에요."
     summaryEn="The first version of LoveMyShelf.">
     <item group="new" icon="folder"
       titleKo="쌓인 폴더를 한눈에"

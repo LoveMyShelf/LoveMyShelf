@@ -303,7 +303,7 @@ namespace LoveMyShelf {
                     if(t.Result>=0)label.Text=NoticeLook.KeepWords(name+"  ·  "+PhotoBox.Size(t.Result));
                 },TaskScheduler.FromCurrentSynchronizationContext());
             }
-            if(boxChecks.Count==0)folderList.Children.Add(Line(T("Add folders to LoveMyShelf first.","먼저 러브마이셀프에 폴더를 넣어 주세요."),true));
+            if(boxChecks.Count==0)folderList.Children.Add(Line(T("Add folders to LoveMyShelf first.","먼저 LoveMyShelf에 폴더를 넣어 주세요."),true));
             var boxNote=Line(T("Each chosen folder becomes a locked box with the same password, in a folder beside the backups. Only folders that changed are made again. A box takes as much room as the photos in it.",
                 "고른 폴더마다 같은 비밀번호로 잠긴 상자를 백업 옆 폴더에 만들어요. 다음부터는 바뀐 폴더만 다시 만들어요. 상자는 안의 사진만큼 공간을 써요."),true,13);
             boxNote.Margin=new Thickness(0,0,0,6);
@@ -401,7 +401,7 @@ namespace LoveMyShelf {
             NewPage(T("Making the backup","백업을 만들고 있어요"));
             var progress=Progress();
             Para(T("You can keep using LoveMyShelf meanwhile. Your last backup stays as it is until this one is checked.",
-                "그동안 러브마이셀프를 계속 써도 돼요. 이번 백업이 확인될 때까지 지난 백업은 그대로 있어요."),true,13,18);
+                "그동안 LoveMyShelf를 계속 써도 돼요. 이번 백업이 확인될 때까지 지난 백업은 그대로 있어요."),true,13,18);
             Button stop=null;
             stop=AtRight(T("Stop","멈추기"),()=>{if(busy!=null){busy.Cancel();stop.IsEnabled=false;}});
             var s=settings;
@@ -683,7 +683,7 @@ namespace LoveMyShelf {
                 r.Folders,r.Records,r.Covers,r.Tags));
             if(r.Skipped>0)Para(L.PF("{0} records were already here and kept as they are.","기록 {0}개는 이미 있어서 그대로 뒀어요.",r.Skipped),true,13,8);
             if(r.Later>0)Para(L.PF("{0} folders are left for later: restore the same backup again when you find them.","나중에 연결할 폴더가 {0}개 있어요. 찾으면 같은 백업으로 다시 복원해 주세요.",r.Later),true,13,8);
-            Note(T("If a folder doesn't show in the folder tree yet, close LoveMyShelf and open it again.","새 폴더가 왼쪽 폴더 트리에 아직 안 보이면 러브마이셀프를 껐다 다시 켜 주세요."),false);
+            Note(T("If a folder doesn't show in the folder tree yet, close LoveMyShelf and open it again.","새 폴더가 왼쪽 폴더 트리에 아직 안 보이면 LoveMyShelf를 껐다 다시 켜 주세요."),false);
             foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.RefreshSoon();
             AtRight(T("Close","닫기"),Close,true).IsDefault=true;
         }

@@ -185,7 +185,7 @@ namespace LoveMyShelf {
                     string parent=Path.GetDirectoryName(from);
                     if(SameFolder(parent,targetSource) || SamePlace(parent,targetSource)){lock(job.Report)job.Report.AlreadyThere++;continue;}
                     if(File.Exists(to)){job.Rejected.Add(name+" — "+L.P("There is a file with that name.","그 이름의 파일이 있어요."));continue;}
-                    if(Renamer.IsAt(store.Root,from)){job.Rejected.Add(name+" — "+L.P("LoveMyShelf keeps its own records in this folder.","러브마이셀프가 기록을 보관하는 폴더예요."));continue;}
+                    if(Renamer.IsAt(store.Root,from)){job.Rejected.Add(name+" — "+L.P("LoveMyShelf keeps its own records in this folder.","LoveMyShelf가 기록을 보관하는 폴더예요."));continue;}
                     job.FolderCount++;
                     if(!job.Copy && SameDrive(from,targetSource) && !Directory.Exists(to)) {
                         items.Add(new TransferItem {From=from,TargetSource=targetSource,TargetAlbum=targetAlbum,Whole=true});continue;

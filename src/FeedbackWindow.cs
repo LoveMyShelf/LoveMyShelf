@@ -83,7 +83,7 @@ namespace LoveMyShelf {
             var promise=Line(T("Tell us what you'd like, and we'll do our best to add it.","바라는 걸 알려 주시면 최대한 넣어 드릴게요."),false,15);promise.FontWeight=FontWeights.SemiBold;promise.Margin=new Thickness(0,0,0,6);
             stack.Children.Add(promise);
             stack.Children.Add(Line(T("Write it in LoveMyShelf, then press [Submit] once on the form that opens. No sign-in is needed.",
-                "러브마이셀프에서 쓰고, 열리는 설문지에서 [제출]만 한 번 누르면 돼요. 로그인하지 않아도 돼요."),false,14));
+                "LoveMyShelf에서 쓰고, 열리는 설문지에서 [제출]만 한 번 누르면 돼요. 로그인하지 않아도 돼요."),false,14));
             var button=UI.Btn(T("Tell us what you'd like…","바라는 점 알려 주기…"),()=>Show(Application.Current.Windows.OfType<GalleryWindow>().FirstOrDefault()??guide),true);
             button.Padding=new Thickness(16,0,16,0);button.MinHeight=36;button.Margin=new Thickness(0,12,0,0);button.HorizontalAlignment=HorizontalAlignment.Left;
             stack.Children.Add(button);
@@ -175,7 +175,7 @@ namespace LoveMyShelf {
             var errorTick=Tick(T("Recent error records","최근 오류 기록"),
                 any?T("Folders, file names and your Windows user name are hidden as far as LoveMyShelf can tell. Check it below and delete anything you'd rather not send.",
                     "폴더 경로, 파일 이름, Windows 사용자 이름은 최대한 가렸어요. 아래에서 확인하고 보내기 싫은 부분은 지워도 돼요.")
-                   :T("LoveMyShelf hasn't recorded any errors.","러브마이셀프가 적어 둔 오류가 없어요."),any && withErrors);
+                   :T("LoveMyShelf hasn't recorded any errors.","LoveMyShelf가 적어 둔 오류가 없어요."),any && withErrors);
             errorTick.IsEnabled=any;
             var errorBox=Box(errors,true,150);errorBox.FontSize=12;errorBox.FontFamily=new FontFamily("Consolas, Malgun Gothic");errorBox.MaxLength=12000;
             errorBox.Margin=new Thickness(24,4,0,0);errorBox.Visibility=any && withErrors?Visibility.Visible:Visibility.Collapsed;
