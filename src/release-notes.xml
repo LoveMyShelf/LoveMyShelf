@@ -82,6 +82,15 @@
       titleEn="Settings › Apps shows the new version for an installed copy"
       textKo="설치 파일로 깐 LoveMyShelf를 업데이트하면, Windows 설정의 [앱] 목록에 보이는 버전도 이제 새 버전으로 같이 바뀌어요."
       textEn="If you installed LoveMyShelf with the setup file, the version shown in Windows Settings › Apps now changes too when it updates."/>
+    <item group="new" icon="folder"
+      titleKo="원하는 파일 형식만 골라 보기"
+      titleEn="Show only the file types you pick"
+      textKo="폴더 창 위쪽, 돋보기 바로 왼쪽의 [형식 ▾]를 눌러 보세요. 이 폴더에 있는 형식(JPG, PNG, MP4 …)과 개수가 한 번에 보여요.&#10;형식 하나를 누르면 그 형식만 보이고, 다른 형식을 누르면 더해지고, 다시 누르면 빠져요. [사진]이나 [영상]을 누르면 그 묶음 전부, [모든 형식]을 누르면 다시 전부 보여요.&#10;아래에는 '16개 중 11개'처럼 몇 개가 보이는지 나와요. 다른 폴더를 열면 모든 형식으로 돌아오고, 뒤로 가기로 돌아오면 고른 형식이 그대로예요."
+      textEn="Click [Type ▾] at the top of the folder window, just left of the magnifier. You see the types in this folder (JPG, PNG, MP4 …) and how many of each.&#10;Click a type and only that type shows; click another to add it, and click it again to take it out. [Photos] or [Videos] picks that whole group, and [All types] shows everything again.&#10;At the bottom it says how many show, like '11 of 16'. Opening another folder starts with all types, and going Back brings your pick back."
+      boldKo="그 형식만 보이고|다른 형식을 누르면 더해지고"
+      boldEn="only that type shows|click another to add it"
+      tryKo="사진과 영상이 섞인 폴더를 열고 [형식 ▾]에서 JPG와 WebP를 차례로 눌러 보세요."
+      tryEn="Open a folder with photos and videos mixed, then click JPG and WebP one after the other in [Type ▾]."/>
   </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
