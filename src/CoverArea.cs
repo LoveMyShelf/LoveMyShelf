@@ -333,7 +333,8 @@ namespace LoveMyShelf {
             keep.Content=L.P("🔒 Keep this shape","🔒 비율 고정");
             keep.VerticalAlignment=VerticalAlignment.Center;
             keep.SetResourceReference(Control.ForegroundProperty,"Text");
-            RoutedEventHandler flip=delegate {if(keep.IsChecked!=locked){ApplyTyping();SetLocked(keep.IsChecked==true);}};
+            // Read the tick first: ApplyTyping redraws, and the redraw puts the tick back to the old state.
+            RoutedEventHandler flip=delegate {bool want=keep.IsChecked==true;if(want!=locked){ApplyTyping();SetLocked(want);}};
             keep.Checked+=flip;keep.Unchecked+=flip;
             shapes.Children.Add(keep);
             var presets=Row();
