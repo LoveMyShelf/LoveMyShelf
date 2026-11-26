@@ -50,6 +50,8 @@
 2. 받은 ZIP 파일을 오른쪽 클릭하고 **압축 풀기**를 눌러 전부 풀어요. 일부만 꺼내면 영상이 안 나와요.
 3. 풀린 폴더에서 `LoveMyShelf.exe`를 더블클릭해요. 따로 설치하지 않아도 돼요.
 
+보통 프로그램처럼 설치하고 싶다면 [설치 파일(LoveMyShelf-Setup.exe)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Setup.exe)을 받아 더블클릭해요. 관리자 권한 없이 내 계정에만 깔리고, 시작 메뉴에 생기고, 지울 때는 Windows 설정 → 앱에서 지워요. 업데이트는 ZIP과 똑같이 알림으로 돼요.
+
 처음 켤 때 파란 **"Windows의 PC 보호"** 창이 뜰 수 있어요. 개인이 만든 프로그램이라 인증서가 없어서 그래요. **추가 정보**를 누른 다음 **실행**을 누르면 돼요.
 
 새 버전이 나오면 오른쪽 아래에 알림이 떠요. 누르면 바뀐 내용을 볼 수 있고, 한 번 더 누르면 바로 업데이트돼요. 만들어 둔 표지랑 설정은 그대로 유지돼요.
@@ -191,6 +193,8 @@ Only what each program's official pages say is listed (as of November 2026).
 1. Click **Download** above and `LoveMyShelf-Windows.zip` is downloaded. No sign-up or sign-in is needed.
 2. Right-click the ZIP file and click **Extract All** to extract everything. If you take out only part of it, videos won't play.
 3. In the extracted folder, double-click `LoveMyShelf.exe`. Nothing needs to be installed.
+
+To install it like a usual program, download the [setup file (LoveMyShelf-Setup.exe)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Setup.exe) and double-click it. It installs for your account only, with no administrator prompt, and appears in the Start menu. Remove it in Windows Settings → Apps. Updates come through the notice, the same as the ZIP.
 
 The first time you start it, a blue **"Windows protected your PC"** window may appear. That is because a program made by one person has no certificate. Click **More info**, then **Run anyway**.
 
