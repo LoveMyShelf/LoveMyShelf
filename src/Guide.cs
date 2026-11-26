@@ -199,9 +199,9 @@ namespace LoveMyShelf {
             cards.Children.Add(now);
             foreach(var note in AppUpdater.InstalledNotes(NewsVersionForChecks??AppInfo.Version)) {
                 var box=Box(false);var stack=new StackPanel();box.Child=stack;
-                stack.Children.Add(Heading(T("Version ","버전 ")+note.Version));
+                var version=UI.Text(T("Version ","버전 ")+note.Version,21);version.FontWeight=FontWeights.Bold;stack.Children.Add(version);
                 string summary=T(note.SummaryEn,note.SummaryKo);
-                if(summary.Length>0){var line=Rich(summary,14,true);line.Margin=new Thickness(0,4,0,0);stack.Children.Add(line);}
+                if(summary.Length>0){var line=Rich(summary,16,false);line.Margin=new Thickness(0,6,0,0);stack.Children.Add(line);}
                 UpdateNewsWindow.AddItems(stack,note);
                 cards.Children.Add(box);
             }
@@ -1500,10 +1500,12 @@ namespace LoveMyShelf {
 
             // ----- Backup and restore -----
             var backup=add("backup",T("Backup and restore","백업·복원"));
-            backup.Items.Add(new Card {Title=T("Keep your covers and tags safe","표지와 태그를 안전하게 남겨 두기"),
+            backup.Items.Add(new Card {Title=T("Keeping your covers and tags","표지와 태그를 남겨 두기"),
                 Lines=new[]{T("A backup keeps your covers, tags and records in one file locked with your password. Put it in Google Drive, OneDrive or on an external drive, and if this computer breaks you can bring everything back on another one.",
                     "백업은 표지·태그·기록을 비밀번호로 잠근 파일 하나에 담아요. 구글 드라이브, OneDrive, 외장 하드에 넣어 두면 컴퓨터가 고장 나도 다른 컴퓨터에서 그대로 되살릴 수 있어요."),
-                    T("The password is kept nowhere. If you forget it, nobody can open the backup.","비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도 백업을 열 수 없어요."),
+                    T("Even in Google Drive or OneDrive, Google and Microsoft can't see what's inside. All they see is the file name, its size and when it was saved.",
+                        "구글 드라이브나 OneDrive에 두어도 구글과 마이크로소프트는 안의 내용을 볼 수 없어요. 보이는 건 파일 이름과 크기, 저장한 시간뿐이에요."),
+                    T("The password is kept nowhere. If you forget it, nobody can open the backup. We made it and we can't either.","비밀번호는 어디에도 저장하지 않아요. 잊어버리면 아무도 열 수 없어요. 만든 저희도 못 열어요."),
                     T("If you like, the original photos and videos can be kept too, as locked photo boxes with the same password. Any 7-Zip opens them with that password.",
                         "원하면 원본 사진·영상도 같은 비밀번호로 ‘잠긴 사진 상자’에 넣어 둘 수 있어요. 7-Zip으로 그 비밀번호를 넣으면 열려요."),
                     T("When it's time, LoveMyShelf reminds you when it starts (every week unless you change it).","백업할 때가 되면 LoveMyShelf를 켤 때 알려 드려요(바꾸지 않으면 1주일마다).")}});

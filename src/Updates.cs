@@ -54,6 +54,11 @@ namespace LoveMyShelf {
     internal sealed class ReleaseItem {
         internal string Group,Icon,TitleKo,TitleEn,TextKo,TextEn;
         internal string[] Keys=new string[0];
+        // Newer copies only (an older copy ignores these, so the plain text must read well alone):
+        // phrases of the text drawn bold, a short "try it" line, and the version's main item.
+        internal string[] BoldKo=new string[0],BoldEn=new string[0];
+        internal string TryKo="",TryEn="";
+        internal bool Star;
     }
     // What changed in one version, in both languages. It travels inside the signed update list.
     internal sealed class ReleaseNote {
@@ -261,7 +266,10 @@ namespace LoveMyShelf {
                         var entry=new ReleaseItem {Group=(string)item.Attribute("group")??"better",Icon=(string)item.Attribute("icon")??"",
                             TitleKo=(string)item.Attribute("titleKo")??"",TitleEn=(string)item.Attribute("titleEn")??"",
                             TextKo=(string)item.Attribute("textKo")??"",TextEn=(string)item.Attribute("textEn")??"",
-                            Keys=keys.Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries)};
+                            Keys=keys.Split(new[]{' '},StringSplitOptions.RemoveEmptyEntries),
+                            BoldKo=Phrases((string)item.Attribute("boldKo")),BoldEn=Phrases((string)item.Attribute("boldEn")),
+                            TryKo=(string)item.Attribute("tryKo")??"",TryEn=(string)item.Attribute("tryEn")??"",
+                            Star=(string)item.Attribute("star")=="yes"};
                         if(entry.TitleKo.Length>0 && entry.TitleEn.Length>0)note.Items.Add(entry);
                     }
                     if(note.Items.Count>0)notes.Add(note);
@@ -269,6 +277,9 @@ namespace LoveMyShelf {
                 notes.Sort((a,b)=>System.Version.Parse(b.Version).CompareTo(System.Version.Parse(a.Version)));
                 return notes;
             } catch(Exception) {return new List<ReleaseNote>();}
+        }
+        static string[] Phrases(string list) {
+            return (list??"").Split(new[]{'|'},StringSplitOptions.RemoveEmptyEntries).Select(p=>p.Trim()).Where(p=>p.Length>0).ToArray();
         }
         // How much this copy really has to download: files it already has, or got earlier, don't count.
         internal static Task<long> DownloadSizeAsync(UpdatePlan plan,CancellationToken token) {
