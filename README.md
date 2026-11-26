@@ -57,7 +57,7 @@
 
 다운로드 폴더나 짤 폴더에 파일이 수천 개 쌓이면 원하는 걸 찾기 힘들어요. 썸네일은 작고 영상은 엉뚱한 첫 장면만 떠서 결국 하나씩 열어 보게 돼요.
 
-Love My Shelf는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일들을 큰 썸네일로 나란히 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **9:16 세로 표지**로 저장하면, 그 파일은 다음부터 그 표지로 보여요.
+Love My Shelf는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일들을 큰 썸네일로 나란히 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **표지**로 저장하면(세로·정사각형·가로 어떤 모양이든), 그 파일은 다음부터 그 표지로 보여요.
 
 ## 이렇게 써요
 
@@ -92,7 +92,8 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 
 **표지 만들기**
 
-- 9:16 틀 안에서 휠로 확대하고 끌어서 위치를 맞춘 뒤 JPG로 저장해요. 파일 하나에 표지를 여러 개 만들 수 있어요.
+- 테두리 안에서 휠로 확대하고 끌어서 위치를 맞춘 뒤 JPG로 저장해요. 테두리 모서리를 끌거나 버튼(칸에 꽉 맞추기·원본 그대로·9:16·3:4·1:1·4:3·16:9)으로 모양을 자유롭게 정하고, 숫자로 가로:세로를 직접 넣을 수도 있어요. 파일 하나에 표지를 여러 개 만들 수 있어요.
+- 바둑판 칸 모양은 9:16·3:4·1:1 중에 고르고 언제든 바꿀 수 있어요. 표지는 칸 안에 잘리지 않고 다 보이고, 가로로 긴 표지는 칸 두 개를 차지해서 크게 보여요.
 - 영상은 멈춘 곳의 앞뒤 장면을 펼쳐 놓고 골라요. 장면 간격은 바꿀 수 있어요(기본 0.2초).
 - 움직이는 표지는 GIF, WebP, MP4로 저장해요. 구간과 속도(0.2~4배)를 정하면 실제로 저장될 파일을 미리 볼 수 있어요.
 - 표지를 AI로 4배 선명하게 키울 수 있어요. 결과는 원래 표지와 나란히 비교한 뒤 골라요.
@@ -197,7 +198,7 @@ When a new version is out, a notice pops up at the bottom right. Click it to see
 
 When thousands of files pile up in a downloads or meme folder, it is hard to find what you want. Thumbnails are small and videos show some random first frame, so you end up opening them one by one.
 
-Love My Shelf keeps the File Explorer habits you know and shows your files as big thumbnails side by side. Save a scene you like from a photo or video as a **9:16 vertical cover**, and that file is shown by that cover from then on.
+Love My Shelf keeps the File Explorer habits you know and shows your files as big thumbnails side by side. Save a scene you like from a photo or video as a **cover** (tall, square or wide, any shape), and that file is shown by that cover from then on.
 
 ## How it's used
 
@@ -226,7 +227,8 @@ The three demo videos are [in the Korean section above](#이렇게-써요).
 
 **Make covers**
 
-- Zoom with the wheel and drag to position inside the 9:16 frame, then save as JPG. One file can have several covers.
+- Zoom with the wheel and drag to position inside the frame, then save as JPG. Drag the frame's corners or use the buttons (Fill the grid's cell, Whole picture, 9:16, 3:4, 1:1, 4:3, 16:9) to set any shape, or type the width and height. One file can have several covers.
+- Pick the grid's cell shape (9:16, 3:4 or 1:1) and change it any time. Covers show whole inside the cells, and wide covers take two cells so they show big.
 - For a video, the scenes before and after where you paused are laid out to choose from. The step between scenes can be changed (default 0.2 s).
 - Animated covers are saved as GIF, WebP or MP4. Set the range and speed (0.2–4×) and preview the file that will really be saved.
 - A cover can be upscaled 4× with AI. Compare the result side by side with the original cover before choosing.

@@ -79,7 +79,8 @@ namespace LoveMyShelf {
         internal void Place(double room,double height,double bottom) {
             Width=room;Margin=new Thickness(0,10,0,bottom+10);
             double usable=Math.Max(0,height-20);
-            double fits=tiles.Count==0?MaxTile:(usable-Gap*(tiles.Count-1))/tiles.Count*9/16;
+            // The tiles have the grid's cell shape; each cover is shown whole inside its tile.
+            double fits=tiles.Count==0?MaxTile:(usable-Gap*(tiles.Count-1))/tiles.Count*CropSurface.GridCell;
             double width=Math.Floor(Math.Max(MinTile,Math.Min(Math.Min(MaxTile,room-SidePadding*2),fits)));
             if(width==tileWidth)return;
             tileWidth=width;
@@ -88,10 +89,10 @@ namespace LoveMyShelf {
         }
         void Size(Tile tile) {
             double width=tileWidth>0?tileWidth:MinTile;
-            tile.Button.Width=width;tile.Button.Height=Math.Round(width*16/9);
+            tile.Button.Width=width;tile.Button.Height=Math.Round(width/CropSurface.GridCell);
         }
         Tile MakeTile(Photo cover,int number,int total) {
-            var image=new Image {Stretch=Stretch.UniformToFill,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+            var image=new Image {Stretch=Stretch.Uniform,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
             var badge=new Border {Background=BadgeBack,CornerRadius=new CornerRadius(4),Padding=new Thickness(5,1,5,1),Margin=new Thickness(4),
                 HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,IsHitTestVisible=false,

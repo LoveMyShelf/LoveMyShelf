@@ -12,7 +12,9 @@ using System.Windows.Automation;
 namespace LoveMyShelf {
     public class CropSurface : FrameworkElement {
         BitmapSource image;
-        const double Aspect=9.0/16.0;
+        // The cover's shape, width over height in pixels. Free since 1.0.9: a new cover starts as the whole picture,
+        // and the edges and corners of the frame can be dragged, or a shape picked below (see CropWindow).
+        double aspect;
         public const double MaxZoom=64;
         internal const double HalfTurn=180;
         internal const double RotationStep=0.1;
@@ -32,6 +34,8 @@ namespace LoveMyShelf {
         Point last;
         internal event Action RotationChanged;
         internal event Action BrightnessChanged;
+        // The frame's shape or size changed (a shape picked, an edge dragged, the wheel, Reset).
+        internal event Action ShapeChanged;
         public CropSurface(BitmapSource image, Rect? saved, double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,int brightness=0) {
             this.image=image;this.snapEdges=snapEdges;Focusable=true; Cursor=Cursors.SizeAll;
             wheelZoomFactor=1+wheelZoomPercent/100.0;
@@ -42,6 +46,7 @@ namespace LoveMyShelf {
             Level=Light.Level(brightness);style=Light.Style(brightness);
             if(saved.HasValue) {
                 Rotation=rotation;
+                aspect=Covers.AspectOf(saved.Value,image.PixelWidth,image.PixelHeight);
                 ApplyFraction(saved.Value);
             }
             AutomationProperties.SetName(this,L.T("Cover frame")); ClipToBounds=true;
@@ -57,13 +62,24 @@ namespace LoveMyShelf {
         }
         public double Zoom { get { return zoom; } }
         public BitmapSource Source { get { return image; } }
-        double BaseWidth { get { return Math.Min(image.PixelWidth,image.PixelHeight*Aspect); } }
-        public double MinZoom { get { return BaseWidth/(2*Math.Max(image.PixelWidth,image.PixelHeight*Aspect)); } }
+        // Width over height of the cover being cut.
+        internal double Aspect {get {return aspect;}}
+        // The whole picture's own shape.
+        internal double PictureAspect {get {return image.PixelWidth/(double)Math.Max(1,image.PixelHeight);}}
+        // The cover's size in the picture's pixels.
+        internal Size PixelSize {get {return new Size(CropW,CropH);}}
+        double BaseWidth { get { return Math.Min(image.PixelWidth,image.PixelHeight*aspect); } }
+        public double MinZoom { get { return BaseWidth/(2*Math.Max(image.PixelWidth,image.PixelHeight*aspect)); } }
         double CropW { get { return BaseWidth/zoom; } }
-        double CropH { get { return CropW/Aspect; } }
+        double CropH { get { return CropW/aspect; } }
         public Rect Fraction {
             get { return new Rect((centerX-CropW/2)/image.PixelWidth,(centerY-CropH/2)/image.PixelHeight,
                     CropW/image.PixelWidth,CropH/image.PixelHeight); }
+        }
+        // The cover as it looks now, at most this many pixels on its long side (the GIF window's still picture).
+        internal BitmapSource Still(int longSide=960) {
+            int w=(int)Math.Max(1,Math.Round(aspect>=1?longSide:longSide*aspect)),h=(int)Math.Max(1,Math.Round(aspect>=1?longSide/aspect:longSide));
+            return Pictures.RenderRotatedCover(image,Fraction,Rotation,w,h,Brightness);
         }
         static double Limit(double value,double lo,double hi) { return Math.Max(lo,Math.Min(hi,value)); }
         static double LimitCenter(double center,double cropSize,double imageSize) {
@@ -71,17 +87,57 @@ namespace LoveMyShelf {
             return Limit(center,overlap-cropSize/2,imageSize-overlap+cropSize/2);
         }
         void Clamp() {
-            // Keep the crop overlapping the photo even when their edges are angled.
-            var axes=Matrix.Identity;
-            axes.Rotate(Rotation);
-            double inset=1/(Math.Abs(axes.M11)+Math.Abs(axes.M12)/Aspect);
-            centerX=LimitCenter(centerX,CropW*inset,image.PixelWidth);
-            centerY=LimitCenter(centerY,CropH*inset,image.PixelHeight); InvalidateVisual();
+            // Keep the crop overlapping the photo even when their edges are angled. Upright or a quarter turn: the crop's
+            // own width and height (swapped when turned). Any other angle: the square in the middle of the crop, turned,
+            // whose upright box always lies inside the crop, so that part keeps touching the photo whatever the shape.
+            double across=CropW,down=CropH;
+            double turn=Math.Abs(NormalizeRotation(Rotation));
+            if(Math.Abs(turn-90)<1e-9){across=CropH;down=CropW;}
+            else if(turn>1e-9 && Math.Abs(turn-180)>1e-9) {
+                double a=turn*Math.PI/180,core=Math.Min(CropW,CropH)/(Math.Abs(Math.Cos(a))+Math.Abs(Math.Sin(a)));
+                across=down=core;
+            }
+            centerX=LimitCenter(centerX,across,image.PixelWidth);
+            centerY=LimitCenter(centerY,down,image.PixelHeight); InvalidateVisual();
+            if(Moved!=null)Moved();
         }
+        // The frame moved, changed or got a new picture under it (the grid preview redraws).
+        internal event Action Moved;
+        // Reset: the whole picture, upright, as a new cover starts.
         public void Reset() {
+            aspect=PictureAspect;
             zoom=1; Rotation=0; centerX=image.PixelWidth/2.0; centerY=image.PixelHeight/2.0; Clamp();
             SetBrightness(0);
             if(RotationChanged!=null) RotationChanged();
+            if(ShapeChanged!=null)ShapeChanged();
+        }
+        // The whole picture in its own shape, keeping the turn and the brightness.
+        internal void WholePicture() {
+            aspect=PictureAspect;zoom=1;centerX=image.PixelWidth/2.0;centerY=image.PixelHeight/2.0;Clamp();
+            if(ShapeChanged!=null)ShapeChanged();
+        }
+        // A new shape for the frame around the same middle, about as big as before. A frame that was inside the picture
+        // stays inside it, so trying shapes one after another never adds black bands or keeps shrinking the cover.
+        internal void SetAspect(double value) {
+            value=Limit(value,Covers.Narrowest,Covers.Widest);
+            if(Math.Abs(value-aspect)<1e-9)return;
+            double area=CropW*CropH;
+            var r=Fraction;
+            bool inside=Rotation==0 && r.Left>=-0.002 && r.Top>=-0.002 && r.Right<=1.002 && r.Bottom<=1.002;
+            double w=Math.Sqrt(area*value),h=w/value;
+            if(inside) {
+                double shrink=Math.Min(1,Math.Min(image.PixelWidth/w,image.PixelHeight/h));
+                w*=shrink;h*=shrink;
+            }
+            aspect=value;
+            zoom=Limit(BaseWidth/w,MinZoom,MaxZoom);
+            if(inside) {
+                // Back inside the picture around the same middle, where it fits.
+                centerX=Limit(centerX,CropW/2,Math.Max(CropW/2,image.PixelWidth-CropW/2));
+                centerY=Limit(centerY,CropH/2,Math.Max(CropH/2,image.PixelHeight-CropH/2));
+            }
+            Clamp();
+            if(ShapeChanged!=null)ShapeChanged();
         }
         internal void SetBrightness(double value) {
             int level=Light.Clamp((int)Math.Round(value));
@@ -110,10 +166,13 @@ namespace LoveMyShelf {
         }
         public void SetZoom(double value) {
             zoom=Limit(value,MinZoom,MaxZoom);Clamp();BeginDrag();
+            if(ShapeChanged!=null)ShapeChanged();
         }
+        // Room around the frame for its handles, and how near an edge the pointer grabs it.
+        const double Room=40,Grab=9;
         Rect Frame {
-            get { double w=Math.Max(1,Math.Min(ActualWidth-40,(ActualHeight-40)*Aspect));
-                return new Rect((ActualWidth-w)/2,(ActualHeight-w/Aspect)/2,w,w/Aspect); }
+            get { double w=Math.Max(1,Math.Min(ActualWidth-Room,(ActualHeight-Room)*aspect));
+                return new Rect((ActualWidth-w)/2,(ActualHeight-w/aspect)/2,w,w/aspect); }
         }
         Vector SourceDelta(double dx,double dy) {
             double scale=Frame.Width/CropW;
@@ -145,23 +204,105 @@ namespace LoveMyShelf {
             centerX=SnapCenter(dragX,quarterTurn?CropH:CropW,image.PixelWidth,unitsPerPixel,ref snappedX);
             centerY=SnapCenter(dragY,quarterTurn?CropW:CropH,image.PixelHeight,unitsPerPixel,ref snappedY);
         }
+        // ---------- Dragging an edge or a corner of the frame ----------
+        // Which edges the pointer holds: -1 left/top, 1 right/bottom, 0 neither. The opposite edges stay where they are on the picture.
+        int edgeX,edgeY;
+        double startW,startH,startX,startY,startUnits;
+        Point startPoint;
+        bool resizing;
+        void EdgesAt(Point p,out int x,out int y) {
+            var r=Frame;x=y=0;
+            bool across=p.Y>=r.Top-Grab && p.Y<=r.Bottom+Grab,down=p.X>=r.Left-Grab && p.X<=r.Right+Grab;
+            if(across) {if(Math.Abs(p.X-r.Left)<=Grab)x=-1;else if(Math.Abs(p.X-r.Right)<=Grab)x=1;}
+            if(down) {if(Math.Abs(p.Y-r.Top)<=Grab)y=-1;else if(Math.Abs(p.Y-r.Bottom)<=Grab)y=1;}
+        }
+        static Cursor CursorFor(int x,int y) {
+            if(x!=0 && y!=0)return x==y?Cursors.SizeNWSE:Cursors.SizeNESW;
+            if(x!=0)return Cursors.SizeWE;
+            if(y!=0)return Cursors.SizeNS;
+            return Cursors.SizeAll;
+        }
+        void Resize(Point p) {
+            // Worked out from where the drag began each time, so the frame changing size on screen never feeds back.
+            // The frame stays in the middle of the view, so an edge moves half as far on screen as it does on the picture.
+            double w=startW,h=startH;
+            if(edgeX!=0)w=Math.Max(16,startW+edgeX*(p.X-startPoint.X)*startUnits*2);
+            if(edgeY!=0)h=Math.Max(16,startH+edgeY*(p.Y-startPoint.Y)*startUnits*2);
+            double shape=Limit(w/h,Covers.Narrowest,Covers.Widest);
+            // A shape very near the grid's cells, or the whole picture's, settles on it.
+            foreach(double near in new[]{GridCell,PictureAspect})
+                if(Math.Abs(shape/near-1)<0.015){shape=near;break;}
+            if(edgeX!=0 && edgeY==0)w=h*shape;else h=w/shape;
+            aspect=shape;
+            zoom=Limit(BaseWidth/w,MinZoom,MaxZoom);
+            // The edge held moves; the opposite one stays put on the picture.
+            double moveX=edgeX==0?0:edgeX*(CropW-startW)/2,moveY=edgeY==0?0:edgeY*(CropH-startH)/2;
+            var turn=Matrix.Identity;turn.Rotate(-Rotation);
+            var shift=turn.Transform(new Vector(moveX,moveY));
+            centerX=startX+shift.X;centerY=startY+shift.Y;
+            Clamp();
+            if(ShapeChanged!=null)ShapeChanged();
+        }
+        // The grid's cell shape (see Covers), from the folder window's options.
+        internal static double GridCell {
+            get {
+                var prefs=Prefs;
+                return Covers.Shape(prefs!=null?prefs.TileShape:Covers.DefaultShape);
+            }
+        }
+        internal static Preferences Prefs {
+            get {
+                if(Application.Current==null)return null;
+                foreach(Window window in Application.Current.Windows) {
+                    var gallery=window as GalleryWindow;
+                    if(gallery!=null)return gallery.Settings;
+                }
+                return null;
+            }
+        }
         protected override void OnRender(DrawingContext dc) {
             base.OnRender(dc);
             if(ActualWidth<1 || ActualHeight<1) return;
             Rect r=Frame;
             dc.DrawRectangle(Brushes.Black,null,new Rect(RenderSize));
             Pictures.DrawCover(dc,image,Fraction,Rotation,r,Brightness);
-            dc.DrawRectangle(null,new Pen(UI.B("Accent"),2),r);
+            var accent=UI.B("Accent");
+            dc.DrawRectangle(null,new Pen(accent,2),r);
+            // Handles at the corners and the middle of each edge show that the frame can be pulled into any shape.
+            var rim=new Pen(Brushes.White,1);
+            foreach(var x in new[]{r.Left,r.Left+r.Width/2,r.Right})
+                foreach(var y in new[]{r.Top,r.Top+r.Height/2,r.Bottom}) {
+                    bool middleX=x!=r.Left && x!=r.Right,middleY=y!=r.Top && y!=r.Bottom;
+                    if(middleX && middleY)continue;
+                    double w=middleX?20:middleY?6:11,h=middleY?20:middleX?6:11;
+                    dc.DrawRoundedRectangle(accent,rim,new Rect(x-w/2,y-h/2,w,h),2,2);
+                }
         }
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
-            base.OnMouseLeftButtonDown(e); Focus(); last=e.GetPosition(this); BeginDrag(); CaptureMouse(); e.Handled=true;
+            base.OnMouseLeftButtonDown(e); Focus(); last=e.GetPosition(this);
+            EdgesAt(last,out edgeX,out edgeY);
+            resizing=edgeX!=0 || edgeY!=0;
+            if(resizing) {
+                startW=CropW;startH=CropH;startX=centerX;startY=centerY;startPoint=last;
+                startUnits=CropW/Math.Max(1,Frame.Width);
+            } else BeginDrag();
+            CaptureMouse(); e.Handled=true;
         }
         protected override void OnMouseMove(MouseEventArgs e) {
+            Point p=e.GetPosition(this);
             if(IsMouseCaptured && e.LeftButton==MouseButtonState.Pressed) {
-                Point p=e.GetPosition(this); Drag(p.X-last.X,p.Y-last.Y); last=p;
+                if(resizing)Resize(p);else Drag(p.X-last.X,p.Y-last.Y);
+                last=p;
+                return;
             }
+            int x,y;EdgesAt(p,out x,out y);
+            Cursor=CursorFor(x,y);
         }
-        protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) { if(IsMouseCaptured) ReleaseMouseCapture(); }
+        protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) {
+            if(IsMouseCaptured) ReleaseMouseCapture();
+            resizing=false;
+        }
+        protected override void OnLostMouseCapture(MouseEventArgs e) {base.OnLostMouseCapture(e);resizing=false;}
         protected override void OnMouseWheel(MouseWheelEventArgs e) {
             double target=Limit(zoom*Math.Pow(wheelZoomFactor,e.Delta/120.0),MinZoom,MaxZoom);
             if(!PinTopOnWheel || target==zoom){SetZoom(target);e.Handled=true;return;}
@@ -177,11 +318,8 @@ namespace LoveMyShelf {
         // From Guide & Options → Making a cover: keep the frame's top line fixed while the wheel zooms.
         static bool PinTopOnWheel {
             get {
-                foreach(Window window in Application.Current.Windows) {
-                    var gallery=window as GalleryWindow;
-                    if(gallery!=null)return gallery.Settings.PinTopOnWheel;
-                }
-                return true;
+                var prefs=Prefs;
+                return prefs==null || prefs.PinTopOnWheel;
             }
         }
         protected override void OnKeyDown(KeyEventArgs e) {
@@ -226,7 +364,7 @@ namespace LoveMyShelf {
             var root=new DockPanel();
             root.Children.Add(FullScreen.TitleBar(this,FullScreen.IsFull(owner)));
             var head=UI.Bar(new Thickness(6,2,6,2));
-            var seq=UI.Text("9:16",11,true);seq.Margin=new Thickness(4,0,6,0);UI.Right(head,seq);
+            var seq=UI.Text("",11,true);seq.Margin=new Thickness(4,0,6,0);UI.Right(head,seq);
             var title=UI.Text(name,12); title.TextTrimming=TextTrimming.CharacterEllipsis; head.Children.Add(title);
             DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
             Surface=new CropSurface(image,saved,rotation,snapEdges,wheelZoomPercent,brightness);
@@ -248,12 +386,22 @@ namespace LoveMyShelf {
             DockPanel.SetDock(rotationBar,Dock.Bottom);root.Children.Add(rotationBar);
             var brightnessBar=BrightnessBar();
             DockPanel.SetDock(brightnessBar,Dock.Bottom);root.Children.Add(brightnessBar);
+            var shapeBar=ShapeBar();
+            DockPanel.SetDock(shapeBar,Dock.Bottom);root.Children.Add(shapeBar);
+            // "How it shows in my grid" beside the picture, when the window is wide enough for it.
+            var peekPanel=PeekPanel();
+            DockPanel.SetDock(peekPanel,Dock.Right);root.Children.Add(peekPanel);
+            SizeChanged+=delegate {peekPanel.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;};
+            Action showShape=()=>{var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);};
+            Surface.ShapeChanged+=showShape;showShape();
             root.Children.Add(Surface);Content=root;
             ContentRendered+=delegate { Surface.Focus(); };
             Closing+=(s,e)=>{if(saving)e.Cancel=true;};
             PreviewKeyDown+=(s,e)=>{
                 if(saving){e.Handled=true;return;}
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
+                // Typing a width or height: the arrows, letters and numbers stay in the box.
+                if(Keyboard.FocusedElement is TextBox && key!=Key.Escape && key!=Key.F1)return;
                 switch(key) {
                     case Key.F1: GuideWindow.Open(this,previousFrame!=null?"video":"editor");break;
                     case Key.Escape: DialogResult=false;break;
@@ -296,6 +444,145 @@ namespace LoveMyShelf {
             slider.ValueChanged+=(s,e)=>Surface.SetBrightness(slider.Value);
             bar.Children.Add(slider);
             return bar;
+        }
+        // The cover's shape: fill the grid's cell, the whole picture, a common shape, or any width and height typed in.
+        FrameworkElement ShapeBar() {
+            var bar=new WrapPanel {Margin=new Thickness(6,3,6,3),VerticalAlignment=VerticalAlignment.Center};
+            var label=UI.Text(L.P("Shape","모양"),12);label.Margin=new Thickness(0,0,8,0);bar.Children.Add(label);
+            Func<string,string,Action,Button> add=(text,tip,act)=>{
+                var b=UI.Btn(text,act);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.ToolTip=tip;
+                AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;
+            };
+            var fill=add("","",()=>Surface.SetAspect(CropSurface.GridCell));
+            fill.Style=(Style)Application.Current.Resources["Primary"];
+            Action nameFill=()=>{
+                string cell=Covers.Name(CropSurface.GridCell);
+                fill.Content=L.P("Fill the grid's cell ("+cell+")","칸에 꽉 맞추기 ("+cell+")");
+                fill.ToolTip=L.P("Cuts the cover in the same shape as the grid's cells, so it fills its cell with no empty bands.",
+                    "바둑판 칸과 같은 모양으로 잘라서, 칸에 빈 띠 없이 꽉 차게 보여요.");
+            };
+            nameFill();
+            add(L.P("Whole picture","원본 그대로"),L.P("Goes back to the whole picture, in its own shape.","원본 사진 전체를 원래 모양 그대로 써요."),()=>Surface.WholePicture());
+            foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{1,1},new[]{4,3},new[]{16,9}}) {
+                int a=pair[0],b=pair[1];
+                add(a+":"+b,L.P("Makes the cover "+a+":"+b+".","표지를 "+a+":"+b+" 모양으로 만들어요."),()=>Surface.SetAspect(a/(double)b));
+            }
+            // Any shape: width and height numbers (16 and 9, or 1080 and 1920), applied with Enter or when leaving the box.
+            var custom=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(6,2,0,2),VerticalAlignment=VerticalAlignment.Center};
+            Func<string,TextBox> box=tip=>{
+                var t=new TextBox {Width=54,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center,HorizontalContentAlignment=HorizontalAlignment.Center,ToolTip=tip};
+                AutomationProperties.SetName(t,tip);return t;
+            };
+            var across=box(L.P("Width (any number, like 16 or 1080)","가로 (16이나 1080처럼 아무 숫자)"));
+            var tall=box(L.P("Height (any number, like 9 or 1920)","세로 (9나 1920처럼 아무 숫자)"));
+            var colon=UI.Text(":",13);colon.Margin=new Thickness(4,0,4,0);
+            custom.Children.Add(across);custom.Children.Add(colon);custom.Children.Add(tall);
+            bar.Children.Add(custom);
+            // Set when the person types in a box; a click in and out alone changes nothing.
+            bool typed=false;
+            foreach(var t in new[]{across,tall})t.TextChanged+=delegate {if(t.IsKeyboardFocusWithin)typed=true;};
+            Action apply=()=>{
+                double w,h;
+                if(!Double.TryParse(across.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out w) &&
+                    !Double.TryParse(across.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out w))return;
+                if(!Double.TryParse(tall.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out h) &&
+                    !Double.TryParse(tall.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out h))return;
+                if(!typed)return;
+                typed=false;
+                // Only real numbers: positive, finite, and a finite shape (not "Infinity" in both boxes).
+                if(w>0 && h>0 && !Double.IsInfinity(w) && !Double.IsInfinity(h) && !Double.IsNaN(w/h) && !Double.IsInfinity(w/h) && w/h>0)
+                    Surface.SetAspect(w/h);
+            };
+            // Applied with Enter, or once the keyboard leaves both boxes (not between typing the width and the height).
+            foreach(var t in new[]{across,tall})
+                t.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){apply();Surface.Focus();e.Handled=true;}};
+            custom.IsKeyboardFocusWithinChanged+=(s,e)=>{if(!(bool)e.NewValue)apply();};
+            Action show=()=>{
+                if(across.IsKeyboardFocusWithin || tall.IsKeyboardFocusWithin)return;
+                string name=Covers.Name(Surface.Aspect);int at=name.IndexOf(':');
+                across.Text=name.Substring(0,at);tall.Text=name.Substring(at+1);
+            };
+            Surface.ShapeChanged+=show;show();
+            Activated+=delegate {nameFill();};
+            GalleryWindow.TileShapeChanged+=nameFill;
+            Closed+=delegate {GalleryWindow.TileShapeChanged-=nameFill;};
+            return bar;
+        }
+        // "How it shows in my grid": a few cells of the grid in the shape the person picked, with this cover in the first.
+        FrameworkElement PeekPanel() {
+            var panel=new StackPanel {Width=196,Margin=new Thickness(4,10,10,6)};
+            var title=UI.Text(L.P("How it shows in your grid","내 바둑판에서는 이렇게 보여요"),12.5);
+            title.FontWeight=FontWeights.SemiBold;title.TextWrapping=TextWrapping.Wrap;panel.Children.Add(title);
+            var peek=new GridPeek(Surface) {Margin=new Thickness(0,8,0,6)};panel.Children.Add(peek);
+            var note=UI.Text("",12,true);note.TextWrapping=TextWrapping.Wrap;panel.Children.Add(note);
+            var cells=UI.Btn("",()=>{});cells.Margin=new Thickness(0,10,0,0);cells.HorizontalAlignment=HorizontalAlignment.Left;
+            cells.Padding=new Thickness(8,0,8,0);panel.Children.Add(cells);
+            cells.ToolTip=L.P("The shape of the grid's cells. Covers keep their own shape; only how they sit in the cells changes.",
+                "바둑판 칸의 모양이에요. 표지는 그대로이고, 칸에 들어가는 모습만 바뀌어요.");
+            cells.Click+=delegate {
+                var menu=new ContextMenu {PlacementTarget=cells,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom};
+                var prefs=CropSurface.Prefs;
+                for(int i=0;i<Covers.Shapes.Length;i++) {
+                    int shape=i;
+                    var item=new MenuItem {Header=Covers.ShapeLabel(i),IsCheckable=true,IsChecked=prefs!=null && prefs.TileShape==i};
+                    item.Click+=delegate {GalleryWindow.ChangeTileShape(shape);};
+                    menu.Items.Add(item);
+                }
+                menu.IsOpen=true;
+            };
+            Action update=()=>{
+                var prefs=CropSurface.Prefs;
+                int shape=prefs!=null?prefs.TileShape:Covers.DefaultShape;
+                double cell=Covers.Shape(shape);
+                cells.Content=L.P("Grid cells: ","바둑판 칸: ")+Covers.ShapeLabel(shape)+"  ▾";
+                bool two=(prefs==null || prefs.WideCovers) && Covers.TakesTwoCells(Surface.Aspect,cell);
+                double filled=Covers.Fill(Surface.Aspect,two?cell*2:cell);
+                int percent=(int)Math.Round(filled*100);
+                note.Text=two?L.P("It's wide, so it takes two cells side by side ("+percent+"% filled).","가로로 길어서 칸 두 개에 넓게 보여요 (칸을 "+percent+"% 채워요)."):
+                    percent>=99?L.P("It fills its cell exactly.","칸에 꽉 차요."):
+                    L.P("It fills "+percent+"% of its cell; the rest shows as a plain band. [Fill the grid's cell] makes it fill the cell.",
+                        "칸의 "+percent+"%를 채우고, 남는 곳은 빈 띠로 보여요. [칸에 꽉 맞추기]를 누르면 칸에 꽉 차요.");
+                peek.InvalidateMeasure();peek.InvalidateVisual();
+            };
+            Surface.ShapeChanged+=update;Surface.RotationChanged+=update;Surface.BrightnessChanged+=update;
+            GalleryWindow.TileShapeChanged+=update;
+            Closed+=delegate {GalleryWindow.TileShapeChanged-=update;};
+            update();
+            return panel;
+        }
+        // A row of grid cells in the person's cell shape, drawn with the cover as it is being cut.
+        sealed class GridPeek : FrameworkElement {
+            readonly CropSurface surface;
+            internal GridPeek(CropSurface surface) {this.surface=surface;IsHitTestVisible=false;surface.Moved+=InvalidateVisual;}
+            const int Cells=3;const double Gap=3;
+            protected override Size MeasureOverride(Size available) {
+                double width=Double.IsInfinity(available.Width)?196:available.Width;
+                double cell=(width-Gap*(Cells-1))/Cells;
+                return new Size(width,Math.Ceiling(cell/CropSurface.GridCell));
+            }
+            protected override void OnRender(DrawingContext dc) {
+                double width=ActualWidth;if(width<=0)return;
+                var prefs=CropSurface.Prefs;
+                double shape=CropSurface.GridCell,cell=(width-Gap*(Cells-1))/Cells,height=cell/shape;
+                bool two=(prefs==null || prefs.WideCovers) && Covers.TakesTwoCells(surface.Aspect,shape);
+                var band=UI.B("TileBand");var line=new Pen(UI.B("Line"),1);
+                int used=two?2:1;
+                var box=new Rect(0,0,cell*used+Gap*(used-1),height);
+                dc.DrawRectangle(band,null,box);
+                double a=surface.Aspect,w=box.Width,h=box.Height;
+                if(a>w/h)h=w/a;else w=h*a;
+                var to=new Rect(box.X+(box.Width-w)/2,box.Y+(box.Height-h)/2,w,h);
+                dc.PushClip(new RectangleGeometry(to));
+                dc.DrawRectangle(Brushes.Black,null,to);
+                Pictures.DrawCover(dc,surface.Source,surface.Fraction,surface.Rotation,to,surface.Brightness);
+                dc.Pop();
+                dc.DrawRectangle(null,new Pen(UI.B("Accent"),2),box);
+                // The other cells: empty stand-ins for the files around it.
+                for(int i=used;i<Cells;i++) {
+                    var other=new Rect(i*(cell+Gap),0,cell,height);
+                    dc.DrawRectangle(band,line,other);
+                }
+            }
         }
         // Shows Make GIF for videos and GIFs. The callback saves the cover, then makes the GIF in the background.
         internal void EnableMotion(Func<CropWindow,MotionRequest,Task> commit,Func<MotionSource> source) {

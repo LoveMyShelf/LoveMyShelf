@@ -19,9 +19,9 @@ namespace LoveMyShelf {
     // priority so the app stays responsive and native failures cannot take the app down.
     internal static class UpscaleEngine {
         internal const int Factor=4;
-        // Covers this tall or taller are already large; the button is hidden for them.
+        // Covers this long (on their long side) or longer are already large; the button is hidden for them.
         internal const int MaxSourceHeight=1920;
-        // Very large results are scaled down to this height.
+        // Very large results are scaled down to this long side.
         internal const int MaxOutputHeight=3840;
         internal const string ChildSwitch="--upscale";
         const int Tile=224,Pad=16;
@@ -30,7 +30,7 @@ namespace LoveMyShelf {
         internal static bool Available {
             get {return File.Exists(Path.Combine(Folder,"onnxruntime.dll")) && File.Exists(Path.Combine(Folder,"model.onnx"));}
         }
-        internal static bool Suitable(int coverHeight) {return Available && coverHeight>0 && coverHeight<MaxSourceHeight;}
+        internal static bool Suitable(int coverLongSide) {return Available && coverLongSide>0 && coverLongSide<MaxSourceHeight;}
 
         // Set from the options: true runs upscaling on the graphics card (DirectML), false on the processor.
         internal static bool UseGpu;
@@ -50,7 +50,8 @@ namespace LoveMyShelf {
                     Console.Out.WriteLine("device "+(device.OnGpu?"gpu":"cpu"));Console.Out.Flush();
                 }
                 BitmapSource image=BitmapSource.Create(w*Factor,h*Factor,96,96,PixelFormats.Rgb24,null,result,w*Factor*3);
-                if(image.PixelHeight>MaxOutputHeight)image=Shrink(image,MaxOutputHeight);
+                int longSide=Math.Max(image.PixelWidth,image.PixelHeight);
+                if(longSide>MaxOutputHeight)image=Shrink(image,Math.Max(1,(int)Math.Round(image.PixelHeight*(double)MaxOutputHeight/longSide)));
                 using(var stream=File.Create(output)) {
                     var encoder=new JpegBitmapEncoder {QualityLevel=100};
                     encoder.Frames.Add(BitmapFrame.Create(image));

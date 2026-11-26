@@ -50,7 +50,7 @@ namespace LoveMyShelf {
             result.Freeze();return result;
         }
 
-        // Which part of a 9:16 cover's height holds the picture (0..1), by the same rule as the JPG cover above.
+        // Which part of a cover's height holds the picture (0..1), by the same rule as the JPG cover above.
         // True when there is empty space above or below it.
         internal static bool VisibleRows(double w,double h,Rect frame,double rotation,out double top,out double bottom) {
             top=0;bottom=1;
@@ -69,15 +69,16 @@ namespace LoveMyShelf {
             if(bottom<=top){top=0;bottom=1;return false;}
             return top>0.001 || bottom<0.999;
         }
-        // The same when only the saved frame is known: a cover is 9:16 in pixels, which tells the original's shape.
-        internal static bool VisibleRows(Rect frame,double rotation,out double top,out double bottom) {
-            if(frame.Width<=0 || frame.Height<=0){top=0;bottom=1;return false;}
-            return VisibleRows(9.0/16*frame.Height/frame.Width,1,frame,rotation,out top,out bottom);
+        // The same when only the saved frame is known: the cover's shape in pixels (9:16 for covers made before 1.0.9)
+        // tells the original's shape.
+        internal static bool VisibleRows(Rect frame,double rotation,double aspect,out double top,out double bottom) {
+            if(frame.Width<=0 || frame.Height<=0 || aspect<=0){top=0;bottom=1;return false;}
+            return VisibleRows(aspect*frame.Height/frame.Width,1,frame,rotation,out top,out bottom);
         }
-        // Takes the empty rows off a picture that is still the full 9:16 (a quick preview, or a GIF cover made before
-        // covers were trimmed). A picture already trimmed has another shape and stays as it is.
-        internal static BitmapSource WithoutBars(BitmapSource image,double top,double bottom) {
-            if(image==null || Math.Abs(image.PixelHeight/(double)image.PixelWidth-16.0/9)>0.012)return image;
+        // Takes the empty rows off a picture that still has the cover's full shape (a quick preview, or a GIF cover made
+        // before covers were trimmed). A picture already trimmed has another shape and stays as it is.
+        internal static BitmapSource WithoutBars(BitmapSource image,double top,double bottom,double aspect) {
+            if(image==null || aspect<=0 || Math.Abs(image.PixelHeight/(double)image.PixelWidth-1/aspect)>0.012/aspect)return image;
             int first=Math.Max(0,(int)Math.Ceiling(top*image.PixelHeight-1e-6));
             int last=Math.Min(image.PixelHeight,(int)Math.Floor(bottom*image.PixelHeight+1e-6));
             return last-first<2?image:CropRows(image,first,last);
@@ -89,7 +90,8 @@ namespace LoveMyShelf {
 
         internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output,int maxHeight,bool native,CancellationToken token,int brightness=0) {
             double width=source.PixelWidth*crop.Width,height=source.PixelHeight*crop.Height;
-            double scale=maxHeight==0?1:Math.Min(1,Math.Min(maxHeight*9.0/16/width,maxHeight/height));
+            // maxHeight is the long side: 1080 x 1920 for a 9:16 cover, as before; a wide cover gets 1920 across.
+            double scale=maxHeight==0?1:Math.Min(1,maxHeight/Math.Max(width,height));
             token.ThrowIfCancellationRequested();
             var image=native && scale==1?NativeCover(source,crop,rotation,token,brightness):
                 Pictures.RenderRotatedCover(source,crop,rotation,

@@ -77,6 +77,11 @@ namespace LoveMyShelf {
         public int TileNames;            // file names under the tiles: 0 none, 1 one line, 2 two lines, 3 the whole name
         public bool GifHoverSound=true;  // pointing at a tile also plays the sound of an MP4 cover made with sound
         public bool CoverTimes;          // show where a cover's scene is in the video ("12:34") on its tile
+        // The shape of the grid's cells (see Covers.Shapes): 0 = 9:16, 1 = 3:4, 2 = 1:1. A new install starts at 3:4 and
+        // picks on the first screen; an options file from before 1.0.9 has none and keeps 9:16, as it always was.
+        public int TileShape=Covers.DefaultShape;
+        // A cover clearly wider than a cell takes two cells side by side (on unless turned off).
+        public bool WideCovers=true;
         public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
         public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
         public bool CaptureJpg;          // false: PNG; true: JPG
@@ -168,6 +173,8 @@ namespace LoveMyShelf {
                     RotationStep=ReadNumber(xml,"turnDegrees",1,45,10),
                     TileNames=ReadNumber(xml,"tileNames",0,3,0),
                     CoverTimes=(string)xml.Attribute("coverTimes")=="true",
+                    TileShape=IndexOr(Covers.ShapeKeys,(string)xml.Attribute("tileShape"),0),
+                    WideCovers=(string)xml.Attribute("wideCovers")!="off",
                     GifHoverSound=(string)xml.Attribute("gifHoverSound")!="off",
                     CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
                     CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
@@ -287,7 +294,7 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     SpeakersXml(),ViewerKeys.Xml(Shortcuts),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }

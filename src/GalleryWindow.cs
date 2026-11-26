@@ -23,6 +23,9 @@ using System.Windows.Threading;
 namespace LoveMyShelf {
     public class PhotoRow {
         public GalleryWindow Owner; public List<Photo> Photos; public int Columns,Number; public double Height;
+        // Slots whose tile is a wide cover taking this slot and the next one (the next slot is then empty).
+        internal bool[] Wide;
+        internal bool IsWide(int slot) {return Wide!=null && slot>=0 && slot<Wide.Length && Wide[slot];}
         // Set on the rows of folder tiles (full path, photos and videos inside); those rows have no Photos.
         internal List<Tuple<string,int>> Folders;
         public event Action<int> Changed;
@@ -31,12 +34,31 @@ namespace LoveMyShelf {
             if(Changed!=null) Changed(index);
         }
     }
-    public class TileRow : UniformGrid {
+    // One row of the grid: equal cells side by side, where a wide cover takes two cells (see Covers).
+    public class TileRow : Panel {
         CancellationTokenSource pending;
         PhotoRow displayed;
         static readonly ContextMenu MenuStandIn=new ContextMenu();
+        public int Columns {get;set;}
+        protected override Size MeasureOverride(Size available) {
+            double width=Double.IsInfinity(available.Width)?0:available.Width;
+            int columns=Math.Max(1,Columns);double cell=width/columns;
+            double height=Double.IsInfinity(available.Height)?0:available.Height;
+            for(int i=0;i<InternalChildren.Count;i++)
+                InternalChildren[i].Measure(new Size(cell*(displayed!=null && displayed.IsWide(i)?2:1),height));
+            return new Size(width,height);
+        }
+        protected override Size ArrangeOverride(Size final) {
+            int columns=Math.Max(1,Columns);double cell=final.Width/columns;
+            for(int i=0;i<InternalChildren.Count;i++) {
+                // The slot after a wide tile is covered by it: its stand-in gets no room.
+                bool covered=i>0 && displayed!=null && displayed.IsWide(i-1);
+                int span=displayed!=null && displayed.IsWide(i)?2:1;
+                InternalChildren[i].Arrange(covered?new Rect(i*cell,0,0,0):new Rect(i*cell,0,cell*span,final.Height));
+            }
+            return final;
+        }
         public TileRow() {
-            Rows=1;
             // Tiles are made as soon as a row gets its data (not only once it is shown), so a list that just changed
             // never paints a blank frame before its tiles appear; Loaded only refills a row that was emptied when it left the screen.
             DataContextChanged+=(s,e)=>{ Fill(e.NewValue as PhotoRow); };
@@ -52,7 +74,9 @@ namespace LoveMyShelf {
                 // Read at the tile's own size on screen, so large tiles stay sharp and small ones stay light.
                 var source=PresentationSource.FromVisual(row.Owner);
                 double scale=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformToDevice.M22:1;
-                int side=Math.Max(64,(int)Math.Ceiling((row.Height-row.Owner.TileNameHeight)*scale));
+                // The long side: the tile's height, or its width when it is wider (a wide cover across two cells).
+                int span=row.IsWide(row.Photos.IndexOf(photo))?2:1;
+                int side=Math.Max(64,(int)Math.Ceiling(Math.Max(row.Height-row.Owner.TileNameHeight,row.Owner.CellWidth*span)*scale));
                 var owner=row.Owner;
                 BitmapSource bitmap=null;
                 // A file another program is writing, a drive still waking up or a network hiccup usually passes in a moment.
@@ -101,7 +125,9 @@ namespace LoveMyShelf {
                 }
                 return;
             }
-            for(int column=0;column<row.Photos.Count;column++) Children.Add(MakeTile(row,row.Photos[column],column));
+            for(int column=0;column<row.Photos.Count;column++)
+                Children.Add(column>0 && row.IsWide(column-1)?new Border {IsHitTestVisible=false,Visibility=Visibility.Collapsed}:MakeTile(row,row.Photos[column],column));
+            InvalidateMeasure();
             row.Changed+=UpdateCell;
         }
         void UpdateCell(int index) {
@@ -337,7 +363,7 @@ namespace LoveMyShelf {
                 bool silent=!hasSound || !owner.Settings.GifHoverSound ||
                     Application.Current.Windows.OfType<Viewer>().Any(v=>v.IsVisible && v.WindowState!=WindowState.Minimized);
                 double top=0,bottom=1;
-                CoverImages.VisibleRows(photo.Crop,photo.Rotation,out top,out bottom);
+                CoverImages.VisibleRows(photo.Crop,photo.Rotation,photo.Aspect,out top,out bottom);
                 ImageSource still=null;bool showing=false;
                 TileSound.Play(tile,photo.MotionFile,owner.Settings.Volume,silent,top,bottom,
                     moving=>{
@@ -352,7 +378,7 @@ namespace LoveMyShelf {
                         // [Always move]: the pictures go on (or begin) once the video is out of the way.
                         if(mode==GifPlayback.Always && tile.IsLoaded && !player.Playing)tile.Dispatcher.BeginInvoke(new Action(()=>start()));
                     },
-                    ()=>{unplayable=true;if(hovering)start();}); // Windows can't play it: picture by picture, without sound
+                    ()=>{unplayable=true;if(hovering)start();},photo.Aspect); // Windows can't play it: picture by picture, without sound
             };
             if(video) {
                 // A click may be about to rename, move or delete the file (also from the menu it opens): the video lets go
@@ -1839,6 +1865,7 @@ namespace LoveMyShelf {
             bool changedFolders=settings.ShowSubfolders!=updated.ShowSubfolders;
             bool changedNames=settings.TileNames!=updated.TileNames;
             bool changedTimes=settings.CoverTimes!=updated.CoverTimes;
+            bool changedShape=settings.TileShape!=updated.TileShape || settings.WideCovers!=updated.WideCovers;
             bool changedExplorer=settings.ExplorerMenu!=updated.ExplorerMenu;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
@@ -1855,8 +1882,10 @@ namespace LoveMyShelf {
                 other.settings.Shortcuts=new Dictionary<string,System.Windows.Input.Key>(updated.Shortcuts,StringComparer.Ordinal);
                 if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
                 if(changedTimes){other.settings.CoverTimes=updated.CoverTimes;other.CoverMarksSoon();}
+                if(changedShape){other.settings.TileShape=updated.TileShape;other.settings.WideCovers=updated.WideCovers;other.LayoutRows();}
             }
-            if(changedNames)LayoutRows();
+            if(changedNames || changedShape)LayoutRows();
+            if(changedShape){var shapeHandler=TileShapeChanged;if(shapeHandler!=null)shapeHandler();}
             if(changedTimes)CoverMarksSoon();
             if(changedTheme)Themes.Apply(settings.Theme);
             if(changedLanguage) {
@@ -2041,13 +2070,28 @@ namespace LoveMyShelf {
             int firstTile=-1;
             if(!scrollToTop && scroller!=null && rowHeight>0 && columns>0 && scroller.VerticalOffset>0)
                 firstTile=Math.Max(0,(int)Math.Floor(scroller.VerticalOffset/rowHeight)-folderRows)*columns;
+            // Wide covers make empty slots in the list (see PadWide), and those move when the cells change. The places
+            // kept across the new layout are remembered by the tile, not by the number of its slot.
+            Photo firstPhoto=TileAtOrAfter(laidOut,firstTile),overridePhoto=TileAtOrAfter(photos,firstTileOverride);
+            Photo focusPhoto=focusIndex>=0 && focusIndex<photos.Count?photos[focusIndex]:null;
+            Photo anchorPhoto=anchorIndex>=0 && anchorIndex<photos.Count?photos[anchorIndex]:null;
             scrollToTop=false;
             double width=Math.Max(200,grid.ActualWidth-SystemParameters.VerticalScrollBarWidth-2);
-            columns=Math.Max(2,(int)Math.Floor(width/density));
+            // The cells have the shape picked in the options (9:16, 3:4 or 1:1). Wider cells are made a little wider too,
+            // so a tile keeps about the same size on screen whatever its shape.
+            double shape=Covers.Shape(settings.TileShape);
+            columns=Math.Max(2,(int)Math.Floor(width/(density*Math.Sqrt(shape/Covers.Tall))));
             TileNameHeight=NameStripHeight(width/columns);
-            double height=(width/columns-1)*16/9+1+TileNameHeight; // the picture stays 9:16; the name strip is added below it
+            double height=(width/columns-1)/shape+1+TileNameHeight; // the picture keeps the cell's shape; the name strip is added below it
             rowHeight=height;cellWidth=width/columns;
-            if(ShowingSimilar && similarShown!=null)photos=PadSimilar(columns); // each group starts a row of its own
+            if(ShowingSimilar && similarShown!=null){photos=PadSimilar(columns);wideSlots=new HashSet<int>();} // each group starts a row of its own
+            else photos=PadWide(photos.Where(p=>p!=null).ToList(),shape);
+            // Found again by record (F5 reads new Photo objects for the same files).
+            if(firstTile>=0)firstTile=firstPhoto==null?firstTile:Math.Max(0,IndexOfRecord(firstPhoto));
+            if(firstTileOverride>=0 && overridePhoto!=null)firstTileOverride=Math.Max(0,IndexOfRecord(overridePhoto));
+            if(focusIndex>=0)focusIndex=focusPhoto==null?-1:IndexOfRecord(focusPhoto);
+            if(anchorIndex>=0)anchorIndex=anchorPhoto==null?-1:IndexOfRecord(anchorPhoto);
+            laidOut=new List<Photo>(photos);
             rows=new List<PhotoRow>();
             // Folder tiles come first, in rows of their own; the file rows follow (their numbers count the folder rows).
             // Three folder cards are stacked in each cell, so a row holds three times as many folders as tiles.
@@ -2080,6 +2124,7 @@ namespace LoveMyShelf {
         internal const double TileNameFont=11.5,TileNameLine=16,TileNamePadding=5;
         const int MostNameLines=12; // one very long name must not make every row a screen tall
         internal double TileNameHeight {get;private set;}
+        internal double CellWidth {get {return cellWidth;}}
         bool wholeNamesFit;
         double NameStripHeight(double cell) {
             wholeNamesFit=false;
@@ -2193,7 +2238,7 @@ namespace LoveMyShelf {
             // Whole originals are shuffled: their covers stay together, cover 1 on the left.
             var ordered=photos.Where(p=>p!=null).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)
                 .Select(g=>GalleryStore.InCoverOrder(g)).Where(f=>!pending || f.Any(p=>!p.IsExtra && !p.HasCrop)).ToList();
-            if(ordered.Count<2 && ordered.Sum(f=>f.Count)==photos.Count)return;
+            if(ordered.Count<2 && ordered.Sum(f=>f.Count)==photos.Count(p=>p!=null))return;
             bool changed=false;
             for(int i=ordered.Count-1;i>0;i--) {
                 int j=random.Next(i+1);
@@ -2256,11 +2301,67 @@ namespace LoveMyShelf {
             settings=updated;shuffledOrder=null;scrollToTop=true;
             Select(active);SettingsChanged();
         }
+        // ---------- The shape of the grid's cells ----------
+        // Told to open cover editors, so their "How it shows in your grid" follows a change.
+        internal static event Action TileShapeChanged;
+        // Picks the cells' shape for every folder window (saved in the options). Covers stay as they are; only the cells change.
+        internal static void ChangeTileShape(int shape) {ChangeGrid(p=>p.TileShape=shape);}
+        internal static void ChangeWideCovers(bool on) {ChangeGrid(p=>p.WideCovers=on);}
+        static void ChangeGrid(Action<Preferences> change) {
+            var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
+            if(windows.Count==0)return;
+            var first=windows[0];
+            var updated=first.settings.Copy();change(updated);
+            try {updated.Save(first.store.Root);} catch(Exception ex) {UI.Error(first,ex);return;}
+            foreach(var window in windows) {
+                if(window==first)window.settings=updated;else change(window.settings);
+                window.LayoutRows();window.SettingsChanged();
+            }
+            var handler=TileShapeChanged;if(handler!=null)handler();
+        }
         // Lets an open Guide & Options window show the new value.
         internal event Action SettingsChangedEvent;
         void SettingsChanged() {updateFooter();var handler=SettingsChangedEvent;if(handler!=null)handler();}
         PhotoRow MakeRow(int start,double height) {
-            return new PhotoRow { Owner=this,Columns=columns,Height=height,Number=folderRows+start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
+            var row=new PhotoRow { Owner=this,Columns=columns,Height=height,Number=folderRows+start/columns,Photos=photos.GetRange(start,Math.Min(photos.Count-start,columns)) };
+            row.Wide=new bool[row.Photos.Count];
+            for(int k=0;k<row.Photos.Count;k++)row.Wide[k]=wideSlots.Contains(start+k);
+            return row;
+        }
+        // ---------- Wide covers taking two cells ----------
+        // The slots that hold a wide tile; the slot after each is left empty for it.
+        HashSet<int> wideSlots=new HashSet<int>();
+        // A cover clearly wider than a cell takes two cells (an option). Files without a cover keep one cell.
+        bool TakesTwoCells(Photo photo,double shape) {
+            return photo!=null && settings.WideCovers && !ShowingSimilar && columns>=3 && photo.ShowsCover && Covers.TakesTwoCells(photo.Aspect,shape);
+        }
+        // The list as the grid lays it out: a wide tile is followed by an empty slot (the cell it also covers), and a wide
+        // tile that would hang over the end of a row leaves that last cell empty and starts the next row, so the order stays.
+        List<Photo> PadWide(List<Photo> list,double shape) {
+            wideSlots=new HashSet<int>();
+            if(!list.Any(p=>TakesTwoCells(p,shape)))return list;
+            var padded=new List<Photo>(list.Count+16);
+            foreach(var photo in list) {
+                bool wide=TakesTwoCells(photo,shape);
+                if(wide && padded.Count%columns==columns-1)padded.Add(null);
+                if(wide)wideSlots.Add(padded.Count);
+                padded.Add(photo);
+                if(wide)padded.Add(null);
+            }
+            return padded;
+        }
+        // The empty slot right after a wide tile (it belongs to that tile).
+        bool IsWideTail(int index) {return index>0 && wideSlots.Contains(index-1);}
+        // The list as the rows on screen were last laid out (with its empty slots), so a scroll place can be read back.
+        List<Photo> laidOut=new List<Photo>();
+        static Photo TileAtOrAfter(List<Photo> list,int index) {
+            if(index<0)return null;
+            for(int i=index;i<list.Count;i++)if(list[i]!=null)return list[i];
+            return null;
+        }
+        int IndexOfRecord(Photo photo) {
+            int at=photos.IndexOf(photo);
+            return at>=0?at:photos.FindIndex(p=>p!=null && String.Equals(p.Folder,photo.Folder,StringComparison.OrdinalIgnoreCase));
         }
         // One cover at a time: asking for another brings the open one forward.
         internal bool CoverWorkFree(Window from) {
@@ -2424,7 +2525,7 @@ namespace LoveMyShelf {
                         MakeMotion(updated,request);
                     },()=>new MotionSource {Path=photo.Original,Moment=MotionSource.MomentOf(photo.Original,photo.FrameTime,photo.FrameIndex),
                         Crop=dialog.Surface.Fraction,Rotation=dialog.Surface.Rotation,Brightness=dialog.Surface.Brightness,
-                        Still=Pictures.RenderRotatedCover(dialog.Surface.Source,dialog.Surface.Fraction,dialog.Surface.Rotation,540,960,dialog.Surface.Brightness)});
+                        Aspect=dialog.Surface.Aspect,Still=dialog.Surface.Still()});
                 return CoverWork.Show(dialog,photo,this)==true?updated:null;
             } catch(OperationCanceledException){return null;}
             catch(Exception ex){if(viewer.IsVisible && viewer.CurrentPhoto==photo)UI.Error(viewer,ex);return null;}
@@ -2501,7 +2602,7 @@ namespace LoveMyShelf {
                 string original=photo.Original;
                 if(photo.Linked && !File.Exists(original))original=OriginalLocator.Resolve(store,photo,lifetime.Token);
                 var source=new MotionSource {Path=original,Moment=MotionSource.MomentOf(original,photo.FrameTime,photo.FrameIndex),
-                    Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness};
+                    Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness,Aspect=photo.Aspect};
                 try {if(photo.CoverFile!=null && File.Exists(photo.CoverFile))source.Still=Pictures.Load(photo.CoverFile,960);} catch(Exception) {}
                 // A cover that already has a GIF: Edit GIF cover, starting from the part and choices it was made with.
                 var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false,photo.HasMotion,photo.HasMotion?photo.MotionSettings:null);
@@ -2819,6 +2920,8 @@ namespace LoveMyShelf {
             var reflow=CaptureReflow();
             reflow.Fresh.Add(cover.Folder);
             photos.Insert(place,cover);
+            if(focusIndex>=place)focusIndex++;
+            if(anchorIndex>=place)anchorIndex++;
             ShowPhotos(reflow);
         }
         // Delete in a large view: the file that view shows goes to the Recycle Bin, and its tiles leave every
@@ -2845,9 +2948,17 @@ namespace LoveMyShelf {
             // A replaced tile (a new picture, a GIF) stays an extra tile of the same original.
             if(photo!=null && photo.LeadFolder==null && photos[index]!=null && photos[index].LeadFolder!=null && photo.Folder==photos[index].Folder)
                 photo.LeadFolder=photos[index].LeadFolder;
+            double shape=Covers.Shape(settings.TileShape);
+            // Compared with the slot as it is laid out (the same Photo may already have changed, such as a cover hidden).
+            bool relayout=wideSlots.Contains(index)!=TakesTwoCells(photo,shape);
             photos[index]=photo;
             CoverMarksSoon();
-            rows[folderRows+index/columns].Replace(index%columns,photo);
+            // A cover that became wide (or stopped being wide) needs the rows laid out again; others change in place.
+            if(relayout)LayoutRows();
+            else {
+                rows[folderRows+index/columns].Replace(index%columns,photo);
+                if(index<laidOut.Count)laidOut[index]=photo; // so the place on screen is still found after a resize
+            }
             SetCount(skippedCount);
         }
         public void OpenPhoto(Photo photo) {
@@ -2933,7 +3044,8 @@ namespace LoveMyShelf {
                 var fresh=Preferences.Load(store.Root);
                 if(fresh.SameAs(settings))return;
                 bool sortChanged=fresh.Sort!=settings.Sort || fresh.Descending!=settings.Descending,languageChanged=fresh.Korean!=settings.Korean;
-                bool themeChanged=fresh.Theme!=settings.Theme,gridChanged=fresh.GridGif!=settings.GridGif;
+                bool themeChanged=fresh.Theme!=settings.Theme,gridChanged=fresh.GridGif!=settings.GridGif ||
+                    fresh.TileShape!=settings.TileShape || fresh.WideCovers!=settings.WideCovers;
                 fresh.LanguageChosen=settings.LanguageChosen || fresh.LanguageChosen;
                 settings=fresh;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
                 if(themeChanged)Themes.Apply(settings.Theme);
@@ -3419,6 +3531,17 @@ namespace LoveMyShelf {
                 item.Click+=delegate {density=value;LayoutRows();};view.Items.Add(item);
             }
             view.Items.Add(new Separator());
+            // The cells' shape, and whether wide covers take two cells.
+            var cells=new MenuItem {Header=L.P("Shape of the cells","칸 모양")};
+            for(int i=0;i<Covers.Shapes.Length;i++) {
+                int shape=i;var item=new MenuItem {Header=Covers.ShapeLabel(i),IsChecked=settings.TileShape==i};
+                item.Click+=delegate {ChangeTileShape(shape);};cells.Items.Add(item);
+            }
+            cells.Items.Add(new Separator());
+            var wide=new MenuItem {Header=L.P("Wide covers take two cells","가로로 긴 표지는 칸 두 개에"),IsChecked=settings.WideCovers};
+            wide.Click+=delegate {ChangeWideCovers(!settings.WideCovers);};cells.Items.Add(wide);
+            view.Items.Add(cells);
+            view.Items.Add(new Separator());
             var folders=new MenuItem {Header=L.T("Folders")};
             var names=new[]{"Extra large icons","Large icons","Medium icons","Small icons","List","Details view","Tiles","Content"};
             for(int i=0;i<names.Length;i++){int choice=i;var item=new MenuItem {Header=L.T(names[i]),IsChecked=settings.FolderView==i};item.Click+=delegate {SaveFolderView(choice,null);};folders.Items.Add(item);}
@@ -3567,6 +3690,7 @@ namespace LoveMyShelf {
             for(int r=Math.Max(folderRows,firstRow);r<=lastRow;r++)
                 for(int c=firstColumn;c<=lastColumn;c++) {
                     int index=(r-folderRows)*columns+c;
+                    if(IsWideTail(index))index--;
                     if(index<0 || index>=photos.Count || photos[index]==null)continue;
                     hits.Add(photos[index].Folder);lastHit=index;
                 }
@@ -3859,6 +3983,19 @@ namespace LoveMyShelf {
         void MoveFocus(int target,bool extend) {
             if(photos.Count==0)return;
             target=Math.Max(0,Math.Min(photos.Count-1,target));
+            // Up or down onto the second cell of a wide tile: that tile. Onto the empty cell left at the end of a row
+            // before a wide tile: the nearest tile in that row. Left or right steps over them (below).
+            if(Math.Abs(target-focusIndex)>1 && columns>0 && photos[target]==null) {
+                if(IsWideTail(target))target--;
+                else {
+                    int start=target-target%columns,end=Math.Min(photos.Count-1,start+columns-1),best=-1;
+                    for(int d=1;d<columns && best<0;d++) {
+                        if(target-d>=start && photos[target-d]!=null)best=target-d;
+                        else if(target+d<=end && photos[target+d]!=null)best=target+d;
+                    }
+                    if(best>=0)target=best;
+                }
+            }
             // Skip empty slots in the direction of travel.
             int step=target>=focusIndex?1:-1;
             while(target>=0 && target<photos.Count && photos[target]==null)target+=step;

@@ -4,7 +4,7 @@
 
 ### What kind of program Love My Shelf is
 
-Love My Shelf is a program that lays out a folder piled with photos, GIFs and videos like a grid and shows it at a glance. You can tell what is there without opening the files one by one. When you find a file you like, you can pick one photo or one scene of a video and cut it into a tall 9:16 picture. A picture made this way is called a **cover**. Once you make a cover, its tile shows the cover, so you recognize it right away the next time you open the folder.
+Love My Shelf is a program that lays out a folder piled with photos, GIFs and videos like a grid and shows it at a glance. You can tell what is there without opening the files one by one. When you find a file you like, you can pick one photo or one scene of a video and cut it into a picture of any shape (tall, square or wide). A picture made this way is called a **cover**. Once you make a cover, its tile shows the cover, so you recognize it right away the next time you open the folder.
 
 The original file is never changed. A cover is saved as a separate JPG file in the folder you chose.
 
@@ -93,7 +93,10 @@ To read each copy back and compare it with the original, open **Guide & Options 
 ### Making a cover from a photo
 
 1. Double-click a photo to open it large and click **Make cover**.
-2. A tall frame appears over the photo. The part you see inside the frame becomes the cover just as it is.
+2. A frame appears over the photo. At first the whole photo is inside it. The part you see inside the frame becomes the cover just as it is.
+   - **Drag the blue handles** on the frame's corners and edges to change its shape and size freely.
+   - In the **Shape** row below, **Fill the grid's cell** gives the frame the shape of the grid's cells, so the cover fills its cell with no empty bands. There are also **Whole picture**, **9:16**, **3:4**, **1:1**, **4:3** and **16:9**, and you can type a width and height (like 16 and 9, or 1080 and 1920) in the boxes on the right.
+   - **How it shows in your grid** on the right shows how the cover sits in the grid's cells. A wide one takes two cells.
    - **Drag** the photo to change its position.
    - Roll the **mouse wheel** to zoom in and out.
    - **Rotation**: drag the slider, or turn it 0.1° or 90° at a time with the buttons.

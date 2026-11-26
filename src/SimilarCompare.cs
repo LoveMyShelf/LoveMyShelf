@@ -192,7 +192,7 @@ namespace LoveMyShelf {
         readonly Grid[] stages={new Grid(),new Grid()};
         readonly Border[] panes=new Border[2];
         readonly Border[] pills={new Border(),new Border()};
-        // Each photo's covers, small (9:16) under its label: so whether a cover is worth keeping can be seen. A click opens it big.
+        // Each photo's covers, small and whole (any shape) under its label: so whether a cover is worth keeping can be seen. A click opens it big.
         readonly Border[] coverBoxes={new Border(),new Border()};
         readonly TextBlock[] pillText={new TextBlock(),new TextBlock()};
         readonly MatrixTransform view=new MatrixTransform(); // shared by both pictures
@@ -976,7 +976,7 @@ namespace LoveMyShelf {
             coverBoxes[swapped?1-side:side].Child=panel;
             for(int i=0;i<covers.Count && i<6;i++) {
                 int index=i;var cover=covers[i];
-                var image=new Image {Stretch=Stretch.UniformToFill};
+                var image=new Image {Stretch=Stretch.Uniform};
                 var frame=new Border {Width=63,Height=112,CornerRadius=new CornerRadius(5),BorderThickness=new Thickness(1.5),BorderBrush=White,Margin=new Thickness(0,0,7,7),
                     Background=PillBack,Cursor=Cursors.Hand,ClipToBounds=true,ToolTip=S("Click to see this cover big","누르면 이 표지를 크게 봐요")};
                 var inside=new Grid();inside.Children.Add(image);

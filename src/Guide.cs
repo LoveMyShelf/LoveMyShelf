@@ -866,8 +866,8 @@ namespace LoveMyShelf {
                 Lines=new[]{
                     T("Love My Shelf lays out the photos, GIFs and videos in a folder as small pictures in a grid. You can see at a glance what is in the folder without opening the files one by one.",
                       "폴더 안의 사진·GIF·영상을 작은 그림으로 바둑판처럼 펼쳐 보여 주는 프로그램이에요. 파일을 하나하나 열어 보지 않아도 폴더에 뭐가 있는지 한눈에 볼 수 있어요."),
-                    T("You can make a cover for any file. A cover is a tall picture (9:16) cut from the part of the file you like, or one scene if it is a video. Once you make covers, the tiles show them, so files that looked alike are easy to tell apart.",
-                      "어떤 파일이든 표지를 만들어 둘 수 있어요. 표지는 파일에서 마음에 드는 부분(영상이면 한 장면)만 골라 세로로 길게(9:16) 잘라 낸 그림이에요. 표지를 만들어 두면 칸에 표지가 보여서, 비슷비슷하던 파일도 쉽게 구별돼요."),
+                    T("You can make a cover for any file. A cover is a picture cut from the part of the file you like, or one scene if it is a video, in any shape: tall, square or wide. Once you make covers, the tiles show them, so files that looked alike are easy to tell apart.",
+                      "어떤 파일이든 표지를 만들어 둘 수 있어요. 표지는 파일에서 마음에 드는 부분(영상이면 한 장면)만 골라 잘라 낸 그림이고, 세로·정사각형·가로 어떤 모양이든 돼요. 표지를 만들어 두면 칸에 표지가 보여서, 비슷비슷하던 파일도 쉽게 구별돼요."),
                     T("The photo or video a cover is made from is called the original. Love My Shelf never changes or deletes the original. A cover is always saved as a new, separate file.",
                       "표지를 만들 때 쓴 원래 사진이나 영상을 원본이라고 불러요. Love My Shelf는 원본을 절대 바꾸거나 지우지 않아요. 표지는 언제나 새 파일로 따로 저장돼요."),
                     T("It doesn't upload your photos or videos anywhere on the internet. All the work happens only inside your computer.",
@@ -1027,12 +1027,32 @@ namespace LoveMyShelf {
                     new Choice(T("Whole name","전체"),T("The name shows to the end. Every tile's name area gets the same height, fitted to the longest name in the folder, up to 12 lines.","이름을 끝까지 보여 줘요. 폴더에서 가장 긴 이름에 맞춰 모든 칸의 이름 높이가 같아지고, 최대 12줄까지 보여요."))},
                 Default=0,Columns=2,Get=p=>Math.Max(0,Math.Min(3,p.TileNames)),Set=(p,i)=>p.TileNames=i});
 
+            browse.Items.Add(new Setting {Id="tileShape",SectionId="browse",Title=T("What shape should the grid's cells be?","바둑판 칸은 어떤 모양으로 할까요?"),
+                Lines=new[]{T("Covers and photos are shown whole inside the cells, so changing the shape never cuts them. The covers you made stay as they are.",
+                    "표지와 사진은 칸 안에 잘리지 않고 다 보여서, 칸 모양을 바꿔도 잘리지 않아요. 만든 표지도 그대로예요."),
+                    T("The same choice is in the blank-space menu: right-click an empty spot → [[View]] → [[Shape of the cells]].",
+                    "빈 곳을 오른쪽 클릭 → [[보기]] → [[칸 모양]]에서도 바꿀 수 있어요.")},
+                Choices=new[]{new Choice(T("9:16 tall","9:16 세로"),T("Tall phone videos and pictures show big. Wide ones show small.","세로로 찍은 휴대폰 영상·짤이 크게 보여요. 가로 사진은 작게 보여요.")),
+                    new Choice(T("3:4 tall","3:4 세로"),T("Easy-going when tall and wide ones are mixed. The same shape as an Instagram profile.","세로·가로가 섞여 있을 때 무난해요. 인스타그램 프로필 칸과 같은 모양이에요.")),
+                    new Choice(T("1:1 square","1:1 정사각형"),T("Tall and wide ones show at about the same size.","세로·가로가 비슷한 크기로 보여요."))},
+                Default=Covers.DefaultShape,Columns=3,Get=p=>Math.Max(0,Math.Min(2,p.TileShape)),Set=(p,i)=>p.TileShape=i});
+            browse.Items.Add(new Setting {Id="wideCovers",SectionId="browse",Title=T("Should wide covers take two cells?","가로로 긴 표지는 칸 두 개에 보여 줄까요?"),
+                Lines=new[]{T("A cover clearly wider than a cell can take two cells side by side, so it shows big instead of as a thin strip. When it would hang over the end of a row, the last cell stays empty and it starts the next row, so the order never changes.",
+                    "칸보다 확실히 가로로 긴 표지는 칸 두 개를 나란히 차지해서, 가는 띠처럼 작게 보이지 않고 크게 보이게 할 수 있어요. 줄 끝에 걸리면 마지막 칸은 비워 두고 다음 줄에서 시작해서, 순서는 바뀌지 않아요.")},
+                Choices=new[]{new Choice(T("Two cells (on)","칸 두 개 (켜기)"),T("Wide covers show big across two cells.","가로로 긴 표지가 칸 두 개에 크게 보여요.")),
+                    new Choice(T("One cell (off)","칸 하나 (끄기)"),T("Every file takes one cell; wide covers show smaller.","모든 파일이 칸 하나씩이에요. 가로로 긴 표지는 작게 보여요."))},
+                Default=0,Columns=2,Get=p=>p.WideCovers?0:1,Set=(p,i)=>p.WideCovers=i==0});
+
             // ----- Making a cover -----
             var make=add("editor",T("Making a cover","표지 만들기"));
             make.Items.Add(new Card {Title=T("Fit it inside the frame","테두리 안에 맞춰요"),
                 Lines=new[]{
-                    T("In the middle of the Make cover screen there is a tall frame. The part you see inside the frame becomes the cover just as it is.",
-                      "표지 만들기 화면 가운데에 세로로 긴 테두리가 있어요. 테두리 안에 보이는 부분이 그대로 표지가 돼요."),
+                    T("In the middle of the Make cover screen there is a frame. At first the whole picture is inside it. The part you see inside the frame becomes the cover just as it is.",
+                      "표지 만들기 화면 가운데에 테두리가 있어요. 처음에는 사진 전체가 들어 있어요. 테두리 안에 보이는 부분이 그대로 표지가 돼요."),
+                    T("Drag the blue handles on the frame's corners and edges to give it any shape. [[Fill the grid's cell]] gives it the shape of the grid's cells, so it fills its cell with no empty bands. You can also press [[Whole picture]], [[9:16]], [[3:4]], [[1:1]], [[4:3]], [[16:9]], or type a width and height.",
+                      "테두리의 모서리나 변의 파란 손잡이를 끌면 아무 모양으로나 바뀌어요. [[칸에 꽉 맞추기]]를 누르면 바둑판 칸과 같은 모양이 돼서 칸에 빈 띠 없이 꽉 차요. [[원본 그대로]], [[9:16]], [[3:4]], [[1:1]], [[4:3]], [[16:9]]를 누르거나 가로·세로 숫자를 직접 넣어도 돼요."),
+                    T("[[How it shows in your grid]] on the right shows how the cover sits in your grid's cells. A wide cover takes two cells side by side.",
+                      "오른쪽 [[내 바둑판에서는 이렇게 보여요]]에 표지가 바둑판 칸에 어떻게 들어가는지 보여요. 가로로 긴 표지는 칸 두 개를 나란히 차지해요."),
                     T("Drag the picture to change its position, and roll the wheel to change its size.",
                       "사진을 끌면 위치가 바뀌고, 휠을 굴리면 크기가 바뀌어요."),
                     T("If you make the picture smaller than the frame, the part left over is filled with black.","사진을 테두리보다 작게 줄이면 남는 부분은 검은색으로 채워져요.")},

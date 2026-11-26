@@ -16,7 +16,7 @@ using System.Xml.Linq;
 namespace LoveMyShelf {
     internal static class AppInfo {
         // Keep in step with the GitHub release tag (v1.2.0 and so on).
-        internal const string Version="1.0.8";
+        internal const string Version="1.0.9";
         // The last version without the "updated" notice: someone coming from it has no record of what they last saw.
         internal const string LastWithoutNotice="1.0.4";
         internal const string ReleasesPage="https://github.com/LoveMyShelf/LoveMyShelf/releases/latest";

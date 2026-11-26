@@ -8,7 +8,6 @@ namespace LoveMyShelf {
     // How the large view shows the picture right now (turned, zoomed, moved). The seek-bar thumbnail, the scene list
     // and the cover editor all start from this, so the picture looks the same from one to the next.
     internal sealed class ViewFraming {
-        const double CoverAspect=9.0/16.0;
         internal double Turn;                         // degrees clockwise, -179 to 180
         internal double PictureWidth,PictureHeight;   // the upright picture, as big as it is on screen
         internal double PanX,PanY;                    // how far its middle sits from the middle of the view
@@ -16,13 +15,13 @@ namespace LoveMyShelf {
         // How much bigger than its tile the picture is drawn, so a tile can read a sharper frame.
         internal double Magnify {get {return Math.Max(PictureWidth/ShownWidth,PictureHeight/ShownHeight);}}
 
-        // The 9:16 cover frame in the middle of what shows, at the size it has on screen, as fractions of the upright image.
+        // The cover frame for a new cover: everything that shows in the view right now (the whole picture when it isn't
+        // zoomed in), at the size it has on screen, as fractions of the upright image. Its shape is then free to change.
         internal Rect CoverFrame(double imageWidth,double imageHeight) {
-            double frameHeight=Math.Min(ShownHeight,ShownWidth/CoverAspect);
             var back=Matrix.Identity;back.Rotate(-Turn);
             Vector middle=back.Transform(new Vector(-PanX,-PanY));
             double x=0.5+middle.X/PictureWidth,y=0.5+middle.Y/PictureHeight;
-            double height=frameHeight/PictureHeight,width=height*imageHeight*CoverAspect/imageWidth;
+            double height=ShownHeight/PictureHeight,width=ShownWidth/PictureWidth;
             return new Rect(x-width/2,y-height/2,width,height);
         }
         internal void Draw(DrawingContext dc,ImageSource source,Rect to,int brightness) {

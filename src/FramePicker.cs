@@ -280,7 +280,7 @@ namespace LoveMyShelf {
                 if(CommitMotion!=null && MotionMaker.Supports(path))
                     editor.EnableMotion(CommitMotion,()=>new MotionSource {Path=path,Moment=MotionSource.MomentOf(path,editor.FrameTime,editor.FrameIndex),
                         Crop=editor.Surface.Fraction,Rotation=editor.Surface.Rotation,Brightness=editor.Surface.Brightness,
-                        Still=Pictures.RenderRotatedCover(editor.Surface.Source,editor.Surface.Fraction,editor.Surface.Rotation,540,960,editor.Surface.Brightness)});
+                        Aspect=editor.Surface.Aspect,Still=editor.Surface.Still()});
                 if(CoverWork.Show(editor)==true) {SavedCrop=editor;DialogResult=true;}
                 else if(!editor.BackToFrames) DialogResult=false;
             } catch(Exception ex){if(!closed)UI.Error(this,ex);}

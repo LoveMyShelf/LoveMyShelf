@@ -2027,7 +2027,11 @@ namespace LoveMyShelf {
             try {
                 if(System.IO.File.Exists(photo.CoverFile))
                     using(var file=System.IO.File.Open(photo.CoverFile,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete))
-                        sourceHeight=BitmapFrame.Create(file,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None).PixelHeight;
+                    {
+                        // The long side: the height of a tall cover, the width of a wide one.
+                        var frame=BitmapFrame.Create(file,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None);
+                        sourceHeight=Math.Max(frame.PixelHeight,frame.PixelWidth);
+                    }
             } catch(IOException){} catch(NotSupportedException){} catch(FormatException){}
             return Tuple.Create(cover==null?null:CoverImages.TrimBlackBands(cover),sourceHeight);
         }

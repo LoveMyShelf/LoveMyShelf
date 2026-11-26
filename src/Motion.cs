@@ -72,6 +72,8 @@ namespace LoveMyShelf {
         public Rect Crop;
         public double Rotation;
         public int Brightness;
+        // The cover's shape in pixels, width over height (9:16 for covers made before 1.0.9).
+        public double Aspect=Covers.Tall;
         // The JPG cover as it looks now, shown in the preview until the first moving frames are ready.
         public BitmapSource Still;
         // The part marked while watching ([ and ] in the large view), in milliseconds: Make GIF cover opens on it.
@@ -131,9 +133,9 @@ namespace LoveMyShelf {
         // The pictures stay fully visible for exact work: only a three-pixel line just outside the start and end crosses them.
         // The handles, the chosen part and the cover and play marks live in a thin rail above and below the pictures.
         const double PictureHeight=156,TopRail=PartLook.TopRail,StripHeight=PictureHeight+TopRail+PartLook.BottomRail,ThumbGap=2;
-        // Strip pictures show the cover's own part of each scene, in its 9:16 shape, so a wider window shows
+        // Strip pictures show the cover's own part of each scene, in the cover's shape, so a wider window shows
         // more of them (like a video editor's timeline) instead of stretching each one.
-        const double CellWidth=PictureHeight*9/16;
+        double CellWidth {get {return PictureHeight*source.Aspect;}}
         const int CellPixels=(int)(PictureHeight*2);
         // Room at each end of the strip for a handle and a little empty gap,
         // so a handle at the clip's very start or end stays whole and the empty strip beyond shows the clip ends there.
@@ -325,7 +327,8 @@ namespace LoveMyShelf {
             loopField=Field(L.T("Play style"),Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},loopPick,L.T("Play style"),Changed,out loopChoices));
             var fpsBox=new StackPanel();var heightBox=new StackPanel();var qualityBox=new StackPanel();var formatBox=new StackPanel();
             fps=Choice(fpsBox,L.T("Smoothness"),L.T("Smoothness (pictures per second)"),Array.ConvertAll(rates,r=>L.F("{0} a second",r)),fpsPick);
-            height=Choice(heightBox,L.T("Height"),null,Array.ConvertAll(heights,h=>L.F("{0} px",h)),heightPick);
+            // The size is the cover's long side: its height, or its width for a wide cover.
+            height=Choice(heightBox,source.Aspect>1?L.P("Width","가로 크기"):L.T("Height"),null,Array.ConvertAll(heights,h=>L.F("{0} px",h)),heightPick);
             // Said only when it applies: a cover smaller than the chosen height is made at its own size.
             heightNote.TextWrapping=TextWrapping.Wrap;heightNote.Margin=new Thickness(1,0,0,6);heightNote.LineHeight=17;heightNote.Visibility=Visibility.Collapsed;
             heightBox.Children.Add(heightNote);
@@ -374,8 +377,8 @@ namespace LoveMyShelf {
             previewBox.Children.Add(previewFrame);
             if(source.Still!=null) {
                 double stillTop,stillBottom;
-                preview.Source=CoverImages.VisibleRows(source.Crop,source.Rotation,out stillTop,out stillBottom)?
-                    CoverImages.WithoutBars(source.Still,stillTop,stillBottom):source.Still;
+                preview.Source=CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out stillTop,out stillBottom)?
+                    CoverImages.WithoutBars(source.Still,stillTop,stillBottom,source.Aspect):source.Still;
             }
             var pillBack=new SolidColorBrush(Color.FromArgb(0xB8,0x10,0x12,0x14));pillBack.Freeze();
             statusPill=new Border {Child=status,Background=pillBack,CornerRadius=new CornerRadius(8),Padding=new Thickness(10,4,10,5),
@@ -480,7 +483,7 @@ namespace LoveMyShelf {
                 UpdateChips();UpdateSummary();SetStatus();
                 try {
                     var size=await Task.Run(()=>MotionMaker.PixelSize(source.Path,lifetime.Token));
-                    coverPixels=source.Crop.Height*size.Height;
+                    coverPixels=Math.Max(source.Crop.Height*size.Height,source.Crop.Width*size.Width);
                 } catch(Exception) {}
                 try {
                     duration=await Task.Run(()=>MotionMaker.DurationOf(source.Path,lifetime.Token));
@@ -629,12 +632,12 @@ namespace LoveMyShelf {
             if(pageWidth<=0 || pageHeight<=0)return;
             // Decided from the window's size alone (not from the room left after arranging), so it can't flip back and forth.
             double roomIfWide=pageHeight-WideBottom;
-            Arrange(roomIfWide>=330 && (pageWidth-roomIfWide*9/16)/2-SideGap>=SideMin);
+            Arrange(roomIfWide>=330 && (pageWidth-Math.Min(pageWidth,roomIfWide*source.Aspect))/2-SideGap>=SideMin);
             PlaceHints();
             double room=middle.ActualHeight,across=middle.ActualWidth;
             if(room<=0 || across<=0)return;
-            double width=Math.Floor(Math.Min(room*9/16,across));
-            previewFrame.Width=width;previewFrame.Height=Math.Floor(width*16/9);
+            double width=Math.Floor(Math.Min(room*source.Aspect,across));
+            previewFrame.Width=width;previewFrame.Height=Math.Floor(width/source.Aspect);
             if(wide)leftScroll.Width=rightScroll.Width=Math.Max(0,Math.Min(SideMax,Math.Floor((across-width)/2-SideGap)));
         }
         double Clamp(double ms) {return Math.Max(0,Double.IsNaN(duration) || duration<=0?ms:Math.Min(duration,ms));}
@@ -677,7 +680,7 @@ namespace LoveMyShelf {
                 if(known)width=Math.Min(width,X(duration)-X(at));
                 // A dark gray box stands in while a picture loads, so it never looks like the video ended.
                 var placeholder=new Border {Width=Math.Max(1,width),Height=PictureHeight,Background=LoadingCell,ClipToBounds=true};
-                var image=new Image {Stretch=Stretch.UniformToFill,Width=Math.Max(1,cell-ThumbGap),Height=PictureHeight,HorizontalAlignment=HorizontalAlignment.Left};
+                var image=new Image {Stretch=Stretch.Uniform,Width=Math.Max(1,cell-ThumbGap),Height=PictureHeight,HorizontalAlignment=HorizontalAlignment.Left};
                 RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
                 BitmapSource picture;
                 if(thumbs.TryGetValue(k,out picture) || (picture=Earlier(k*step+step/2))!=null)image.Source=picture;
@@ -797,7 +800,8 @@ namespace LoveMyShelf {
         // as stand-ins for the nearest new cells until the new ones arrive, so resizing never flashes empty boxes.
         readonly Dictionary<double,BitmapSource> earlier=new Dictionary<double,BitmapSource>();
         void Regrid(bool force) {
-            int count=strip.ActualWidth>0?Math.Max(6,(int)Math.Round(InnerWidth/CellWidth)):Thumbs;
+            // At least six pictures, or three for a wide cover, so each still shows whole.
+            int count=strip.ActualWidth>0?Math.Max(CellWidth>PictureHeight?3:6,(int)Math.Round(InnerWidth/CellWidth)):Thumbs;
             double next=span/count;
             if(!force && Math.Abs(next-step)<1e-6)return;
             if(earlier.Count>240)earlier.Clear();
@@ -820,16 +824,16 @@ namespace LoveMyShelf {
                 thumbs[k]=scene;exact.Add(k);failed.Remove(k);pictureVersion++;
             }
         }
-        // How big each scene has to be read so the cover's part of it is still sharp on the strip. The cover is
-        // 9:16 in pixels, so its share of the width and of the height tells how big the whole picture must be.
+        // How big each scene has to be read so the cover's part of it is still sharp on the strip. The cover's shape
+        // in pixels and its share of the width and of the height tell how big the whole picture must be.
         int PictureSide {get {
             var c=source.Crop;
             if(c.Width<=0 || c.Height<=0)return CellPixels;
-            return (int)Math.Max(48,Math.Min(2400,Math.Ceiling(CellPixels*Math.Max(1/c.Height,9/(16*c.Width)))));
+            return (int)Math.Max(48,Math.Min(2400,Math.Ceiling(CellPixels*Math.Max(1/c.Height,source.Aspect/c.Width))));
         }}
         // The cover's part of a scene with the cover's turn and brightness: the same cut as the preview above.
         BitmapSource CoverLook(BitmapSource scene) {
-            return Pictures.RenderRotatedCover(scene,source.Crop,source.Rotation,(int)Math.Round(CellPixels*9/16.0),CellPixels,source.Brightness);
+            return Pictures.RenderRotatedCover(scene,source.Crop,source.Rotation,(int)Math.Max(2,Math.Round(CellPixels*source.Aspect)),CellPixels,source.Brightness);
         }
         async void Load(int k,bool precise) {
             int started=generation; // pictures for an older strip grid are thrown away
@@ -1074,7 +1078,7 @@ namespace LoveMyShelf {
                 // The real picture size: a small original can't fill the height picked in More choices.
                 if(preparedResult!=null && preparedResult.Width>0)size=preparedResult.Width+"×"+preparedResult.Height+" · "+size;
                 if(preparedFrames>0){frames=preparedFrames;seconds=preparedSeconds;}
-            } else {mb=Estimate(request,coverPixels);size=mb<1?L.F("about {0} KB",Math.Max(1,Math.Round(mb*1024/10)*10).ToString("N0",CultureInfo.CurrentCulture)):L.F("about {0} MB",Mb(mb));}
+            } else {mb=Estimate(request,coverPixels,source.Aspect);size=mb<1?L.F("about {0} KB",Math.Max(1,Math.Round(mb*1024/10)*10).ToString("N0",CultureInfo.CurrentCulture)):L.F("about {0} MB",Mb(mb));}
             summary.Text=L.F("{0:0.0} s · {1:N0} pictures · {2}",seconds,frames,size);
             // Very large files are only pointed out, never blocked.
             if(mb>=50)summary.Foreground=new SolidColorBrush(NoticeLook.Amber);
@@ -1082,9 +1086,10 @@ namespace LoveMyShelf {
         }
         static string Mb(double mb) {return mb.ToString(mb>=10?"0":"0.0",CultureInfo.CurrentCulture);}
         // A guide until the real file is made, from sizes measured on real videos (bytes per pixel per frame).
-        internal static double Estimate(MotionRequest r,double coverPixels=0) {
+        internal static double Estimate(MotionRequest r,double coverPixels=0,double aspect=Covers.Tall) {
+            // r.Height and coverPixels are the long side; the short side follows the cover's shape.
             double high=coverPixels>2?Math.Min(r.Height,coverPixels):r.Height;
-            double pixels=Math.Round(high*9/16.0)*high*(double)r.Frames;
+            double pixels=Math.Round(high*Math.Min(aspect,1/aspect))*high*(double)r.Frames;
             double perPixel=r.Format=="gif"?new[]{0.52,0.44,0.33}[r.Quality]:r.Format=="webp"?new[]{0.07,0.05,0.03}[r.Quality]:new[]{0.05,0.035,0.02}[r.Quality];
             return Math.Max(0.01,pixels*perPixel/1048576);
         }
@@ -1192,8 +1197,8 @@ namespace LoveMyShelf {
                     if(work.IsCancellationRequested)return;
                     var list=scenes.Scenes(from,to);
                     double rowsTop,rowsBottom;
-                    if(CoverImages.VisibleRows(source.Crop,source.Rotation,out rowsTop,out rowsBottom))
-                        list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom));
+                    if(CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out rowsTop,out rowsBottom))
+                        list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom,source.Aspect));
                     if(list.Count>0) {
                         var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.PartStep(from,to)/request.Speed)),request);
                         timeline=Timeline(request,frames.Images.Length);
@@ -1358,12 +1363,12 @@ namespace LoveMyShelf {
         // A saved GIF cover as it should look: one made before covers were trimmed shows without its empty rows.
         // The file itself is not changed.
         internal static Task<MotionFrames> LoadCoverAsync(Photo photo,int maxSide,CancellationToken token) {
-            string path=photo.MotionFile;Rect crop=photo.Crop;double rotation=photo.Rotation;
+            string path=photo.MotionFile;Rect crop=photo.Crop;double rotation=photo.Rotation,aspect=photo.Aspect;
             return Task.Run(()=>{
                 var frames=Load(path,maxSide,token);
                 double top,bottom;
-                if(!CoverImages.VisibleRows(crop,rotation,out top,out bottom))return frames;
-                return new MotionFrames {Images=Array.ConvertAll(frames.Images,image=>CoverImages.WithoutBars(image,top,bottom)),Delays=frames.Delays};
+                if(!CoverImages.VisibleRows(crop,rotation,aspect,out top,out bottom))return frames;
+                return new MotionFrames {Images=Array.ConvertAll(frames.Images,image=>CoverImages.WithoutBars(image,top,bottom,aspect)),Delays=frames.Delays};
             },token);
         }
         static MotionFrames Load(string path,int maxSide,CancellationToken token) {
@@ -1423,7 +1428,7 @@ namespace LoveMyShelf {
         // shown: the moving picture, once the file is open. stopped: it is over (the tile shows its still picture again).
         // failed: Windows couldn't play the file. top and bottom: the rows to show of a cover made before covers were trimmed.
         internal static void Play(object who,string file,int volume,bool silent,double top,double bottom,
-            Action<System.Windows.Media.ImageSource> shown,Action stopped,Action failed) {
+            Action<System.Windows.Media.ImageSource> shown,Action stopped,Action failed,double aspect=Covers.Tall) {
             Stop();
             try {
                 var made=new System.Windows.Media.MediaPlayer {Volume=Math.Max(0,Math.Min(100,volume))/100.0,IsMuted=silent};
@@ -1442,7 +1447,7 @@ namespace LoveMyShelf {
                     }
                     System.Windows.Media.Drawing picture=new System.Windows.Media.VideoDrawing {Player=made,Rect=new Rect(0,0,w,h)};
                     // A cover made before covers were trimmed is the full 9:16 with empty rows: only the picture's rows show.
-                    if((top>0 || bottom<1) && Math.Abs(h/(double)w-16.0/9)<=0.012) {
+                    if((top>0 || bottom<1) && aspect>0 && Math.Abs(h/(double)w-1/aspect)<=0.012/aspect) {
                         double first=Math.Ceiling(top*h-1e-6),last=Math.Floor(bottom*h+1e-6);
                         if(last-first>=2) {
                             var group=new System.Windows.Media.DrawingGroup {ClipGeometry=new System.Windows.Media.RectangleGeometry(new Rect(0,first,w,last-first))};
@@ -1594,8 +1599,8 @@ namespace LoveMyShelf {
                 for(long slot=a;slot<=b;slot+=stride) {
                     token.ThrowIfCancellationRequested();
                     var raw=file.Read(Math.Min(file.Count-1,file.Times.At(slot*(double)Step)),0);
-                    double scale=Math.Min(1,(double)Math.Min(previewSide,400)/Math.Max(1,source.Crop.Height*raw.PixelHeight));
-                    int h=Math.Max(2,(int)Math.Round(source.Crop.Height*raw.PixelHeight*scale)),w=Math.Max(2,(int)Math.Round(h*9/16.0));
+                    double scale=Math.Min(1,(double)Math.Min(previewSide,400)/Math.Max(1,Math.Max(source.Crop.Height*raw.PixelHeight,source.Crop.Width*raw.PixelWidth)));
+                    int h=Math.Max(2,(int)Math.Round(source.Crop.Height*raw.PixelHeight*scale)),w=Math.Max(2,(int)Math.Round(h*source.Aspect));
                     // Drawing needs the UI thread.
                     var cover=(BitmapSource)dispatcher.Invoke(new Func<BitmapSource>(()=>Pictures.RenderRotatedCover(raw,source.Crop,source.Rotation,w,h,source.Brightness)));
                     lock(gate)scenes[slot]=cover;
@@ -1725,7 +1730,10 @@ namespace LoveMyShelf {
         internal static string Filters(Rect f,double rotation,int brightness,int width,int height,MotionRequest request,bool resample,out int outW,out int outH,bool trim=true) {
             double cx=(f.X+f.Width/2)*width,cy=(f.Y+f.Height/2)*height;
             double cw=Math.Max(2,f.Width*width),ch=Math.Max(2,f.Height*height);
-            outH=Even(Math.Min(request.Height,ch));outW=Even(outH*9/16.0);
+            // The chosen size is the cover's long side (its height for a tall cover, as before; its width for a wide one).
+            double coverShape=cw/ch,longest=Math.Min(request.Height,Math.Max(cw,ch));
+            if(coverShape>1){outW=Even(longest);outH=Even(longest/coverShape);}
+            else {outH=Even(longest);outW=Even(longest*coverShape);}
             bool turned=Math.Abs(rotation)>0.001;
             // The area to cut out: the cover itself, or a square that holds it at any angle when it's turned.
             double diagonal=Math.Sqrt(cw*cw+ch*ch)+4;
@@ -1768,7 +1776,7 @@ namespace LoveMyShelf {
         // Writes the motion cover next to the still one and returns it. The time window is clipped
         // to the start and end of the original. A file the window already made with the same choices is reused.
         internal static MotionResult Make(Photo photo,string original,MotionRequest request,string directory,bool beside,CancellationToken token) {
-            var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness};
+            var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness,Aspect=photo.Aspect};
             Directory.CreateDirectory(directory);
             string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
             try {

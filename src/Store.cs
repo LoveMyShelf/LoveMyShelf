@@ -131,8 +131,11 @@ namespace LoveMyShelf {
         }
         internal static void Thumbnail(BitmapSource source, Rect fraction, Stream output,double rotation=0,int brightness=0) {
             var encoder = new JpegBitmapEncoder { QualityLevel = 88 };
-            encoder.Frames.Add(BitmapFrame.Create(rotation==0 && brightness==0?RenderCrop(source,fraction,252,448):
-                RenderRotatedCover(source,fraction,rotation,252,448,brightness)));
+            // At most 448 on the long side, in the cover's own shape (252 x 448 for a 9:16 cover).
+            double aspect=Covers.AspectOf(fraction,source.PixelWidth,source.PixelHeight);
+            int w=Math.Max(1,(int)Math.Round(aspect>=1?448:448*aspect)),h=Math.Max(1,(int)Math.Round(aspect>=1?448/aspect:448));
+            encoder.Frames.Add(BitmapFrame.Create(rotation==0 && brightness==0?RenderCrop(source,fraction,w,h):
+                RenderRotatedCover(source,fraction,rotation,w,h,brightness)));
             encoder.Save(output);
         }
     }
@@ -170,6 +173,8 @@ namespace LoveMyShelf {
         internal string LegacyImage {get {return Path.ChangeExtension(Thumb,".view.png");}}
         internal string DisplayImage {get {return File.Exists(ActiveCoverFile)?ActiveCoverFile:LegacyImage;}}
         public Rect Crop = Rect.Empty;
+        // The cover's own shape in pixels, width over height ("aspect" in photo.xml). Covers made before 1.0.9 are 9:16.
+        internal double Aspect=Covers.Tall;
         public double Rotation;
         internal int Brightness;
         public bool Linked, ExcludedFromCollection;
@@ -343,12 +348,13 @@ namespace LoveMyShelf {
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
             int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs,
-            string picture=null,double? rank=null) {
+            string picture=null,double? rank=null,double aspect=Covers.Tall) {
             new XElement("photo",new XAttribute("name",name),new XAttribute("original",original),
                 new XAttribute("thumb",thumb), new XAttribute("order",order),new XAttribute("coverCreated",coverCreated),new XAttribute("frame",frameIndex),
                 new XAttribute("x",Num(crop.X)),new XAttribute("y",Num(crop.Y)),
                 new XAttribute("w",Num(crop.Width)),new XAttribute("h",Num(crop.Height)),
                 rotation==0?null:new XAttribute("rotation",Num(rotation)),
+                new XAttribute("aspect",Num(aspect)),
                 // "brightness": the old white or black sheet; "soft" and "light" (See in the dark): the curves (see Light).
                 // Older versions ignore "soft" and "light".
                 brightness==0?null:new XAttribute(Light.Style(brightness)==Light.Sheet?"brightness":Light.Style(brightness)==Light.Dark?"light":"soft",Light.Level(brightness)),
@@ -401,6 +407,7 @@ namespace LoveMyShelf {
                 Brightness=n.Attribute("soft")!=null?Light.Encode((int)n.Attribute("soft"),Light.Soft):
                     n.Attribute("light")!=null?Light.Encode((int)n.Attribute("light"),Light.Dark):Light.Legacy((int?)n.Attribute("brightness")??0),
                 FrameIndex=(int?)n.Attribute("frame")??0,
+                Aspect=Covers.Valid((double?)n.Attribute("aspect")),
                 FrameTime=frameTime,FrameTimeOffset=frameTimeOffset,
                 ExcludedFromCollection=File.Exists(Path.Combine(folder,ExclusionFile)),
                 Original=linkedSource??Path.Combine(folder,Path.GetFileName((string)n.Attribute("original"))),Linked=linkedSource!=null,
@@ -959,7 +966,8 @@ namespace LoveMyShelf {
                 token.ThrowIfCancellationRequested();
                 long coverCreated=old.CoverCreated>0?old.CoverCreated:DateTime.UtcNow.Ticks;
                 WriteMeta(part,old.Name,Path.GetFileName(old.Original),thumb,crop,old.Order,coverCreated,selectedFrame,
-                    rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs,pictureName,CurrentRank(old.Folder,old.Rank));
+                    rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs,pictureName,CurrentRank(old.Folder,old.Rank),
+                    Covers.AspectOf(crop,(preview??source).PixelWidth,(preview??source).PixelHeight));
                 string target=Path.Combine(old.Folder,"photo.xml");
                 lock(SharedCoverFiles.MetadataLock) {
                     if(File.Exists(target)) {
