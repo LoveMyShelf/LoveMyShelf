@@ -14,12 +14,14 @@ When a new version comes out, a notice appears inside the program. Click it to u
 - **재생바를 오른쪽 클릭 두 번으로 구간 반복:** 영상 크게 보기에서 재생바의 두 곳을 오른쪽 클릭하면 그 사이가 계속 반복돼요. 순서는 상관없이 앞쪽이 시작, 뒤쪽이 끝이 돼요. 키보드 [ ]로 정하는 구간과 같아서 GIF 표지 만들기도 그 구간으로 열려요. 세 번째로 오른쪽 클릭하면 새 구간을 시작하고, Shift+오른쪽 클릭이면 지워져요.
 - **GIF 구간 안쪽을 더블클릭해서 줄이기:** GIF 표지 만들기의 장면 띠에서 구간 안쪽을 더블클릭하면, 표지 장면보다 앞이면 시작이, 뒤면 끝이 그 자리로 당겨져요. 바깥을 더블클릭하면 전처럼 구간이 그곳까지 늘어나요.
 - **설치 파일로 깐 경우 앱 목록의 버전도 바뀌어요:** 설치 파일로 깐 러브마이셀프를 업데이트하면 Windows 설정의 [앱] 목록에 보이는 버전도 새 버전으로 바뀌어요.
+- **표지 자를 때 사진이 가만히 있어요:** 이제 표지 만들기에서 틀을 끌어도 사진이 확대·축소되지 않고 가만히 있어요. 틀만 사진 위에서 움직이고 커지고 작아지며, 틀 바깥은 어둡게 보여요. 사진과 틀이 다 보이게 하려면 [화면에 맞추기]를 눌러요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [🔍 틀 따라 사진 확대·축소]를 켜요. 고른 것은 기억해요.
 
 Right-click the playback bar twice to repeat a part, and double-click inside a GIF part to shorten it.
 
 - **Right-click the playback bar twice to repeat a part:** In the large view of a video, right-click two places on the playback bar and the part between them keeps repeating. Either order works: the earlier one is the start. It is the same part as the [ ] keys, so Make GIF cover opens on it. A third right-click starts a new part, and Shift + right-click clears it.
 - **Double-click inside the GIF part to shorten it:** On the scene strip in Make GIF cover, double-click inside the part: before the cover's scene the start comes there, after it the end. Double-clicking outside still grows the part to there.
 - **Settings › Apps shows the new version for an installed copy:** If you installed LoveMyShelf with the setup file, the version shown in Windows Settings › Apps now changes too when it updates.
+- **The picture stays still while you cut a cover:** In Make cover, the picture no longer zooms in and out while you drag the frame: it stays still and only the frame moves and changes size over it, with the outside dimmed. [Fit to the window] shows the whole picture and the frame. To zoom with the frame as before, turn on [🔍 Zoom the picture with the frame]. Your choice is remembered.
 
 ---
 

@@ -2317,12 +2317,14 @@ namespace LoveMyShelf {
         internal static void ChangeTileShape(int shape) {ChangeGrid(p=>p.TileShape=shape);}
         internal static void ChangeWideCovers(bool on) {ChangeGrid(p=>p.WideCovers=on);}
         // The cover editor's [Keep this shape], kept for next time (nothing in the grid changes).
-        internal static void RememberCropLock(bool on) {
+        internal static void RememberCropLock(bool on) {RememberEditor(p=>p.CropLock=on);}
+        internal static void RememberCropZoom(bool on) {RememberEditor(p=>p.CropZoom=on);}
+        static void RememberEditor(Action<Preferences> change) {
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
             if(windows.Count==0)return;
-            var updated=windows[0].settings.Copy();updated.CropLock=on;
+            var updated=windows[0].settings.Copy();change(updated);
             try {updated.Save(windows[0].store.Root);} catch(Exception quiet) {ErrorLog.Quiet(quiet);return;}
-            foreach(var window in windows) {if(window==windows[0])window.settings=updated;else window.settings.CropLock=on;}
+            foreach(var window in windows) {if(window==windows[0])window.settings=updated;else change(window.settings);}
         }
         static void ChangeGrid(Action<Preferences> change) {
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();

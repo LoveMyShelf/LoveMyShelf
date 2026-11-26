@@ -57,6 +57,7 @@ namespace LoveMyShelf {
         }
         internal void ShowFrame(BitmapSource frame) {
             Rect current=Fraction;
+            if(frame.PixelWidth!=image.PixelWidth || frame.PixelHeight!=image.PixelHeight)viewSet=false;
             image=frame;
             ApplyFraction(current);
         }
@@ -108,6 +109,7 @@ namespace LoveMyShelf {
         internal event Action Moved;
         // Reset: the whole picture, upright, as a new cover starts.
         public void Reset() {
+            viewSet=false;
             aspect=PictureAspect;
             zoom=1; Rotation=0; centerX=image.PixelWidth/2.0; centerY=image.PixelHeight/2.0; Clamp();
             SetBrightness(0);
@@ -163,7 +165,7 @@ namespace LoveMyShelf {
         internal void SetRotation(double angle) {
             angle=Math.Round(NormalizeRotation(angle),1);
             if(angle==Rotation)return;
-            Rotation=angle;
+            Rotation=angle;viewSet=false;
             Clamp();
             if(RotationChanged!=null) RotationChanged();
         }
@@ -173,10 +175,51 @@ namespace LoveMyShelf {
         }
         // Room around the frame for its handles, and how near an edge the pointer grabs it.
         const double Room=40,Grab=9;
-        Rect Frame {
+        Rect Frame {get {return StillPicture?StillFrame:FittedFrame;}}
+        // Zooming with the frame (the old way): the frame always fills the middle of the view, so the picture zooms
+        // in and out whenever the frame changes size or shape.
+        Rect FittedFrame {
             get { double w=Math.Max(1,Math.Min(ActualWidth-Room,(ActualHeight-Room)*aspect));
                 return new Rect((ActualWidth-w)/2,(ActualHeight-w/aspect)/2,w,w/aspect); }
         }
+        // ---------- Still picture (the default since 1.0.11) ----------
+        // The picture stays where it is on screen and the frame moves and changes size over it, like a phone's photo app.
+        // The view (how big the picture is, which part is in the middle) changes only when the window or the turn
+        // changes, a new picture comes, or [Fit to the window] is pressed.
+        internal bool StillPicture;
+        double viewScale;Vector viewMid;bool viewSet;
+        internal void SetStill(bool on) {StillPicture=on;viewSet=false;InvalidateVisual();if(Moved!=null)Moved();}
+        // The whole picture in view; with frame, the frame too (when it reaches past the picture or the view).
+        void FitView(bool withFrame) {
+            viewSet=false;
+            if(ActualWidth<=Room+10 || ActualHeight<=Room+10)return;
+            var turn=Matrix.Identity;turn.Rotate(Rotation);
+            double w=image.PixelWidth,h=image.PixelHeight;
+            double minX=Double.MaxValue,minY=Double.MaxValue,maxX=Double.MinValue,maxY=Double.MinValue;
+            Action<Vector> take=v=>{minX=Math.Min(minX,v.X);maxX=Math.Max(maxX,v.X);minY=Math.Min(minY,v.Y);maxY=Math.Max(maxY,v.Y);};
+            foreach(var corner in new[]{new Vector(-w/2,-h/2),new Vector(w/2,-h/2),new Vector(w/2,h/2),new Vector(-w/2,h/2)})take(turn.Transform(corner));
+            if(withFrame) {
+                var mid=turn.Transform(new Vector(centerX-w/2,centerY-h/2));
+                take(mid+new Vector(-CropW/2,-CropH/2));take(mid+new Vector(CropW/2,CropH/2));
+            }
+            viewScale=Math.Min((ActualWidth-Room)/Math.Max(1,maxX-minX),(ActualHeight-Room)/Math.Max(1,maxY-minY));
+            viewMid=new Vector((minX+maxX)/2,(minY+maxY)/2);
+            viewSet=viewScale>0 && !Double.IsInfinity(viewScale);
+        }
+        // [Fit to the window]: the picture and the frame both in view.
+        internal void FitToWindow() {if(!StillPicture)return;FitView(true);InvalidateVisual();if(Moved!=null)Moved();}
+        Rect StillFrame {
+            get {
+                if(!viewSet)FitView(false);
+                if(!viewSet)return FittedFrame;
+                var turn=Matrix.Identity;turn.Rotate(Rotation);
+                var mid=turn.Transform(new Vector(centerX-image.PixelWidth/2.0,centerY-image.PixelHeight/2.0));
+                double x=ActualWidth/2+(mid.X-viewMid.X)*viewScale,y=ActualHeight/2+(mid.Y-viewMid.Y)*viewScale;
+                double fw=Math.Max(1,CropW*viewScale),fh=Math.Max(1,CropH*viewScale);
+                return new Rect(x-fw/2,y-fh/2,fw,fh);
+            }
+        }
+        protected override void OnRenderSizeChanged(SizeChangedInfo info) {base.OnRenderSizeChanged(info);viewSet=false;}
         Vector SourceDelta(double dx,double dy) {
             double scale=Frame.Width/CropW;
             var transform=Matrix.Identity;
@@ -198,7 +241,10 @@ namespace LoveMyShelf {
         internal void BeginDrag() {dragX=centerX;dragY=centerY;snappedX=snappedY=null;}
         internal void Drag(double dx,double dy) {
             var delta=SourceDelta(dx,dy);
-            centerX=dragX-delta.X;centerY=dragY-delta.Y;Clamp();
+            // Still picture: the frame follows the pointer over the picture. Otherwise the picture moves under the frame.
+            if(StillPicture){centerX=dragX+delta.X;centerY=dragY+delta.Y;}
+            else {centerX=dragX-delta.X;centerY=dragY-delta.Y;}
+            Clamp();
             // Keep the pointer's raw position so the stronger hold still releases predictably.
             dragX=centerX;dragY=centerY;
             if(!snapEdges || Rotation%90!=0)return;
@@ -229,8 +275,11 @@ namespace LoveMyShelf {
             // Worked out from where the drag began each time, so the frame changing size on screen never feeds back.
             // The frame stays in the middle of the view, so an edge moves half as far on screen as it does on the picture.
             double w=startW,h=startH;
-            if(edgeX!=0)w=Math.Max(16,startW+edgeX*(p.X-startPoint.X)*startUnits*2);
-            if(edgeY!=0)h=Math.Max(16,startH+edgeY*(p.Y-startPoint.Y)*startUnits*2);
+            // A still picture: the edge moves exactly with the pointer. Otherwise the frame stays in the middle of the view,
+            // so an edge moves half as far on screen as it does on the picture.
+            double reach=StillPicture?1:2;
+            if(edgeX!=0)w=Math.Max(16,startW+edgeX*(p.X-startPoint.X)*startUnits*reach);
+            if(edgeY!=0)h=Math.Max(16,startH+edgeY*(p.Y-startPoint.Y)*startUnits*reach);
             double shape=Limit(w/h,Covers.Narrowest,Covers.Widest);
             // A shape very near the grid's cells, or the whole picture's, settles on it.
             foreach(double near in new[]{GridCell,PictureAspect})
@@ -275,6 +324,11 @@ namespace LoveMyShelf {
             Rect r=Frame;
             dc.DrawRectangle(Brushes.Black,null,new Rect(RenderSize));
             Pictures.DrawCover(dc,image,Fraction,Rotation,r,Brightness);
+            // Still picture: the part outside the frame is dimmed, so what goes into the cover stands out.
+            if(StillPicture) {
+                var outside=Geometry.Combine(new RectangleGeometry(new Rect(RenderSize)),new RectangleGeometry(r),GeometryCombineMode.Exclude,null);
+                dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(0x99,0,0,0)),null,outside);
+            }
             var accent=UI.B("Accent");
             dc.DrawRectangle(null,new Pen(accent,2),r);
             // Handles at the corners and the middle of each edge show that the frame can be pulled into any shape.
@@ -470,6 +524,24 @@ namespace LoveMyShelf {
             RoutedEventHandler locked=delegate {Surface.LockShape=keep.IsChecked==true;GalleryWindow.RememberCropLock(Surface.LockShape);};
             keep.Checked+=locked;keep.Unchecked+=locked;
             bar.Children.Add(keep);
+            // Zoom with the frame or not: off (the picture stays still) unless turned on; remembered.
+            var follow=new CheckBox {Content=L.P("🔍 Zoom the picture with the frame","🔍 틀 따라 사진 확대·축소"),IsChecked=prefs!=null && prefs.CropZoom,
+                VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,10,2),FontSize=13};
+            follow.SetResourceReference(Control.ForegroundProperty,"Text");
+            follow.ToolTip=L.P("Off: the picture stays still and only the frame moves and changes size. On: the frame always fills the middle and the picture zooms in and out with it (the way it was before).",
+                "끄면 사진은 가만히 있고 틀만 움직이고 커지고 작아져요. 켜면 틀이 늘 가운데를 꽉 채우고 사진이 따라서 확대·축소돼요(예전 방식).");
+            AutomationProperties.SetName(follow,L.P("Zoom the picture with the frame","틀 따라 사진 확대·축소"));
+            var fit=UI.Btn(L.P("Fit to the window","화면에 맞추기"),()=>Surface.FitToWindow());
+            fit.Margin=new Thickness(0,2,10,2);fit.Padding=new Thickness(8,0,8,0);
+            fit.ToolTip=L.P("Shows the whole picture and the frame in the window.","사진 전체와 틀이 창에 다 보이게 해요.");
+            Surface.SetStill(follow.IsChecked!=true);
+            fit.Visibility=follow.IsChecked==true?Visibility.Collapsed:Visibility.Visible;
+            RoutedEventHandler zoomed=delegate {
+                Surface.SetStill(follow.IsChecked!=true);fit.Visibility=follow.IsChecked==true?Visibility.Collapsed:Visibility.Visible;
+                GalleryWindow.RememberCropZoom(follow.IsChecked==true);
+            };
+            follow.Checked+=zoomed;follow.Unchecked+=zoomed;
+            bar.Children.Add(follow);bar.Children.Add(fit);
             Func<string,string,Action,Button> add=(text,tip,act)=>{
                 var b=UI.Btn(text,act);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.ToolTip=tip;
                 AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;

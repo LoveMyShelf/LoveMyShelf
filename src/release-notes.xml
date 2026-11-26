@@ -24,7 +24,12 @@
       titleEn="Settings › Apps shows the new version for an installed copy"
       textKo="설치 파일로 깐 러브마이셀프를 업데이트하면 Windows 설정의 [앱] 목록에 보이는 버전도 새 버전으로 바뀌어요."
       textEn="If you installed LoveMyShelf with the setup file, the version shown in Windows Settings › Apps now changes too when it updates."/>
-  </release>
+      <item group="better" icon="image"
+      titleKo="표지 자를 때 사진이 가만히 있어요"
+      titleEn="The picture stays still while you cut a cover"
+      textKo="이제 표지 만들기에서 틀을 끌어도 사진이 확대·축소되지 않고 가만히 있어요. 틀만 사진 위에서 움직이고 커지고 작아지며, 틀 바깥은 어둡게 보여요. 사진과 틀이 다 보이게 하려면 [화면에 맞추기]를 눌러요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [🔍 틀 따라 사진 확대·축소]를 켜요. 고른 것은 기억해요."
+      textEn="In Make cover, the picture no longer zooms in and out while you drag the frame: it stays still and only the frame moves and changes size over it, with the outside dimmed. [Fit to the window] shows the whole picture and the frame. To zoom with the frame as before, turn on [🔍 Zoom the picture with the frame]. Your choice is remembered."/>
+</release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."
     summaryEn="Drag the text on a moving picture to put it exactly where you want.">

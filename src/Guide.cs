@@ -1052,6 +1052,8 @@ namespace LoveMyShelf {
                       "표지 만들기 화면 가운데에 테두리가 있어요. 처음에는 사진 전체가 들어 있어요. 테두리 안에 보이는 부분이 그대로 표지가 돼요."),
                     T("Drag the blue handles on the frame's corners and edges to give it any shape. [[Fill the grid's cell]] gives it the shape of the grid's cells, so it fills its cell with no empty bands. You can also press [[Whole picture]], [[9:16]], [[3:4]], [[1:1]], [[4:3]], [[16:9]], or type a width and height.",
                       "테두리의 모서리나 변의 파란 손잡이를 끌면 아무 모양으로나 바뀌어요. [[칸에 꽉 맞추기]]를 누르면 바둑판 칸과 같은 모양이 돼서 칸에 빈 띠 없이 꽉 차요. [[원본 그대로]], [[9:16]], [[3:4]], [[1:1]], [[4:3]], [[16:9]]를 누르거나 가로·세로 숫자를 직접 넣어도 돼요."),
+                    T("The picture stays still while you drag the frame; only the frame moves and changes size, and the outside is dimmed. [[Fit to the window]] shows the whole picture and the frame. Turn on [[🔍 Zoom the picture with the frame]] to have the picture zoom with the frame as before.",
+                      "틀을 끌어도 사진은 가만히 있고 틀만 움직이고 커지고 작아져요. 틀 바깥은 어둡게 보여요. [[화면에 맞추기]]를 누르면 사진과 틀이 다 보여요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [[🔍 틀 따라 사진 확대·축소]]를 켜요."),
                     T("[[How it shows in your grid]] on the right shows how the cover sits in your grid's cells. A wide cover takes two cells side by side.",
                       "오른쪽 [[내 바둑판에서는 이렇게 보여요]]에 표지가 바둑판 칸에 어떻게 들어가는지 보여요. 가로로 긴 표지는 칸 두 개를 나란히 차지해요."),
                     T("Drag the picture to change its position, and roll the wheel to change its size.",
