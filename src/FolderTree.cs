@@ -216,6 +216,7 @@ namespace LoveMyShelf {
             var lms=Row(new TreeEntry {Kind="lms",Label="Love My Shelf",Group="lms"},false);
             lms.Items.Add(Row(new TreeEntry {Kind="coverO",Label=owner.AllCropsAlbum.Name,Album=owner.AllCropsAlbum},false));
             lms.Items.Add(Row(new TreeEntry {Kind="coverX",Label=owner.UnfinishedAlbum.Name,Album=owner.UnfinishedAlbum},false));
+            lms.Items.Add(Row(new TreeEntry {Kind="similar",Label=owner.SimilarAlbum.Name,Album=owner.SimilarAlbum},false));
             foreach(var album in owner.Store.VisibleAlbums())
                 lms.Items.Add(Row(new TreeEntry {Kind="tab",Label=album.Name,Album=album,Path=album.Source},true));
             lms.IsExpanded=!folded.Contains("lms");
@@ -301,9 +302,11 @@ namespace LoveMyShelf {
             var shelf=new MenuItem();shelf.Click+=delegate {
                 if(owner.OnShelf(entry.Path))owner.RemoveFromShelf(entry.Path);else owner.AddToShelf(entry.Path);
             };
-            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(new Separator());menu.Items.Add(explorer);
+            var similar=new MenuItem();similar.Click+=delegate {owner.FindSimilar(entry.Path);};
+            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(similar);menu.Items.Add(new Separator());menu.Items.Add(explorer);
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
+                similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
                 shelf.Header=L.T(owner.OnShelf(entry.Path)?"Remove from Love My Shelf":"Add to Love My Shelf");
             };
             return menu;
@@ -475,6 +478,7 @@ namespace LoveMyShelf {
             {"pin","M 6.5,2.5 L 11.5,2.5 L 10.5,7 L 13,9.5 L 5,9.5 L 7.5,7 Z M 9,9.5 L 9,15.5"},
             {"coverO","M 5.5,1.5 L 12.5,1.5 L 12.5,16.5 L 5.5,16.5 Z M 9,7 A 2,2 0 1 1 8.99,7 Z"},
             {"coverX","M 5.5,1.5 L 12.5,1.5 L 12.5,16.5 L 5.5,16.5 Z M 7.3,7.3 L 10.7,10.7 M 10.7,7.3 L 7.3,10.7"},
+            {"similar","M 2.5,4.5 L 10.5,4.5 L 10.5,15.5 L 2.5,15.5 Z M 7.5,2.5 L 15.5,2.5 L 15.5,13.5 L 10.5,13.5"},
         };
         static FrameworkElement Line(string drawing,double size) {
             var path=new System.Windows.Shapes.Path {Data=Geometry.Parse(drawing),Width=18,Height=18,StrokeThickness=1.3,

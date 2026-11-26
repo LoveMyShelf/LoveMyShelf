@@ -333,9 +333,11 @@ namespace LoveMyShelf {
             var explorer=new MenuItem();explorer.Click+=delegate {
                 try {System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) {UseShellExecute=true});} catch(Exception ex) {UI.Error(owner,ex);}
             };
-            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(new Separator());menu.Items.Add(explorer);
+            var similar=new MenuItem();similar.Click+=delegate {owner.FindSimilar(path);};
+            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(similar);menu.Items.Add(new Separator());menu.Items.Add(explorer);
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
+                similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
                 shelf.Header=L.T(owner.OnShelf(path)?"Remove from Love My Shelf":"Add to Love My Shelf");
             };
             return menu;

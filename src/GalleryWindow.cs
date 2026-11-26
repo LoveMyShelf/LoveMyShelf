@@ -45,7 +45,7 @@ namespace LoveMyShelf {
         }
         // The file a tile shows: the cover, or the original when the cover is hidden or missing.
         internal static string ShownImage(Photo photo) {
-            return photo.HasCrop && !photo.ExcludedFromCollection?photo.GridImage:photo.Original;
+            return photo.ShowsCover?photo.GridImage:photo.Original;
         }
         static async void LoadTile(Button tile,Image image,Photo photo,PhotoRow row,CancellationToken token,Action loaded=null) {
             try {
@@ -67,7 +67,7 @@ namespace LoveMyShelf {
                     catch(Exception) {}
                 }
                 // Still no luck: the small copy saved with the cover is better than an empty tile.
-                if(bitmap==null && photo.HasCrop && !photo.ExcludedFromCollection && File.Exists(photo.Thumb))
+                if(bitmap==null && photo.ShowsCover && File.Exists(photo.Thumb))
                     bitmap=await TileImages.LoadSavedCopy(photo,side,row.Number,()=>owner.CenterRow,token);
                 if(bitmap==null)throw new InvalidDataException();
                 if(!token.IsCancellationRequested) {image.Source=bitmap;if(loaded!=null)loaded();}
@@ -122,6 +122,9 @@ namespace LoveMyShelf {
                     tile.SetValue(TileMark.NameHeightProperty,row.Owner.TileNameHeight-GalleryWindow.TileNamePadding);
                 }
                 UI.Use(tile,Control.BackgroundProperty,"TileBand");
+                if(photo.SimilarLabel!=null)tile.SetValue(TileMark.GroupProperty,photo.SimilarLabel);
+                if(photo.SimilarKeep)tile.SetValue(TileMark.KeepProperty,L.P("Suggested to keep","남기기 추천"));
+                if(photo.SimilarInfo!=null){tile.SetValue(TileMark.InfoProperty,photo.SimilarInfo);tile.SetValue(TileMark.HasInfoProperty,true);}
                 AutomationProperties.SetName(tile,photo.Name);
                 row.Owner.TrackTile(tile,photo);
                 tile.PreviewMouseLeftButtonDown+=(s,e)=>row.Owner.NoteClickCount(e.ClickCount);
@@ -129,6 +132,7 @@ namespace LoveMyShelf {
                 // The menu is built the first time it opens, not for every tile that scrolls by.
                 Func<ContextMenu> buildMenu=()=>{
                 var menu=new ContextMenu();
+                row.Owner.AddSimilarItems(menu,photo);
                 if(photo.HasCrop) {
                     // With a GIF cover the names say JPG and GIF, so each choice is clear about what it touches.
                     bool both=photo.HasMotion;
@@ -240,7 +244,7 @@ namespace LoveMyShelf {
                 };
                 Action loaded=null;
                 var mode=row.Owner.Settings.GridGif;
-                if(photo.HasMotion && mode!=GifPlayback.Never)loaded=AttachMotion(tile,image,photo,mode,row.Height,pending.Token,row.Owner);
+                if(photo.HasMotion && !photo.ShowOriginal && mode!=GifPlayback.Never)loaded=AttachMotion(tile,image,photo,mode,row.Height,pending.Token,row.Owner);
                 ShareTiles.AttachDrag(tile,row.Owner,photo);
                 var reflow=allowReflow?row.Owner.CurrentReflow:null;
                 var kept=reflow!=null && !photo.HasMotion?reflow.ImageFor(photo):null;
@@ -437,6 +441,46 @@ namespace LoveMyShelf {
                 RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
             time.AppendChild(clock);
             root.AppendChild(time);
+            // "Similar photos": the group's label on its first tile, and "suggested to keep", top left.
+            var marks=new FrameworkElementFactory(typeof(StackPanel),"SimilarMarks");
+            marks.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            marks.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);
+            marks.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Top);
+            marks.SetValue(FrameworkElement.MarginProperty,new Thickness(5,5,5,0));
+            foreach(var mark in new[]{Tuple.Create("SimilarGroup",TileMark.GroupProperty,true),Tuple.Create("SimilarKeep",TileMark.KeepProperty,false)}) {
+                var box=new FrameworkElementFactory(typeof(Border),mark.Item1);
+                box.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);
+                box.SetValue(FrameworkElement.MarginProperty,new Thickness(0,0,0,3));
+                box.SetValue(Border.PaddingProperty,new Thickness(6,1,6,2));
+                box.SetValue(Border.CornerRadiusProperty,new CornerRadius(6));
+                if(mark.Item3)box.SetResourceReference(Border.BackgroundProperty,"Accent");else box.SetValue(Border.BackgroundProperty,TileMark.NumberBack);
+                var words=new FrameworkElementFactory(typeof(TextBlock));
+                words.SetValue(TextBlock.FontSizeProperty,11.0);
+                words.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);
+                words.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap); // a narrow tile shows the label on two lines
+                if(mark.Item3)words.SetResourceReference(TextBlock.ForegroundProperty,"Paper");else words.SetValue(TextBlock.ForegroundProperty,Brushes.White);
+                words.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding {Path=new PropertyPath(mark.Item2),
+                    RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+                box.AppendChild(words);
+                marks.AppendChild(box);
+            }
+            root.AppendChild(marks);
+            // "Similar photos": what is known about the file (size, type, date, how it differs), over the bottom of the picture.
+            var info=new FrameworkElementFactory(typeof(Border),"SimilarInfo");
+            info.SetValue(UIElement.IsHitTestVisibleProperty,false);
+            info.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Bottom);
+            info.SetValue(Border.PaddingProperty,new Thickness(5,2,5,3));
+            info.SetValue(Border.BackgroundProperty,TileMark.InfoBack);
+            var facts=new FrameworkElementFactory(typeof(TextBlock));
+            facts.SetValue(TextBlock.FontSizeProperty,10.5);
+            facts.SetValue(TextBlock.ForegroundProperty,Brushes.White);
+            facts.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
+            facts.SetValue(TextBlock.LineHeightProperty,14.0);
+            facts.SetValue(TextBlock.LineStackingStrategyProperty,LineStackingStrategy.BlockLineHeight);
+            facts.SetBinding(TextBlock.TextProperty,new System.Windows.Data.Binding {Path=new PropertyPath(TileMark.InfoProperty),
+                RelativeSource=System.Windows.Data.RelativeSource.TemplatedParent});
+            info.AppendChild(facts);
+            root.AppendChild(info);
             // Every cover of the original under the mouse gets this outline.
             var family=new FrameworkElementFactory(typeof(Border),"CoverFamily");
             family.SetValue(UIElement.IsHitTestVisibleProperty,false);
@@ -458,6 +502,20 @@ namespace LoveMyShelf {
             var noTime=new Trigger {Property=TileMark.TimeProperty,Value=null};
             noTime.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverTime"));
             tileTemplate.Triggers.Add(noTime);
+            var noGroup=new Trigger {Property=TileMark.GroupProperty,Value=null};
+            noGroup.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"SimilarGroup"));
+            tileTemplate.Triggers.Add(noGroup);
+            var noKeep=new Trigger {Property=TileMark.KeepProperty,Value=null};
+            noKeep.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"SimilarKeep"));
+            tileTemplate.Triggers.Add(noKeep);
+            var noInfo=new Trigger {Property=TileMark.InfoProperty,Value=null};
+            noInfo.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"SimilarInfo"));
+            tileTemplate.Triggers.Add(noInfo);
+            // The facts band takes the bottom of the tile: the cover number and time give way (the band says how many covers).
+            var hasInfo=new Trigger {Property=TileMark.HasInfoProperty,Value=true};
+            hasInfo.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverNumber"));
+            hasInfo.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"CoverTime"));
+            tileTemplate.Triggers.Add(hasInfo);
             var noName=new Trigger {Property=TileMark.NameProperty,Value=null};
             noName.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed,"FileName"));
             tileTemplate.Triggers.Add(noName);
@@ -473,6 +531,11 @@ namespace LoveMyShelf {
         static Brush Frozen(Color color) {var brush=new SolidColorBrush(color);brush.Freeze();return brush;}
         internal static readonly DependencyProperty NumberProperty=DependencyProperty.RegisterAttached("Number",typeof(string),typeof(TileMark));
         internal static readonly DependencyProperty TimeProperty=DependencyProperty.RegisterAttached("Time",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty GroupProperty=DependencyProperty.RegisterAttached("Group",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty KeepProperty=DependencyProperty.RegisterAttached("Keep",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty InfoProperty=DependencyProperty.RegisterAttached("Info",typeof(string),typeof(TileMark));
+        internal static readonly DependencyProperty HasInfoProperty=DependencyProperty.RegisterAttached("HasInfo",typeof(bool),typeof(TileMark));
+        internal static readonly Brush InfoBack=Frozen(Color.FromArgb(0xB8,0,0,0));
         internal static readonly DependencyProperty LitProperty=DependencyProperty.RegisterAttached("Lit",typeof(bool),typeof(TileMark));
         internal static readonly DependencyProperty NameProperty=DependencyProperty.RegisterAttached("Name",typeof(string),typeof(TileMark));
         internal static readonly DependencyProperty NameHeightProperty=DependencyProperty.RegisterAttached("NameHeight",typeof(double),typeof(TileMark),new PropertyMetadata(0.0));
@@ -523,7 +586,7 @@ namespace LoveMyShelf {
             }
         }
     }
-    public class GalleryWindow : Window {
+    public partial class GalleryWindow : Window {
         readonly GalleryStore store;
         readonly Action<string,IntPtr> moveToRecycleBin;
         // A second window opened beside the first one (to drag originals between two folders).
@@ -932,6 +995,7 @@ namespace LoveMyShelf {
             folderPane=new FolderPane(this);area.Children.Add(folderPane);
             area.SizeChanged+=delegate {PlaceFolderPane();};
             PlaceFolderPane();
+            SetupSimilar(area);
             var host=new Grid();area.Children.Add(host);
             grid.BorderThickness=new Thickness(0);grid.Padding=new Thickness(0);grid.Margin=new Thickness(2,0,1,0);UI.Use(grid,Control.BackgroundProperty,"Paper");
             var style=new Style(typeof(ListBoxItem));
@@ -1361,6 +1425,7 @@ namespace LoveMyShelf {
             UI.Use(tagsButton,Control.ForegroundProperty,ShowingTag?"Accent":"Text");
             UI.Use(tagsButton,Control.BorderBrushProperty,ShowingTag?"Accent":"Line");
             filter.Visibility=active.Source==null?Visibility.Collapsed:Visibility.Visible;
+            ShowSimilarBar();
             if(updateFooter!=null)updateFooter();
             int view;
             folderFilter=folderFilters.TryGetValue(active.Folder,out view)?view:0;
@@ -1396,6 +1461,7 @@ namespace LoveMyShelf {
             historyMove=true;
             try {
                 if(key.StartsWith("@"+TagKey,StringComparison.Ordinal))Select(TagAlbum(key.Substring(1+TagKey.Length)));
+                else if(key=="@"+SimilarKey)Select(SimilarAlbum);
                 else if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
                 else if(Directory.Exists(key))NavigateTo(key);
             } finally {historyMove=false;}
@@ -1795,7 +1861,14 @@ namespace LoveMyShelf {
             int skipped=0; folderUnavailable=false;
             var folders=new List<Tuple<string,int>>();
             try {
-                if(ShowingAllCrops || ShowingUnfinished || ShowingTag) {
+                if(ShowingSimilar) {
+                    canShuffle=false;
+                    if(similarShown==null){photos=new List<Photo>();subfolders=new List<Tuple<string,int>>();LayoutRows();} // not the last place's tiles meanwhile
+                    var built=await BuildSimilar(search.Text.Trim());
+                    if(version!=refreshVersion) return;
+                    similarShown=built;
+                    photos=PadSimilar(Math.Max(2,columns));
+                } else if(ShowingAllCrops || ShowingUnfinished || ShowingTag) {
                     bool pending=ShowingUnfinished;
                     string tag=ShownTag;
                     photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
@@ -1852,7 +1925,7 @@ namespace LoveMyShelf {
             catch(UnauthorizedAccessException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             string query=search.Text.Trim();
             // The search box finds file names and tags alike; "#word" looks at tags only.
-            if(query.Length>0) {
+            if(query.Length>0 && !ShowingSimilar) {
                 bool tagsOnly=query.StartsWith("#");
                 string word=query.TrimStart('#').Trim();
                 bool anyTags=Tags.Any;
@@ -1863,7 +1936,7 @@ namespace LoveMyShelf {
             subfolders=folders;
             ClearSelection();
             // The covers of one original keep their order inside the shuffled group (the sort is stable).
-            if(shuffledOrder!=null) photos=photos.OrderBy(p=>{
+            if(shuffledOrder!=null && !ShowingSimilar) photos=photos.OrderBy(p=>{
                 int rank; return shuffledOrder.TryGetValue(GalleryStore.CoverFamily(p),out rank)?rank:Int32.MaxValue;
             }).ToList();
             skippedCount=skipped;
@@ -1882,6 +1955,7 @@ namespace LoveMyShelf {
         // Nothing on screen because the folders here are folded: say so, so it never looks frozen.
         bool FoldersFoldedAway {get {return photos.Count==0 && subfolders.Count>0 && folderPane.IsFolded;}}
         internal void ShowEmptyNote() {
+            if(ShowingSimilar){SimilarEmptyNote();return;}
             bool pending=ShowingPending,searching=search.Text.Trim().Length>0,foldedAway=FoldersFoldedAway;
             bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
             bool driveAway=folderUnavailable && active!=null && active.Source!=null && DriveLinks.DriveAway(active.Source);
@@ -1911,6 +1985,7 @@ namespace LoveMyShelf {
             empty.Visibility=photos.Count==0 && (subfolders.Count==0||foldedAway)?Visibility.Visible:Visibility.Collapsed;
         }
         void SetCount(int skipped) {
+            if(ShowingSimilar){SimilarCount();updateFooter();return;}
             // Counts are of originals: an original's extra cover tiles are not counted again.
             int total=photos.Count(p=>p!=null && !p.IsExtra);
             int covers=photos.Count(p=>p!=null && !p.IsExtra && p.HasCrop);
@@ -1946,6 +2021,7 @@ namespace LoveMyShelf {
             TileNameHeight=NameStripHeight(width/columns);
             double height=(width/columns-1)*16/9+1+TileNameHeight; // the picture stays 9:16; the name strip is added below it
             rowHeight=height;cellWidth=width/columns;
+            if(ShowingSimilar && similarShown!=null)photos=PadSimilar(columns); // each group starts a row of its own
             rows=new List<PhotoRow>();
             // Folder tiles come first, in rows of their own; the file rows follow (their numbers count the folder rows).
             // Three folder cards are stacked in each cell, so a row holds three times as many folders as tiles.
@@ -2593,6 +2669,7 @@ namespace LoveMyShelf {
         public void RecycleOriginal(Photo photo) {RecycleOriginals(new[]{photo});}
         // Sends originals to the Recycle Bin. Every tile of an original (its extra covers too) leaves the list at once.
         internal void RecycleOriginals(IEnumerable<Photo> targets) {
+            if(ShowingSimilar){SimilarRecycle(targets.ToList());return;}
             if(ShowingAllCrops)return;
             targets=WithoutCoverWork(targets);
             FinishPendingCovers();
@@ -3586,7 +3663,8 @@ namespace LoveMyShelf {
             shownTiles[photo.Folder]=tile;
             if(cutFolders.Contains(photo.Folder))tile.Opacity=0.45;
             tile.MouseEnter+=delegate {
-                if(!(settings.TileNames==3 && wholeNamesFit))ShowNameSoon(tile,photo.Name); // already written in full under the tile
+                if(photo.SimilarFile!=null && photo.Similar!=null)ShowNameSoon(tile,SimilarInfo.Card(photo.Similar,photo.SimilarFile,photo.SimilarCovers),true);
+                else if(!(settings.TileNames==3 && wholeNamesFit))ShowNameSoon(tile,photo.Name); // already written in full under the tile
                 CoverSibling mark;LightCoverFamily(coverMarks.TryGetValue(photo.Folder,out mark)?mark.Family:null);
             };
             tile.MouseLeave+=delegate {if(nameTile==tile)HideName();LightCoverFamily(null);};
@@ -3666,9 +3744,10 @@ namespace LoveMyShelf {
             grid.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler((s,e)=>{if(e.VerticalChange!=0)HideName();}));
             Deactivated+=delegate {HideName();};
         }
-        internal void ShowNameSoon(Button tile,string name) {
+        internal void ShowNameSoon(Button tile,string name,bool details=false) {
             // Korean words stay whole when the name wraps onto a second line.
             nameTile=tile;nameText.Text=NoticeLook.KeepWords(name);
+            nameText.TextAlignment=details?TextAlignment.Left:TextAlignment.Center; // the "Similar photos" card lists facts line by line
             nameTimer.Stop();
             if(nameCard.Visibility==Visibility.Visible)PlaceName(); // already showing a name: move straight to this tile
             else nameTimer.Start();
@@ -3738,12 +3817,12 @@ namespace LoveMyShelf {
             selected.Clear();focusIndex=anchorIndex=index;
             if(settings.OpenByDoubleClick) {
                 selected.Add(photo.Folder);RefreshSelection();
-                if(clicks>=2)OpenPhoto(photo);
+                if(clicks>=2 && !SimilarOpen(photo))OpenPhoto(photo);
                 return;
             }
             // One-click mode only remembers where you are (for the arrow keys); it doesn't leave a selection behind.
             RefreshSelection();
-            OpenPhoto(photo);
+            if(!SimilarOpen(photo))OpenPhoto(photo);
         }
         void SelectRange(int from,int to) {
             selected.Clear();
@@ -3780,6 +3859,10 @@ namespace LoveMyShelf {
                 case Key.End:MoveFocus(photos.Count-1,shift);break;
                 case Key.Enter:
                     if(focusIndex<0 || photos[focusIndex]==null)return;
+                    if(!SimilarOpen(photos[focusIndex]))OpenPhoto(photos[focusIndex]);break;
+                // In the similar photos, double-click and Enter compare; Space opens the large view.
+                case Key.Space:
+                    if(!ShowingSimilar || focusIndex<0 || photos[focusIndex]==null)return;
                     OpenPhoto(photos[focusIndex]);break;
                 case Key.A:
                     if(!control)return;
@@ -3826,6 +3909,7 @@ namespace LoveMyShelf {
         void DeleteSelected() {
             var targets=Targets(FocusedOrOnly());
             if(targets.Count==0)return;
+            if(ShowingSimilar){SimilarRecycle(targets);return;}
             bool covers=ShowingAllCrops;
             // An original with several cover tiles is one original.
             int items=covers?targets.Count:targets.Where(p=>p.Linked).GroupBy(p=>Path.GetDirectoryName(p.Folder)+"|"+p.Name,StringComparer.OrdinalIgnoreCase).Count();
@@ -3912,6 +3996,9 @@ namespace LoveMyShelf {
             var people=new MenuItem {Header=L.T("Find people by face…")};
             people.Click+=delegate {FaceWindow.Open(this,store);};
             menu.Items.Add(people);
+            var similar=new MenuItem {Header=L.P("Similar photos","비슷한 사진 모음")};
+            similar.Click+=delegate {Select(SimilarAlbum);};
+            menu.Items.Add(similar);
             menu.IsOpen=true;
         }
         void RenameShownTag() {
@@ -4180,6 +4267,14 @@ namespace LoveMyShelf {
             if(index<0){items=new List<Photo>{saved};index=0;}
             else items[index]=saved;
             OpenViewer(items,index,true);
+        }
+        // Files sent to the Recycle Bin from the similar photos: folder windows showing their folder read it again.
+        internal void FilesRecycled(IList<string> paths) {
+            var folders=paths.Select(p=>Path.GetDirectoryName(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            foreach(var window in Application.Current.Windows.OfType<GalleryWindow>().ToList()) {
+                if(window.active==null || window.active.Source==null)continue;
+                if(folders.Any(f=>ShellPlaces.Same(f,window.active.Source)))window.ReloadKeepingPlace();
+            }
         }
         internal async void OpenInDefaultPlayer(Photo photo) {
             try {

@@ -21,7 +21,7 @@ namespace LoveMyShelf {
         // side: the tile height in device pixels. row and center place the job so the middle of the screen loads first.
         internal static async Task<BitmapSource> Load(Photo photo,int side,int row,Func<int> center,CancellationToken token) {
             string path=TileRow.ShownImage(photo);
-            bool cover=photo.HasCrop && !photo.ExcludedFromCollection;
+            bool cover=photo.ShowsCover;
             long ticks=Ticks(path);
             string key=(cover?"c|":"o|")+side+"|"+path;
             var hit=TileCache.Get(key,ticks);

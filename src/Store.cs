@@ -142,6 +142,15 @@ namespace LoveMyShelf {
     }
     public class Photo {
         public string Folder, Original, Thumb, Name;
+        // Set only in the "Similar photos" collection: the group, the file, the group's label (on its first tile),
+        // whether it is the one suggested to keep, and whether the tile shows the original instead of the cover.
+        internal SimilarGroup Similar;
+        internal SimilarFile SimilarFile;
+        internal string SimilarLabel;
+        internal bool SimilarKeep,ShowOriginal;
+        internal string SimilarInfo;   // the lines over the bottom of the tile (size, type, date, how it differs)
+        internal int SimilarCovers;
+        internal bool ShowsCover {get {return HasCrop && !ExcludedFromCollection && !ShowOriginal;}}
         internal string CoverFile;
         internal long CoverFileTicks;
         // Set only on the result of a save that could not write to the chosen place.

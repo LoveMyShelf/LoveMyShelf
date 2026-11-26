@@ -203,6 +203,11 @@ namespace LoveMyShelf {
                 Environment.Exit(FaceEngine.RunChild(args[1],args[2]));
                 return;
             }
+            // So does reading pictures for "Find similar photos".
+            if(args.Length==3 && args[0]==SimilarEngine.ChildSwitch) {
+                Environment.Exit(SimilarEngine.RunChild(args[1],args[2]));
+                return;
+            }
             string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with Love My Shelf"
             // Asked by taking it, not by whether it was already there: the update helper keeps it open, without holding
             // it, while it waits for this new version to start, and that must not look like a second copy running.
