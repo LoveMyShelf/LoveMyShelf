@@ -161,6 +161,12 @@ namespace LoveMyShelf {
                 all.Click+=delegate {foreach(var a in shelf)SimilarSearch.AddFolder(a.Source);};
                 menu.Items.Add(all);
             }
+            // Right beside it: with two or more folders in the list, one click takes them all out.
+            if(SimilarSearch.Folders.Count>=2) {
+                var none=new MenuItem {Header=L.PF("Take out every folder ({0})","폴더 모두 빼기 ({0}개)",SimilarSearch.Folders.Count),IsEnabled=!busy};
+                none.Click+=delegate {SimilarSearch.RemoveAllFolders();};
+                menu.Items.Add(none);
+            }
             menu.Items.Add(new Separator());
             var inside=new MenuItem {Header=S("Include the folders inside","안에 있는 폴더도 함께"),IsCheckable=true,IsChecked=SimilarSearch.Inside,IsEnabled=!busy};
             inside.Click+=delegate {SimilarSearch.Inside=inside.IsChecked;SimilarSearch.SaveSettings();};

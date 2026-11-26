@@ -85,9 +85,12 @@ namespace LoveMyShelf {
             Folders.Add(folder);SaveSettings();Tell();
             return true;
         }
-        internal static void RemoveFolder(string folder) {
+        internal static void RemoveFolder(string folder) {RemoveFolders(f=>ShellPlaces.Same(f,folder));}
+        // [Take out every folder]: the list empties in one click.
+        internal static void RemoveAllFolders() {RemoveFolders(f=>true);}
+        static void RemoveFolders(Predicate<string> which) {
             if(Busy || Working)return;
-            Folders.RemoveAll(f=>ShellPlaces.Same(f,folder));SaveSettings();
+            Folders.RemoveAll(which);SaveSettings();
             // Nothing left to look through: last time's groups go too.
             if(Folders.Count==0) {
                 Files=new List<SimilarFile>();Exact=new List<SimilarGroup>();Near=new List<SimilarGroup>();HasResult=false;Phase="";
