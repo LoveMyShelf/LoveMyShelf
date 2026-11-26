@@ -3432,6 +3432,8 @@ namespace LoveMyShelf {
             own.Items.Add(sortBy);
             var refresh=new MenuItem {Header=L.T("Refresh"),InputGestureText="F5"};refresh.Click+=delegate {Refresh();StartCoverMigration();DrivesChangedSoon(0.3);};
             own.Items.Add(refresh);
+            var phone=new MenuItem {Header=L.P("Send to phone…","휴대폰으로 보내기…")};phone.Click+=delegate {SendToPhone();};
+            own.Items.Add(phone);
             // Paste and Undo as in File Explorer's blank-space menu (Windows' part outside File Explorer has neither).
             own.Items.Add(new Separator());
             bool canPaste=false;try {canPaste=active!=null && active.Source!=null && Clipboard.ContainsFileDropList();} catch(Exception) {}

@@ -1458,6 +1458,12 @@ namespace LoveMyShelf {
                         "원하면 원본 사진·영상도 같은 비밀번호로 ‘잠긴 사진 상자’에 넣어 둘 수 있어요. 7-Zip으로 그 비밀번호를 넣으면 열려요."),
                     T("When it's time, Love My Shelf reminds you when it starts (every week unless you change it).","백업할 때가 되면 Love My Shelf를 켤 때 알려 드려요(바꾸지 않으면 1주일마다).")}});
 
+            backup.Items.Add(new Card {Title=T("See your covers on your phone","휴대폰에서 표지 보기"),
+                Lines=new[]{T("Right-click a blank spot in a folder and choose [[Send to phone…]]. The covers on screen are copied into a Google Drive or OneDrive folder in the order shown, as 001_name.jpg, 002_name.jpg … Open that folder in the same app on your phone and sort it by name.",
+                    "폴더의 빈 곳을 오른쪽 클릭하고 [[휴대폰으로 보내기…]]를 누르세요. 화면의 표지가 보이는 순서 그대로 001_이름.jpg, 002_이름.jpg …처럼 구글 드라이브나 OneDrive 폴더에 복사돼요. 휴대폰의 같은 앱에서 그 폴더를 열고 이름순으로 보면 돼요."),
+                    T("Covers only is the default. If you choose covers and originals, each photo or video comes right after its cover, so you can open it on the phone too.","기본은 표지만이에요. 표지와 원본 함께를 고르면 사진·영상이 표지 바로 뒤에 들어가서 휴대폰에서 원본도 열어 볼 수 있어요."),
+                    T("They are copies, so deleting them on the phone changes nothing on this computer. They do go up to the cloud: keep private photos in a locked photo box instead.","복사본이라 휴대폰에서 지워도 이 컴퓨터는 그대로예요. 다만 클라우드에 올라가니 남에게 보이면 안 되는 사진은 잠긴 사진 상자에 넣어 두세요.")}});
+
             // ----- Screen, language and updates -----
             var screen=add("screen",T("Screen, language, updates","화면·언어·새 버전"));
             screen.Items.Add(new Setting {Id="theme",SectionId="screen",Title=T("Light or dark screen?","화면을 밝게 할까요, 어둡게 할까요?"),
