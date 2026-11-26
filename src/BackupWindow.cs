@@ -330,7 +330,7 @@ namespace LoveMyShelf {
         }
         void PasswordPage() {
             NewPage(T("Your backup password","백업을 잠글 비밀번호를 넣어 주세요"));
-            Para(T("A password you already use is fine, 8 characters or more.","평소 쓰는 비밀번호도 괜찮아요(8자 이상)."),true);
+            Para(T("Use 8 characters or more.","8자 이상으로 넣어 주세요."),true);
             if(settings.BoxOn)Para(T("The photo boxes are locked with the same password, so a restore asks for it only once.",
                 "사진 상자도 같은 비밀번호로 잠가요. 그래서 복원할 때 한 번만 넣으면 돼요."),true);
             var first=Secret();page.Children.Add(first);
