@@ -4,7 +4,7 @@
 
 영상, 사진, 움짤이 잔뜩 쌓인 폴더를 한눈에 보는 Windows 프로그램이에요. 파일 탐색기처럼 쓰면서, 파일마다 **내가 고른 장면을 표지로** 붙일 수 있어요.
 
-세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)끼리 토큰을 아끼지 않고 토론시켜 만들었고, 만든 사람이 매일 하루 종일 직접 쓰면서 불편한 점을 하나씩 고쳤어요. 그래서 처음 쓰는 분은 시간과 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓸 수 있어요.
+세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)가 토큰을 아끼지 않고 서로 토론하게 해서 만들었고, 제가 매일 하루 종일 쓰면서 불편한 걸 하나씩 고쳤어요. 쓰시는 분은 시간이나 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓰시면 돼요.
 
 ### [⬇ Love My Shelf 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
@@ -16,20 +16,11 @@
 - 지우면 휴지통으로만 가요. 휴지통을 쓸 수 없는 곳(예: 네트워크 폴더)이면 아예 지우지 않아요.
 - 다른 드라이브로 옮길 때는 복사가 끝까지 잘 됐는지 확인한 다음에 원래 자리의 파일을 지워요.
 
-받는 파일은 약 220MB예요. 영상 재생기와 AI 기능(표지를 4배 크고 선명하게, 얼굴로 사람 찾기)이 모두 들어 있어서 그래요. AI 기능은 인터넷에 올리지 않고 내 컴퓨터 안에서만 돌아가요.
+다운로드 용량은 약 220MB예요. 영상 재생기랑 AI 기능(표지를 4배 크고 선명하게 키우기, 얼굴로 사람 찾기)이 다 들어 있어서 좀 커요. AI 기능은 내 PC 안에서만 돌아가고, 파일이 인터넷으로 올라가진 않아요.
 
-광고, 가입, 유료 기능 없이 **완전 무료**예요. 소스 코드도 전부 공개돼 있어요(GPL-3.0). ZIP을 풀고 `LoveMyShelf.exe`를 켜면 바로 쓸 수 있고, 따로 설치할 건 없어요. 인터넷은 새 버전이 나왔는지 볼 때만 쓰는데, 이것도 끌 수 있어요.
+광고나 가입, 유료 기능 없는 무료 프로그램이고, 소스 코드도 GPL-3.0으로 전부 공개돼 있어요. 설치할 필요 없이 ZIP을 풀고 `LoveMyShelf.exe`를 실행하면 바로 켜져요. 사용 기록은 모으지 않고, 인터넷은 업데이트 확인할 때만 쓰는데 「설명서 겸 옵션」에서 끌 수 있어요.
 
-## 이럴 때 좋아요
-
-| 하고 싶은 일 | 잘 맞는 프로그램 |
-|---|---|
-| 사진을 한 장씩 빠르게 넘겨 보기 | 꿀뷰·알씨 같은 가벼운 사진 뷰어 |
-| 영상·움짤·사진이 섞인 폴더를 큰 그림으로 한눈에 훑기 | **Love My Shelf** |
-| 영상마다 내가 고른 장면을 표지로 붙이고, 움직이는 표지도 만들기 | **Love My Shelf** |
-| 탐색기처럼 복사·옮기기·이름 바꾸기를 해도 표지가 함께 옮겨지게 하기 | **Love My Shelf** |
-
-**이럴 때는 다른 프로그램이 나아요**
+## 이럴 땐 다른 프로그램이 나아요
 
 - 아이폰 사진(HEIC), 카메라 RAW, AVIF 파일을 봐야 할 때: 아직 못 열어요.
 - 사진을 보정하거나 그림을 편집하고 싶을 때: Love My Shelf는 편집 프로그램이 아니에요.
@@ -60,15 +51,13 @@
 
 처음 켤 때 파란 **"Windows의 PC 보호"** 창이 뜰 수 있어요. 개인이 만든 프로그램이라 인증서가 없어서 그래요. **추가 정보**를 누른 다음 **실행**을 누르면 돼요.
 
-새 버전이 나오면 프로그램 오른쪽 아래에 알림이 떠요. 알림을 누르면 바뀐 내용을 보여 주고, 한 번 더 누르면 새 버전으로 바뀌어요. 만든 표지와 설정은 그대로 남아요.
+새 버전이 나오면 오른쪽 아래에 알림이 떠요. 누르면 바뀐 내용을 볼 수 있고, 한 번 더 누르면 바로 업데이트돼요. 만들어 둔 표지랑 설정은 그대로 유지돼요.
 
 ## 왜 만들었나요
 
-다운로드 폴더나 짤 폴더에 파일이 수천 개 쌓이면 원하는 걸 찾기 힘들어요. 미리보기 그림은 작고, 영상은 엉뚱한 첫 장면만 보여서 결국 하나씩 열어 보게 돼요.
+다운로드 폴더나 짤 폴더에 파일이 수천 개 쌓이면 원하는 걸 찾기 힘들어요. 썸네일은 작고 영상은 엉뚱한 첫 장면만 떠서 결국 하나씩 열어 보게 돼요.
 
-Love My Shelf는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일을 큼직한 그림으로 바둑판처럼 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **9:16 세로 표지**로 저장하면, 그 파일은 다음부터 그 표지로 보여요.
-
-**원본 파일은 건드리지 않아요.** 표지는 항상 별도 파일로 저장돼요.
+Love My Shelf는 익숙한 파일 탐색기 사용법은 그대로 두고, 파일들을 큰 썸네일로 나란히 보여 줘요. 사진이나 영상에서 마음에 드는 장면을 **9:16 세로 표지**로 저장하면, 그 파일은 다음부터 그 표지로 보여요.
 
 ## 이렇게 써요
 
@@ -130,20 +119,13 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 - 자막: SMI, SRT, ASS, VTT
 - 아직 못 여는 것: HEIC, AVIF, 카메라 RAW
 
-## 내 파일은 안전한가요
-
-- 원본 사진과 영상은 바꾸지 않아요. 표지는 처음 켤 때 고른 표지 폴더에 따로 저장돼요.
-- 파일을 인터넷에 올리지 않아요. 사용 기록도 모으지 않아요.
-- 인터넷은 새 버전이 나왔는지 확인하고 업데이트를 받을 때만 써요. 「설명서 겸 옵션」에서 끌 수 있어요.
-- 소스 코드가 전부 공개되어 있어서 누구나 확인할 수 있어요.
-
 ## 지우는 법
 
 프로그램 폴더를 지우면 돼요. 설정과 기록까지 지우려면 파일 탐색기 주소창에 `%LOCALAPPDATA%\LoveMyShelf`를 붙여 넣고 Enter를 누른 뒤, 열린 폴더를 지워요. 만든 표지는 표지 폴더에 그대로 남아요.
 
 ## 문의
 
-버그, 질문, 바라는 점은 메일로 보내 주세요: **lovemyshelf.app@outlook.com**
+버그 제보나 질문, 추가했으면 하는 점은 **lovemyshelf.app@outlook.com**으로 보내 주세요.
 GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues)에 남겨도 돼요.
 
 ## 더 알아보기
@@ -162,7 +144,7 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 
 A Windows program for seeing folders piled with videos, photos and memes at a glance. Use it like File Explorer, and give each file **the scene you chose as its cover**.
 
-It was made by having the top AI models of three companies (Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon) debate each other, without holding back on tokens, and the maker has used it all day, every day, fixing every inconvenience one by one. So you don't need to spend your own time and tokens on trial and error: you can just start using it comfortably.
+I built this by having the top AI models of three companies (Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon) debate each other without holding back on tokens, and I've been using it all day, every day, fixing annoyances as they come up. That way you don't have to spend your own time and tokens on trial and error, and you can just use it right away.
 
 ### [⬇ Download Love My Shelf (Windows, free)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
@@ -174,20 +156,11 @@ It was made by having the top AI models of three companies (Anthropic Claude Fab
 - Deleting only sends files to the Recycle Bin. Where there is no Recycle Bin (such as a network folder), nothing is deleted.
 - When moving to another drive, the original is deleted only after the copy is verified.
 
-The download is about 220 MB because it includes a video player and AI features (4× larger, sharper covers and finding people by face). The AI features run only on your computer and upload nothing.
+The download is about 220 MB, since a video player and the AI features (making covers 4× larger and sharper, finding people by face) are all inside. The AI features run only on your PC, and your files never go up to the internet.
 
-It's **completely free**: no ads, no sign-up, no paid features, and all the source code is public (GPL-3.0). Extract the ZIP and start `LoveMyShelf.exe`; there's nothing to install. The internet is used only to check for a new version, and you can turn that off too.
+It's free, with no ads, sign-up or paid features, and all the source code is public under GPL-3.0. There's no installer: extract the ZIP and run `LoveMyShelf.exe`. No usage records are collected, and the internet is used only to check for updates, which you can turn off in Guide & Options.
 
-## When to use it
-
-| What you want to do | What fits best |
-|---|---|
-| Flip through photos one by one, fast | A light photo viewer |
-| Browse a folder of mixed videos, GIFs and photos as big thumbnails | **Love My Shelf** |
-| Give each video a scene you chose as its cover, animated covers too | **Love My Shelf** |
-| Copy, move and rename like File Explorer, and have covers move along | **Love My Shelf** |
-
-**When another program is better**
+## When another program is better
 
 - You need iPhone photos (HEIC), camera RAW or AVIF files: these don't open yet.
 - You want to retouch or edit pictures: Love My Shelf is not an editor.
@@ -218,15 +191,13 @@ Only what each program's official pages say is listed (as of November 2026).
 
 The first time you start it, a blue **"Windows protected your PC"** window may appear. That is because a program made by one person has no certificate. Click **More info**, then **Run anyway**.
 
-When a new version comes out, a notice appears at the bottom right of the program. Click it to see what changed, and click once more to switch to the new version. Your covers and settings stay.
+When a new version is out, a notice pops up at the bottom right. Click it to see what changed, and click again to update. Your covers and settings stay as they are.
 
 ## Why it was made
 
-When thousands of files pile up in a downloads or meme folder, it is hard to find what you want. Preview pictures are small, and videos show only a random first scene, so you end up opening them one by one.
+When thousands of files pile up in a downloads or meme folder, it is hard to find what you want. Thumbnails are small and videos show some random first frame, so you end up opening them one by one.
 
-Love My Shelf keeps the File Explorer habits you know and shows files as large pictures in a grid. Save a scene you like from a photo or video as a **9:16 vertical cover**, and that file is shown by that cover from then on.
-
-**Original files are never touched.** A cover is always saved as a separate file.
+Love My Shelf keeps the File Explorer habits you know and shows your files as big thumbnails side by side. Save a scene you like from a photo or video as a **9:16 vertical cover**, and that file is shown by that cover from then on.
 
 ## How it's used
 
@@ -282,20 +253,13 @@ Light and dark themes. Korean and English.
 - Subtitles: SMI, SRT, ASS, VTT
 - Not supported yet: HEIC, AVIF, camera RAW
 
-## Are my files safe
-
-- Original photos and videos are not changed. Covers are saved separately in the cover folder you choose on first start.
-- Files are not uploaded to the internet. No usage records are collected.
-- The internet is used only to check for a new version and download the update. It can be turned off in Guide & Options.
-- All the source code is public, so anyone can check.
-
 ## Removing it
 
 Delete the program folder. To delete the settings and records too, paste `%LOCALAPPDATA%\LoveMyShelf` into File Explorer's address bar, press Enter, and delete the folder that opens. The covers you made stay in the cover folder.
 
 ## Contact
 
-Send bugs, questions and wishes by email: **lovemyshelf.app@outlook.com**
+Send bug reports, questions or feature ideas to **lovemyshelf.app@outlook.com**.
 If you have a GitHub account, you can also write in [Issues](https://github.com/LoveMyShelf/LoveMyShelf/issues).
 
 ## More
