@@ -1902,6 +1902,7 @@ namespace LoveMyShelf {
             bool changedNames=settings.TileNames!=updated.TileNames;
             bool changedTimes=settings.CoverTimes!=updated.CoverTimes;
             bool changedShape=settings.TileShape!=updated.TileShape || settings.WideCovers!=updated.WideCovers;
+            bool changedLayout=changedShape || settings.FillWideGaps!=updated.FillWideGaps;
             bool changedExplorer=settings.ExplorerMenu!=updated.ExplorerMenu;
             updated.LanguageChosen=true;
             try {updated.Save(store.Root);} catch(Exception ex) {UI.Error(this,ex);return false;}
@@ -1916,11 +1917,15 @@ namespace LoveMyShelf {
                 other.settings.SubtitleScale=updated.SubtitleScale;other.settings.GifAutoMake=updated.GifAutoMake;other.settings.GifMakeDelayMs=updated.GifMakeDelayMs;
                 other.settings.WebpEffort=updated.WebpEffort;other.settings.UpscaleGpu=updated.UpscaleGpu;
                 other.settings.Shortcuts=new Dictionary<string,System.Windows.Input.Key>(updated.Shortcuts,StringComparer.Ordinal);
-                if(changedNames){other.settings.TileNames=updated.TileNames;other.LayoutRows();}
+                if(changedNames)other.settings.TileNames=updated.TileNames;
                 if(changedTimes){other.settings.CoverTimes=updated.CoverTimes;other.CoverMarksSoon();}
-                if(changedShape){other.settings.TileShape=updated.TileShape;other.settings.WideCovers=updated.WideCovers;other.LayoutRows();}
+                if(changedLayout) {
+                    other.settings.TileShape=updated.TileShape;other.settings.WideCovers=updated.WideCovers;
+                    other.settings.FillWideGaps=updated.FillWideGaps;
+                }
+                if(changedNames || changedLayout)other.LayoutRows();
             }
-            if(changedNames || changedShape)LayoutRows();
+            if(changedNames || changedLayout)LayoutRows();
             if(changedShape){var shapeHandler=TileShapeChanged;if(shapeHandler!=null)shapeHandler();}
             if(changedTimes)CoverMarksSoon();
             if(changedTheme)Themes.Apply(settings.Theme);
@@ -2126,7 +2131,7 @@ namespace LoveMyShelf {
             double height=(width/columns-1)/shape+1+TileNameHeight; // the picture keeps the cell's shape; the name strip is added below it
             rowHeight=height;cellWidth=width/columns;
             if(ShowingSimilar && similarShown!=null){photos=PadSimilar(columns);wideSlots=new HashSet<int>();} // each group starts a row of its own
-            else photos=PadWide(photos.Where(p=>p!=null).ToList(),shape);
+            else photos=PadWide(PhotosInSourceOrder,shape);
             // Found again by record (F5 reads new Photo objects for the same files).
             if(firstTile>=0)firstTile=firstPhoto==null?firstTile:Math.Max(0,IndexOfRecord(firstPhoto));
             if(firstTileOverride>=0 && overridePhoto!=null)firstTileOverride=Math.Max(0,IndexOfRecord(overridePhoto));
@@ -2277,7 +2282,7 @@ namespace LoveMyShelf {
         void Shuffle() {
             bool pending=ShowingPending;
             // Whole originals are shuffled: their covers stay together, cover 1 on the left.
-            var ordered=photos.Where(p=>p!=null).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)
+            var ordered=PhotosInSourceOrder.Where(p=>p!=null).GroupBy(p=>GalleryStore.CoverFamily(p),StringComparer.OrdinalIgnoreCase)
                 .Select(g=>GalleryStore.InCoverOrder(g)).Where(f=>!pending || f.Any(p=>!p.IsExtra && !p.HasCrop)).ToList();
             if(ordered.Count<2 && ordered.Sum(f=>f.Count)==photos.Count(p=>p!=null))return;
             bool changed=false;
@@ -2389,18 +2394,42 @@ namespace LoveMyShelf {
         bool TakesTwoCells(Photo photo,double shape) {
             return photo!=null && settings.WideCovers && !ShowingSimilar && columns>=3 && photo.ShowsCover && Covers.TakesTwoCells(photo.Aspect,shape);
         }
-        // The list as the grid lays it out: a wide tile is followed by an empty slot (the cell it also covers), and a wide
-        // tile that would hang over the end of a row leaves that last cell empty and starts the next row, so the order stays.
+        // Keep the source order across redraws, resizes and option changes. Navigation uses the padded order.
+        List<Photo> gridSource, paddedGrid;
+        List<Photo> PhotosInSourceOrder {get {return photos==paddedGrid?gridSource:photos;}}
         List<Photo> PadWide(List<Photo> list,double shape) {
+            gridSource=list.Where(p=>p!=null).ToList();
+            paddedGrid=PadForTest(gridSource,columns,p=>TakesTwoCells(p,shape),settings.FillWideGaps,out wideSlots);
+            return paddedGrid;
+        }
+        internal static List<Photo> PadForTest(List<Photo> list,int columns,Func<Photo,bool> wide,bool fill,out HashSet<int> wideSlots) {
             wideSlots=new HashSet<int>();
-            if(!list.Any(p=>TakesTwoCells(p,shape)))return list;
+            if(columns<3 || !list.Any(p=>p!=null && wide(p)))return list;
             var padded=new List<Photo>(list.Count+16);
-            foreach(var photo in list) {
-                bool wide=TakesTwoCells(photo,shape);
-                if(wide && padded.Count%columns==columns-1)padded.Add(null);
-                if(wide)wideSlots.Add(padded.Count);
+            Dictionary<string,int> familyCounts=null;
+            for(int i=0;i<list.Count;i++) {
+                var photo=list[i];
+                bool isWide=photo!=null && wide(photo);
+                if(isWide && padded.Count%columns==columns-1) {
+                    Photo next=fill && i+1<list.Count?list[i+1]:null;
+                    Photo filler=null;
+                    if(next!=null && !wide(next)) {
+                        if(familyCounts==null)familyCounts=list.Where(p=>p!=null)
+                            .GroupBy(GalleryStore.CoverFamily,StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(g=>g.Key,g=>g.Count(),StringComparer.OrdinalIgnoreCase);
+                        var previous=i>0?list[i-1]:null;
+                        bool splitsFamily=previous!=null && String.Equals(GalleryStore.CoverFamily(previous),
+                            GalleryStore.CoverFamily(photo),StringComparison.OrdinalIgnoreCase);
+                        if(!splitsFamily && familyCounts[GalleryStore.CoverFamily(next)]==1) {
+                            filler=next;
+                            i++;
+                        }
+                    }
+                    padded.Add(filler);
+                }
+                if(isWide)wideSlots.Add(padded.Count);
                 padded.Add(photo);
-                if(wide)padded.Add(null);
+                if(isWide)padded.Add(null);
             }
             return padded;
         }
@@ -2541,6 +2570,12 @@ namespace LoveMyShelf {
             string focused=focusIndex>=0 && focusIndex<photos.Count && photos[focusIndex]!=null?photos[focusIndex].Folder:null;
             string anchored=anchorIndex>=0 && anchorIndex<photos.Count && photos[anchorIndex]!=null?photos[anchorIndex].Folder:null;
             var reflow=CaptureReflow();
+            var source=PhotosInSourceOrder;
+            if(source!=photos) {
+                var members=new HashSet<Photo>(before);
+                int next=0;
+                for(int i=0;i<source.Count;i++)if(members.Contains(source[i]))source[i]=ordered[next++];
+            }
             for(int k=0;k<slots.Count;k++)photos[slots[k]]=ordered[k];
             ReorderFormatSource(before,ordered);
             if(focused!=null)focusIndex=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,focused,StringComparison.OrdinalIgnoreCase));
@@ -2939,7 +2974,7 @@ namespace LoveMyShelf {
             if(photos.Count==0 || rows==null)return;
             var reflow=CaptureReflow();
             var focused=focusIndex>=0 && focusIndex<photos.Count && photos[focusIndex]!=null?photos[focusIndex].Folder:null;
-            var kept=photos.Where(p=>p!=null && !remove(p)).ToList();
+            var kept=PhotosInSourceOrder.Where(p=>p!=null && !remove(p)).ToList();
             bool replaced=false;
             if(promoted!=null) {
                 for(int i=0;i<kept.Count;i++) {
@@ -2981,6 +3016,13 @@ namespace LoveMyShelf {
             var reflow=CaptureReflow();
             reflow.Fresh.Add(cover.Folder);
             InsertIntoFormatSource(cover,photos[last],place<photos.Count?photos[place]:null);
+            var source=PhotosInSourceOrder;
+            if(source!=photos) {
+                int sourcePlace=at+1<order.Count?source.IndexOf(order[at+1]):source.IndexOf(photos[last])+1;
+                if(sourcePlace<0)sourcePlace=source.IndexOf(photos[last])+1; // never expected (the family is in both lists), but never a bad index
+                if(sourcePlace<=0)sourcePlace=source.Count;
+                source.Insert(sourcePlace,cover);
+            }
             photos.Insert(place,cover);
             if(focusIndex>=place)focusIndex++;
             if(anchorIndex>=place)anchorIndex++;
@@ -3014,6 +3056,11 @@ namespace LoveMyShelf {
             // Compared with the slot as it is laid out (the same Photo may already have changed, such as a cover hidden).
             bool relayout=wideSlots.Contains(index)!=TakesTwoCells(photo,shape);
             ReplaceInFormatSource(photos[index],photo);
+            var source=PhotosInSourceOrder;
+            if(source!=photos) {
+                int sourceIndex=source.IndexOf(photos[index]);
+                if(sourceIndex>=0)source[sourceIndex]=photo;
+            }
             photos[index]=photo;
             CoverMarksSoon();
             // A cover that became wide (or stopped being wide) needs the rows laid out again; others change in place.
@@ -3108,7 +3155,7 @@ namespace LoveMyShelf {
                 if(fresh.SameAs(settings))return;
                 bool sortChanged=fresh.Sort!=settings.Sort || fresh.Descending!=settings.Descending,languageChanged=fresh.Korean!=settings.Korean;
                 bool themeChanged=fresh.Theme!=settings.Theme,gridChanged=fresh.GridGif!=settings.GridGif ||
-                    fresh.TileShape!=settings.TileShape || fresh.WideCovers!=settings.WideCovers;
+                    fresh.TileShape!=settings.TileShape || fresh.WideCovers!=settings.WideCovers || fresh.FillWideGaps!=settings.FillWideGaps;
                 fresh.LanguageChosen=settings.LanguageChosen || fresh.LanguageChosen;
                 settings=fresh;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
                 if(themeChanged)Themes.Apply(settings.Theme);

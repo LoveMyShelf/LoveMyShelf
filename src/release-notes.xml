@@ -130,6 +130,13 @@
       boldEn="clicking another tag|together"
       tryKo="[태그]에서 사람 태그 두 개를 차례로 눌러 보세요."
       tryEn="In [Tags], click two people's tags one after the other."/>
+    <item group="better" icon="image"
+      titleKo="가로 표지 때문에 줄 끝이 비지 않게"
+      titleEn="No empty cell at the end of a row because of a wide cover"
+      textKo="가로로 긴 표지는 칸 두 개를 차지해서, 줄 끝에 걸리면 다음 줄로 넘어가고 그 자리가 비곤 했어요. 이제 바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요. 순서는 딱 한 칸만 바뀌고, 한 원본에서 만든 표지 묶음은 갈라지지 않아요.&#10;예전처럼 순서를 그대로 두고 싶으면 설명서 겸 옵션의 '가로 표지 때문에 줄 끝이 비면 어떻게 할까요?'에서 [빈칸 그대로]를 고르면 돼요."
+      textEn="A wide cover takes two cells, so at the end of a row it moved to the next row and left that cell empty. Now the next one-cell file goes into that cell. The order changes by just one place, and the covers of one original stay together.&#10;To keep the order exactly as before, choose [Leave it empty] under 'When a wide cover leaves a cell empty at the end of a row?' in Guide &amp; Options."
+      boldKo="바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요"
+      boldEn="the next one-cell file goes into that cell"/>
   </release>
   <release version="1.0.10"
     summaryKo="움짤에 넣은 글자를 마우스로 끌어 원하는 자리에 놓을 수 있어요."

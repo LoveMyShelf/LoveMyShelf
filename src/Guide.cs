@@ -1049,11 +1049,17 @@ namespace LoveMyShelf {
                     new Choice(T("1:1 square","1:1 정사각형"),T("Tall and wide ones show at about the same size.","세로·가로가 비슷한 크기로 보여요."))},
                 Default=Covers.DefaultShape,Columns=3,Get=p=>Math.Max(0,Math.Min(2,p.TileShape)),Set=(p,i)=>p.TileShape=i});
             browse.Items.Add(new Setting {Id="wideCovers",SectionId="browse",Title=T("Should wide covers take two cells?","가로로 긴 표지는 칸 두 개에 보여 줄까요?"),
-                Lines=new[]{T("A cover clearly wider than a cell can take two cells side by side, so it shows big instead of as a thin strip. When it would hang over the end of a row, the last cell stays empty and it starts the next row, so the order never changes.",
-                    "칸보다 확실히 가로로 긴 표지는 칸 두 개를 나란히 차지해서, 가는 띠처럼 작게 보이지 않고 크게 보이게 할 수 있어요. 줄 끝에 걸리면 마지막 칸은 비워 두고 다음 줄에서 시작해서, 순서는 바뀌지 않아요.")},
+                Lines=new[]{T("A cover clearly wider than a cell can take two cells side by side, so it shows big instead of as a thin strip.",
+                    "칸보다 확실히 가로로 긴 표지는 칸 두 개를 나란히 차지해서, 가는 띠처럼 작게 보이지 않고 크게 보이게 할 수 있어요.")},
                 Choices=new[]{new Choice(T("Two cells (on)","칸 두 개 (켜기)"),T("Wide covers show big across two cells.","가로로 긴 표지가 칸 두 개에 크게 보여요.")),
                     new Choice(T("One cell (off)","칸 하나 (끄기)"),T("Every file takes one cell; wide covers show smaller.","모든 파일이 칸 하나씩이에요. 가로로 긴 표지는 작게 보여요."))},
                 Default=0,Columns=2,Get=p=>p.WideCovers?0:1,Set=(p,i)=>p.WideCovers=i==0});
+            browse.Items.Add(new Setting {Id="wideGaps",SectionId="browse",Title=T("When a wide cover leaves a cell empty at the end of a row?","가로 표지 때문에 줄 끝이 비면 어떻게 할까요?"),
+                Lines=new[]{T("A wide cover takes two cells, so at the end of a row it moves to the next row and can leave that cell empty.",
+                    "가로 표지는 칸 두 개를 차지해서, 줄 끝에 걸리면 다음 줄로 넘어가고 그 자리가 빌 수 있어요.")},
+                Choices=new[]{new Choice(T("Fill it with the next one","뒤 표지로 채우기"),T("The next one-cell file goes into the empty cell. The order changes by just one place.","바로 뒤의 한 칸짜리 파일을 빈칸에 놓아요. 순서는 딱 한 칸만 바뀌어요.")),
+                    new Choice(T("Leave it empty","빈칸 그대로"),T("The order stays exactly as it is and the cell stays empty.","순서를 그대로 지키고 줄 끝을 비워 둬요."))},
+                Default=0,Columns=2,Get=p=>p.FillWideGaps?0:1,Set=(p,i)=>p.FillWideGaps=i==0});
 
             // ----- Making a cover -----
             var make=add("editor",T("Making a cover","표지 만들기"));

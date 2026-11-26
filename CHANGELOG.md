@@ -19,6 +19,7 @@ When a new version comes out, a notice appears inside the program. Click it to u
 - **이름은 영어 LoveMyShelf로만 써요:** 한국어 화면과 설명서에서도 프로그램 이름을 한글로 쓰지 않고 영어 LoveMyShelf로만 써요. 폴더 이름과 만든 표지, 기록은 그대로예요.
 - **원하는 파일 형식만 골라 보기:** 폴더 창 위쪽, 돋보기 바로 왼쪽의 [형식 ▾]를 누르면 이 폴더에 있는 형식(JPG, PNG, MP4 …)과 개수가 보여요. 형식 하나를 누르면 그 형식만, 다른 형식을 누르면 더해지고, 다시 누르면 빠져요. [사진]·[영상]은 그 묶음 전부, [모든 형식]은 다시 전부예요. 아래에 '16개 중 11개'처럼 보이는 개수가 나오고, 다른 폴더를 열면 모든 형식으로 돌아와요.
 - **태그 여러 개를 함께 보기:** 아래 줄 [태그]에서 태그를 누르면 전처럼 그 태그 모아 보기가 열리고, 목록이 닫히지 않아 다른 태그를 이어서 누르면 두 태그가 붙은 파일이 함께 보여요. 다시 누르면 빠지고, 둘 이상일 때는 맨 위 [고른 태그 모두 풀기]로 원래 폴더로 돌아가요.
+- **가로 표지 때문에 줄 끝이 비지 않게:** 가로로 긴 표지가 줄 끝에 걸려 다음 줄로 넘어갈 때, 바로 뒤의 한 칸짜리 파일이 그 빈칸에 들어가요(순서는 한 칸만 바뀌고 표지 묶음은 안 갈라짐). 설명서 겸 옵션에서 [빈칸 그대로]로 바꿀 수 있어요.
 - **이걸 만든 AI한테 바로 적어 보내기:** 왼쪽 폴더 트리 맨 아래에 글 쓰는 칸이 생겼어요. 하고 싶은 말을 적고 [보내기]를 한 번 누르면 끝이에요. 브라우저도 로그인도 필요 없어요. 칸에는 처음부터 앱 버전이 적혀 있고, 지워도 괜찮아요. 칸에 쓴 글 말고는 아무것도 보내지 않아요. 다 못 쓴 글은 이 컴퓨터에 남았다가 다음에 켤 때 그대로 나와요. 설명서 겸 옵션의 '바라는 점 알려 주기' 창은 이 칸으로 바뀌었어요.
 
 Right-click the playback bar twice to repeat a part, and double-click inside a GIF part to shorten it.
@@ -31,6 +32,7 @@ Right-click the playback bar twice to repeat a part, and double-click inside a G
 - **The name is written only as LoveMyShelf:** Korean screens and the Korean guide now also write the program's name only as LoveMyShelf, not in Hangul. Folder names, your covers and records stay as they are.
 - **Show only the file types you pick:** Click [Type ▾] at the top of the folder window, just left of the magnifier, to see the types in this folder (JPG, PNG, MP4 …) and how many of each. Click a type and only that type shows; click another to add it, click it again to take it out. [Photos] or [Videos] picks that whole group, and [All types] shows everything again. The bottom says how many show, like '11 of 16', and opening another folder starts with all types.
 - **See several tags together:** Click a tag in [Tags] at the bottom and its view opens as before; the list now stays open, so clicking another tag shows the files with either tag together. Click it again to take it out, and with two or more, [Clear the picked tags] at the top goes back to the folder.
+- **No empty cell at the end of a row because of a wide cover:** When a wide cover moves to the next row, the next one-cell file fills the empty cell (the order changes by one place; covers of one original stay together). You can switch back to [Leave it empty] in Guide & Options.
 - **Write to the AI that made this, right from the app:** At the bottom of the folder tree on the left there is now a box to write in. Write anything you'd like to say and press [Send] once. No browser, no sign-in. The box starts with the app version written in it; deleting it is fine. Nothing but what is in the box is sent. Text you haven't sent stays on this computer and comes back next time. The 'Tell us what you'd like' window in Guide & Options became this box.
 
 ---
