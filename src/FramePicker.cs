@@ -77,8 +77,16 @@ namespace LoveMyShelf {
         // How the video looked while watching (turn, zoom, place): the scenes show that way and a cover starts from it.
         // Null when it was simply upright at its own size.
         internal ViewFraming Framing;
-        // A box drawn over the video while watching (CoverAreaLayer): the cover starts from it, ahead of the view's framing.
+        // The same box frames the scenes and the cover editor.
         internal DrawnArea Area;
+        double sceneAspect;
+        double AreaAspect {
+            get {
+                var viewer=Owner as Viewer;
+                double upright=sceneAspect>0?sceneAspect:viewer==null?0:viewer.UprightAspect;
+                return Area==null || upright<=0?0:Area.Aspect(upright);
+            }
+        }
         // The playback brightness (-100..100) the video was watched with: the scenes show with it and a cover starts from it.
         int brightness;
         // True when E / W / Q was pressed while watching this video, so a 0 there means "back to normal", not "not set".
@@ -95,10 +103,10 @@ namespace LoveMyShelf {
         }
 
         public FramePicker(Window owner,string path,Photo photo,int previous,double? anchorTime,bool snapEdges=true,int wheelZoomPercent=7,
-            bool useNearby=false,bool? startFull=null,int previewSide=2200) {
+            bool useNearby=false,bool? startFull=null,int previewSide=0) {
             this.path=path;this.photo=photo;
             this.snapEdges=snapEdges;this.wheelZoomPercent=wheelZoomPercent;
-            this.previewSide=previewSide;
+            this.previewSide=previewSide>0?previewSide:Preferences.EditorPreviewSide;
             this.previous=previous;this.anchorTime=anchorTime;
             this.useNearby=useNearby && anchorTime.HasValue && VideoFrames.Supports(path);
             UI.WindowSetup(this,L.T("Choose a scene")); Owner=owner;ShowInTaskbar=false;
@@ -159,7 +167,9 @@ namespace LoveMyShelf {
         void LayoutCells() {
             if(total==0 || scroll.ViewportWidth<1 || scroll.ViewportHeight<1)return;
             int cols=Math.Max(1,(int)(scroll.ViewportWidth/preferredWidth));
-            double w=scroll.ViewportWidth/cols,h=Math.Round(w*0.75)+20,offset=replacementOffset??scroll.VerticalOffset;
+            double aspect=AreaAspect;
+            double heightPerWidth=aspect>0?Math.Max(1.0/3,Math.Min(3,1/aspect)):0.75;
+            double w=scroll.ViewportWidth/cols,h=Math.Round(w*heightPerWidth)+20,offset=replacementOffset??scroll.VerticalOffset;
             int pad=leadingSlots%cols;
             int before=(Math.Max(0,previous-1)+pad)/cols,after=(Math.Min(total-1,Math.Max(0,previous+1))+pad)/cols;
             if(fitNeighbors && previous>=0)h=Math.Min(h,Math.Floor(scroll.ViewportHeight/(after-before+1)));
@@ -210,7 +220,8 @@ namespace LoveMyShelf {
             }
             double dpi=PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice.M11;
             // A zoomed-in scene reads a sharper picture, up to twice the tile.
-            double sharper=Framing==null?1:Math.Max(1,Math.Min(2,Framing.Magnify));
+            double magnify=Area!=null?1/Math.Min(Area.Fraction.Width,Area.Fraction.Height):Framing==null?1:Framing.Magnify;
+            double sharper=Math.Max(1,Math.Min(2,magnify));
             int side=Math.Max(1,(int)Math.Ceiling(w*dpi*sharper));
             for(int i=cellStart;i<cellStop;i++) {
                 Button tile;
@@ -218,7 +229,7 @@ namespace LoveMyShelf {
                     tile=MakeTile(i);tile.Width=Math.Max(1,w-3);tile.Height=h-3;
                     // A picture read earlier shows at once, even one read at another tile size (until the new one comes).
                     Picture saved;
-                    if(pictures.TryGetValue(i,out saved))((Image)tile.Tag).Source=saved.Image;
+                    if(pictures.TryGetValue(i,out saved))SetScene(tile,saved.Image);
                     Canvas.SetLeft(tile,((i+pad)%cols)*w+1);Canvas.SetTop(tile,((i+pad)/cols)*h+1);
                     cells.Add(i,tile);canvas.Children.Add(tile);
                 }
@@ -246,11 +257,19 @@ namespace LoveMyShelf {
             string label=position;if(index==previous)label+=L.T(" · paused scene");
             var number=UI.Text(label,11);number.HorizontalAlignment=HorizontalAlignment.Center;
             DockPanel.SetDock(number,Dock.Bottom);content.Children.Add(number);
-            var image=new FramedImage {Stretch=Stretch.Uniform,Framing=Framing};
+            var image=new FramedImage {Stretch=Stretch.Uniform,Framing=Area==null?Framing:null};
             var sheet=new Grid {HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             sheet.Children.Add(image);holder.Child=sheet;content.Children.Add(holder);tile.Tag=image;tile.Content=content;
             ApplyBrightness(tile);
             AutomationProperties.SetName(tile,L.T("Scene ")+position);return tile;
+        }
+        void SetScene(Button tile,BitmapSource frame) {
+            var image=(FramedImage)tile.Tag;
+            if(Area!=null && frame.PixelWidth>0 && frame.PixelHeight>0) {
+                if(sceneAspect<=0){sceneAspect=(double)frame.PixelWidth/frame.PixelHeight;ScheduleLayout();}
+                image.Framing=Area.Framing(new Size(frame.PixelWidth,frame.PixelHeight));
+            }
+            image.Source=frame;
         }
         void ApplyBrightness(Button tile) {
             ((FramedImage)tile.Tag).Brightness=brightness; // the same curve as the video (see Light)
@@ -497,7 +516,7 @@ namespace LoveMyShelf {
                 var picture=new Picture {Image=frame,Side=view.Side,Bytes=(long)frame.PixelWidth*frame.PixelHeight*4};
                 pictures[index]=picture;pictureBytes+=picture.Bytes;
                 Button tile;
-                if(cells.TryGetValue(index,out tile))((Image)tile.Tag).Source=frame;
+                if(cells.TryGetValue(index,out tile))SetScene(tile,frame);
                 if(pictureBytes>PictureLimit)Trim();
             }));
         }

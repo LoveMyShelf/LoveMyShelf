@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
@@ -18,6 +17,13 @@ namespace LoveMyShelf {
         internal double Turn; // the view's turn when the box was drawn, degrees clockwise
         // Width over height in pixels, for a picture of this upright shape.
         internal double Aspect(double upright) {return Fraction.Height<=0?0:Fraction.Width/Fraction.Height*upright;}
+        internal ViewFraming Framing(Size upright) {
+            var f=Fraction;
+            var center=new Vector((f.X+f.Width/2-0.5)*upright.Width,(f.Y+f.Height/2-0.5)*upright.Height);
+            var rotate=Matrix.Identity;rotate.Rotate(Turn);center=rotate.Transform(center);
+            return new ViewFraming {Turn=Turn,PictureWidth=upright.Width,PictureHeight=upright.Height,
+                ShownWidth=f.Width*upright.Width,ShownHeight=f.Height*upright.Height,PanX=-center.X,PanY=-center.Y};
+        }
         internal DrawnArea Copy() {return new DrawnArea {Fraction=Fraction,Turn=Turn};}
     }
 
@@ -31,16 +37,21 @@ namespace LoveMyShelf {
         internal double Upright {get {return Picture.Height<=0?0:Picture.Width/Picture.Height;}}
     }
 
-    // Draws the box over the large view and the bar to change it. The large view hands its left-button presses here
+    // Draws the box over the large view and provides the controls for the playback bar. The large view hands its left-button presses here
     // while drawing is on (Press, Drag, Release); a double-click, a right-click and the playback bar keep their jobs.
     internal sealed class CoverAreaLayer : Grid {
         readonly Func<AreaView?> view;
         readonly Canvas canvas=new Canvas {IsHitTestVisible=false};
         readonly Path shade=new Path {Fill=new SolidColorBrush(Color.FromArgb(0x78,0,0,0))};
+        // "Enlarge the box": everything outside the box is black, so only the box plays.
+        readonly Path mask=new Path {Fill=Brushes.Black};
         readonly Path under=new Path {Stroke=new SolidColorBrush(Color.FromArgb(0xB0,0,0,0)),StrokeThickness=4};
         readonly Path line=new Path {Stroke=Brushes.White,StrokeThickness=2};
         readonly Path grips=new Path {Fill=Brushes.White,Stroke=new SolidColorBrush(Color.FromArgb(0xC0,0,0,0)),StrokeThickness=1};
-        readonly Border bar=new Border(),chip=new Border();
+        internal readonly Border Menu=new Border();
+        Button edit,zoomBox,make,clear;
+        StackPanel numbers,shapes;
+        bool enlarged;
         readonly TextBox left=Number(),top=Number(),wide=Number(),tall=Number(),across=Ratio(),down=Ratio();
         readonly CheckBox keep=new CheckBox();
         DrawnArea area;
@@ -62,7 +73,8 @@ namespace LoveMyShelf {
         internal event Action Changed;
         // Drawing turned on or off (the large view's button follows it).
         internal event Action EditingChanged;
-        internal Action MakeCover;
+        internal Action MakeCover,ToggleZoom,DeleteArea;
+        internal bool Typing {get {return left.IsKeyboardFocusWithin || top.IsKeyboardFocusWithin || wide.IsKeyboardFocusWithin || tall.IsKeyboardFocusWithin || across.IsKeyboardFocusWithin || down.IsKeyboardFocusWithin;}}
         // Gives the keyboard back to the large view (its shortcuts), after a number is typed or a button pressed.
         internal Action ReturnKeys;
         // A number typed and not applied yet: which place/size box, and whether a shape number.
@@ -76,12 +88,12 @@ namespace LoveMyShelf {
 
         internal CoverAreaLayer(Func<AreaView?> view) {
             this.view=view;
-            canvas.Children.Add(shade);canvas.Children.Add(under);canvas.Children.Add(line);canvas.Children.Add(grips);
+            canvas.Children.Add(mask);canvas.Children.Add(shade);canvas.Children.Add(under);canvas.Children.Add(line);canvas.Children.Add(grips);
             Children.Add(canvas);
             var prefs=CropSurface.Prefs;
             locked=prefs!=null && prefs.CropLock;
             if(locked && lastShape>0)shape=lastShape;
-            BuildBar();BuildChip();
+            BuildMenu();
             SizeChanged+=delegate {Refresh();};
             Refresh();
         }
@@ -95,10 +107,16 @@ namespace LoveMyShelf {
                 Refresh();Told();
             }
         }
-        internal void StartEditing() {if(!available)return;editing=true;Refresh();Told();}
+        internal void StartEditing() {if(!available || enlarged)return;editing=true;Refresh();Told();}
         internal void StopEditing() {if(grip!=Grip.None)Release();Forget();LeaveKeys();editing=false;Refresh();Told();}
         // Esc while typing a number: the typed text is dropped and the keys go back to the view.
         internal void CancelTyping() {Forget();LeaveKeys();Refresh();}
+        internal void ApplyTyping() {CommitTyped();LeaveKeys();Refresh();}
+        internal void SetEnlarged(bool on) {
+            if(on)StopEditing();
+            enlarged=on;Refresh();
+        }
+        internal void Restore(DrawnArea saved) {area=saved.Copy();Refresh();Raise();}
         void Told() {if(EditingChanged!=null)EditingChanged();}
         internal void Clear() {
             grip=Grip.None;Forget();
@@ -114,7 +132,7 @@ namespace LoveMyShelf {
             double x=0.5+inPicture.X/v.Picture.Width,y=0.5+inPicture.Y/v.Picture.Height;
             return new DrawnArea {Fraction=new Rect(x-w/2,y-h/2,w,h),Turn=turn};
         }
-        static void ToScreen(AreaView v,DrawnArea a,out Point middle,out Size size,out double tilt) {
+        internal static void ToScreen(AreaView v,DrawnArea a,out Point middle,out Size size,out double tilt) {
             var f=a.Fraction;
             var inPicture=new Vector((f.X+f.Width/2-0.5)*v.Picture.Width,(f.Y+f.Height/2-0.5)*v.Picture.Height);
             middle=v.Middle+Turned(inPicture,v.Turn);
@@ -166,11 +184,11 @@ namespace LoveMyShelf {
                 startMiddle=middle;startSize=size;
                 if(Math.Abs(Math.Abs(local.X)-size.Width/2)<=GripReach && Math.Abs(Math.Abs(local.Y)-size.Height/2)<=GripReach) {
                     fixedCorner=new Vector(local.X<0?size.Width/2:-size.Width/2,local.Y<0?size.Height/2:-size.Height/2);
-                    grip=Grip.Corner;return true;
+                    grip=Grip.Corner;Told();return true;
                 }
-                if(Math.Abs(local.X)<=size.Width/2 && Math.Abs(local.Y)<=size.Height/2){grip=Grip.Move;return true;}
+                if(Math.Abs(local.X)<=size.Width/2 && Math.Abs(local.Y)<=size.Height/2){grip=Grip.Move;Told();return true;}
             }
-            grip=Grip.New;return true;
+            grip=Grip.New;Told();return true;
         }
         internal void Drag(Point p) {
             if(grip==Grip.None)return;
@@ -217,6 +235,7 @@ namespace LoveMyShelf {
             if(was==Grip.New && area!=null && locked && shape<=0 && upright>0)Keep(area.Aspect(upright));
             Refresh();
             if(!SameAs(before,area))Raise();
+            Told();
         }
         static bool SameAs(DrawnArea a,DrawnArea b) {return a==null?b==null:b!=null && a.Fraction==b.Fraction && a.Turn==b.Turn;}
         // Upright, a box reaching past the picture is cut to the picture (the black bands beside it are not part of it),
@@ -287,100 +306,77 @@ namespace LoveMyShelf {
             Refresh();Raise();
         }
 
-        // ----- The bar (while drawing) and the small note (a box is there, drawing is off) -----
+        // ----- The controls opened from the playback bar -----
         static TextBox Number() {
-            return new TextBox {Width=52,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center,HorizontalContentAlignment=HorizontalAlignment.Center,FontSize=12.5};
+            return new TextBox {Width=48,MinHeight=28,VerticalContentAlignment=VerticalAlignment.Center,
+                HorizontalContentAlignment=HorizontalAlignment.Center,FontSize=12.5};
         }
-        static TextBox Ratio() {
-            return new TextBox {Width=44,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center,HorizontalContentAlignment=HorizontalAlignment.Center,FontSize=12.5};
+        static TextBox Ratio() {var box=Number();box.Width=43;return box;}
+        Button Small(string text,Action act,bool primary=false) {
+            var b=UI.Btn(text,()=>{ApplyTyping();act();},primary);
+            b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,1,8,2);b.MinHeight=28;b.MinWidth=0;b.FontSize=12.5;
+            b.HorizontalAlignment=HorizontalAlignment.Left;return b;
         }
-        // A card at the top middle, in the app's paper and line colors (light or dark, whichever is in use).
-        static void Dress(Border card) {
-            card.CornerRadius=new CornerRadius(8);card.Padding=new Thickness(12,8,10,8);card.BorderThickness=new Thickness(1);
-            card.HorizontalAlignment=HorizontalAlignment.Center;card.VerticalAlignment=VerticalAlignment.Top;card.Margin=new Thickness(10,10,10,0);
-            card.Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=8,ShadowDepth=2,Direction=270,Opacity=0.3};
-            card.SetResourceReference(Border.BackgroundProperty,"Paper");card.SetResourceReference(Border.BorderBrushProperty,"Line");
-            card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
+        static TextBlock Label(string text,double margin=0) {
+            var t=UI.Text(text,12.5,true);t.Margin=new Thickness(margin,0,5,0);return t;
         }
-        Button Small(string text,string tip,Action act,bool primary=false) {
-            var b=UI.Btn(text,()=>{LeaveKeys();CommitTyped();act();},primary);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.MinHeight=26;b.FontSize=12.5;b.Focusable=false;
-            if(tip!=null){b.ToolTip=tip;AutomationProperties.SetName(b,tip);}
-            return b;
+        static StackPanel Row(params UIElement[] children) {
+            var row=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,1,0,1)};
+            foreach(var child in children)row.Children.Add(child);
+            return row;
         }
-        static TextBlock Label(string text,double left=0) {var t=UI.Text(text,12.5,true);t.Margin=new Thickness(left,0,5,0);return t;}
-        void BuildBar() {
+        void BuildMenu() {
             var rows=new StackPanel();
-            var head=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=12.5,Margin=new Thickness(0,0,0,4)};
-            head.SetResourceReference(TextBlock.ForegroundProperty,"Text");
-            head.Inlines.Add(new Run(L.P("▭ Draw where to cut  ","▭ 자를 곳 그리기  ")) {FontWeight=FontWeights.SemiBold,FontSize=13.5});
-            var hint=new Run(L.P(
-                "Drag to draw · drag inside to move · drag a corner to resize",
-                "끌어서 그리기 · 안쪽을 끌면 옮기기 · 모서리를 끌면 크기"));
-            hint.SetResourceReference(TextElement.ForegroundProperty,"Subtle");
-            head.Inlines.Add(hint);
-            rows.Children.Add(head);
-            // Place and size, in % of the picture.
-            var numbers=new WrapPanel();
-            numbers.Children.Add(Label(L.P("Place from left","위치 왼쪽에서")));numbers.Children.Add(left);numbers.Children.Add(Label("%",3));
-            numbers.Children.Add(Label(L.P("from top","위에서"),8));numbers.Children.Add(top);numbers.Children.Add(Label("%",3));
-            numbers.Children.Add(Label(L.P("Size width","크기 너비"),14));numbers.Children.Add(wide);numbers.Children.Add(Label("%",3));
-            numbers.Children.Add(Label(L.P("height","높이"),8));numbers.Children.Add(tall);numbers.Children.Add(Label("%",3));
-            Tip(left,L.P("Left edge, % of the picture from its left","왼쪽 가장자리, 사진 왼쪽에서 몇 %"));
-            Tip(top,L.P("Top edge, % of the picture from its top","위쪽 가장자리, 사진 위에서 몇 %"));
-            Tip(wide,L.P("Width, % of the picture's width","너비, 사진 너비의 몇 %"));
-            Tip(tall,L.P("Height, % of the picture's height","높이, 사진 높이의 몇 %"));
-            rows.Children.Add(numbers);
-            // Shape: keep it, pick it, or type it.
-            var shapes=new WrapPanel {Margin=new Thickness(0,3,0,0)};
-            keep.Content=L.P("🔒 Keep this shape","🔒 비율 고정");keep.IsChecked=locked;keep.FontSize=12.5;keep.FontWeight=FontWeights.SemiBold;
-            keep.VerticalAlignment=VerticalAlignment.Center;keep.Margin=new Thickness(0,2,10,2);keep.Focusable=false;
+            edit=Small("",()=>{if(editing)StopEditing();else StartEditing();});
+            rows.Children.Add(edit);
+            shapes=new StackPanel {Margin=new Thickness(0,3,0,0)};
+            keep.Content=L.P("🔒 Keep this shape","🔒 비율 고정");
+            keep.VerticalAlignment=VerticalAlignment.Center;
             keep.SetResourceReference(Control.ForegroundProperty,"Text");
-            keep.ToolTip=L.P("On: drawing and dragging a corner keep the shape and change only the size. The cover editor keeps it too.",
-                "켜면 그리거나 모서리를 끌어도 비율은 그대로이고 크기만 바뀌어요. 표지 만들기에서도 그대로 이어져요.");
-            AutomationProperties.SetName(keep,L.P("Keep this shape","비율 고정"));
-            RoutedEventHandler flip=delegate {if(keep.IsChecked!=locked){LeaveKeys();CommitTyped();SetLocked(keep.IsChecked==true);}};
+            RoutedEventHandler flip=delegate {if(keep.IsChecked!=locked){ApplyTyping();SetLocked(keep.IsChecked==true);}};
             keep.Checked+=flip;keep.Unchecked+=flip;
             shapes.Children.Add(keep);
-            shapes.Children.Add(Label(L.P("Shape","비율")));
-            shapes.Children.Add(across);shapes.Children.Add(Label(":",3));shapes.Children.Add(down);
-            Tip(across,L.P("Shape: width (any number, like 16 or 1080)","비율 가로 (16이나 1080처럼 아무 숫자)"));
-            Tip(down,L.P("Shape: height (any number, like 9 or 1920)","비율 세로 (9나 1920처럼 아무 숫자)"));
-            var gap=new Border {Width=8};shapes.Children.Add(gap);
+            var presets=Row();
             foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{1,1},new[]{4,3},new[]{16,9}}) {
                 int a=pair[0],b=pair[1];
-                shapes.Children.Add(Small(a+":"+b,L.P("Makes the box "+a+":"+b+".","네모를 "+a+":"+b+" 모양으로 만들어요."),()=>SetShape(a/(double)b)));
+                presets.Children.Add(Small(a+":"+b,()=>SetShape(a/(double)b)));
             }
+            shapes.Children.Add(presets);
+            shapes.Children.Add(Row(Label(L.P("Width","가로")),across,Label(":",5),Label(L.P("Height","세로")),down));
+            Tip(across,L.P("Aspect width","비율 가로"));Tip(down,L.P("Aspect height","비율 세로"));
             rows.Children.Add(shapes);
-            var actions=new WrapPanel {Margin=new Thickness(0,5,0,0)};
-            var make=Small(L.P("Make a cover from this box","이 네모로 표지 만들기"),L.P("Opens Choose a scene; the cover starts from this box.","장면 고르기가 열리고, 표지가 이 네모로 시작해요."),
-                ()=>{if(area!=null && MakeCover!=null)MakeCover();},true);
-            actions.Children.Add(make);
-            var clear=Small(L.P("Clear","지우기"),L.P("Takes the box away. Make cover then starts as before.","네모를 없애요. 표지 만들기는 예전처럼 시작해요."),Clear);
-            actions.Children.Add(clear);
-            actions.Children.Add(Small(L.P("Done drawing (Esc)","다 그렸어요 (Esc)"),L.P("Stops drawing. The box stays and Make cover starts from it.","그리기를 끝내요. 네모는 남아서 표지 만들기가 이 네모로 시작해요."),StopEditing));
-            rows.Children.Add(actions);
-            Changed+=delegate {make.IsEnabled=clear.IsEnabled=area!=null;};
-            make.IsEnabled=clear.IsEnabled=false;
-            bar.Child=rows;
-            Dress(bar);
-            bar.MaxWidth=720;
-            Children.Add(bar);
-            // Numbers apply with Enter (the keys then go back to the view) or once the keyboard leaves the group,
-            // so the boxes can be filled one after another, even when there is no box yet.
+
+            numbers=new StackPanel {Margin=new Thickness(0,4,0,2)};
+            numbers.Children.Add(Row(Label(L.P("From left","왼쪽에서")),left,Label("%",3),
+                Label(L.P("From top","위에서"),7),top,Label("%",3)));
+            numbers.Children.Add(Row(Label(L.P("Width","너비")),wide,Label("%",3),
+                Label(L.P("Height","높이"),7),tall,Label("%",3)));
+            Tip(left,L.P("From left, %","왼쪽에서 몇 %"));Tip(top,L.P("From top, %","위에서 몇 %"));
+            Tip(wide,L.P("Width, %","너비 몇 %"));Tip(tall,L.P("Height, %","높이 몇 %"));
+            rows.Children.Add(numbers);
+
+            zoomBox=Small("",()=>{if(ToggleZoom!=null)ToggleZoom();});
+            make=Small(L.P("Make a cover from this box","이 네모로 표지 만들기"),()=>{if(MakeCover!=null)MakeCover();},true);
+            clear=Small(L.P("Clear (Esc)","지우기 (Esc)"),()=>{if(DeleteArea!=null)DeleteArea();});
+            rows.Children.Add(zoomBox);rows.Children.Add(make);rows.Children.Add(clear);
+            var hint=UI.Text(L.P("Drag to draw · drag inside to move · drag a corner to resize",
+                "끌어서 그리기 · 안쪽을 끌면 옮기기 · 모서리를 끌면 크기"),12,true);
+            hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,6,0,0);
+            rows.Children.Add(hint);
+            Menu.Child=rows;Menu.Width=365;Menu.CornerRadius=new CornerRadius(8);
+            Menu.Padding=new Thickness(10,7,10,8);Menu.BorderThickness=new Thickness(1);
+            Menu.SetResourceReference(Border.BackgroundProperty,"Paper");Menu.SetResourceReference(Border.BorderBrushProperty,"Line");
+            Menu.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
+
+            // Apply when the keyboard leaves a group, so its numbers can be filled in together.
             foreach(var box in new[]{left,top,wide,tall}) {
                 var self=box;
                 self.TextChanged+=delegate {if(self.IsKeyboardFocusWithin)numbersTyped=self;};
-                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){LeaveKeys();CommitTyped();e.Handled=true;}};
             }
-            numbers.IsKeyboardFocusWithinChanged+=(s,e)=>{if(!(bool)e.NewValue && numbersTyped!=null){var c=numbersTyped;numbersTyped=null;ApplyNumbers(c);}};
-            foreach(var box in new[]{across,down}) {
-                var self=box;
-                self.TextChanged+=delegate {if(self.IsKeyboardFocusWithin)shapeTyped=true;};
-                self.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){LeaveKeys();CommitTyped();e.Handled=true;}};
-            }
+            numbers.IsKeyboardFocusWithinChanged+=(s,e)=>{if(!(bool)e.NewValue && numbersTyped!=null)CommitTyped();};
+            foreach(var box in new[]{across,down})box.TextChanged+=delegate {if(box.IsKeyboardFocusWithin)shapeTyped=true;};
             foreach(var box in new[]{across,down})box.LostKeyboardFocus+=delegate {
-                if(across.IsKeyboardFocusWithin || down.IsKeyboardFocusWithin || !shapeTyped)return;
-                shapeTyped=false;ApplyShapeNumbers();
+                if(!across.IsKeyboardFocusWithin && !down.IsKeyboardFocusWithin && shapeTyped)CommitTyped();
             };
         }
         void Forget() {numbersTyped=null;shapeTyped=false;}
@@ -388,7 +384,7 @@ namespace LoveMyShelf {
             if(numbersTyped!=null){var c=numbersTyped;numbersTyped=null;ApplyNumbers(c);}
             if(shapeTyped){shapeTyped=false;ApplyShapeNumbers();}
         }
-        void LeaveKeys() {if(IsKeyboardFocusWithin && ReturnKeys!=null)ReturnKeys();}
+        void LeaveKeys() {if(Menu.IsKeyboardFocusWithin && ReturnKeys!=null)ReturnKeys();}
         static void Tip(TextBox box,string name) {box.ToolTip=name;AutomationProperties.SetName(box,name);}
         static bool Read(TextBox box,out double value) {
             string text=box.Text.Trim().TrimEnd('%').Trim();
@@ -420,31 +416,34 @@ namespace LoveMyShelf {
             if(!Read(across,out a) || !Read(down,out b) || !(a>0) || !(b>0) || Double.IsInfinity(a/b) || Double.IsNaN(a/b)){Refresh();return;}
             SetShape(a/b);
         }
-        void BuildChip() {
-            var line=new WrapPanel();
-            var text=UI.Text(L.P("▭ Make cover starts from this box","▭ 표지 만들기가 이 네모로 시작해요"),12.5);text.Margin=new Thickness(0,0,10,0);
-            line.Children.Add(text);
-            line.Children.Add(Small(L.P("Change","고치기"),L.P("Draw or change the box.","네모를 다시 그리거나 고쳐요."),StartEditing));
-            line.Children.Add(Small(L.P("Clear","지우기"),L.P("Takes the box away. Make cover then starts as before.","네모를 없애요. 표지 만들기는 예전처럼 시작해요."),Clear));
-            chip.Child=line;
-            Dress(chip);chip.Padding=new Thickness(10,4,6,4);
-            chip.Opacity=0.94;
-            Children.Add(chip);
+        internal Rect ScreenBox {
+            get {
+                AreaView v;Point middle;Size size;double tilt;
+                if(!Where(out v,out middle,out size,out tilt) || enlarged)return Rect.Empty;
+                return Box(middle,size,tilt).Bounds;
+            }
         }
-
-        // Puts the box, the dim outside and the bar where they belong now.
-        internal void Refresh() {
-            bar.Visibility=available && editing?Visibility.Visible:Visibility.Collapsed;
-            chip.Visibility=available && !editing && area!=null?Visibility.Visible:Visibility.Collapsed;
-            if(ActualWidth>0)bar.MaxWidth=Math.Max(240,Math.Min(720,ActualWidth-24));
-            if(keep.IsChecked!=locked)keep.IsChecked=locked;
-            AreaView v;Point middle;Size size;double tilt;
-            bool shows=Where(out v,out middle,out size,out tilt) && available;
-            if(!shows){shade.Data=under.Data=line.Data=grips.Data=null;ShowNumbers(null);PlaceCards(null,v);return;}
+        static RectangleGeometry Box(Point middle,Size size,double tilt) {
             var box=new RectangleGeometry(new Rect(middle.X-size.Width/2,middle.Y-size.Height/2,size.Width,size.Height));
             if(Math.Abs(tilt)>0.001)box.Transform=new RotateTransform(tilt,middle.X,middle.Y);
-            box.Freeze();
-            PlaceCards(box.Bounds,v);
+            box.Freeze();return box;
+        }
+        internal void Refresh() {
+            edit.Content=editing?L.P("Done drawing (Enter)","다 그렸어요 (Enter)"):
+                area==null?L.P("▭ Start drawing","▭ 그리기 시작"):L.P("▭ Edit box","▭ 네모 고치기");
+            zoomBox.Content=enlarged?L.P("⛶ Back to previous view","⛶ 원래 보기"):L.P("⛶ Enlarge the box","⛶ 네모만 크게");
+            edit.IsEnabled=numbers.IsEnabled=shapes.IsEnabled=!enlarged;
+            zoomBox.IsEnabled=make.IsEnabled=clear.IsEnabled=area!=null;
+            if(keep.IsChecked!=locked)keep.IsChecked=locked;
+            ShowNumbers(area);
+            AreaView v;Point middle;Size size;double tilt;
+            bool shows=Where(out v,out middle,out size,out tilt) && available;
+            mask.Data=shows && enlarged?new CombinedGeometry(GeometryCombineMode.Exclude,
+                new RectangleGeometry(new Rect(-1,-1,Math.Max(ActualWidth,v.Room.Right)+2,Math.Max(ActualHeight,v.Room.Bottom)+2)),Box(middle,size,tilt)):null;
+            if(!shows || enlarged) {
+                shade.Data=under.Data=line.Data=grips.Data=null;return;
+            }
+            var box=Box(middle,size,tilt);
             // Dimmed outside only while drawing, so the picture is easy to watch otherwise.
             shade.Data=editing?new CombinedGeometry(GeometryCombineMode.Exclude,new RectangleGeometry(v.Room),box):null;
             under.Data=box;line.Data=box;
@@ -457,27 +456,11 @@ namespace LoveMyShelf {
                 }
                 grips.Data=corners;
             } else grips.Data=null;
-            ShowNumbers(area);
-        }
-        // The bar and the note go above or below the box, wherever there is more room, so they cover as little of it as
-        // they can. They don't jump while the box is being dragged.
-        void PlaceCards(Rect? box,AreaView v) {
-            if(grip!=Grip.None)return;
-            bool low=false;
-            if(box.HasValue && v.Room.Height>0) {
-                // Whichever side has more free room above or below the box.
-                low=box.Value.Top-v.Room.Top<v.Room.Bottom-box.Value.Bottom;
-            }
-            double bottom=Math.Max(0,ActualHeight-v.Room.Bottom)+10;
-            foreach(var card in new[]{bar,chip}) {
-                card.VerticalAlignment=low?VerticalAlignment.Bottom:VerticalAlignment.Top;
-                card.Margin=low?new Thickness(10,0,10,bottom):new Thickness(10,10,10,0);
-            }
         }
         void ShowNumbers(DrawnArea a) {
-            Action<TextBox,double> put=(box,value)=>{if(!box.IsKeyboardFocusWithin)box.Text=value.ToString("0.#",CultureInfo.InvariantCulture);};
+            Action<TextBox,double> put=(box,value)=>{if(numbersTyped==null && !box.IsKeyboardFocusWithin)box.Text=value.ToString("0.#",CultureInfo.InvariantCulture);};
             if(a==null) {
-                foreach(var box in new[]{left,top,wide,tall})if(!box.IsKeyboardFocusWithin)box.Text="";
+                foreach(var box in new[]{left,top,wide,tall})if(numbersTyped==null && !box.IsKeyboardFocusWithin)box.Text="";
             } else {
                 put(left,a.Fraction.X*100);put(top,a.Fraction.Y*100);put(wide,a.Fraction.Width*100);put(tall,a.Fraction.Height*100);
             }
@@ -486,7 +469,7 @@ namespace LoveMyShelf {
                 var shown=view();
                 now=a!=null && shown.HasValue?a.Aspect(shown.Value.Upright):shape;
             }
-            if(across.IsKeyboardFocusWithin || down.IsKeyboardFocusWithin)return;
+            if(shapeTyped || across.IsKeyboardFocusWithin || down.IsKeyboardFocusWithin)return;
             if(now>0) {
                 string name=Covers.Name(now);int at=name.IndexOf(':');
                 if(at>0){across.Text=name.Substring(0,at);down.Text=name.Substring(at+1);return;}

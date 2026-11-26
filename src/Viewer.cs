@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -49,6 +50,12 @@ namespace LoveMyShelf {
         readonly Button toggle,prev,next,pause,locate,recrop,editCover,upscale,motionToggle,makeGif,areaButton;
         // The box drawn over a playing video, GIF or WebP: where a new cover starts (apart from zoom and turn).
         readonly CoverAreaLayer coverArea;
+        readonly Popup areaPopup;
+        DrawnArea deletedArea,enlargedArea;
+        string viewedFile;
+        double previousZoom,lastPanelHeight;
+        int previousTurn;
+        Vector previousPan;
         string areaFile; // the original the box was drawn on
         FramePlayer motionPlayer;
         CancellationTokenSource motionLoading;
@@ -125,7 +132,127 @@ namespace LoveMyShelf {
         void UpdateAreaButton() {
             if(areaButton==null)return;
             areaButton.Visibility=motion?Visibility.Visible:Visibility.Collapsed;
-            areaButton.Content=coverArea.Editing?L.P("▭ Done drawing","▭ 다 그렸어요"):L.P("▭ Draw a box","▭ 네모 그리기");
+            areaButton.SetResourceReference(Control.BorderBrushProperty,coverArea.Editing?"Accent":"Line");
+        }
+        void ToggleAreaPopup() {
+            if(areaPopup.IsOpen){CloseAreaPopup(true);return;}
+            if(!motion)return;
+            PositionAreaPopup();
+            areaPopup.IsOpen=true;
+            if(CoverArea==null && enlargedArea==null)coverArea.StartEditing();
+            RefreshFullscreenControls();
+        }
+        void CloseAreaPopup(bool takeKeys=false) {
+            if(areaPopup==null || !areaPopup.IsOpen)return;
+            coverArea.ApplyTyping();
+            areaPopup.IsOpen=false;
+            if(takeKeys)ReturnAreaKeys();
+            RefreshFullscreenControls();
+        }
+        void ReturnAreaKeys() {
+            if(areaPopup.IsOpen)Keyboard.Focus(coverArea.Menu);
+            else {Keyboard.Focus(this);TakeKeys();}
+        }
+        void AreaOutsidePress(object sender,MouseButtonEventArgs e) {
+            if(areaPopup==null || !areaPopup.IsOpen)return;
+            // The same press can start a drag; leave the event on its normal route.
+            for(var source=e.OriginalSource as DependencyObject;source!=null;
+                source=source is Visual?VisualTreeHelper.GetParent(source):LogicalTreeHelper.GetParent(source)) {
+                if(source==coverArea.Menu || (source==areaButton && e.ChangedButton==MouseButton.Left))return;
+            }
+            CloseAreaPopup(true);
+        }
+        void AreaDeactivated() {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input,new Action(()=>{
+                if(!areaPopup.IsOpen)return;
+                var source=PresentationSource.FromVisual(coverArea.Menu) as HwndSource;
+                if(!IsActive && (overlay==null || !overlay.IsActive) &&
+                    (source==null || source.Handle!=GetForegroundWindow()))CloseAreaPopup();
+            }));
+        }
+        Rect AreaAnchor(Size size) {
+            var anchor=areaButton.TranslatePoint(new Point(),ui);
+            double right=Math.Max(0,ui.ActualWidth-size.Width-4);
+            double x=Math.Max(4,Math.Min(right,areaButton.TranslatePoint(new Point(areaButton.ActualWidth,0),ui).X-size.Width));
+            // Above the whole bar (the seek line too), so nothing of it is covered.
+            double barTop=panel.Visibility==Visibility.Visible && panel.ActualHeight>0?panel.TranslatePoint(new Point(),ui).Y:anchor.Y;
+            double y=Math.Max(0,Math.Min(anchor.Y,barTop)-size.Height-4);
+            var normal=new Rect(new Point(x,y),size);
+            var overlap=Rect.Intersect(normal,coverArea.ScreenBox);
+            if(!overlap.IsEmpty && overlap.Width*overlap.Height>normal.Width*normal.Height*0.20) {
+                var alternate=new Rect(x>right/2?4:right,y,size.Width,size.Height);
+                var other=Rect.Intersect(alternate,coverArea.ScreenBox);
+                if(other.IsEmpty || other.Width*other.Height<overlap.Width*overlap.Height)return alternate;
+            }
+            return normal;
+        }
+        void DeleteDrawnArea() {
+            if(CoverArea==null)return;
+            if(enlargedArea!=null)ToggleAreaView();
+            deletedArea=CoverArea;
+            coverArea.Clear();
+            status.VerticalAlignment=VerticalAlignment.Bottom;
+            PlaceAreaNotice();
+            status.Show(L.P("Box cleared · Undo Ctrl+Z","네모를 지웠어요 · 되돌리기 Ctrl+Z"),null,NoticeKind.Info,4);
+            areaNoticeDone.Stop();areaNoticeDone.Start();
+        }
+        // The box notice sits over the bar; the next notice shows in the middle again.
+        readonly DispatcherTimer areaNoticeDone=new DispatcherTimer {Interval=TimeSpan.FromSeconds(4.3)};
+        void NoticeBackToMiddle() {
+            areaNoticeDone.Stop();
+            if(status.VerticalAlignment!=VerticalAlignment.Bottom)return;
+            status.VerticalAlignment=VerticalAlignment.Center;status.Margin=new Thickness(20,28,20,28);
+        }
+        void PlaceAreaNotice() {
+            if(status.VerticalAlignment==VerticalAlignment.Bottom)
+                status.Margin=new Thickness(20,0,20,(panel.Visibility==Visibility.Visible?panel.ActualHeight:0)+10);
+        }
+        bool HandleAreaKey(Key key,ModifierKeys modifiers,bool typing) {
+            if(typing) {
+                if(key==Key.Escape)coverArea.CancelTyping();
+                else if(key==Key.Enter)coverArea.ApplyTyping();
+                else return false;
+                return true;
+            }
+            if(key==Key.Z && modifiers==ModifierKeys.Control) {
+                if(deletedArea!=null && CoverArea==null && motion) {
+                    coverArea.Restore(deletedArea);deletedArea=null;status.Text="";NoticeBackToMiddle();
+                }
+                return true;
+            }
+            if(key==Key.Enter && coverArea.Editing && modifiers==ModifierKeys.None) {
+                coverArea.StopEditing();return true;
+            }
+            if(key!=Key.Escape)return false;
+            if(areaPopup.IsOpen)CloseAreaPopup(true);
+            else if(keyPanel!=null && keyPanel.IsOpen)keyPanel.IsOpen=false;
+            else if(enlargedArea!=null)ToggleAreaView();
+            else if(CoverArea!=null)DeleteDrawnArea();
+            else if(coverArea.Editing)coverArea.StopEditing();
+            else Close();
+            return true;
+        }
+        void ToggleAreaView() {
+            if(enlargedArea!=null) {
+                enlargedArea=null;coverArea.SetEnlarged(false);
+                zoom=previousZoom;pan=previousPan;turn=previousTurn;
+                ShowTurn();
+                return;
+            }
+            var box=CoverArea;
+            if(box==null || !AreaNow().HasValue)return;
+            bool resume=turnStillOn && turnResume;
+            CancelTurn();
+            if(resume)SetPaused(false);
+            previousZoom=zoom;previousPan=pan;previousTurn=turn;
+            enlargedArea=box;
+            coverArea.SetEnlarged(true);
+            turn=((int)Math.Round(box.Turn)%360+360)%360;
+            ShowTurn();
+        }
+        void LeaveAreaView() {
+            if(enlargedArea==null)return;
+            enlargedArea=null;coverArea.SetEnlarged(false);
         }
         sealed class MediaViewport : Panel {
             internal static double Aspect(UIElement element) {
@@ -243,7 +370,9 @@ namespace LoveMyShelf {
                 if(coverArea.Dragging){coverArea.Drag(e.GetPosition(ui));return;}
                 hit.Cursor=coverArea.Editing?coverArea.CursorAt(e.GetPosition(ui)):null;
                 if(!panning || !hit.IsMouseCaptured)return;
-                pan=panFrom+(e.GetPosition(ui)-dragFrom);ApplyZoom();
+                var delta=e.GetPosition(ui)-dragFrom;
+                if(delta.LengthSquared>0)LeaveAreaView();
+                pan=panFrom+delta;ApplyZoom();
             };
             hit.MouseLeftButtonUp+=delegate {
                 if(coverArea.Dragging)coverArea.Release();
@@ -255,13 +384,31 @@ namespace LoveMyShelf {
             PreviewMouseWheel+=Wheel;
             ui.Children.Add(hit);
             coverArea=new CoverAreaLayer(AreaNow);
-            coverArea.MakeCover=()=>{coverArea.StopEditing();UpdateAreaButton();StartCrop();};
-            coverArea.Changed+=delegate {areaFile=coverArea.Area==null?null:CurrentPhoto.Original;UpdateAreaButton();};
-            coverArea.ReturnKeys=()=>{Keyboard.Focus(this);TakeKeys();};
+            coverArea.MakeCover=()=>{CloseAreaPopup(true);coverArea.StopEditing();StartCrop();};
+            coverArea.ToggleZoom=ToggleAreaView;coverArea.DeleteArea=DeleteDrawnArea;
+            areaNoticeDone.Tick+=delegate {NoticeBackToMiddle();};
+            coverArea.Changed+=delegate {areaFile=coverArea.Area==null?null:CurrentPhoto.Original;};
+            coverArea.ReturnKeys=ReturnAreaKeys;
+            areaPopup=new Popup {AllowsTransparency=true,StaysOpen=true,Placement=PlacementMode.Relative,
+                PlacementTarget=ui,Child=coverArea.Menu};
+            coverArea.Menu.Focusable=true;
+            areaPopup.Opened+=delegate {Keyboard.Focus(coverArea.Menu);};
+            coverArea.Menu.PreviewKeyDown+=(s,e)=>{
+                var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key==Key.System?e.SystemKey:e.Key;
+                if(key==Key.Escape && e.IsRepeat){e.Handled=true;return;}
+                if((key==Key.Enter || key==Key.Space) && e.OriginalSource is ButtonBase)return; // a button the keyboard is on gets pressed
+                if(HandleAreaKey(key,Keyboard.Modifiers,coverArea.Typing || e.OriginalSource is TextBox))e.Handled=true;
+                else if(key==Key.Enter && ViewerKeys.ActionFor(key)!=null) {
+                    var forwarded=new KeyEventArgs(e.KeyboardDevice,PresentationSource.FromVisual(this),e.Timestamp,key) {
+                        RoutedEvent=Keyboard.PreviewKeyDownEvent};
+                    RaiseEvent(forwarded);e.Handled=forwarded.Handled;
+                }
+            };
             // Drawing ended or stopped mid-drag (Esc, the next file): the mouse is let go and the cursor is plain again.
             coverArea.EditingChanged+=delegate {
                 UpdateAreaButton();
                 if(!coverArea.Editing){hit.Cursor=null;if(!panning && hit.IsMouseCaptured)hit.ReleaseMouseCapture();}
+                RefreshFullscreenControls();
             };
             ui.Children.Add(coverArea); // over the picture, under the bar, the notices and the controls
             TextOptions.SetTextFormattingMode(cornerNote,TextFormattingMode.Ideal);
@@ -278,7 +425,8 @@ namespace LoveMyShelf {
                 try {holdAction();} finally {holdRepeating=false;}
             };
             fromCollection=gallery!=null && gallery.ShowingAllCrops;
-            Closed+=delegate {infoTimer.Stop();holdTimer.Stop();if(keyPanel!=null)keyPanel.IsOpen=false;};
+            Closing+=delegate {CloseAreaPopup();};
+            Closed+=delegate {deletedArea=null;infoTimer.Stop();holdTimer.Stop();if(keyPanel!=null)keyPanel.IsOpen=false;};
             cornerNoteTimer.Tick+=delegate {
                 cornerNoteTimer.Stop();
                 var fade=new System.Windows.Media.Animation.DoubleAnimation(0,TimeSpan.FromMilliseconds(250));
@@ -286,7 +434,10 @@ namespace LoveMyShelf {
                 cornerNote.BeginAnimation(OpacityProperty,fade);
             };
             panel.VerticalAlignment=VerticalAlignment.Bottom;
-            panel.SizeChanged+=delegate {FitPictureAbovePanel();};
+            panel.SizeChanged+=delegate {
+                if(panel.Visibility==Visibility.Visible && panel.ActualHeight>0)lastPanelHeight=panel.ActualHeight;
+                FitPictureAbovePanel();PlaceAreaNotice();
+            };
             panel.SetResourceReference(Panel.BackgroundProperty,"Paper");
             var footer=new Grid {Margin=new Thickness(5,0,5,4)};
             footer.ColumnDefinitions.Add(new ColumnDefinition());
@@ -382,7 +533,7 @@ namespace LoveMyShelf {
             recrop=UI.Btn(L.T("Add cover"),StartCrop,true);recrop.Visibility=Visibility.Collapsed;
             recrop.Margin=new Thickness(4,0,0,0);
             if(!forCrop)controls.Children.Add(recrop);
-            areaButton=UI.Btn("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();UpdateAreaButton();});
+            areaButton=UI.Btn(L.P("▭ Where to cut ▾","▭ 자를 곳 ▾"),ToggleAreaPopup);
             areaButton.Margin=new Thickness(4,0,0,0);areaButton.Visibility=Visibility.Collapsed;
             areaButton.ToolTip=L.P("Draw a box over the video: Make cover starts from it. Separate from zooming and turning.",
                 "영상 위에 네모를 그리면 표지 만들기가 그 네모로 시작해요. 확대·회전과는 따로예요.");
@@ -436,25 +587,19 @@ namespace LoveMyShelf {
             AddHandler(Mouse.LostMouseCaptureEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
             MouseLeave+=delegate {RefreshFullscreenControls();};
             Activated+=delegate {RefreshFullscreenControls();TakeKeys();};
-            Deactivated+=delegate {RefreshFullscreenControls();};
-            SizeChanged+=delegate {RefreshFullscreenControls();};
-            StateChanged+=delegate {if(WindowState!=WindowState.Minimized)TakeKeys();};
+            AddHandler(Mouse.PreviewMouseDownEvent,new MouseButtonEventHandler(AreaOutsidePress),true);
+            Deactivated+=delegate {AreaDeactivated();RefreshFullscreenControls();};
+            SizeChanged+=delegate {RefreshFullscreenControls();RepositionAreaPopup();};
+            LocationChanged+=delegate {RepositionAreaPopup();};
+            StateChanged+=delegate {if(WindowState==WindowState.Minimized)CloseAreaPopup();else TakeKeys();};
             PreviewKeyDown+=(s,e)=>{
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key==Key.System?e.SystemKey:e.Key;
                 // Esc and F1 always keep their jobs. Every other key does what Guide & Options → Advanced says
                 // (the defaults unless the person changed them: ViewerKeys).
-                // Typing a number for the cover box: the keys are the box's (Delete must never recycle the file).
-                if(coverArea.IsKeyboardFocusWithin) {
-                    if(key==Key.Escape){coverArea.CancelTyping();e.Handled=true;}
-                    return;
-                }
+                if(key==Key.Escape && e.IsRepeat){e.Handled=true;return;}
+                if(HandleAreaKey(key,Keyboard.Modifiers,coverArea.Typing)){e.Handled=true;return;}
+                if(coverArea.Typing)return;
                 if(key==Key.F1){GuideWindow.Open(this,"large");e.Handled=true;return;}
-                if(key==Key.Escape) {
-                    if(keyPanel!=null && keyPanel.IsOpen)keyPanel.IsOpen=false; // the controls close first
-                    else if(coverArea.Editing)coverArea.StopEditing(); // then drawing the cover box ends
-                    else Close();
-                    e.Handled=true;return;
-                }
                 string job=ViewerKeys.ActionFor(key);
                 // A key the person chose (Enter, Tab, …) is used up even when its job can't run right now, so it
                 // doesn't press a focused button or move the focus instead. The first keys behave as they always did.
@@ -991,7 +1136,7 @@ namespace LoveMyShelf {
         Rect ViewArea {get {return new Rect(0,0,root.ActualWidth,Math.Max(0,root.ActualHeight-viewport.Margin.Bottom));}}
         double ShownAspect {get {return picture.Source!=null?MediaViewport.Aspect(picture):mpv!=null?mpv.Aspect:media==null?0:MediaViewport.Aspect(media);}}
         // Width over height before O / P.
-        double UprightAspect {get {
+        internal double UprightAspect {get {
             if(picture.Source!=null)return picture.Source.Height>0?picture.Source.Width/picture.Source.Height:0;
             if(mpv!=null)return mpv.UprightAspect;
             if(media==null || media.NaturalVideoWidth<=0 || media.NaturalVideoHeight<=0)return 0;
@@ -1030,6 +1175,7 @@ namespace LoveMyShelf {
             return Math.Min(1,Math.Min(area.Width/box.Width,area.Height/box.Height));
         }
         void Turn(int direction,bool held) {
+            LeaveAreaView();
             if(turning){turnSettle.Stop();turnSettle.Start();} // a held key resting at a quarter turn is still turning
             if(held && DateTime.UtcNow<turnRests)return;
             if(!turning)StartTurning();
@@ -1045,6 +1191,7 @@ namespace LoveMyShelf {
         }
         // I: the angle, the size and the place all go back. A turned video hides its rebuild behind the still here too.
         void ResetTurn() {
+            LeaveAreaView();
             if(drawnTurn!=0)HoldStill();
             turnSettle.Stop();turning=false;turnWaiting=false;turnReady.Stop();
             turn=0;zoom=1;pan=new Vector();
@@ -1130,6 +1277,7 @@ namespace LoveMyShelf {
         void FinishTurn() {if(turning)SettleTurn();}
         // about: the spot (in the view) that stays where it is, usually the pointer; the middle when left out.
         void SetZoom(double value,Point? about=null) {
+            LeaveAreaView();
             var area=ViewArea;
             // A picture made smaller at one angle may stay that small at another.
             double least=Math.Min(zoom,LeastZoom());
@@ -1145,11 +1293,18 @@ namespace LoveMyShelf {
         // Puts the zoom, the place and the turn on whatever shows the picture, and everything that follows its shape.
         void ApplyZoom() {
             var area=ViewArea;
-            var box=TurnedBox(MediaViewport.Fit(UprightAspect,area.Size).Size);
+            var upright=MediaViewport.Fit(UprightAspect,area.Size).Size;
+            if(enlargedArea!=null && upright.Width>0 && upright.Height>0) {
+                var frame=enlargedArea.Framing(upright);
+                zoom=Math.Min(MaxZoom,Math.Min(area.Width/frame.ShownWidth,area.Height/frame.ShownHeight)); // the whole box shows
+                pan=new Vector(frame.PanX*zoom,frame.PanY*zoom);
+            }
+            var box=TurnedBox(upright);
             double w=box.Width*zoom,h=box.Height*zoom;
             // The picture can be moved only as far as it sticks out of the view.
             double roomX=Math.Max(0,(w-area.Width)/2),roomY=Math.Max(0,(h-area.Height)/2);
-            pan=new Vector(Math.Max(-roomX,Math.Min(roomX,pan.X)),Math.Max(-roomY,Math.Min(roomY,pan.Y)));
+            if(enlargedArea==null)
+                pan=new Vector(Math.Max(-roomX,Math.Min(roomX,pan.X)),Math.Max(-roomY,Math.Min(roomY,pan.Y)));
             // Whatever shows the picture fits the turned box into the view by itself; this is the size on top of that.
             var fit=MediaViewport.Fit(box.Height>0?box.Width/box.Height:0,area.Size);
             double scale=fit.Width>0?w/fit.Width:1;
@@ -1372,6 +1527,7 @@ namespace LoveMyShelf {
         Action holdAction;
         bool holdRepeating; // a held button repeats like a held key (it rests at a quarter turn too)
         void ShowControls() {
+            CloseAreaPopup();
             if(keyPanel!=null)keyPanel.IsOpen=false;
             var rows=new Grid();
             rows.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});rows.ColumnDefinitions.Add(new ColumnDefinition());
@@ -1419,12 +1575,21 @@ namespace LoveMyShelf {
                 partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
                 live.Add(()=>partOff.IsEnabled=PartIsHere && (partStart.HasValue || partEnd.HasValue));
                 row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff});
-                var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();UpdateAreaButton();},false);
-                live.Add(()=>drawBox.Content=coverArea.Editing?L.P("▭ Done drawing","▭ 다 그렸어요"):L.P("▭ Draw a box","▭ 네모 그리기"));
-                drawBox.ToolTip=L.P("Draw a box over the video: Make cover starts from it.","영상 위에 네모를 그리면 표지 만들기가 그 네모로 시작해요.");
-                var clearBox=key(L.P("Clear","지우기"),()=>{coverArea.Clear();UpdateAreaButton();},false);
+                var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();},false);
+                live.Add(()=>{
+                    drawBox.IsEnabled=enlargedArea==null;
+                    drawBox.Content=coverArea.Editing?L.P("Done drawing","다 그렸어요"):
+                        CoverArea==null?L.P("▭ Start drawing","▭ 그리기 시작"):L.P("▭ Edit box","▭ 네모 고치기");
+                });
+                var zoomBox=key(enlargedArea==null?L.P("⛶ Enlarge the box","⛶ 네모만 크게"):
+                    L.P("⛶ Back to previous view","⛶ 원래 보기"),ToggleAreaView,false);
+                live.Add(()=>{
+                    zoomBox.IsEnabled=CoverArea!=null;
+                    zoomBox.Content=enlargedArea==null?L.P("⛶ Enlarge the box","⛶ 네모만 크게"):L.P("⛶ Back to previous view","⛶ 원래 보기");
+                });
+                var clearBox=key(L.P("Clear","지우기"),DeleteDrawnArea,false);
                 live.Add(()=>clearBox.IsEnabled=CoverArea!=null);
-                row(L.P("Where to cut","자를 곳"),new[]{drawBox,clearBox});
+                row(L.P("Where to cut","자를 곳"),new[]{drawBox,zoomBox,clearBox});
                 row(L.T("Skip"),new[]{key("←  "+L.F("{0} s",skipSeconds),()=>Skip(-1,skipSeconds),true),key(L.F("{0} s",skipSeconds)+"  →",()=>Skip(1,skipSeconds),true)});
                 Action<double> speed=change=>{
                     SetRate(change==0?1:Math.Max(0.2,Math.Min(4,Math.Round(rate+change,1))));
@@ -1488,6 +1653,9 @@ namespace LoveMyShelf {
             card.SetResourceReference(Border.BackgroundProperty,"Paper");card.SetResourceReference(Border.BorderBrushProperty,"Line");
             card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
             popup.Child=card;
+            card.PreviewKeyDown+=(s,e)=>{
+                if(e.Key==Key.Escape){if(!e.IsRepeat){popup.IsOpen=false;ReturnAreaKeys();}e.Handled=true;}
+            };
             popup.Closed+=delegate {holdTimer.Stop();if(keyPanel==popup)keyPanel=null;};
             keyPanel=popup;popup.IsOpen=true;
         }
@@ -1646,7 +1814,18 @@ namespace LoveMyShelf {
                 SeekTo(position,position+Math.Max(0,Math.Min(1,(end-position)/2)));
             }
         }
+        void PositionAreaPopup() {
+            coverArea.Menu.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));
+            var anchor=AreaAnchor(coverArea.Menu.DesiredSize);
+            // Set twice: the same numbers again would not move an open popup after the window moved.
+            areaPopup.HorizontalOffset=anchor.X+0.5;areaPopup.HorizontalOffset=anchor.X;areaPopup.VerticalOffset=anchor.Y;
+        }
+        void RepositionAreaPopup() {
+            if(!areaPopup.IsOpen)return;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>{if(areaPopup.IsOpen)PositionAreaPopup();}));
+        }
         void SetFullscreen(bool full) {
+            CloseAreaPopup();
             fullscreen=full;
             surfaceClick.Stop();
             hidden=false;
@@ -1662,6 +1841,7 @@ namespace LoveMyShelf {
                 titleBar.Visibility=Visibility.Visible;
                 SetPanelVisible(!hidden);
             }
+            FitPictureAbovePanel();RepositionAreaPopup();
         }
         // Back from the taskbar (minimized in full screen with the minimize button on the overlay), Windows could
         // hand the keys to the video's own child window or to nothing, so no shortcut worked until F11 went out and
@@ -1681,6 +1861,7 @@ namespace LoveMyShelf {
                 } else if(focus==me && Keyboard.FocusedElement==null) Keyboard.Focus(this);
             }));
         }
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetFocus();
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr hwnd);
         [System.Runtime.InteropServices.DllImport("user32.dll")] [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] static extern bool IsChild(IntPtr parent,IntPtr child);
@@ -1704,7 +1885,8 @@ namespace LoveMyShelf {
                     overlay.AddHandler(Mouse.LostMouseCaptureEvent,new MouseEventHandler((s,e)=>RefreshFullscreenControls()),true);
                     overlay.MouseLeave+=delegate {RefreshFullscreenControls();};
                     overlay.Activated+=delegate {RefreshFullscreenControls();TakeKeys();};
-                    overlay.Deactivated+=delegate {RefreshFullscreenControls();};
+                    overlay.AddHandler(Mouse.PreviewMouseDownEvent,new MouseButtonEventHandler(AreaOutsidePress),true);
+                    overlay.Deactivated+=delegate {AreaDeactivated();RefreshFullscreenControls();};
                     overlay.PreviewMouseWheel+=Wheel;
                 }
                 if(overlay.Content!=ui){root.Children.Remove(ui);overlay.Content=ui;}
@@ -1726,10 +1908,12 @@ namespace LoveMyShelf {
             const double topDistance=40,bottomDistance=64;
             bool inside=new Rect(RenderSize).Contains(pointer);
             bool nearTitle=inside && pointer.Y<=topDistance;
-            double bottomZone=Math.Max(bottomDistance,panel.ActualHeight);
+            double bottomZone=coverArea.Editing
+                ?Math.Max(12,panel.Visibility==Visibility.Visible?lastPanelHeight:0)
+                :Math.Max(bottomDistance,panel.ActualHeight);
             bool nearPanel=inside && ActualHeight-pointer.Y<=bottomZone;
             titleBar.Visibility=nearTitle || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
-            SetPanelVisible(nearPanel || panel.IsMouseCaptureWithin);
+            SetPanelVisible(!coverArea.Dragging && (areaPopup.IsOpen || coverArea.Typing || nearPanel || panel.IsMouseCaptureWithin));
         }
         void SetHidden(bool hide) {
             hidden=hide;
@@ -1739,7 +1923,7 @@ namespace LoveMyShelf {
             if(!fullscreen)visible=true; // windowed: always shown
             var visibility=visible?Visibility.Visible:Visibility.Collapsed;
             if(panel.Visibility==visibility)return;
-            panel.Visibility=visibility;
+            panel.Visibility=visibility;PlaceAreaNotice();
             if(!visible)seekPreview.Hide();
             FitPictureAbovePanel();
             Dispatcher.BeginInvoke(new Action(PlaceSubtitles),DispatcherPriority.Loaded); // once the bar has its height
@@ -1790,6 +1974,8 @@ namespace LoveMyShelf {
             return new string(chars);
         }
         void ClearTransport() {
+            CloseAreaPopup();LeaveAreaView();
+            if(status.VerticalAlignment==VerticalAlignment.Bottom){status.Text="";NoticeBackToMiddle();}
             CancelTurn();
             seekPreview.Clear();
             ticker.Stop();surfaceClick.Stop();clock.Reset();
@@ -1995,6 +2181,9 @@ namespace LoveMyShelf {
         }
         async void LoadCurrent(bool? showCover=null) {
             if(loading!=null)loading.Cancel();ClearTransport();
+            if(!String.Equals(viewedFile,CurrentPhoto.Original,StringComparison.OrdinalIgnoreCase)) {
+                viewedFile=CurrentPhoto.Original;deletedArea=null;coverArea.Clear();
+            }
             turn=0;zoom=1;pan=new Vector();mediaTurn=0;ShowTurn(); // every file starts upright and at its own size
             // ...and at its own brightness. Going back and forth between the cover and the video keeps it.
             if(items[index].Original!=brightnessFile) {
