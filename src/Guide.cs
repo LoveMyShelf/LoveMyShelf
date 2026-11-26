@@ -1162,6 +1162,16 @@ namespace LoveMyShelf {
                     T("Fit it in the frame just as with a photo, and click [[Save cover]]. In the Make cover screen too, {{D}} and {{F}} go to the previous and next scene.","사진과 똑같이 테두리에 맞추고 [[표지 저장]]을 눌러요. 표지 만들기 화면에서도 {{D}}와 {{F}}로 이전·다음 장면으로 넘어갈 수 있어요.")},
                 Keys=new[]{K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→")},
                 Tips=new[]{T("Click [[All scenes]] in the scene list to see every scene of the whole video.","장면 목록에서 [[모든 장면]]을 누르면 영상 전체의 장면을 다 볼 수 있어요.")}});
+            video.Items.Add(new Card {Title=T("Draw where to cut while watching","보면서 자를 곳을 네모로 그려 둬요"),
+                Lines=new[]{T("You can draw the part you want as a box over the playing video, GIF or WebP. Make cover then starts from that box.",
+                    "재생 중인 영상·GIF·WebP 위에 원하는 부분을 네모로 그려 둘 수 있어요. 그러면 표지 만들기가 그 네모로 시작해요.")},
+                Steps=new[]{T("Click [[▭ Draw a box]] at the bottom (also under [[Where to cut]] in the right-click controls) and drag over the picture.","아래쪽의 [[▭ 네모 그리기]]를 누르고(오른쪽 클릭 조작 창의 [[자를 곳]]에도 있어요) 화면을 끌어요."),
+                    T("Drag inside the box to move it, and drag a corner to resize it. In the bar at the top you can type its place and size as a % of the picture.","네모 안쪽을 끌면 옮겨지고, 모서리를 끌면 크기가 바뀌어요. 위쪽 칸에 위치와 크기를 사진의 몇 %인지 숫자로 적을 수도 있어요."),
+                    T("Turn on [[🔒 Keep this shape]] to keep the shape while drawing; pick it with the 9:16, 3:4, 1:1, 4:3 and 16:9 buttons or type width:height.","[[🔒 비율 고정]]을 켜면 그려도 모양이 그대로예요. 모양은 9:16·3:4·1:1·4:3·16:9 버튼이나 가로:세로 숫자로 정해요."),
+                    T("Click [[Make a cover from this box]] (or [[Make cover]]). After you pick a scene, the Make cover screen starts from the box, and a GIF cover made there uses the same place.","[[이 네모로 표지 만들기]](또는 [[표지 만들기]])를 눌러요. 장면을 고르면 표지 만들기 화면이 이 네모로 시작하고, 거기서 만드는 GIF 표지도 같은 자리를 써요.")},
+                Keys=new[]{K(T("End drawing (the box stays)","그리기 끝내기(네모는 남아요)"),"Esc")},
+                Tips=new[]{T("The box is apart from zooming and turning: zoom in with the wheel and it stays on the same part of the picture. A double-click still plays or pauses, and right-clicking the playback bar still repeats a part. [[Clear]] takes the box away, and it goes when you move to another file.",
+                    "네모는 확대·회전과 따로라서 휠로 확대해도 사진의 같은 곳에 그대로 있어요. 그리는 동안에도 더블클릭은 일시정지·재생, 재생바 오른쪽 클릭은 구간 반복 그대로예요. [[지우기]]로 없애고, 다른 파일로 넘어가면 사라져요.")}});
             video.Items.Add(Numbers("skip",T("How far should the ← and → keys skip?","←, → 키로 얼마나 건너뛸까요?"),new[]{3,5,10,30},5,
                 p=>p.SkipSeconds,(p,v)=>p.SkipSeconds=v,v=>T(v+" seconds",v+"초"),
                 v=>v==3?T("A little at a time","조금씩"):v==5?T("Usual","보통"):v==10?T("Longer","길게"):T("For getting through long videos quickly","긴 영상을 빨리 넘길 때"),4));

@@ -2420,7 +2420,7 @@ namespace LoveMyShelf {
             var picker=new FramePicker(playback,path,photo,playback.CropFrame,playback.CropTime,
                 settings.SnapEdges,settings.WheelZoomPercent,nearby,FullScreen.IsFull(this),Preferences.EditorPreviewSide);
             picker.Brightness=playback.PlaybackBrightness;picker.BrightnessChosen=playback.BrightnessChosen;picker.SkipSeconds=settings.SkipSeconds;picker.BrightnessStep=settings.BrightnessStep;
-            picker.Framing=playback.CurrentFraming;
+            picker.Framing=playback.CurrentFraming;picker.Area=playback.CoverArea;
             var target=AddTarget(photo,path);
             // While watching, the video stays open behind the editor and is simply there again after saving.
             // A video opened only to make a cover closes and shows the new cover instead.

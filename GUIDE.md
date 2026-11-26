@@ -120,6 +120,8 @@ It works as soon as you extract the ZIP. The FFmpeg tools it needs are in the `t
 
 Tip: pressing **D** or **F** during playback pauses and moves one scene back or forward. It is handy to find the exact scene and then click **Make cover**.
 
+You can also decide where to cut in advance. While watching, click **▭ Draw a box** at the bottom (it is also under **Where to cut** in the right-click controls window) and drag over the picture to draw a box. Drag inside it to move it, drag a corner to resize it. In the bar at the top you can also type its place (from the left, from the top) and size (width, height) as a % of the picture. With **🔒 Keep this shape** on, drawing and dragging a corner keep the shape; pick the shape with the 9:16 · 3:4 · 1:1 · 4:3 · 16:9 buttons or width:height numbers. Click **Make a cover from this box** (or **Make cover** as usual): after Choose a scene, the Make cover screen starts from the box, and a GIF cover made there uses the same place. The box is apart from zooming and turning, so it stays on the same part of the picture when you zoom in with the wheel. End drawing with **Done drawing** or **Esc** and the box stays as a dotted line; **Clear** takes it away. It goes when you move to another file. While drawing, a double-click still plays or pauses, a right-click still opens the controls, and right-clicking the playback bar still repeats a part.
+
 ### Viewing, editing and making one more cover
 
 - **Double-click** a tile with a cover and the side you set in Guide & Options (the cover or the original) opens large. One click selects the tile. To open with a single click, change it in **Guide & Options → Large view**.

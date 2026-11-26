@@ -77,6 +77,8 @@ namespace LoveMyShelf {
         // How the video looked while watching (turn, zoom, place): the scenes show that way and a cover starts from it.
         // Null when it was simply upright at its own size.
         internal ViewFraming Framing;
+        // A box drawn over the video while watching (CoverAreaLayer): the cover starts from it, ahead of the view's framing.
+        internal DrawnArea Area;
         // The playback brightness (-100..100) the video was watched with: the scenes show with it and a cover starts from it.
         int brightness;
         // True when E / W / Q was pressed while watching this video, so a 0 there means "back to normal", not "not set".
@@ -272,6 +274,7 @@ namespace LoveMyShelf {
                 // Turned or zoomed while watching: the cover starts just as it looked, ahead of the saved cover's framing.
                 double rotation=own?photo.Rotation:0;
                 if(Framing!=null){rotation=Framing.Turn;saved=Framing.CoverFrame(image.PixelWidth,image.PixelHeight);}
+                if(Area!=null){rotation=Area.Turn;saved=Area.Fraction;}
                 // Brightness set while watching this video (E / W / Q, even back to 0) wins; otherwise the saved cover's own.
                 var editor=new CropWindow(this,image,photo.Name,saved,rotation,snapEdges,wheelZoomPercent,previewSide,
                     BrightnessChosen?brightness:own?photo.Brightness:0);

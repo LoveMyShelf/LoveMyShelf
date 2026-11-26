@@ -46,7 +46,10 @@ namespace LoveMyShelf {
         readonly DispatcherTimer surfaceClick=new DispatcherTimer {
             Interval=TimeSpan.FromMilliseconds(System.Windows.Forms.SystemInformation.DoubleClickTime)};
         readonly Stopwatch clock=new Stopwatch();
-        readonly Button toggle,prev,next,pause,locate,recrop,editCover,upscale,motionToggle,makeGif;
+        readonly Button toggle,prev,next,pause,locate,recrop,editCover,upscale,motionToggle,makeGif,areaButton;
+        // The box drawn over a playing video, GIF or WebP: where a new cover starts (apart from zoom and turn).
+        readonly CoverAreaLayer coverArea;
+        string areaFile; // the original the box was drawn on
         FramePlayer motionPlayer;
         CancellationTokenSource motionLoading;
         bool showMotion=true;
@@ -105,6 +108,25 @@ namespace LoveMyShelf {
                 ShownWidth=Math.Min(area.Width,box.Width*zoom),ShownHeight=Math.Min(area.Height,box.Height*zoom)};
         }}
 
+        // Where the picture is right now, for the cover box (CoverAreaLayer).
+        AreaView? AreaNow() {
+            double aspect=UprightAspect;
+            var area=ViewArea;
+            if(aspect<=0 || area.Width<=0 || area.Height<=0)return null;
+            var upright=MediaViewport.Fit(aspect,area.Size);
+            return new AreaView {Middle=new Point(area.Width/2+pan.X,area.Height/2+pan.Y),
+                Picture=new Size(upright.Width*zoom,upright.Height*zoom),Turn=drawnTurn>180?drawnTurn-360:drawnTurn,Room=area};
+        }
+        // The cover box drawn on the file shown now, or null.
+        internal DrawnArea CoverArea {get {
+            if(coverArea==null || !motion || areaFile==null || !String.Equals(areaFile,CurrentPhoto.Original,StringComparison.OrdinalIgnoreCase))return null;
+            return coverArea.Area;
+        }}
+        void UpdateAreaButton() {
+            if(areaButton==null)return;
+            areaButton.Visibility=motion?Visibility.Visible:Visibility.Collapsed;
+            areaButton.Content=coverArea.Editing?L.P("▭ Done drawing","▭ 다 그렸어요"):L.P("▭ Draw a box","▭ 네모 그리기");
+        }
         sealed class MediaViewport : Panel {
             internal static double Aspect(UIElement element) {
                 var image=element as Image;
@@ -205,7 +227,12 @@ namespace LoveMyShelf {
             turnLayer.Children.Add(turnImage);ui.Children.Insert(0,turnLayer); // over the video, under everything else
             // Part of the picture is past the edge: dragging moves it. Right-click: the controls with their keys.
             hit.MouseLeftButtonDown+=(s,e)=>{
-                if(PictureOverflows() && e.ClickCount==1){dragFrom=e.GetPosition(ui);panFrom=pan;hit.CaptureMouse();}
+                // Drawing the cover box: the left button draws, moves or resizes it instead of moving the picture.
+                // A double-click still plays or pauses; a right-click still opens the controls.
+                if(coverArea.Editing && e.ClickCount==1 && coverArea.Press(e.GetPosition(ui))) {
+                    hit.CaptureMouse();surfaceClick.Stop();e.Handled=true;return;
+                }
+                if(!coverArea.Editing && PictureOverflows() && e.ClickCount==1){dragFrom=e.GetPosition(ui);panFrom=pan;hit.CaptureMouse();}
                 if(!motion)return;
                 surfaceClick.Stop();
                 if(e.ClickCount==2)SetPaused(!paused);
@@ -213,13 +240,24 @@ namespace LoveMyShelf {
                 e.Handled=true;
             };
             hit.MouseMove+=(s,e)=>{
+                if(coverArea.Dragging){coverArea.Drag(e.GetPosition(ui));return;}
+                hit.Cursor=coverArea.Editing?coverArea.CursorAt(e.GetPosition(ui)):null;
                 if(!hit.IsMouseCaptured)return;
                 pan=panFrom+(e.GetPosition(ui)-dragFrom);ApplyZoom();
             };
-            hit.MouseLeftButtonUp+=delegate {if(hit.IsMouseCaptured)hit.ReleaseMouseCapture();};
+            hit.MouseLeftButtonUp+=delegate {
+                if(coverArea.Dragging)coverArea.Release();
+                if(hit.IsMouseCaptured)hit.ReleaseMouseCapture();
+            };
+            hit.LostMouseCapture+=delegate {if(coverArea.Dragging)coverArea.Release();};
             hit.MouseRightButtonUp+=(s,e)=>{ShowControls();e.Handled=true;};
             PreviewMouseWheel+=Wheel;
             ui.Children.Add(hit);
+            coverArea=new CoverAreaLayer(AreaNow);
+            coverArea.MakeCover=()=>{coverArea.StopEditing();UpdateAreaButton();StartCrop();};
+            coverArea.Changed+=delegate {areaFile=coverArea.Area==null?null:CurrentPhoto.Original;UpdateAreaButton();};
+            coverArea.EditingChanged+=UpdateAreaButton;
+            ui.Children.Add(coverArea); // over the picture, under the bar, the notices and the controls
             TextOptions.SetTextFormattingMode(cornerNote,TextFormattingMode.Ideal);
             TextOptions.SetTextFormattingMode(infoText,TextFormattingMode.Ideal);
             // The file information (Tab) sits at the top left with the short notes under it, so a note never moves it.
@@ -338,6 +376,11 @@ namespace LoveMyShelf {
             recrop=UI.Btn(L.T("Add cover"),StartCrop,true);recrop.Visibility=Visibility.Collapsed;
             recrop.Margin=new Thickness(4,0,0,0);
             if(!forCrop)controls.Children.Add(recrop);
+            areaButton=UI.Btn("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();UpdateAreaButton();});
+            areaButton.Margin=new Thickness(4,0,0,0);areaButton.Visibility=Visibility.Collapsed;
+            areaButton.ToolTip=L.P("Draw a box over the video: Make cover starts from it. Separate from zooming and turning.",
+                "영상 위에 네모를 그리면 표지 만들기가 그 네모로 시작해요. 확대·회전과는 따로예요.");
+            controls.Children.Add(areaButton);
             toggle.Margin=new Thickness(4,0,4,0);controls.Children.Add(toggle);
             editCover=UI.Btn(L.T("Edit cover"),EditCover);editCover.Visibility=Visibility.Collapsed;
             if(!forCrop)controls.Children.Add(editCover);
@@ -394,9 +437,15 @@ namespace LoveMyShelf {
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key==Key.System?e.SystemKey:e.Key;
                 // Esc and F1 always keep their jobs. Every other key does what Guide & Options → Advanced says
                 // (the defaults unless the person changed them: ViewerKeys).
+                // Typing a number for the cover box: the keys are the box's (Delete must never recycle the file).
+                if(coverArea.IsKeyboardFocusWithin) {
+                    if(key==Key.Escape){Keyboard.Focus(this);TakeKeys();e.Handled=true;}
+                    return;
+                }
                 if(key==Key.F1){GuideWindow.Open(this,"large");e.Handled=true;return;}
                 if(key==Key.Escape) {
                     if(keyPanel!=null && keyPanel.IsOpen)keyPanel.IsOpen=false; // the controls close first
+                    else if(coverArea.Editing)coverArea.StopEditing(); // then drawing the cover box ends
                     else Close();
                     e.Handled=true;return;
                 }
@@ -1110,6 +1159,7 @@ namespace LoveMyShelf {
             PlaceTurnStill();
             viewport.InvalidateMeasure();
             if(seekPreview!=null)seekPreview.Framing=CurrentFraming;
+            if(coverArea!=null)coverArea.Refresh();
             ApplyPlaybackBrightness();PlaceSubtitles();PlaceCoverStrip();
         }
         void Wheel(object sender,MouseWheelEventArgs e) {
@@ -1362,6 +1412,12 @@ namespace LoveMyShelf {
                 partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
                 live.Add(()=>partOff.IsEnabled=PartIsHere && (partStart.HasValue || partEnd.HasValue));
                 row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff});
+                var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();UpdateAreaButton();},false);
+                live.Add(()=>drawBox.Content=coverArea.Editing?L.P("▭ Done drawing","▭ 다 그렸어요"):L.P("▭ Draw a box","▭ 네모 그리기"));
+                drawBox.ToolTip=L.P("Draw a box over the video: Make cover starts from it.","영상 위에 네모를 그리면 표지 만들기가 그 네모로 시작해요.");
+                var clearBox=key(L.P("Clear","지우기"),()=>{coverArea.Clear();UpdateAreaButton();},false);
+                live.Add(()=>clearBox.IsEnabled=CoverArea!=null);
+                row(L.P("Where to cut","자를 곳"),new[]{drawBox,clearBox});
                 row(L.T("Skip"),new[]{key("←  "+L.F("{0} s",skipSeconds),()=>Skip(-1,skipSeconds),true),key(L.F("{0} s",skipSeconds)+"  →",()=>Skip(1,skipSeconds),true)});
                 Action<double> speed=change=>{
                     SetRate(change==0?1:Math.Max(0.2,Math.Min(4,Math.Round(rate+change,1))));
@@ -1735,6 +1791,7 @@ namespace LoveMyShelf {
             duration=0;startMs=0;shown=-1;times=null;requests=null;videoIndex=null;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Collapsed;
             ShowPart();
+            coverArea.Available=false;UpdateAreaButton();
             subtitlesReady=false;clearVoiceReady=false;
             if(explorer!=null)explorer.PlaybackChanged();
             ShowRecrop(false);
@@ -1753,6 +1810,9 @@ namespace LoveMyShelf {
             clearVoiceReady=mpv!=null && mpvAudio;
             transport.Visibility=playbackButtons.Visibility=pause.Visibility=Visibility.Visible;
             ReserveWidth(time,Widest(Stamp(duration)+" / "+Stamp(duration)));
+            // The cover box: back on for the file it was drawn on, gone for any other.
+            if(areaFile!=null && !String.Equals(areaFile,CurrentPhoto.Original,StringComparison.OrdinalIgnoreCase)){coverArea.Clear();areaFile=null;}
+            coverArea.Available=true;UpdateAreaButton();
             clock.Restart();ticker.Start();UpdateBar(0);
             partInside=false;partJump.Reset(); // playing starts outside the part until it is reached or skipped into
             ShowPart();

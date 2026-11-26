@@ -15,6 +15,7 @@ When a new version comes out, a notice appears inside the program. Click it to u
 - **GIF 구간 안쪽을 더블클릭해서 줄이기:** GIF 표지 만들기의 장면 띠에서 구간 안쪽을 더블클릭하면, 표지 장면보다 앞이면 시작이, 뒤면 끝이 그 자리로 당겨져요. 바깥을 더블클릭하면 전처럼 구간이 그곳까지 늘어나요.
 - **설치 파일로 깐 경우 앱 목록의 버전도 바뀌어요:** 설치 파일로 깐 LoveMyShelf를 업데이트하면 Windows 설정의 [앱] 목록에 보이는 버전도 새 버전으로 바뀌어요.
 - **표지 자를 때 사진이 가만히 있어요:** 이제 표지 만들기에서 틀을 끌어도 사진이 확대·축소되지 않고 가만히 있어요. 틀만 사진 위에서 움직이고 커지고 작아지며, 틀 바깥은 어둡게 보여요. 사진과 틀이 다 보이게 하려면 [화면에 맞추기]를 눌러요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [🔍 틀 따라 사진 확대·축소]를 켜요. 고른 것은 기억해요.
+- **영상 위에 자를 곳을 네모로 그려 두기:** 영상·GIF·WebP를 보다가 아래쪽의 [▭ 네모 그리기]를 누르고 화면을 끌면 네모가 생겨요. 안쪽을 끌면 옮겨지고, 모서리를 끌면 크기가 바뀌어요. 위쪽 칸에 위치와 크기를 %로 바로 적을 수도 있고, [🔒 비율 고정]과 9:16·3:4·1:1·4:3·16:9 버튼이나 가로:세로 숫자로 모양을 정할 수 있어요. 그다음 [이 네모로 표지 만들기]나 [표지 만들기]를 누르면 장면 고르기를 거쳐 표지 만들기 화면이 이 네모로 시작해요. 거기서 만드는 GIF 표지도 같은 자리를 써요. 네모는 확대·회전과 따로라서 영상을 확대해도 사진의 같은 곳에 그대로 있어요. [지우기]로 없애고, 다른 파일로 넘어가면 사라져요.
 - **이름은 영어 LoveMyShelf로만 써요:** 한국어 화면과 설명서에서도 프로그램 이름을 한글로 쓰지 않고 영어 LoveMyShelf로만 써요. 폴더 이름과 만든 표지, 기록은 그대로예요.
 
 Right-click the playback bar twice to repeat a part, and double-click inside a GIF part to shorten it.
@@ -23,6 +24,7 @@ Right-click the playback bar twice to repeat a part, and double-click inside a G
 - **Double-click inside the GIF part to shorten it:** On the scene strip in Make GIF cover, double-click inside the part: before the cover's scene the start comes there, after it the end. Double-clicking outside still grows the part to there.
 - **Settings › Apps shows the new version for an installed copy:** If you installed LoveMyShelf with the setup file, the version shown in Windows Settings › Apps now changes too when it updates.
 - **The picture stays still while you cut a cover:** In Make cover, the picture no longer zooms in and out while you drag the frame: it stays still and only the frame moves and changes size over it, with the outside dimmed. [Fit to the window] shows the whole picture and the frame. To zoom with the frame as before, turn on [🔍 Zoom the picture with the frame]. Your choice is remembered.
+- **Draw where to cut over the video:** While watching a video, GIF or WebP, click [▭ Draw a box] at the bottom and drag over the picture. Drag inside the box to move it, drag a corner to resize it. You can also type its place and size in % in the bar at the top, and set its shape with [🔒 Keep this shape], the 9:16 · 3:4 · 1:1 · 4:3 · 16:9 buttons or width:height numbers. Then click [Make a cover from this box] or [Make cover]: after Choose a scene, the Make cover screen starts from the box, and a GIF cover made there uses the same place. The box is apart from zooming and turning, so it stays on the same part of the picture when you zoom in. [Clear] takes it away, and it goes when you move to another file.
 - **The name is written only as LoveMyShelf:** Korean screens and the Korean guide now also write the program's name only as LoveMyShelf, not in Hangul. Folder names, your covers and records stay as they are.
 
 ---
