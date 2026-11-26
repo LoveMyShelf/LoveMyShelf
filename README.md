@@ -4,6 +4,8 @@
 
 영상, 사진, 움짤이 잔뜩 쌓인 폴더를 한눈에 보는 Windows 프로그램이에요. 파일 탐색기처럼 쓰면서, 파일마다 **내가 고른 장면을 표지로** 붙일 수 있어요.
 
+세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)끼리 토큰을 아끼지 않고 토론시켜 만들었고, 만든 사람이 매일 하루 종일 직접 쓰면서 불편한 점을 하나씩 고쳤어요. 그래서 처음 쓰는 분은 시간과 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓸 수 있어요.
+
 ### [⬇ Love My Shelf 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
 [English is below](#english) · [설명서](GUIDE.ko.md) · [바뀐 점](CHANGELOG.md)
@@ -16,6 +18,19 @@
 
 받는 파일은 약 220MB예요. 영상 재생기와 AI 기능(표지를 4배 크고 선명하게, 얼굴로 사람 찾기)이 모두 들어 있어서 그래요. AI 기능은 인터넷에 올리지 않고 내 컴퓨터 안에서만 돌아가요.
 
+## 한눈에 보기
+
+| | |
+|---|---|
+| 무엇인가요 | 파일 탐색기처럼 쓰는 사진·움짤·영상 갤러리. 파일마다 내가 고른 장면을 9:16 표지로 붙여요 |
+| 가격 | 완전 무료. 광고, 가입, 유료 기능이 없어요 |
+| 소스 | 전부 공개 ([GPL-3.0](LICENSE)) |
+| 컴퓨터 | Windows 10, Windows 11 (64비트). .NET Framework 4.8이 필요해요(Windows 10 1903 이후에는 이미 들어 있어요) |
+| 설치 | ZIP을 풀고 `LoveMyShelf.exe`를 켜면 끝. 설치하지 않아도 돼요 |
+| 인터넷 | GitHub에서 새 버전을 확인하고, 업데이트를 누르면 그때 받아요. 확인도 끌 수 있어요. 사진·영상·사용 기록은 밖으로 보내지 않아요 |
+| 원본 파일 | 표지를 만들어도 원본은 그대로예요. 표지는 따로 저장돼요 |
+| 언어 | 한국어, English |
+
 ## 이럴 때 좋아요
 
 | 하고 싶은 일 | 잘 맞는 프로그램 |
@@ -24,6 +39,29 @@
 | 영상·움짤·사진이 섞인 폴더를 큰 그림으로 한눈에 훑기 | **Love My Shelf** |
 | 영상마다 내가 고른 장면을 표지로 붙이고, 움직이는 표지도 만들기 | **Love My Shelf** |
 | 탐색기처럼 복사·옮기기·이름 바꾸기를 해도 표지가 함께 옮겨지게 하기 | **Love My Shelf** |
+
+**이럴 때는 다른 프로그램이 나아요**
+
+- 아이폰 사진(HEIC), 카메라 RAW, AVIF 파일을 봐야 할 때: 아직 못 열어요.
+- 사진을 보정하거나 그림을 편집하고 싶을 때: Love My Shelf는 편집 프로그램이 아니에요.
+- 휴대폰 사진을 클라우드로 자동으로 모으고 싶을 때: Love My Shelf는 내 컴퓨터 폴더만 봐요.
+- Mac이나 리눅스를 쓸 때: Windows 전용이에요.
+
+## 다른 프로그램과 비교
+
+각 프로그램의 공식 소개에서 확인한 것만 적었어요(2026년 11월 기준).
+
+| | Love My Shelf | 파일 탐색기 | Microsoft 사진 | XnView MP | ImageGlass |
+|---|---|---|---|---|---|
+| 가격 | 무료 | Windows 기본 | Windows 기본 | 개인·교육·비영리 무료, 회사는 유료 | Classic 무료, Pro 유료 |
+| 소스 공개 | 예 (GPL-3.0) | 아니요 | 아니요 | 아니요 | Classic은 예 (GPL-3.0) |
+| 주로 하는 일 | 영상·움짤·사진 폴더를 큰 그림으로 훑고 표지 붙이기 | 파일 관리 | PC·OneDrive·iCloud 사진과 영상 모아 보기, 간단한 편집 | 아주 많은 그림 형식 보기·정리 | 가벼운 사진 보기 |
+| 파일마다 고른 장면을 표지로 | 예 (JPG, 움직이는 GIF·WebP·MP4) | — | — | — | — |
+| 옮기거나 이름을 바꿔도 표지가 따라감 | 예 | — | — | — | — |
+| 영상 재생 | 예 (장면 단위 넘기기, 자막) | 다른 앱으로 엶 | 예 | 예 | — |
+| HEIC·RAW | 아니요 | Microsoft 확장을 깔면 | Microsoft 확장을 깔면 | 예 | 예 |
+
+"—"는 공식 소개에서 그런 기능을 찾지 못했다는 뜻이에요.
 
 ## 받아서 켜는 법
 
@@ -78,7 +116,7 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 
 - 9:16 틀 안에서 휠로 확대하고 끌어서 위치를 맞춘 뒤 JPG로 저장해요. 파일 하나에 표지를 여러 개 만들 수 있어요.
 - 영상은 멈춘 곳의 앞뒤 장면을 펼쳐 놓고 골라요. 장면 간격은 바꿀 수 있어요(기본 0.2초).
-- 움직이는 표지는 GIF, WebP, MP4로 저장해요. 구간과 속도(0.5~2배)를 정하면 실제로 저장될 파일을 미리 볼 수 있어요.
+- 움직이는 표지는 GIF, WebP, MP4로 저장해요. 구간과 속도(0.2~4배)를 정하면 실제로 저장될 파일을 미리 볼 수 있어요.
 - 표지를 AI로 4배 선명하게 키울 수 있어요. 결과는 원래 표지와 나란히 비교한 뒤 골라요.
 
 **파일 정리**
@@ -98,8 +136,10 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 ## 쓸 수 있는 컴퓨터와 파일
 
 - Windows 10 또는 11 (64비트)
-- 사진: JPG, PNG, BMP, TIFF, GIF, WebP
-- 영상: MP4, MOV, MKV, WEBM, AVI 등 대부분의 영상
+- 사진: JPG(JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
+- 영상: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG(MPEG), MTS, M2TS, TS, 3GP
+- 자막: SMI, SRT, ASS, VTT
+- 아직 못 여는 것: HEIC, AVIF, 카메라 RAW
 
 ## 내 파일은 안전한가요
 
@@ -133,6 +173,8 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 
 A Windows program for seeing folders piled with videos, photos and memes at a glance. Use it like File Explorer, and give each file **the scene you chose as its cover**.
 
+It was made by having the top AI models of three companies (Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon) debate each other, without holding back on tokens, and the maker has used it all day, every day, fixing every inconvenience one by one. So you don't need to spend your own time and tokens on trial and error: you can just start using it comfortably.
+
 ### [⬇ Download Love My Shelf (Windows, free)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
 [User guide](GUIDE.md) · [Changelog](CHANGELOG.md)
@@ -145,6 +187,19 @@ A Windows program for seeing folders piled with videos, photos and memes at a gl
 
 The download is about 220 MB because it includes a video player and AI features (4× larger, sharper covers and finding people by face). The AI features run only on your computer and upload nothing.
 
+## At a glance
+
+| | |
+|---|---|
+| What it is | A photo, GIF and video gallery you use like File Explorer. Give each file a 9:16 cover from a scene you choose |
+| Price | Completely free. No ads, no sign-up, no paid features |
+| Source | All public ([GPL-3.0](LICENSE)) |
+| Computer | Windows 10, Windows 11 (64-bit). Needs .NET Framework 4.8 (already included in Windows 10 1903 and later) |
+| Install | Extract the ZIP and start `LoveMyShelf.exe`. Nothing to install |
+| Internet | Checks GitHub for a new version, and downloads it only when you click update. The check can be turned off. Photos, videos and usage records are never sent anywhere |
+| Original files | Making covers leaves them as they are. Covers are saved separately |
+| Languages | Korean, English |
+
 ## When to use it
 
 | What you want to do | What fits best |
@@ -153,6 +208,29 @@ The download is about 220 MB because it includes a video player and AI features 
 | Browse a folder of mixed videos, GIFs and photos as big thumbnails | **Love My Shelf** |
 | Give each video a scene you chose as its cover, animated covers too | **Love My Shelf** |
 | Copy, move and rename like File Explorer, and have covers move along | **Love My Shelf** |
+
+**When another program is better**
+
+- You need iPhone photos (HEIC), camera RAW or AVIF files: these don't open yet.
+- You want to retouch or edit pictures: Love My Shelf is not an editor.
+- You want phone photos gathered automatically from the cloud: Love My Shelf only looks at folders on your computer.
+- You use a Mac or Linux: it is Windows only.
+
+## Compared with other programs
+
+Only what each program's official pages say is listed (as of November 2026).
+
+| | Love My Shelf | File Explorer | Microsoft Photos | XnView MP | ImageGlass |
+|---|---|---|---|---|---|
+| Price | Free | Built into Windows | Built into Windows | Free for private, educational and non-profit use; paid for companies | Classic free, Pro paid |
+| Open source | Yes (GPL-3.0) | No | No | No | Classic: yes (GPL-3.0) |
+| Main job | Skim folders of videos, GIFs and photos as big pictures and give them covers | File management | Gather photos and videos from the PC, OneDrive and iCloud; simple edits | View and organize a very wide range of image formats | Light photo viewing |
+| A cover you pick for each file | Yes (JPG, animated GIF/WebP/MP4) | — | — | — | — |
+| Cover follows the file when moved or renamed | Yes | — | — | — | — |
+| Video playback | Yes (scene-by-scene stepping, subtitles) | Opens another app | Yes | Yes | — |
+| HEIC, RAW | No | With Microsoft's extensions | With Microsoft's extensions | Yes | Yes |
+
+"—" means no such feature was found on the official pages.
 
 ## Download and start
 
@@ -201,7 +279,7 @@ The three demo videos are [in the Korean section above](#이렇게-써요).
 
 - Zoom with the wheel and drag to position inside the 9:16 frame, then save as JPG. One file can have several covers.
 - For a video, the scenes before and after where you paused are laid out to choose from. The step between scenes can be changed (default 0.2 s).
-- Animated covers are saved as GIF, WebP or MP4. Set the range and speed (0.5–2×) and preview the file that will really be saved.
+- Animated covers are saved as GIF, WebP or MP4. Set the range and speed (0.2–4×) and preview the file that will really be saved.
 - A cover can be upscaled 4× with AI. Compare the result side by side with the original cover before choosing.
 
 **Organize files**
@@ -221,8 +299,10 @@ Light and dark themes. Korean and English.
 ## Computers and files
 
 - Windows 10 or 11 (64-bit)
-- Photos: JPG, PNG, BMP, TIFF, GIF, WebP
-- Videos: MP4, MOV, MKV, WEBM, AVI and most other videos
+- Photos: JPG (JPEG, JFIF), PNG, BMP, TIFF, GIF, WebP
+- Videos: MP4, M4V, MOV, MKV, WEBM, AVI, WMV, MPG (MPEG), MTS, M2TS, TS, 3GP
+- Subtitles: SMI, SRT, ASS, VTT
+- Not supported yet: HEIC, AVIF, camera RAW
 
 ## Are my files safe
 

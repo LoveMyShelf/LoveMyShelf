@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
+
+PackageIdentifier: LoveMyShelf.LoveMyShelf
+PackageVersion: 1.0.7
+MinimumOSVersion: 10.0.17763.0
+InstallerType: zip
+# Portable installs go to the user's own folder by default, so the in-app updater can write there.
+NestedInstallerType: portable
+NestedInstallerFiles:
+- RelativeFilePath: LoveMyShelf.exe
+# The exe loads libmpv-2.dll, tools\, fonts\, upscale\ and faces\ from its own folder.
+# A symlink in the WinGet Links folder would make it look next to the link instead,
+# so put the real install folder on PATH (no alias: it would be ignored with this setting).
+ArchiveBinariesDependOnPath: true
+# The app updates itself in place (signed updates from GitHub Releases).
+RequireExplicitUpgrade: true
+ReleaseDate: 2026-11-25
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/LoveMyShelf/LoveMyShelf/releases/download/v1.0.7/LoveMyShelf-Windows.zip
+  InstallerSha256: F8100E10AC5D2A9FA88D43FEC97DFF1645EC1020D3BCE02A3360AFECB7B0321C
+ManifestType: installer
+ManifestVersion: 1.28.0

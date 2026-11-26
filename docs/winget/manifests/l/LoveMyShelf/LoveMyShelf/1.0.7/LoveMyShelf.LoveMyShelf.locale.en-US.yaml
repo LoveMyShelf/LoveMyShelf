@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
+
+PackageIdentifier: LoveMyShelf.LoveMyShelf
+PackageVersion: 1.0.7
+PackageLocale: en-US
+Publisher: Love My Shelf
+PublisherUrl: https://github.com/LoveMyShelf
+PublisherSupportUrl: https://github.com/LoveMyShelf/LoveMyShelf/issues
+Author: Love My Shelf
+PackageName: Love My Shelf
+PackageUrl: https://github.com/LoveMyShelf/LoveMyShelf
+License: GPL-3.0
+LicenseUrl: https://github.com/LoveMyShelf/LoveMyShelf/blob/HEAD/LICENSE
+ShortDescription: Browse big, unsorted folders of photos, GIFs and videos as a grid, and give each file a 9:16 cover you pick.
+Description: |-
+  Love My Shelf is a free, open-source Windows gallery that you use like File Explorer.
+  It shows photos, animated GIF/WebP and videos as large tiles, and lets you save a scene you choose as a 9:16 cover (JPG, or animated GIF/WebP/MP4).
+  Making covers never changes the original files; covers are saved separately and follow their file when you move, rename or copy it inside the app.
+  Everything runs on your PC. The only network use is checking GitHub for updates (can be turned off) and downloading one when you click update.
+Moniker: lovemyshelf
+Tags:
+- gallery
+- photo-viewer
+- video
+- thumbnails
+- gif
+- webp
+- file-manager
+- cover
+- media-organizer
+ReleaseNotesUrl: https://github.com/LoveMyShelf/LoveMyShelf/releases/tag/v1.0.7
+ManifestType: defaultLocale
+ManifestVersion: 1.28.0

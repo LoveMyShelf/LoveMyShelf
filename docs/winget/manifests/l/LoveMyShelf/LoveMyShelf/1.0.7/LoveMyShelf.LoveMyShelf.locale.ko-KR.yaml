@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.locale.1.28.0.schema.json
+
+PackageIdentifier: LoveMyShelf.LoveMyShelf
+PackageVersion: 1.0.7
+PackageLocale: ko-KR
+Publisher: Love My Shelf
+PackageName: Love My Shelf
+License: GPL-3.0
+ShortDescription: 사진·움짤·영상이 잔뜩 쌓인 폴더를 큰 그림으로 한눈에 보고, 파일마다 내가 고른 장면을 9:16 표지로 붙이는 Windows 프로그램이에요.
+Description: |-
+  파일 탐색기처럼 쓰는 무료 오픈소스 갤러리예요.
+  사진, 움직이는 GIF·WebP, 영상을 큼직한 칸으로 보여 주고, 마음에 드는 장면을 9:16 표지(JPG, 또는 움직이는 GIF·WebP·MP4)로 저장할 수 있어요.
+  표지를 만들어도 원본 파일은 그대로예요. 표지는 따로 저장되고, 앱 안에서 옮기거나 이름을 바꾸거나 복사하면 표지도 따라가요.
+  모든 기능이 내 컴퓨터 안에서 돌아가요. 인터넷은 GitHub에서 새 버전을 확인하고 업데이트를 누를 때만 쓰고, 확인도 끌 수 있어요.
+Tags:
+- 갤러리
+- 사진뷰어
+- 영상
+- 썸네일
+- 움짤
+ManifestType: locale
+ManifestVersion: 1.28.0

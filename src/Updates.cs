@@ -82,6 +82,96 @@ namespace LoveMyShelf {
         const string BackupFolder=".lovemyshelf-update-backup",NewSuffix=".lovemyshelf-new";
 
         static string AppFolder {get {return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);}}
+
+        // Installed with winget (portable package): winget keeps its own record of the files and the version,
+        // so this copy must not replace its own files. Updates go through "winget upgrade" instead.
+        internal const string WingetId="LoveMyShelf.LoveMyShelf";
+        static bool? fromWinget,wingetMachine;
+        static string WingetRoot(Environment.SpecialFolder place,params string[] rest) {
+            string root=Environment.GetFolderPath(place);
+            if(String.IsNullOrEmpty(root))return null; // never let "WinGet\Packages" become a path relative to the working folder
+            return Path.GetFullPath(Path.Combine(new[]{root}.Concat(rest).ToArray())).TrimEnd(Path.DirectorySeparatorChar);
+        }
+        internal static bool FromWinget {get {
+            if(fromWinget==null) {
+                bool found=false,machine=false;
+                try {
+                    string folder=Path.GetFullPath(AppFolder).TrimEnd(Path.DirectorySeparatorChar);
+                    string name=Path.GetFileName(folder),parent=Path.GetDirectoryName(folder);
+                    string user=WingetRoot(Environment.SpecialFolder.LocalApplicationData,"Microsoft","WinGet","Packages");
+                    var machineRoots=new[]{WingetRoot(Environment.SpecialFolder.ProgramFiles,"WinGet","Packages"),
+                        WingetRoot(Environment.SpecialFolder.ProgramFilesX86,"WinGet","Packages")};
+                    Func<string,bool> same=root=>root!=null && String.Equals(root,parent,StringComparison.OrdinalIgnoreCase);
+                    if(parent!=null && name.StartsWith(WingetId+"_",StringComparison.OrdinalIgnoreCase)) {
+                        if(same(user))found=true;
+                        else if(machineRoots.Any(same))found=machine=true;
+                    }
+                    // winget's own record: an uninstall entry with this package id whose install folder is this one.
+                    // This also covers a changed portable install root (PortablePackageUserRoot / MachineRoot).
+                    if(!found) {
+                        int where=WingetRecord(folder);
+                        if(where>0){found=true;machine=where==2;}
+                    }
+                    // Started through a link in winget's Links folder (the manifest avoids this, but be safe).
+                    if(!found && String.Equals(folder,WingetRoot(Environment.SpecialFolder.LocalApplicationData,"Microsoft","WinGet","Links"),StringComparison.OrdinalIgnoreCase))found=true;
+                } catch(Exception) {}
+                fromWinget=found;wingetMachine=machine;
+            }
+            return fromWinget.Value;
+        }}
+
+        // 0 = no record, 1 = for this user, 2 = for all users.
+        static int WingetRecord(string folder) {
+            var places=new[]{Tuple.Create(Microsoft.Win32.RegistryHive.CurrentUser,1),Tuple.Create(Microsoft.Win32.RegistryHive.LocalMachine,2)};
+            foreach(var place in places)
+                foreach(var view in new[]{Microsoft.Win32.RegistryView.Registry64,Microsoft.Win32.RegistryView.Registry32}) {
+                    try {
+                        using(var root=Microsoft.Win32.RegistryKey.OpenBaseKey(place.Item1,view))
+                        using(var list=root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall")) {
+                            if(list==null)continue;
+                            foreach(string name in list.GetSubKeyNames()) {
+                                if(!name.StartsWith(WingetId+"_",StringComparison.OrdinalIgnoreCase))continue;
+                                using(var entry=list.OpenSubKey(name)) {
+                                    if(entry==null || !String.Equals(entry.GetValue("WinGetPackageIdentifier") as string,WingetId,StringComparison.OrdinalIgnoreCase))continue;
+                                    string location=entry.GetValue("InstallLocation") as string;
+                                    if(String.IsNullOrEmpty(location))continue;
+                                    if(String.Equals(Path.GetFullPath(location).TrimEnd(Path.DirectorySeparatorChar),folder,StringComparison.OrdinalIgnoreCase))return place.Item2;
+                                }
+                            }
+                        }
+                    } catch(Exception) {}
+                }
+            return 0;
+        }
+
+        // Opens a PowerShell window that waits for this program to close, runs winget upgrade for this package,
+        // and starts the program again when it worked. If it didn't, the window stays open with winget's own message.
+        // Values go in as environment variables, so no path is ever pasted into the script text.
+        internal static void StartWingetUpgrade() {
+            bool machine=FromWinget && wingetMachine==true;
+            const string script=
+                "$Host.UI.RawUI.WindowTitle='Love My Shelf update';"+
+                "$id=[int]$env:LMS_PID;"+
+                "Wait-Process -Id $id -Timeout 120 -ErrorAction SilentlyContinue;"+
+                "if(Get-Process -Id $id -ErrorAction SilentlyContinue){Write-Host 'Love My Shelf is still running. Close it and try again.';Read-Host 'Press Enter to close';exit 1}"+
+                "winget upgrade --id $env:LMS_WINGET_ID --exact --source winget;"+
+                "if($LASTEXITCODE -eq 0){if(Test-Path -LiteralPath $env:LMS_EXE){Start-Process -FilePath $env:LMS_EXE}}"+
+                "else{Write-Host '';Read-Host 'Press Enter to close'}";
+            string arguments="-NoProfile -ExecutionPolicy Bypass -EncodedCommand "+Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+            string exe=Assembly.GetExecutingAssembly().Location,pid=Process.GetCurrentProcess().Id.ToString();
+            if(machine) {
+                // Installed for all users under Program Files: winget needs administrator rights there.
+                // An elevated start can't take extra environment variables, so set them on this process first; the child inherits them.
+                Environment.SetEnvironmentVariable("LMS_PID",pid);Environment.SetEnvironmentVariable("LMS_EXE",exe);
+                Environment.SetEnvironmentVariable("LMS_WINGET_ID",WingetId);
+                Process.Start(new ProcessStartInfo("powershell.exe",arguments) {UseShellExecute=true,Verb="runas",WorkingDirectory=Path.GetTempPath()});
+                return;
+            }
+            var start=new ProcessStartInfo("powershell.exe",arguments) {UseShellExecute=false,WorkingDirectory=Path.GetTempPath()};
+            start.EnvironmentVariables["LMS_PID"]=pid;start.EnvironmentVariables["LMS_EXE"]=exe;start.EnvironmentVariables["LMS_WINGET_ID"]=WingetId;
+            Process.Start(start);
+        }
+
         static string UpdateRoot {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LoveMyShelf","Update");}}
         static string Staged(string stage,UpdateFile file) {return Path.Combine(stage,"files",file.RelativePath.Replace('/',Path.DirectorySeparatorChar));}
         static string Installed(string appDir,UpdateFile file) {return Path.Combine(appDir,file.RelativePath.Replace('/',Path.DirectorySeparatorChar));}
@@ -90,7 +180,7 @@ namespace LoveMyShelf {
         internal static Task<UpdatePlan> LoadAsync(string version) {
             return Task.Run(()=>{
                 try {
-                    if(File.Exists(Path.Combine(UpdateRoot,version,FailedName)) || !CanWrite(AppFolder))return null;
+                    if(FromWinget || File.Exists(Path.Combine(UpdateRoot,version,FailedName)) || !CanWrite(AppFolder))return null;
                     string baseUrl=DownloadPrefix+"v"+version+"/";
                     return Read(FetchBytes(baseUrl+ManifestName),FetchBytes(baseUrl+SignatureName),version,PublicKey);
                 } catch(Exception) {return null;}

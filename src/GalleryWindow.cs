@@ -1239,6 +1239,13 @@ namespace LoveMyShelf {
             if(newer==null || lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
             var plan=await AppUpdater.LoadAsync(newer);
             if(lifetime.IsCancellationRequested || !settings.CheckUpdates)return;
+            if(plan==null && AppUpdater.FromWinget) {
+                Notify(L.F("Version {0} is out",newer),
+                    L.P("Click here and Love My Shelf closes, winget updates it, and it starts again. Your covers and settings stay as they are.",
+                        "여기를 누르면 Love My Shelf가 닫히고 winget이 새 버전으로 바꾼 뒤 다시 켜요. 만든 표지와 설정은 그대로예요."),
+                    UpdateWithWinget,NoticeKind.Info,true);
+                return;
+            }
             if(plan==null) {
                 if(newer==undoneUpdate)return; // just told, with the same way out
                 Notify(L.F("Version {0} is out",newer),
@@ -1276,6 +1283,24 @@ namespace LoveMyShelf {
         void OfferRestart(string stage) {
             Notify(L.T("The update is ready"),L.T("Click here and Love My Shelf closes for a moment, then starts again as the new version."),
                 ()=>RestartForUpdate(stage),NoticeKind.Done,true);
+        }
+        static bool wingetStarted; // one PowerShell window, even if the notice is clicked twice or in two windows
+        void UpdateWithWinget() {
+            if(wingetStarted)return;
+            var windows=Application.Current.Windows.OfType<Window>().ToList();
+            if(TransferQueue.Busy || CoverWork.Top!=null || windows.OfType<GalleryWindow>().Any(w=>w.Upscales.IsBusy) || windows.OfType<UpscaleToast>().Any(t=>t.IsWorking)) {
+                if(TransferQueue.Busy)TransferWindow.ShowQueue(false);
+                Notify(L.T("Some work is still in progress"),L.T("So that the work isn't cut off, click here again after it is done."),
+                    UpdateWithWinget,NoticeKind.Info,true);
+                return;
+            }
+            foreach(var window in windows.OfType<GalleryWindow>())window.FinishPendingCovers();
+            try {AppUpdater.StartWingetUpgrade();wingetStarted=true;}
+            catch(Exception) {
+                Notify(L.T("Couldn’t get the update"),L.T("The program is as it was. Click here to open the download page."),OpenReleasesPage,NoticeKind.Warning);
+                return;
+            }
+            Application.Current.Shutdown();
         }
         void RestartForUpdate(string stage) {
             var windows=Application.Current.Windows.OfType<Window>().ToList();
