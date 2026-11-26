@@ -10,9 +10,60 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace LoveMyShelf {
+    // The folder tree with the writing box right under its last folder. The whole tree comes first: the box shows only
+    // when the tree fits with room to spare for all of the box, and while someone is typing in it. Otherwise the tree
+    // gets all the height and scrolls as before.
+    internal sealed class TreeWithBox : Panel {
+        readonly FrameworkElement tree;
+        readonly AiWorkPanel box;
+        ScrollViewer scroller;
+        double extent=-1;
+        internal bool BoxShown {get; private set;}
+        internal double LastWhole,LastBox,LastHeight; // for checks
+        internal TreeWithBox(FrameworkElement tree,AiWorkPanel box) {
+            this.tree=tree;this.box=box;ClipToBounds=true;
+            Children.Add(tree);Children.Add(box);
+            // Opening or closing folders changes how tall the tree is: look again whenever its contents change height.
+            LayoutUpdated+=delegate {
+                if(scroller==null)scroller=Find(tree);
+                if(scroller!=null && Math.Abs(scroller.ExtentHeight-extent)>0.5){extent=scroller.ExtentHeight;InvalidateMeasure();}
+            };
+            box.IsKeyboardFocusWithinChanged+=delegate {InvalidateMeasure();};
+        }
+        static ScrollViewer Find(DependencyObject at) {
+            for(int i=0;i<VisualTreeHelper.GetChildrenCount(at);i++) {
+                var child=VisualTreeHelper.GetChild(at,i);
+                var found=child as ScrollViewer??Find(child);
+                if(found!=null)return found;
+            }
+            return null;
+        }
+        double treeHeight;
+        protected override Size MeasureOverride(Size available) {
+            double width=available.Width,height=available.Height;
+            var open=new Size(width,double.PositiveInfinity);
+            tree.Measure(open);double whole=tree.DesiredSize.Height;
+            box.Measure(open);double boxHeight=box.DesiredSize.Height;
+            if(double.IsInfinity(height))height=whole+boxHeight;
+            LastWhole=whole;LastBox=boxHeight;LastHeight=height;
+            BoxShown=whole+boxHeight<=height+0.5 || (box.IsKeyboardFocusWithin && height-boxHeight>=60);
+            treeHeight=BoxShown?Math.Min(whole,height-boxHeight):height;
+            tree.Measure(new Size(width,Math.Max(0,treeHeight)));
+            return new Size(double.IsInfinity(width)?Math.Max(tree.DesiredSize.Width,box.DesiredSize.Width):width,height);
+        }
+        protected override Size ArrangeOverride(Size final) {
+            tree.Arrange(new Rect(0,0,final.Width,Math.Max(0,treeHeight)));
+            // Hidden: placed below the bottom edge, where the clip keeps it out of sight and out of reach.
+            box.Arrange(new Rect(0,BoxShown?treeHeight:final.Height+1,final.Width,box.DesiredSize.Height));
+            box.IsHitTestVisible=BoxShown;
+            return final;
+        }
+    }
+
     // The small writing box at the bottom of the folder tree: the person's own sentence, a box that starts with the
     // app version, and [보내기]. Only what is in the box goes to the Google Form, straight from here (no browser).
     internal sealed class AiWorkPanel : Border {
@@ -39,8 +90,8 @@ namespace LoveMyShelf {
         public AiWorkPanel(Window owner) {
             this.owner=owner;
             UseLayoutRounding=true;SnapsToDevicePixels=true;
-            BorderThickness=new Thickness(0,1,0,0);Padding=new Thickness(12,10,12,12);
-            SetResourceReference(Border.BorderBrushProperty,"Line");
+            // No line of its own: it sits right under the last folder of the tree (TreeWithBox).
+            Padding=new Thickness(12,10,12,12);
 
             words=UI.Text("",13);words.TextWrapping=TextWrapping.Wrap;
             words.LineHeight=20;words.LineStackingStrategy=LineStackingStrategy.BlockLineHeight;words.Margin=new Thickness(0,0,0,8);
@@ -59,9 +110,9 @@ namespace LoveMyShelf {
 
             send=UI.Btn("",Send,true);send.MinHeight=32;send.MinWidth=88;send.Padding=new Thickness(14,0,14,0);
             send.HorizontalAlignment=HorizontalAlignment.Right;send.Margin=new Thickness(0,8,0,0);send.IsEnabled=!sending;
-            // One line kept for the result even when empty, so nothing moves when it shows or goes.
+            // Two lines kept for the result even when empty (a narrow tree wraps the failure line), so the box keeps one height.
             // After a failure the way through the browser is a link inside it, not one more button.
-            result=UI.Text("",13);result.TextWrapping=TextWrapping.Wrap;result.Margin=new Thickness(0,6,0,0);result.MinHeight=20;
+            result=UI.Text("",13);result.TextWrapping=TextWrapping.Wrap;result.Margin=new Thickness(0,6,0,0);result.MinHeight=40;
             browser=new Hyperlink();browser.Click+=delegate {OpenBrowser();};
             var stack=new StackPanel();
             stack.Children.Add(words);stack.Children.Add(box);stack.Children.Add(send);stack.Children.Add(result);

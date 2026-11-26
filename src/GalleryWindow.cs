@@ -1017,11 +1017,10 @@ namespace LoveMyShelf {
             treeEdge.DragDelta+=(s,e)=>{treePanel.Width=Math.Max(160,Math.Min(400,treePanel.Width+e.HorizontalChange));};
             treeEdge.DragCompleted+=delegate {SaveTree(null,(int)Math.Round(treePanel.Width),null);};
             var treeLine=UI.Use(new Border {Width=1,HorizontalAlignment=HorizontalAlignment.Right},Border.BackgroundProperty,"Line");
-            // Under the folders, the writing box: the tree scrolls above it, the box keeps its height.
-            aiWork=new AiWorkPanel(this);Grid.SetRow(aiWork,1);aiWork.Margin=new Thickness(0,0,1,0);
-            var treeGrid=new Grid();treeGrid.RowDefinitions.Add(new RowDefinition {MinHeight=100});treeGrid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-            Grid.SetRowSpan(treeLine,2);treeGrid.Children.Add(tree);treeGrid.Children.Add(aiWork);treeGrid.Children.Add(treeLine);
-            treeEdge.HorizontalAlignment=HorizontalAlignment.Right;treeEdge.Margin=new Thickness(0,0,-2,0);Grid.SetRowSpan(treeEdge,2);treeGrid.Children.Add(treeEdge);
+            // Right under the last folder, the writing box, when the whole tree fits with room for it (TreeWithBox).
+            aiWork=new AiWorkPanel(this);aiWork.Margin=new Thickness(0,0,1,0);
+            var treeGrid=new Grid();treeGrid.Children.Add(new TreeWithBox(tree,aiWork));treeGrid.Children.Add(treeLine);
+            treeEdge.HorizontalAlignment=HorizontalAlignment.Right;treeEdge.Margin=new Thickness(0,0,-2,0);treeGrid.Children.Add(treeEdge);
             treePanel.Child=treeGrid;treePanel.Width=settings.TreeWidth;
             DockPanel.SetDock(treePanel,Dock.Left);root.Children.Add(treePanel);
             // The folder tabs moved into the tree: the first start after that opens the tree once (it was closed by default),
