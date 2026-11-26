@@ -29,6 +29,13 @@
       boldKo="[▭ 자를 곳 ▾] 하나만 누르면|그린 부분만 창 가득 크게"
       boldEn="Click [▭ Where to cut ▾]|just the part you drew"
       keys="Enter Esc Ctrl+Z"/>
+    <item group="better" icon="image"
+      titleKo="표지 모양 버튼은 내 바둑판에 맞는 두 개만"
+      titleEn="Only the two shape buttons that fit your grid"
+      textKo="표지 만들기와 자를 곳에서 9:16·3:4·1:1·4:3·16:9 버튼을 뺐어요. 이제 [칸에 꽉 맞추기]와 [칸 두 개에 꽉 맞추기] 두 개만 있어요.&#10;[칸에 꽉 맞추기]는 바둑판 칸 하나와 같은 모양이고, [칸 두 개에 꽉 맞추기]는 가로로 긴 표지가 칸 두 개를 나란히 빈 띠 없이 채우는 모양이에요. 칸이 3:4면 3:2예요.&#10;다른 모양이 필요하면 가로:세로 숫자를 직접 넣으면 돼요."
+      textEn="The 9:16 · 3:4 · 1:1 · 4:3 · 16:9 buttons are gone from Make cover and Where to cut. Now there are just two: [Fill the grid's cell] and [Fill two cells side by side].&#10;[Fill the grid's cell] is the shape of one cell of your grid, and [Fill two cells side by side] is a wide cover that fills two cells next to each other with no empty bands. With 3:4 cells it is 3:2.&#10;For any other shape, type the width and height."
+      boldKo="[칸에 꽉 맞추기]와 [칸 두 개에 꽉 맞추기] 두 개만"
+      boldEn="[Fill the grid's cell] and [Fill two cells side by side]"/>
     <item group="new" icon="news"
       titleKo="이걸 만든 AI한테 바로 적어 보내기"
       titleEn="Write to the AI that made this, right from the app"

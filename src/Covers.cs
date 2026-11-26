@@ -42,11 +42,16 @@ namespace LoveMyShelf {
         // middle shape between the two (the cell's shape times the square root of 2): 9:16 cells → wider than about 4:5,
         // 3:4 cells → wider than about 1.06:1, square cells → wider than about 1.41:1.
         internal static bool TakesTwoCells(double aspect,double cell) {return aspect>cell*Math.Sqrt(2)+1e-9;}
+        // The shape that fills two cells side by side exactly (3:4 cells → 3:2).
+        internal static double TwoCells(double cell) {return cell*2;}
+        // The two shapes offered when cutting: one cell, and two cells side by side (only when wide covers take two cells).
+        internal static string OneCellLabel(double cell) {var n=Name(cell);return L.P("Fill the grid's cell ("+n+")","칸에 꽉 맞추기 ("+n+")");}
+        internal static string TwoCellsLabel(double cell) {var n=Name(TwoCells(cell));return L.P("Fill two cells side by side ("+n+")","칸 두 개에 꽉 맞추기 ("+n+")");}
         // How much of a box a picture of this shape fills when fitted whole inside it (0..1).
         internal static double Fill(double aspect,double box) {return aspect>box?box/aspect:aspect/box;}
         // A shape as "16:9", "4:3", "1:1" when it is a common one, else as "1.85:1" / "1:2.10".
         internal static string Name(double aspect) {
-            foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{4,5},new[]{2,3},new[]{1,1},new[]{5,4},new[]{4,3},new[]{3,2},new[]{16,9},new[]{21,9},new[]{1,2},new[]{2,1}})
+            foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{4,5},new[]{2,3},new[]{1,1},new[]{9,8},new[]{5,4},new[]{4,3},new[]{3,2},new[]{16,9},new[]{21,9},new[]{1,2},new[]{2,1}})
                 if(Math.Abs(aspect-pair[0]/(double)pair[1])<0.008*aspect)return pair[0]+":"+pair[1];
             var c=System.Globalization.CultureInfo.CurrentCulture;
             return aspect>=1?aspect.ToString("0.##",c)+":1":"1:"+(1/aspect).ToString("0.##",c);

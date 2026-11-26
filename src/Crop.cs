@@ -546,20 +546,24 @@ namespace LoveMyShelf {
                 var b=UI.Btn(text,act);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.ToolTip=tip;
                 AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;
             };
+            // Only the shapes the grid uses (the person's choice): one cell, and two cells side by side for a wide cover.
             var fill=add("","",()=>Surface.SetAspect(CropSurface.GridCell));
             fill.Style=(Style)Application.Current.Resources["Primary"];
+            var fillTwo=add("","",()=>Surface.SetAspect(Covers.TwoCells(CropSurface.GridCell)));
             Action nameFill=()=>{
-                string cell=Covers.Name(CropSurface.GridCell);
-                fill.Content=L.P("Fill the grid's cell ("+cell+")","칸에 꽉 맞추기 ("+cell+")");
+                double cell=CropSurface.GridCell;
+                fill.Content=Covers.OneCellLabel(cell);
                 fill.ToolTip=L.P("Cuts the cover in the same shape as the grid's cells, so it fills its cell with no empty bands.",
                     "바둑판 칸과 같은 모양으로 잘라서, 칸에 빈 띠 없이 꽉 차게 보여요.");
+                fillTwo.Content=Covers.TwoCellsLabel(cell);
+                fillTwo.ToolTip=L.P("Cuts a wide cover that takes two cells side by side and fills both with no empty bands.",
+                    "가로로 긴 표지로 잘라서, 칸 두 개를 빈 띠 없이 꽉 채워요.");
+                AutomationProperties.SetName(fill,(string)fill.Content);AutomationProperties.SetName(fillTwo,(string)fillTwo.Content);
+                var grid=CropSurface.Prefs;
+                fillTwo.Visibility=grid==null || grid.WideCovers?Visibility.Visible:Visibility.Collapsed;
             };
             nameFill();
             add(L.P("Whole picture","원본 그대로"),L.P("Goes back to the whole picture, in its own shape.","원본 사진 전체를 원래 모양 그대로 써요."),()=>Surface.WholePicture());
-            foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{1,1},new[]{4,3},new[]{16,9}}) {
-                int a=pair[0],b=pair[1];
-                add(a+":"+b,L.P("Makes the cover "+a+":"+b+".","표지를 "+a+":"+b+" 모양으로 만들어요."),()=>Surface.SetAspect(a/(double)b));
-            }
             // Any shape: width and height numbers (16 and 9, or 1080 and 1920), applied with Enter or when leaving the box.
             var custom=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(6,2,0,2),VerticalAlignment=VerticalAlignment.Center};
             Func<string,TextBox> box=tip=>{

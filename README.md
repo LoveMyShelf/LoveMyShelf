@@ -92,7 +92,7 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 
 **표지 만들기**
 
-- 테두리 안에서 휠로 확대하고 끌어서 위치를 맞춘 뒤 JPG로 저장해요. 테두리 모서리를 끌거나 버튼(칸에 꽉 맞추기·원본 그대로·9:16·3:4·1:1·4:3·16:9)으로 모양을 자유롭게 정하고, 숫자로 가로:세로를 직접 넣을 수도 있어요. 파일 하나에 표지를 여러 개 만들 수 있어요.
+- 테두리 안에서 휠로 확대하고 끌어서 위치를 맞춘 뒤 JPG로 저장해요. 테두리 모서리를 끌거나 버튼(칸에 꽉 맞추기·칸 두 개에 꽉 맞추기·원본 그대로)으로 모양을 자유롭게 정하고, 숫자로 가로:세로를 직접 넣을 수도 있어요. 파일 하나에 표지를 여러 개 만들 수 있어요.
 - 바둑판 칸 모양은 9:16·3:4·1:1 중에 고르고 언제든 바꿀 수 있어요. 표지는 칸 안에 잘리지 않고 다 보이고, 가로로 긴 표지는 칸 두 개를 차지해서 크게 보여요.
 - 영상은 멈춘 곳의 앞뒤 장면을 펼쳐 놓고 골라요. 장면 간격은 바꿀 수 있어요(기본 0.2초).
 - 움직이는 표지는 GIF, WebP, MP4로 저장해요. 구간과 속도(0.2~4배)를 정하면 실제로 저장될 파일을 미리 볼 수 있어요.
@@ -227,7 +227,7 @@ The three demo videos are [in the Korean section above](#이렇게-써요).
 
 **Make covers**
 
-- Zoom with the wheel and drag to position inside the frame, then save as JPG. Drag the frame's corners or use the buttons (Fill the grid's cell, Whole picture, 9:16, 3:4, 1:1, 4:3, 16:9) to set any shape, or type the width and height. One file can have several covers.
+- Zoom with the wheel and drag to position inside the frame, then save as JPG. Drag the frame's corners or use the buttons (Fill the grid's cell, Fill two cells side by side, Whole picture) to set any shape, or type the width and height. One file can have several covers.
 - Pick the grid's cell shape (9:16, 3:4 or 1:1) and change it any time. Covers show whole inside the cells, and wide covers take two cells so they show big.
 - For a video, the scenes before and after where you paused are laid out to choose from. The step between scenes can be changed (default 0.2 s).
 - Animated covers are saved as GIF, WebP or MP4. Set the range and speed (0.2–4×) and preview the file that will really be saved.

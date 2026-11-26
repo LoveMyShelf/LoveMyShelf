@@ -49,7 +49,7 @@ namespace LoveMyShelf {
         readonly Path line=new Path {Stroke=Brushes.White,StrokeThickness=2};
         readonly Path grips=new Path {Fill=Brushes.White,Stroke=new SolidColorBrush(Color.FromArgb(0xC0,0,0,0)),StrokeThickness=1};
         internal readonly Border Menu=new Border();
-        Button edit,zoomBox,make,clear;
+        Button edit,zoomBox,make,clear,oneCell,twoCells;
         StackPanel numbers,shapes;
         bool enlarged;
         readonly TextBox left=Number(),top=Number(),wide=Number(),tall=Number(),across=Ratio(),down=Ratio();
@@ -337,11 +337,11 @@ namespace LoveMyShelf {
             RoutedEventHandler flip=delegate {bool want=keep.IsChecked==true;if(want!=locked){ApplyTyping();SetLocked(want);}};
             keep.Checked+=flip;keep.Unchecked+=flip;
             shapes.Children.Add(keep);
-            var presets=Row();
-            foreach(var pair in new[]{new[]{9,16},new[]{3,4},new[]{1,1},new[]{4,3},new[]{16,9}}) {
-                int a=pair[0],b=pair[1];
-                presets.Children.Add(Small(a+":"+b,()=>SetShape(a/(double)b)));
-            }
+            // The grid's own shapes only: one cell, and two cells side by side (when wide covers take two cells).
+            var presets=new WrapPanel {Margin=new Thickness(0,1,0,1)};
+            oneCell=Small("",()=>SetShape(CropSurface.GridCell));
+            twoCells=Small("",()=>SetShape(Covers.TwoCells(CropSurface.GridCell)));
+            presets.Children.Add(oneCell);presets.Children.Add(twoCells);
             shapes.Children.Add(presets);
             shapes.Children.Add(Row(Label(L.P("Width","가로")),across,Label(":",5),Label(L.P("Height","세로")),down));
             Tip(across,L.P("Aspect width","비율 가로"));Tip(down,L.P("Aspect height","비율 세로"));
@@ -436,6 +436,9 @@ namespace LoveMyShelf {
             edit.IsEnabled=numbers.IsEnabled=shapes.IsEnabled=!enlarged;
             zoomBox.IsEnabled=make.IsEnabled=clear.IsEnabled=area!=null;
             if(keep.IsChecked!=locked)keep.IsChecked=locked;
+            double cell=CropSurface.GridCell;var prefs=CropSurface.Prefs;
+            oneCell.Content=Covers.OneCellLabel(cell);twoCells.Content=Covers.TwoCellsLabel(cell);
+            twoCells.Visibility=prefs==null || prefs.WideCovers?Visibility.Visible:Visibility.Collapsed;
             ShowNumbers(area);
             AreaView v;Point middle;Size size;double tilt;
             bool shows=Where(out v,out middle,out size,out tilt) && available;
