@@ -4,7 +4,7 @@
 
 영상, 사진, 움짤이 잔뜩 쌓인 폴더를 한눈에 보는 Windows 프로그램이에요. 파일 탐색기처럼 쓰면서, 파일마다 **내가 고른 장면을 표지로** 붙일 수 있어요.
 
-세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)가 토큰을 아끼지 않고 서로 토론하게 해서 만들었고, 제가 매일 하루 종일 쓰면서 불편한 걸 하나씩 고쳤어요. 쓰시는 분은 시간이나 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓰시면 돼요.
+세 회사의 최상위 AI(Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon)가 토큰을 아끼지 않고 서로 토론하게 해서 만들었고, 직접 쓰면서 불편한 점이 보이면 바로바로 고치고 있어요. 쓰시는 분은 시간이나 토큰을 들여 시행착오를 겪을 필요 없이 바로 편하게 쓰시면 돼요.
 
 ### [⬇ LoveMyShelf 다운로드 (Windows, 무료)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
@@ -145,7 +145,7 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 
 A Windows program for seeing folders piled with videos, photos and memes at a glance. Use it like File Explorer, and give each file **the scene you chose as its cover**.
 
-I built this by having the top AI models of three companies (Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon) debate each other without holding back on tokens, and I've been using it all day, every day, fixing annoyances as they come up. That way you don't have to spend your own time and tokens on trial and error, and you can just use it right away.
+I built this by having the top AI models of three companies (Anthropic Claude Fable, OpenAI GPT Astra, Google Gemini Carbon) debate each other without holding back on tokens, and I fix annoyances as soon as I run into them while using it myself. That way you don't have to spend your own time and tokens on trial and error, and you can just use it right away.
 
 ### [⬇ Download LoveMyShelf (Windows, free)](https://github.com/LoveMyShelf/LoveMyShelf/releases/latest/download/LoveMyShelf-Windows.zip)
 
