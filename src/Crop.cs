@@ -442,7 +442,7 @@ namespace LoveMyShelf {
             motionButton=UI.Btn(L.T("Make GIF cover"),MakeMotion);motionButton.Margin=new Thickness(0,0,5,0);
             motionButton.Visibility=Visibility.Collapsed;motionButton.ToolTip=L.T("Saves the JPG cover and also makes a moving GIF cover around this scene.");
             UI.Right(bar,motionButton);
-            var reset=UI.Btn(L.T("Reset"),()=>Surface.Reset()); reset.Margin=new Thickness(0,0,8,0); DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
+            var reset=UI.Btn(L.T("Reset"),()=>{Surface.Reset();StartInKeptShape();}); reset.Margin=new Thickness(0,0,8,0); DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
             bar.LastChildFill=false;
             DockPanel.SetDock(bar,Dock.Bottom);root.Children.Add(bar);
             var rotationBar=RotationBar();
@@ -521,7 +521,13 @@ namespace LoveMyShelf {
                 "켜면 테두리의 모서리나 변을 아무리 끌어도 비율은 그대로이고 크기만 바뀌어요. 비율은 버튼이나 숫자로 정해요.");
             AutomationProperties.SetName(keep,L.P("Keep this shape","비율 고정"));
             Surface.LockShape=keep.IsChecked==true;
-            RoutedEventHandler locked=delegate {Surface.LockShape=keep.IsChecked==true;GalleryWindow.RememberCropLock(Surface.LockShape);};
+            // Turning it on keeps the shape the frame has now, for this cover and the next ones.
+            RoutedEventHandler locked=delegate {
+                Surface.LockShape=keep.IsChecked==true;GalleryWindow.RememberCropLock(Surface.LockShape);
+                if(Surface.LockShape)GalleryWindow.RememberCropShape(Surface.Aspect);
+            };
+            // A new cover with the shape kept starts in that shape (the person who always cuts 9:16 never has to pick it again).
+            Loaded+=delegate {StartInKeptShape();};
             keep.Checked+=locked;keep.Unchecked+=locked;
             bar.Children.Add(keep);
             // Zoom with the frame or not: off (the picture stays still) unless turned on; remembered.
@@ -547,9 +553,9 @@ namespace LoveMyShelf {
                 AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;
             };
             // Only the shapes the grid uses (the person's choice): one cell, and two cells side by side for a wide cover.
-            var fill=add("","",()=>Surface.SetAspect(CropSurface.GridCell));
+            var fill=add("","",()=>{Surface.SetAspect(CropSurface.GridCell);KeepIfLocked();});
             fill.Style=(Style)Application.Current.Resources["Primary"];
-            var fillTwo=add("","",()=>Surface.SetAspect(Covers.TwoCells(CropSurface.GridCell)));
+            var fillTwo=add("","",()=>{Surface.SetAspect(Covers.TwoCells(CropSurface.GridCell));KeepIfLocked();});
             Action nameFill=()=>{
                 double cell=CropSurface.GridCell;
                 fill.Content=Covers.OneCellLabel(cell);
@@ -588,7 +594,7 @@ namespace LoveMyShelf {
                 typed=false;
                 // Only real numbers: positive, finite, and a finite shape (not "Infinity" in both boxes).
                 if(w>0 && h>0 && !Double.IsInfinity(w) && !Double.IsInfinity(h) && !Double.IsNaN(w/h) && !Double.IsInfinity(w/h) && w/h>0)
-                    Surface.SetAspect(w/h);
+                {Surface.SetAspect(w/h);KeepIfLocked();}
             };
             // Applied with Enter, or once the keyboard leaves both boxes (not between typing the width and the height).
             foreach(var t in new[]{across,tall})
@@ -605,6 +611,14 @@ namespace LoveMyShelf {
             Closed+=delegate {GalleryWindow.TileShapeChanged-=nameFill;};
             return bar;
         }
+        // Editing a saved cover: its own shape stays even with Keep this shape on.
+        internal bool KeepsSavedShape;
+        void StartInKeptShape() {
+            var prefs=CropSurface.Prefs;
+            if(KeepsSavedShape || !Surface.LockShape || prefs==null)return;
+            Surface.SetAspect(prefs.KeptShape);
+        }
+        void KeepIfLocked() {if(Surface.LockShape)GalleryWindow.RememberCropShape(Surface.Aspect);}
         // "How it shows in my grid": a few cells of the grid in the shape the person picked, with this cover in the first.
         FrameworkElement PeekPanel() {
             var panel=new StackPanel {Width=196,Margin=new Thickness(4,10,10,6)};

@@ -96,6 +96,7 @@ To read each copy back and compare it with the original, open **Guide & Options 
 2. A frame appears over the photo. At first the whole photo is inside it. The part you see inside the frame becomes the cover just as it is.
    - **Drag the blue handles** on the frame's corners and edges to change its shape and size freely.
    - In the **Shape** row below, **Fill the grid's cell** gives the frame the shape of the grid's cells, so the cover fills its cell with no empty bands. For a wide cover, **Fill two cells side by side** gives it the shape of two cells next to each other (shown only when wide covers take two cells). **Whole picture** goes back to the whole picture, and you can type a width and height (like 16 and 9, or 1080 and 1920) in the boxes on the right.
+   - Always cut the same shape, like 9:16? Pick it and turn on **🔒 Keep this shape**. While it stays on, every new cover starts in that shape, and the where-to-cut box in the large view is drawn in it too. Editing a saved cover keeps that cover's own shape.
    - **How it shows in your grid** on the right shows how the cover sits in the grid's cells. A wide one takes two cells.
    - **Drag** the photo to change its position.
    - Roll the **mouse wheel** to zoom in and out.

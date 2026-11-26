@@ -1065,6 +1065,8 @@ namespace LoveMyShelf {
                       "테두리의 모서리나 변의 파란 손잡이를 끌면 아무 모양으로나 바뀌어요. [[칸에 꽉 맞추기]]를 누르면 바둑판 칸과 같은 모양이 돼서 칸에 빈 띠 없이 꽉 차요. 가로로 긴 표지는 [[칸 두 개에 꽉 맞추기]]를 누르면 칸 두 개를 나란히 붙인 모양이 돼요. [[원본 그대로]]는 사진 전체로 돌아가고, 가로·세로 숫자를 직접 넣어도 돼요."),
                     T("The picture stays still while you drag the frame; only the frame moves and changes size, and the outside is dimmed. [[Fit to the window]] shows the whole picture and the frame. Turn on [[🔍 Zoom the picture with the frame]] to have the picture zoom with the frame as before.",
                       "틀을 끌어도 사진은 가만히 있고 틀만 움직이고 커지고 작아져요. 틀 바깥은 어둡게 보여요. [[화면에 맞추기]]를 누르면 사진과 틀이 다 보여요. 예전처럼 사진이 틀을 따라 확대·축소되게 하려면 [[🔍 틀 따라 사진 확대·축소]]를 켜요."),
+                    T("Always cut the same shape, like 9:16? Pick it and turn on [[🔒 Keep this shape]]. While it stays on, every new cover starts in that shape, so there is nothing to click next time. Editing a saved cover keeps that cover's own shape.",
+                      "늘 같은 모양(예: 9:16)으로만 자른다면 그 모양을 고르고 [[🔒 비율 고정]]을 켜 두세요. 켜 두는 동안 새 표지는 처음부터 그 모양으로 시작해서 다음부터는 누를 게 없어요. 이미 만든 표지를 고칠 때는 그 표지의 모양 그대로예요."),
                     T("[[How it shows in your grid]] on the right shows how the cover sits in your grid's cells. A wide cover takes two cells side by side.",
                       "오른쪽 [[내 바둑판에서는 이렇게 보여요]]에 표지가 바둑판 칸에 어떻게 들어가는지 보여요. 가로로 긴 표지는 칸 두 개를 나란히 차지해요."),
                     T("Drag the picture to change its position, and roll the wheel to change its size.",

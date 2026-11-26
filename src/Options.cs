@@ -116,6 +116,9 @@ namespace LoveMyShelf {
         public bool CropLock;
         // Make cover: the picture zooms in and out with the frame (the old way). Off unless turned on: the picture stays still.
         public bool CropZoom;
+        // The shape kept with "Keep this shape" (width over height), so the next cover starts in it; 0 = none yet (the grid's cell).
+        public double CropShape;
+        internal double KeptShape {get {return CropShape>=Covers.Narrowest && CropShape<=Covers.Widest?CropShape:Covers.Shape(TileShape);}}
         public string CaptureDirectory="";  // where the / key saves a frame; empty means the default folder below
         public bool CaptureAsShown;      // false: the video's own frame; true: the size and E/W brightness on screen
         public bool CaptureJpg;          // false: PNG; true: JPG
@@ -214,6 +217,7 @@ namespace LoveMyShelf {
                     WideCovers=(string)xml.Attribute("wideCovers")!="off",
                     CropLock=(string)xml.Attribute("cropLock")=="on",
                     CropZoom=(string)xml.Attribute("cropZoom")=="on",
+                    CropShape=ReadShape(xml.Attribute("cropShape")),
                     GifHoverSound=(string)xml.Attribute("gifHoverSound")!="off",
                     CaptureDirectory=(string)xml.Attribute("captureDirectory")??"",
                     CaptureAsShown=(string)xml.Attribute("captureLook")=="shown",
@@ -290,6 +294,12 @@ namespace LoveMyShelf {
                 MonitorSpeakers.OrderBy(m=>m.Key,StringComparer.OrdinalIgnoreCase).Select(m=>new XElement("monitor",new XAttribute("id",m.Key),new XAttribute("device",m.Value.Device),new XAttribute("name",m.Value.Name??m.Value.Device))),
                 SpeakerVolumes.OrderBy(v=>v.Key,StringComparer.OrdinalIgnoreCase).Select(v=>new XElement("volume",new XAttribute("device",v.Key),new XAttribute("value",v.Value))));
         }
+        static double ReadShape(XAttribute value) {
+            if(value==null)return 0;
+            double shape;
+            return Double.TryParse(value.Value,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out shape) &&
+                shape>=Covers.Narrowest && shape<=Covers.Widest?shape:0;
+        }
         internal Preferences Copy() {
             var copy=(Preferences)MemberwiseClone();
             copy.MonitorSpeakers=new Dictionary<string,SpeakerChoice>(MonitorSpeakers,StringComparer.OrdinalIgnoreCase);
@@ -335,7 +345,7 @@ namespace LoveMyShelf {
                     new XAttribute("largeMotion",OpenMotionOriginal?"original":"cover"),
                     new XAttribute("openLarge",OpenByDoubleClick?"double":"single"),
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
-                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),CropLock?new XAttribute("cropLock","on"):null,CropZoom?new XAttribute("cropZoom","on"):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
+                    new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),CropLock?new XAttribute("cropLock","on"):null,CropZoom?new XAttribute("cropZoom","on"):null,CropShape>0?new XAttribute("cropShape",CropShape):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     SpeakersXml(),ViewerKeys.Xml(Shortcuts),
                     new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }

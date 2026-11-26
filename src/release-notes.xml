@@ -36,6 +36,13 @@
       textEn="The 9:16 · 3:4 · 1:1 · 4:3 · 16:9 buttons are gone from Make cover and Where to cut. Now there are just two: [Fill the grid's cell] and [Fill two cells side by side].&#10;[Fill the grid's cell] is the shape of one cell of your grid, and [Fill two cells side by side] is a wide cover that fills two cells next to each other with no empty bands. With 3:4 cells it is 3:2.&#10;For any other shape, type the width and height."
       boldKo="[칸에 꽉 맞추기]와 [칸 두 개에 꽉 맞추기] 두 개만"
       boldEn="[Fill the grid's cell] and [Fill two cells side by side]"/>
+    <item group="better" icon="image"
+      titleKo="비율 고정을 켜 두면 표지가 늘 그 모양으로 시작해요"
+      titleEn="With Keep this shape on, covers always start in that shape"
+      textKo="9:16처럼 늘 같은 모양으로 자른다면, 표지 만들기에서 그 모양을 고르고 [🔒 비율 고정]을 켜 두세요. 다음부터는 표지 만들기를 열 때마다 처음부터 그 모양 틀로 시작해서 따로 누를 게 없어요.&#10;재생창의 자를 곳 네모도 같은 모양으로 그려져요. 이미 만든 표지를 고칠 때는 그 표지의 모양 그대로예요. 비율 고정을 끄면 예전처럼 사진 전체로 시작해요."
+      textEn="If you always cut the same shape, like 9:16, pick it in Make cover and turn on [🔒 Keep this shape]. From then on Make cover opens with a frame in that shape, with nothing to click.&#10;The where-to-cut box in the large view is drawn in the same shape. Editing a saved cover keeps that cover's own shape. Turn the lock off and covers start as the whole picture again."
+      boldKo="처음부터 그 모양 틀로 시작해서"
+      boldEn="opens with a frame in that shape"/>
     <item group="new" icon="news"
       titleKo="이걸 만든 AI한테 바로 적어 보내기"
       titleEn="Write to the AI that made this, right from the app"

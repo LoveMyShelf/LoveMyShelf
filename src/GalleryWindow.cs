@@ -2351,6 +2351,9 @@ namespace LoveMyShelf {
         // The cover editor's [Keep this shape], kept for next time (nothing in the grid changes).
         internal static void RememberCropLock(bool on) {RememberEditor(p=>p.CropLock=on);}
         internal static void RememberCropZoom(bool on) {RememberEditor(p=>p.CropZoom=on);}
+        internal static void RememberCropShape(double shape) {
+            if(shape>=Covers.Narrowest && shape<=Covers.Widest && !Double.IsNaN(shape))RememberEditor(p=>p.CropShape=shape);
+        }
         static void RememberEditor(Action<Preferences> change) {
             var windows=Application.Current.Windows.OfType<GalleryWindow>().ToList();
             if(windows.Count==0)return;
@@ -2564,6 +2567,7 @@ namespace LoveMyShelf {
                 if(!CoverWorkFree(viewer))return null; // another cover was opened while this one was loading
                 var dialog=CreateCropEditor(viewer,photo,preview);
                 dialog.Title=L.T("Edit cover");
+                dialog.KeepsSavedShape=true; // editing keeps the cover's own shape even with Keep this shape on
                 Rect startingCrop=dialog.Surface.Fraction;
                 Photo updated=null;
                 dialog.CommitCover=async editor=>{

@@ -66,8 +66,6 @@ namespace LoveMyShelf {
         Size startSize;
         Vector fixedCorner; // the opposite corner, in the box's own turned frame, while a corner is dragged
         DrawnArea before;
-        // Drawn this session: the next box of any video starts with the same shape when it is kept.
-        static double lastShape;
         const double GripReach=11,Smallest=12;
 
         internal event Action Changed;
@@ -92,7 +90,7 @@ namespace LoveMyShelf {
             Children.Add(canvas);
             var prefs=CropSurface.Prefs;
             locked=prefs!=null && prefs.CropLock;
-            if(locked && lastShape>0)shape=lastShape;
+            if(locked)shape=KeptShape();
             BuildMenu();
             SizeChanged+=delegate {Refresh();};
             Refresh();
@@ -188,6 +186,7 @@ namespace LoveMyShelf {
                 }
                 if(Math.Abs(local.X)<=size.Width/2 && Math.Abs(local.Y)<=size.Height/2){grip=Grip.Move;Told();return true;}
             }
+            if(area==null && locked)shape=KeptShape(); // a first box takes the latest kept shape
             grip=Grip.New;Told();return true;
         }
         internal void Drag(Point p) {
@@ -255,13 +254,15 @@ namespace LoveMyShelf {
         void Raise() {if(Changed!=null)Changed();}
 
         // ----- Shape and exact numbers -----
-        void Keep(double aspect) {if(aspect>0 && !Double.IsInfinity(aspect)){shape=aspect;lastShape=aspect;}}
+        // The shape kept from the last time (the cover editor uses the same one); the grid's cell when none yet.
+        static double KeptShape() {var prefs=CropSurface.Prefs;return prefs!=null?prefs.KeptShape:CropSurface.GridCell;}
+        void Keep(double aspect) {if(aspect>0 && !Double.IsInfinity(aspect)){shape=aspect;GalleryWindow.RememberCropShape(aspect);}}
         internal void SetLocked(bool on) {
             locked=on;
             if(on) {
                 var shown=view();
                 if(area!=null && shown.HasValue && shown.Value.Upright>0)Keep(area.Aspect(shown.Value.Upright));
-                else if(shape<=0 && lastShape>0)shape=lastShape;
+                else shape=KeptShape(); // the latest kept shape (the cover editor may have changed it)
             }
             if(keep.IsChecked!=on)keep.IsChecked=on;
             GalleryWindow.RememberCropLock(on);
