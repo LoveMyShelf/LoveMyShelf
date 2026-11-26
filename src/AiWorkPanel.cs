@@ -32,7 +32,7 @@ namespace LoveMyShelf {
                 if(scroller==null)scroller=Find(tree);
                 if(scroller!=null && Math.Abs(scroller.ExtentHeight-extent)>0.5){extent=scroller.ExtentHeight;InvalidateMeasure();}
             };
-            box.IsKeyboardFocusWithinChanged+=delegate {InvalidateMeasure();};
+            box.WantedChanged+=InvalidateMeasure;
         }
         static ScrollViewer Find(DependencyObject at) {
             for(int i=0;i<VisualTreeHelper.GetChildrenCount(at);i++) {
@@ -50,7 +50,7 @@ namespace LoveMyShelf {
             box.Measure(open);double boxHeight=box.DesiredSize.Height;
             if(double.IsInfinity(height))height=whole+boxHeight;
             LastWhole=whole;LastBox=boxHeight;LastHeight=height;
-            BoxShown=whole+boxHeight<=height+0.5 || (box.IsKeyboardFocusWithin && height-boxHeight>=60);
+            BoxShown=whole+boxHeight<=height+0.5 || (box.Wanted && height-boxHeight>=60);
             treeHeight=BoxShown?Math.Min(whole,height-boxHeight):height;
             tree.Measure(new Size(width,Math.Max(0,treeHeight)));
             return new Size(double.IsInfinity(width)?Math.Max(tree.DesiredSize.Width,box.DesiredSize.Width):width,height);
@@ -59,7 +59,8 @@ namespace LoveMyShelf {
             tree.Arrange(new Rect(0,0,final.Width,Math.Max(0,treeHeight)));
             // Hidden: placed below the bottom edge, where the clip keeps it out of sight and out of reach.
             box.Arrange(new Rect(0,BoxShown?treeHeight:final.Height+1,final.Width,box.DesiredSize.Height));
-            box.IsHitTestVisible=BoxShown;
+            // Hidden: out of reach of the mouse and of Tab too.
+            box.IsHitTestVisible=BoxShown;box.IsEnabled=BoxShown;
             return final;
         }
     }
@@ -85,7 +86,14 @@ namespace LoveMyShelf {
         bool failed;
         readonly DispatcherTimer draftTimer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(500)};
         readonly DispatcherTimer sentTimer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(5)};
-        bool updatingText,closed;
+        bool updatingText,closed,wanted;
+        // Someone opened the box on purpose or is writing in it: the tree makes room for it even when long.
+        // Switching to another program keeps it (keyboard focus leaves the window then); clicking elsewhere in it ends it.
+        internal event Action WantedChanged;
+        internal bool Wanted {
+            get {return wanted;}
+            private set {if(wanted==value)return;wanted=value;var handler=WantedChanged;if(handler!=null)handler();}
+        }
 
         public AiWorkPanel(Window owner) {
             this.owner=owner;
@@ -105,8 +113,12 @@ namespace LoveMyShelf {
             box.SetResourceReference(Control.BorderBrushProperty,"CardLine");
             box.CaretIndex=box.Text.Length;
             box.TextChanged+=OnTextChanged;
+            box.IsKeyboardFocusWithinChanged+=delegate {
+                if(box.IsKeyboardFocusWithin)Wanted=true;
+                else if(owner.IsActive)Wanted=false;
+            };
             // Esc anywhere in the box area gives the keys back to the folder window.
-            PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape){e.Handled=true;Keyboard.ClearFocus();if(owner.IsActive)owner.Focus();}};
+            PreviewKeyDown+=(s,e)=>{if(e.Key==Key.Escape){e.Handled=true;Keyboard.ClearFocus();Wanted=false;if(owner.IsActive)owner.Focus();}};
 
             send=UI.Btn("",Send,true);send.MinHeight=32;send.MinWidth=88;send.Padding=new Thickness(14,0,14,0);
             send.HorizontalAlignment=HorizontalAlignment.Right;send.Margin=new Thickness(0,8,0,0);send.IsEnabled=!sending;
@@ -137,8 +149,9 @@ namespace LoveMyShelf {
         }
         // Caret at the end of the box (the folder window opens the tree first when it is closed).
         internal void FocusBox() {
+            Wanted=true;
             owner.Dispatcher.BeginInvoke(DispatcherPriority.Input,new Action(()=>{
-                if(closed || !IsVisible)return;
+                if(closed || !IsVisible || !IsEnabled)return;
                 box.Focus();box.CaretIndex=box.Text.Length;
             }));
         }
