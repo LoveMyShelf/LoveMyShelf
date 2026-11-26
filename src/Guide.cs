@@ -972,6 +972,8 @@ namespace LoveMyShelf {
                     K(T("Moves it to the Recycle Bin. You can restore it from the Recycle Bin.","휴지통으로 보내요. 휴지통에서 복원할 수 있어요."),"Delete")},
                 Lines=new[]{T("Click the magnifier at the top right (or press {{Ctrl}} + {{F}}) and the search box opens. Type something and only the files whose names contain it stay. Press {{Esc}} to clear the search and close the box.",
                     "오른쪽 위의 돋보기를 누르면(또는 {{Ctrl}} + {{F}}) 검색창이 열려요. 글자를 입력하면 이름에 그 글자가 들어간 파일만 남아요. {{Esc}}를 누르면 검색이 지워지고 검색창이 닫혀요."),
+                    T("Just left of the magnifier is [[Type ▾]]. Click it to see the file types in this folder and how many of each (JPG, PNG, MP4 …). Click a type and only that type shows; click another to add it, and click it again to take it out. [[All types]] shows everything again. Opening another folder starts with all types.",
+                      "돋보기 바로 왼쪽에 [[형식 ▾]]이 있어요. 누르면 이 폴더에 있는 파일 형식(JPG, PNG, MP4 …)과 개수가 보여요. 형식 하나를 누르면 그 형식만 보이고, 다른 형식을 누르면 더해지고, 다시 누르면 빠져요. [[모든 형식]]을 누르면 다시 전부 보여요. 다른 폴더를 열면 모든 형식으로 돌아와요."),
                     T("Right-click a tile for these menu items too: [[Open file location]] shows the file in File Explorer, [[Open with default app]] opens it in the program set as the default in Windows, and [[Details]] shows information such as its size and date.",
                       "칸을 오른쪽 클릭하면 이런 메뉴도 있어요. [[파일 위치 열기]]는 파일 탐색기에서 그 파일을 보여 주고, [[기본 앱으로 열기]]는 Windows에서 기본으로 지정된 프로그램으로 열고, [[정보 보기]]는 크기·날짜 같은 정보를 보여 줘요.")}});
             browse.Items.Add(new Card {Title=T("Tile positions don't change by themselves","칸 위치는 저절로 바뀌지 않아요"),
