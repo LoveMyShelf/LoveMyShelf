@@ -30,6 +30,13 @@
       textEn="While watching a video, GIF or WebP, click [▭ Draw a box] at the bottom and drag over the picture. Drag inside the box to move it, drag a corner to resize it.&#10;You can also type its place and size in % in the bar at the top, and set its shape with [🔒 Keep this shape], the 9:16 · 3:4 · 1:1 · 4:3 · 16:9 buttons or width:height numbers. Then click [Make a cover from this box] or [Make cover]: after Choose a scene, the Make cover screen starts from the box, and a GIF cover made there uses the same place.&#10;The box is apart from zooming and turning, so it stays on the same part of the picture when you zoom in. [Clear] takes it away, and it goes when you move to another file."
       boldKo="화면을 끌면 네모가 생겨요|표지 만들기 화면이 이 네모로 시작해요"
       boldEn="drag over the picture|the Make cover screen starts from the box"/>
+    <item group="new" icon="play"
+      titleKo="GIF 표지의 부드러움과 크기를 숫자로"
+      titleEn="Type the smoothness and size of a GIF cover"
+      textKo="GIF 표지 만들기에서 부드러움(1초에 몇 장)과 크기(px)를 숫자로 바로 적을 수 있어요. 옆의 ▾를 누르면 자주 쓰는 값과 [원본과 같게]가 나와요.&#10;60장짜리 영상이나 4K 영상을 그대로 살리고 싶다면 설명서 겸 옵션 → GIF 표지 만들기의 [고급]에서 켜요. 높은 프레임(60장까지), 큰 크기(3840px까지), 장면 고르기도 큰 화질로 읽기, 세 가지예요. 처음에는 모두 꺼져 있어요. 켜면 파일이 커지고 만들기가 느려질 수 있어요.&#10;GIF는 1초에 50장까지만 고르게 보여서, 60장은 WebP나 MP4로 만들어요."
+      textEn="In Make GIF cover you can type the smoothness (pictures a second) and the size (px). The ▾ beside each shows common values and [Same as original].&#10;To keep a 60-a-second or 4K video as it is, turn it on under [Advanced] in Guide &amp; Options → GIF covers: high frame rates (up to 60), large sizes (up to 3840 px), and reading scenes at a larger size. All three start off. On, files get bigger and making can be slower.&#10;GIF shows at most 50 pictures a second evenly, so make 60 with WebP or MP4."
+      boldKo="숫자로 바로 적을 수|처음에는 모두 꺼져 있어요"
+      boldEn="you can type the smoothness|All three start off"/>
     <item group="better" icon="image"
       titleKo="표지 자를 때 사진이 가만히 있어요"
       titleEn="The picture stays still while you cut a cover"
