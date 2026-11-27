@@ -57,6 +57,10 @@ namespace LoveMyShelf {
         public int TextColor=0xFFFFFF,EdgeColor=0x000000,BandColor=0x000000;
         public double EdgeSize=-1,BandStrength=60;
         public bool Band;
+        // The GIF's own cut, changed in the Make GIF cover window (MotionCrop.cs); otherwise the JPG cover's is used.
+        public bool HasOwnCrop;
+        public Rect Crop;
+        public double Rotation,Aspect;
         public bool HasOwnAdjust;
         public AdjustValues Adjust;
         internal EraseAiPatch TransientAiPatch;
@@ -96,6 +100,9 @@ namespace LoveMyShelf {
                 .Append(TextStyle());
             if(!String.IsNullOrEmpty(Shapes))s.Append(";draw=").Append(MotionLook.Base64(Shapes));
             if(HasOwnAdjust)s.Append(";adj=").Append(Adjust.KeyText());
+            if(HasOwnCrop)s.Append(";crop=").Append(Crop.X.ToString("0.######",c)).Append(',').Append(Crop.Y.ToString("0.######",c)).Append(',')
+                .Append(Crop.Width.ToString("0.######",c)).Append(',').Append(Crop.Height.ToString("0.######",c))
+                .Append(";turn=").Append(Rotation.ToString("0.###",c)).Append(";shape=").Append(Aspect.ToString("0.######",c));
             return s.ToString();
         }
         // Only what differs from white letters with the automatic black edge, so an unchanged text keeps its old key.
@@ -148,6 +155,15 @@ namespace LoveMyShelf {
                 if(values.TryGetValue("bc",out v) && Int32.TryParse(v,NumberStyles.HexNumber,c,out i))r.BandColor=i&0xFFFFFF;
                 AdjustValues parsedAdj;
                 if(values.TryGetValue("adj",out v) && AdjustValues.TryParse(v,out parsedAdj)){r.HasOwnAdjust=true;r.Adjust=parsedAdj;}
+                string cropText,turnText,shapeText;double turn,shape;
+                if(values.TryGetValue("crop",out cropText) && values.TryGetValue("turn",out turnText) && values.TryGetValue("shape",out shapeText) &&
+                    Double.TryParse(turnText,NumberStyles.Float,c,out turn) && Double.TryParse(shapeText,NumberStyles.Float,c,out shape) && shape>0.05 && shape<20) {
+                    var n=cropText.Split(',');double cx,cy,cw,ch;
+                    if(n.Length==4 && Double.TryParse(n[0],NumberStyles.Float,c,out cx) && Double.TryParse(n[1],NumberStyles.Float,c,out cy) &&
+                        Double.TryParse(n[2],NumberStyles.Float,c,out cw) && Double.TryParse(n[3],NumberStyles.Float,c,out ch) && cw>0 && ch>0) {
+                        r.HasOwnCrop=true;r.Crop=new Rect(cx,cy,cw,ch);r.Rotation=turn;r.Aspect=shape;
+                    }
+                }
                 return r;
             } catch(Exception) {return null;}
         }
@@ -354,7 +370,8 @@ namespace LoveMyShelf {
         bool wide,arranged,lastAuto;
         // Wide layout with only one column, on the right (the info card on top of it): for a wide video, when two
         // columns don't fit beside the preview but one does (2026-11-27, "pictures and videos must show big").
-        bool oneSide;
+        bool oneSide,replacing;
+        Button cancelButton;
         ResetToggle speedReset;
         const double OneSideColumn=316; // the file type's longest choice fits
         // The settings column folded away (◂), so the preview takes the width; ▸ brings it back. Kept while LoveMyShelf runs.
@@ -388,11 +405,14 @@ namespace LoveMyShelf {
         // editing: the cover already has a GIF; saved: the choices it was made with (null for a GIF made before they were saved).
         internal MotionWindow(Window owner,MotionSource source,bool fromEditor,bool editing=false,MotionRequest saved=null) {
             this.source=source;
+            TakeSavedCrop(saved);
             UI.WindowSetup(this,L.T(editing?"Edit GIF cover":"Make GIF cover"));Owner=owner;ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var area=SystemParameters.WorkArea;
             Width=Math.Min(960,area.Width);Height=Math.Min(820,area.Height);MinWidth=Math.Min(600,area.Width);MinHeight=Math.Min(600,area.Height);
-            makeLabel=L.T(fromEditor?"Save JPG cover and make GIF cover":"Make");
+            // Editing a saved GIF cover: this button replaces it; [Save as new file] leaves it as it is.
+            makeLabel=fromEditor?L.T("Save JPG cover and make GIF cover"):editing?L.P("Replace this GIF cover","이 GIF 표지로 바꾸기"):L.T("Make");
+            replacing=editing && !fromEditor;
             lastAuto=AutoMake;seenHighFps=highFps;seenLargeSize=largeSize;
             span=Math.Max(2,StripSeconds)*1000.0;step=span/Thumbs;
             start=Math.Max(0,source.Moment-sideMs);end=source.Moment+sideMs;
@@ -546,8 +566,15 @@ namespace LoveMyShelf {
                 DialogResult=false;
             });
             cancel.IsCancel=true;cancel.Margin=new Thickness(0,0,0,2);
+            cancelButton=cancel;
             make=UI.Btn(makeLabel,Finish,true);
             make.IsDefault=true;make.Margin=new Thickness(6,0,0,2);
+            if(replacing) {
+                make.ToolTip=L.P("Makes the GIF cover again with these choices and puts it in place of the one you have now (the old file goes to the Recycle Bin).",
+                    "지금 고른 대로 GIF 표지를 다시 만들어 지금 GIF 표지와 바꿔요. 옛 파일은 휴지통으로 가요.");
+                saveNew.ToolTip=L.P("Leaves the GIF cover you have now as it is, and saves this as a separate new file next to the original (like name_편집.gif).",
+                    "지금 GIF 표지는 그대로 두고, 이것을 원본 옆에 따로 새 파일(예: 이름_편집.gif)로 저장해요.");
+            }
             foreach(var button in new[]{saveNew,cancel,make}){button.FontSize=14;button.MinHeight=32;}
             actions.Children.Add(saveNew);actions.Children.Add(cancel);actions.Children.Add(make);
 
@@ -807,6 +834,7 @@ namespace LoveMyShelf {
                 flips.Children.Add(box);
             }
             flipField=Field(L.P("Flip","뒤집기"),flips);
+            cropField=CropField();
             // How many times it plays (0 = forever) and a pause on the last picture.
             var playsPanel=new StackPanel();
             Func<double> readPlays,readHold;Action<double> writePlays,writeHold;
@@ -1162,8 +1190,8 @@ namespace LoveMyShelf {
             if(oneSide){card.Margin=new Thickness(0,0,0,12);sidePanel.Children.Insert(0,card);}
             else {card.Margin=new Thickness(0);leftScroll.Content=card;}
             middle.ColumnDefinitions[0].Width=oneSide?new GridLength(0):new GridLength(1,GridUnitType.Star);
-            foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField,styleField,targetField,explain,narrowRow,more})Detach(item);
-            var fields=new[]{speedField,loopField,targetField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField,styleField};
+            foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,cropField,flipField,playsField,textField,styleField,targetField,explain,narrowRow,more})Detach(item);
+            var fields=new[]{speedField,loopField,targetField,fpsField,heightField,qualityField,formatField,cropField,flipField,playsField,textField,styleField};
             if(wide) {
                 foreach(var field in fields){field.Margin=new Thickness(0,0,0,6);sidePanel.Children.Add(field);}
                 explain.Margin=new Thickness(0,6,0,0);sidePanel.Children.Add(explain);
@@ -1176,7 +1204,7 @@ namespace LoveMyShelf {
                 DockPanel.SetDock(summary,Dock.Right);lastRow.Children.Insert(0,summary);
                 speedField.Margin=new Thickness(0,0,18,0);loopField.Margin=new Thickness(0);
                 narrowRow.Children.Add(speedField);narrowRow.Children.Add(loopField);
-                var moreFields=new[]{fpsField,heightField,qualityField,formatField,targetField,flipField,playsField,textField};
+                var moreFields=new[]{fpsField,heightField,qualityField,formatField,targetField,cropField,flipField,playsField,textField};
                 for(int i=0;i<moreFields.Length;i++) {
                     var field=moreFields[i];field.Margin=new Thickness(0,0,14,4);moreColumns[i%2].Children.Add(field);
                 }
@@ -1769,6 +1797,7 @@ namespace LoveMyShelf {
                 Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
                 Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY,Shapes=drawLayer.Value,
                 HasOwnAdjust=hasOwnAdj,Adjust=curAdj,TransientAiPatch=drawLayer.AiPatch,
+                HasOwnCrop=ownCrop,Crop=source.Crop,Rotation=source.Rotation,Aspect=source.Aspect,
                 Font=textStyle!=null?textStyle.FontId:"",TextColor=textStyle!=null?textStyle.TextColor:0xFFFFFF,EdgeColor=textStyle!=null?textStyle.EdgeColor:0,
                 EdgeSize=textStyle!=null?textStyle.EdgeSize:-1,Band=textStyle!=null && textStyle.Band,BandColor=textStyle!=null?textStyle.BandColor:0,
                 BandStrength=textStyle!=null?textStyle.BandStrength:60};
@@ -2633,6 +2662,7 @@ namespace LoveMyShelf {
         internal static MotionResult Make(Photo photo,string original,MotionRequest request,string directory,bool beside,CancellationToken token) {
             var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,
                 Brightness=photo.Brightness,Adjust=photo.Adjust,RecordFolder=photo.Folder,Aspect=photo.Aspect};
+            if(request.HasOwnCrop){source.Crop=request.Crop;source.Rotation=request.Rotation;source.Aspect=request.Aspect;}
             Directory.CreateDirectory(directory);
             string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
             try {

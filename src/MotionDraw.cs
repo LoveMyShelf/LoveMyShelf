@@ -760,6 +760,19 @@ namespace LoveMyShelf {
             CancelDrag();Remember();shapes[index]=replacement;SaveChange();
             return true;
         }
+        // Every drawing (and its followed path) moved to another frame of reference: the GIF's cut changed, and each
+        // drawing stays on the same spot of the video. One undo step.
+        internal void RemapAll(Func<Point,Point> point) {
+            if(shapes.Count==0)return;
+            CancelDrag();Remember();
+            Func<Rect,Rect> box=r=>new Rect(point(r.TopLeft),point(r.BottomRight));
+            for(int i=0;i<shapes.Count;i++) {
+                var moved=shapes[i].WithPoints(Array.ConvertAll(shapes[i].Points,p=>{var q=point(p);return new Point(MotionShape.Clamp(q.X),MotionShape.Clamp(q.Y));}));
+                if(moved.Track!=null)moved=moved.WithTrack(moved.Track.Mapped(box));
+                shapes[i]=moved;
+            }
+            SaveChange();
+        }
         internal void TransformTracks(Func<MotionTrackPath,MotionTrackPath> transform) {
             TransformTracks(shapes,transform);
             foreach(var edit in undo.Concat(redo))TransformTracks(edit.Shapes,transform);

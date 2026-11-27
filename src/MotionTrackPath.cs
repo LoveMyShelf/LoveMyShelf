@@ -84,6 +84,10 @@ namespace LoveMyShelf {
             // Each interpolated boundary within the span replaced a clipped key.
             return new MotionTrackPath(keys.ToArray(),FollowSize);
         }
+        // Every box moved to another frame of reference (the GIF's cut changed: MotionCrop.cs).
+        internal MotionTrackPath Mapped(Func<Rect,Rect> map) {
+            return new MotionTrackPath(Array.ConvertAll(Keys,k=>new MotionTrackKey(k.Time,map(k.Box),k.Fixed,k.Lost)),FollowSize);
+        }
         internal MotionTrackPath Flip(bool x,bool y) {
             return new MotionTrackPath(Array.ConvertAll(Keys,k=>new MotionTrackKey(k.Time,
                 new Rect(x?Math.Max(0,1-k.Box.Right):k.Box.X,y?Math.Max(0,1-k.Box.Bottom):k.Box.Y,k.Box.Width,k.Box.Height),
