@@ -48,7 +48,7 @@ namespace LoveMyShelf {
             Children.Add(title);
             WindowChrome.SetWindowChrome(window,chrome);
             window.StateChanged+=delegate {Update();FitMaximized();tries=0;SettleLater();};
-            window.SizeChanged+=delegate {FitMaximized();};
+            window.SizeChanged+=delegate {FitMaximized();if(uncaptioned)SettleLater();}; // WindowChrome sets its region again on a new size
             window.LocationChanged+=delegate {FitMaximized();if(window.WindowState==WindowState.Maximized)SettleLater();}; // a maximized window moved to another screen (Win+Shift+arrow)
             window.SourceInitialized+=delegate {
                 var source=HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
@@ -95,7 +95,15 @@ namespace LoveMyShelf {
             // (a few tries at most, so a place Windows won't give can't keep this going).
             if(switched || (whole && !placed && tries++<3))
                 SetWindowPos(handle,IntPtr.Zero,area.Left,area.Top,area.Right-area.Left,area.Bottom-area.Top,0x0014); // SWP_NOZORDER|SWP_NOACTIVATE
+            // WindowChrome clips a maximized window to the work area with a window region (SetWindowRgn), so even on the
+            // whole screen the bottom stripe was never painted: measured 2026-11-27 on hidden ordinary windows, window
+            // 0,0-1920,1080 but region 0,0-1920,1008, and a PrintWindow picture black below 1008 (the person still saw
+            // the folder window's bottom row there). Covering the whole screen, the window has no region.
+            Edges clip;
+            if(whole && GetWindowRgnBox(handle,out clip)!=0)SetWindowRgn(handle,IntPtr.Zero,true);
         }
+        [DllImport("user32.dll")] static extern int GetWindowRgnBox(IntPtr window,out Edges box);
+        [DllImport("user32.dll")] static extern int SetWindowRgn(IntPtr window,IntPtr region,bool redraw);
         // Gives the window its own caption back (before FullScreen keeps its style, and whenever it no longer covers a
         // full-screen window).
         internal void Recaption() {
