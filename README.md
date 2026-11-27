@@ -15,6 +15,7 @@
 - 표지를 만들어도 원본 사진과 영상은 그대로예요. 표지는 항상 따로 저장돼요.
 - 지우면 휴지통으로만 가요. 휴지통을 쓸 수 없는 곳(예: 네트워크 폴더)이면 아예 지우지 않아요.
 - 다른 드라이브로 옮길 때는 복사가 끝까지 잘 됐는지 확인한 다음에 원래 자리의 파일을 지워요.
+- 파일을 옮기고 지우는 부분을 고칠 때마다 가짜 파일로 자동 안전 검사 41개를 돌려요. 화면을 고치면 150%·225% 배율과 반쪽 창에서 글자나 버튼이 잘리는 곳이 없는지 자동으로 재요.
 
 다운로드 용량은 약 220MB예요. 영상 재생기랑 AI 기능(표지를 4배 크고 선명하게 키우기, 얼굴로 사람 찾기)이 다 들어 있어서 좀 커요. AI 기능은 내 PC 안에서만 돌아가고, 파일이 인터넷으로 올라가진 않아요.
 
@@ -89,6 +90,20 @@ https://github.com/user-attachments/assets/9d83da44-71f5-4ef2-a506-da4fc9b51617
 - 이름 바꾸기(F2), 휴지통으로 보내기(Delete), 옮기기와 복사를 할 수 있어요. 표지는 원본을 따라가고, 옮긴 것은 Ctrl+Z로 되돌려요.
 - 파일 탐색기에서 이름을 바꾸거나 옮긴 파일도 대부분 저절로 다시 찾아요.
 - 외장 하드를 뺐다가 다시 연결해서 드라이브 문자가 바뀌어도 표지가 그대로 따라와요.
+- 옮기기와 복사는 대기열에 줄을 서서 하나씩 해요. 멈췄다가 이어서 할 수 있고, 프로그램을 껐다 켜도 멈춘 곳부터 이어 가요. 외장 하드가 빠지면 그 작업만 멈춰요.
+
+**모아 보고 찾기**
+
+- 폴더 하나를 오른쪽 클릭하면 그 아래 하위 폴더 파일까지 한 화면에 모아 봐요.
+- 비슷한 사진 모음: 똑같은 파일과 거의 같은 사진을 찾아 묶어 주고, 두 장을 나란히 비교해서 남길 것을 골라요.
+- 파일에 태그를 붙이고, 태그 여러 개로 모아 봐요. 원본 파일은 건드리지 않아요.
+- 얼굴로 사람 찾기: 표지에서 얼굴을 찾아 닮은 얼굴끼리 묶고, 이름을 붙이면 태그가 돼요. 내 PC 안에서만 돌아가요.
+
+**백업과 휴대폰**
+
+- 잠긴 백업: 표지와 기록을 비밀번호로 잠가 구글 드라이브, OneDrive 같은 폴더에 저장하고 다시 복원해요(Argon2id, AES-256-GCM). 구글이나 마이크로소프트도 안의 내용을 볼 수 없어요.
+- 잠긴 사진 상자: 원하면 원본 사진 폴더도 7-Zip AES-256으로 잠가서 같이 보관해요. 파일 이름까지 잠겨요.
+- 휴대폰으로 보내기: 표지를 순서대로 구글 드라이브나 OneDrive 폴더에 복사해서 휴대폰에서 봐요. 원하면 원본도 같이 보내요.
 
 **영상 보기**
 
@@ -142,6 +157,7 @@ I built this by having the top AI models of three companies (Anthropic Claude Fa
 - Making covers leaves your original photos and videos as they are. Covers are always saved separately.
 - Deleting only sends files to the Recycle Bin. Where there is no Recycle Bin (such as a network folder), nothing is deleted.
 - When moving to another drive, the original is deleted only after the copy is verified.
+- Every time the code that moves or deletes files changes, 41 automatic safety checks run on made-up files. When a screen changes, it is measured automatically at 150% and 225% scaling and in a half-width window to catch cut-off text or buttons.
 
 The download is about 220 MB, since a video player and the AI features (making covers 4× larger and sharper, finding people by face) are all inside. The AI features run only on your PC, and your files never go up to the internet.
 
@@ -210,6 +226,20 @@ The three demo videos are [in the Korean section above](#이렇게-써요).
 - Rename (F2), send to the Recycle Bin (Delete), move and copy. Covers follow the original, and Ctrl+Z undoes a move.
 - Files renamed or moved in File Explorer are mostly found again by themselves.
 - Even if you unplug an external drive, connect it again and its drive letter changes, the covers follow.
+- Moves and copies wait in a queue and run one at a time. You can pause and resume them, and if you close the program, they continue from where they stopped next time. If an external drive is pulled out, only that job pauses.
+
+**Gather and find**
+
+- Right-click a folder to see the files in it and all its subfolders on one screen.
+- Similar photos: finds identical files and near-identical pictures, groups them, and lets you compare two side by side to choose which to keep.
+- Tag files and gather them by one or more tags. The original files are not changed.
+- Find people by face: finds faces in covers, groups similar faces, and naming a group turns it into a tag. It runs only on your PC.
+
+**Backup and phone**
+
+- Locked backup: covers and records are locked with a password and saved to a folder such as Google Drive or OneDrive, and can be restored (Argon2id, AES-256-GCM). Google and Microsoft can't see what's inside.
+- Locked photo box: if you like, the original photo folders are also locked with 7-Zip AES-256 and kept alongside. Even the file names are locked.
+- Send to phone: covers are copied in order to a Google Drive or OneDrive folder so you can look at them on your phone. Originals can go too if you want.
 
 **Watch videos**
 
