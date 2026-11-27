@@ -49,13 +49,24 @@ namespace LoveMyShelf {
         public static void WindowSetup(Window w,string title) {
             w.Title=title; w.Style=(Style)Application.Current.Resources[typeof(Window)];
             w.WindowStartupLocation=WindowStartupLocation.CenterScreen;
-            if(PrimaryScreenOnly) w.SourceInitialized+=delegate {
-                if(w.WindowStartupLocation!=WindowStartupLocation.CenterScreen)return;
-                Rect area=SystemParameters.WorkArea;
-                double width=Double.IsNaN(w.Width)?w.ActualWidth:w.Width,height=Double.IsNaN(w.Height)?w.ActualHeight:w.Height;
-                w.WindowStartupLocation=WindowStartupLocation.Manual;
-                w.Left=area.Left+Math.Max(0,(area.Width-width)/2);w.Top=area.Top+Math.Max(0,(area.Height-height)/2);
-            };
+            if(PrimaryScreenOnly) {
+                bool placed=false;
+                // A window bigger than the primary display (1280 wide at 225% is wider than the laptop screen) spills off its
+                // left and top edges, where no monitor is, never onto the monitor the person uses on the right (2026-11-27).
+                Action place=()=>{
+                    Rect area=SystemParameters.WorkArea;
+                    double width=Double.IsNaN(w.Width)?w.ActualWidth:w.Width,height=Double.IsNaN(w.Height)?w.ActualHeight:w.Height;
+                    if(Double.IsNaN(width) || width<=0 || Double.IsNaN(height) || height<=0)return; // not sized yet: SizeChanged comes back
+                    w.WindowStartupLocation=WindowStartupLocation.Manual;placed=true;
+                    w.Left=width<=area.Width?area.Left+(area.Width-width)/2:area.Right-width;
+                    w.Top=height<=area.Height?area.Top+(area.Height-height)/2:area.Bottom-height;
+                };
+                w.SourceInitialized+=delegate {if(w.WindowStartupLocation==WindowStartupLocation.CenterScreen)place();};
+                // A window that sizes itself to its content knows its size only now (DeepSeek review).
+                SizeChangedEventHandler first=null;
+                first=(o,e)=>{w.SizeChanged-=first;if(!placed && w.WindowStartupLocation==WindowStartupLocation.CenterScreen)place();};
+                w.SizeChanged+=first;
+            }
         }
         public static void Error(Window w,Exception ex) {
             MessageBox.Show(w,ex.Message,"LoveMyShelf",MessageBoxButton.OK,MessageBoxImage.Warning);
