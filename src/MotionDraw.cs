@@ -434,7 +434,10 @@ namespace LoveMyShelf {
 
     internal sealed class MotionDrawPanel : StackPanel {
         readonly MotionDrawLayer layer;
-        readonly Button opener,eraseOpener,undo,redo,delete,front,back,clear,none,aiButton,againButton;
+        readonly Button opener,eraseOpener,undo,redo,delete,front,back,clear,none,aiButton,againButton,fillAllButton;
+        // [Fill every scene] (or Enter, or ▶ Play): with [Each scene], every scene is filled only when asked, so the
+        // painted spot can be fixed first (2026-11-28 user: "I didn't like what I painted, but it started as soon as I let go").
+        internal event Action FillAllRequested;
         readonly TextBlock thicknessName;
         readonly RadioButton fillOnce,fillEach;
         // The [Erase ▾] button: erasing is its own tool, not one of the drawing tools (2026-11-27 user).
@@ -584,8 +587,7 @@ namespace LoveMyShelf {
                 // at the background, said in plain words, with [Change] for the other way.
                 // Three short steps instead of sentences (2026-11-27 user: "reading these sentences takes forever; give it a
                 // name and explain on mouse-over", "after this, what do I do?"). The details are on the tooltip.
-                gifPauseNote=UI.Text(L.P("1 Paint over it   2 The result shows   3 Press ▶ Play to check every scene",
-                    "1 지울 곳 칠하기   2 결과가 바로 보여요   3 ▶ 재생으로 모든 장면 확인"),12,true);
+                gifPauseNote=UI.Text("",12,true);
                 gifPauseNote.TextWrapping=TextWrapping.Wrap;gifPauseNote.Margin=new Thickness(2,4,0,2);
                 gifPauseNote.ToolTip=L.P("The preview stops while you erase. The painted spot is filled from around it at once on this scene; the other scenes are filled in the background, then ▶ Play shows them all. To paint on another scene, click it on the strip. Ctrl+Z undoes a stroke.",
                     "지우는 동안 미리보기가 멈춰요. 칠한 곳은 이 장면에서 바로 주변으로 메워지고, 다른 장면은 뒤에서 메운 뒤 ▶ 재생으로 모두 볼 수 있어요. 다른 장면에서 칠하려면 장면 띠에서 그 장면을 눌러요. Ctrl+Z로 한 번 칠한 것을 되돌려요.");
@@ -609,9 +611,14 @@ namespace LoveMyShelf {
                 gifModeText=UI.Text("",12,true);gifModeText.Margin=new Thickness(8,0,0,0);gifModeText.VerticalAlignment=VerticalAlignment.Center;
                 fillRow.Children.Add(gifModeText);
                 gifEraseField=Field(L.P("Fill","메우기"),fillRow);
+                fillAllButton=UI.Btn(L.P("Fill every scene (Enter)","모든 장면 메우기 (Enter)"),()=>{if(FillAllRequested!=null)FillAllRequested();},true);
+                fillAllButton.HorizontalAlignment=HorizontalAlignment.Left;fillAllButton.Margin=new Thickness(72,6,0,2);
+                fillAllButton.ToolTip=L.P("Fills the painted spots on every scene, in the background. Fix the painted spots first if you like; ▶ Play starts it too.",
+                    "칠한 곳을 모든 장면에서 뒤에서 메워요. 칠한 곳을 먼저 다듬어도 돼요. ▶ 재생을 눌러도 시작해요.");
                 ((FrameworkElement)gifEraseField).ToolTip=L.P("Picked by itself from whether the background moves. Change it if the erased spot looks wrong when it plays.",
                     "배경이 움직이는지 보고 저절로 골라요. 재생할 때 지운 곳이 어색하면 바꿔 봐요.");
                 body.Children.Add(gifEraseField);
+                body.Children.Add(fillAllButton);
             }
 
             var actions=new WrapPanel {Margin=new Thickness(0,5,0,4)};
@@ -726,6 +733,11 @@ namespace LoveMyShelf {
                 fillOnce.IsChecked=layer.EraseMode!=1;fillEach.IsChecked=layer.EraseMode==1;
                 gifModeText.Text=layer.HasEraseShapes?(layer.EraseMode==1?L.P("(background moves)","(배경이 움직여요)"):L.P("(background still)","(배경이 멈춰 있어요)")):"";
                 gifPauseNote.Visibility=erase?Visibility.Visible:Visibility.Collapsed;
+                bool each=layer.EraseMode==1;
+                gifPauseNote.Text=each?L.P("1 Paint over it   2 Check this scene   3 [Fill every scene] or ▶ Play",
+                    "1 지울 곳 칠하기   2 이 장면 확인   3 [모든 장면 메우기] 또는 ▶ 재생"):
+                    L.P("1 Paint over it   2 The result shows   3 ▶ Play to check every scene","1 지울 곳 칠하기   2 결과가 바로 보여요   3 ▶ 재생으로 모든 장면 확인");
+                fillAllButton.Visibility=erase && each && layer.HasEraseShapes?Visibility.Visible:Visibility.Collapsed;
             }
             foreach(var b in new[]{delete,front,back})b.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
             undo.IsEnabled=layer.CanUndo;redo.IsEnabled=layer.CanRedo;delete.IsEnabled=layer.HasSelection;

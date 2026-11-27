@@ -26,25 +26,23 @@ namespace LoveMyShelf {
             drawLayer.Updated+=check;
             drawPanel.VisibilityChanged+=check;
             drawLayer.PointerStarted+=delegate {if(drawLayer.IsErase)HoldForErase();};
-            drawLayer.EraseStrokesChanged+=delegate {if(!eraseModeChosen)PickEraseMode();ResultSoon();};
-            drawPanel.EraseModeSwitched+=delegate {eraseModeChosen=true;ResultSoon();};
+            drawLayer.EraseStrokesChanged+=delegate {if(!eraseModeChosen)PickEraseMode();};
+            drawPanel.EraseModeSwitched+=delegate {eraseModeChosen=true;};
+            drawPanel.FillAllRequested+=FillEveryScene;
             drawLayer.ShapeLimit+=delegate {
                 trackingStatus=L.P("That's as much as can be painted. Undo a little, or paint with a bigger brush.","더 칠할 수 없어요. 조금 되돌리거나 붓을 키워서 칠해 주세요.");
                 SetStatus();
                 limitNote.Stop();limitNote.Start();
             };
             limitNote.Tick+=delegate {limitNote.Stop();if(trackWork==null){trackingStatus=null;SetStatus();}};
-            eraseResult.Tick+=delegate {
-                eraseResult.Stop();
-                // Each scene filled on its own: the result of every scene is made in the background a second after the
-                // last stroke (low priority, stopped by the next change), so ▶ Play shows it without another button
-                // (2026-11-27 user: "after picking 'each scene', what do I do?").
-                if(drawLayer.EraseMode==1 && drawLayer.HasEraseShapes && drawPanel.IsEditing && !lifetime.IsCancellationRequested)RealNow();
-            };
         }
+        // Each scene filled on its own: every scene is filled in the background (low priority, stopped by the next change)
+        // when asked: [Fill every scene], Enter or ▶ Play. Never by itself right after a stroke, so the painted spot can be
+        // fixed first (2026-11-28 user, DeepSeek).
+        internal bool WantsFillEveryScene {get {return drawPanel.IsEditing && drawLayer.IsErase && drawLayer.EraseMode==1 && drawLayer.HasEraseShapes;}}
+        void FillEveryScene() {if(WantsFillEveryScene && !lifetime.IsCancellationRequested)RealNow();}
         readonly System.Windows.Threading.DispatcherTimer limitNote=new System.Windows.Threading.DispatcherTimer {Interval=TimeSpan.FromSeconds(4)};
-        readonly System.Windows.Threading.DispatcherTimer eraseResult=new System.Windows.Threading.DispatcherTimer {Interval=TimeSpan.FromSeconds(1)};
-        void ResultSoon() {eraseResult.Stop();if(drawLayer.EraseMode==1)eraseResult.Start();}
+
 
         void HoldForErase() {
             if(showingOwn)SwitchToDrawingPreview();

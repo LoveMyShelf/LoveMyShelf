@@ -701,6 +701,7 @@ namespace LoveMyShelf {
                 if(e.OriginalSource is ComboBox || e.OriginalSource is ComboBoxItem)return;
                 if(e.Key==Key.Space && drawPanel.IsKeyboardFocusWithin && !(Keyboard.FocusedElement is System.Windows.Controls.Primitives.ButtonBase))return;
                 if(e.Key==Key.Space){if(!e.IsRepeat)TogglePause();e.Handled=true;return;}
+                if(e.Key==Key.Enter && WantsFillEveryScene && !(Keyboard.FocusedElement is TextBox)){if(!e.IsRepeat)FillEveryScene();e.Handled=true;return;}
                 // Z / X / C / V: the same keys as playback speed in the large view, in Korean input mode too.
                 if(Keyboard.Modifiers==ModifierKeys.None && (letter==Key.Z || letter==Key.X || letter==Key.C)) {
                     if(letter==Key.Z){if(!e.IsRepeat && speedReset!=null)speedReset.Press();}else StepSpeed(letter==Key.X?-1:1);
@@ -1987,6 +1988,7 @@ namespace LoveMyShelf {
         void RealNow() {if(trackWork==null){prepareSoon.Stop();Prepare(true);}}
         internal void TogglePause() {
             held=!held;player.Hold=held;SetStatus();
+            if(!held)FillEveryScene(); // ▶ Play after erasing each scene fills them all
         }
         internal bool PreviewReady {get {return preparedFile!=null && preparing<0 && player.Playing;}}
         internal string PreparedFile {get {return preparedFile;}}

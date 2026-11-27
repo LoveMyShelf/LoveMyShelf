@@ -962,12 +962,13 @@ namespace LoveMyShelf {
             return panel;
         }
         // A row of grid cells in the person's cell shape, drawn with the cover as it is being cut.
-        sealed class GridPeek : FrameworkElement {
+        // Also small in the Make GIF cover window's [Crop] (MotionCrop.cs).
+        internal sealed class GridPeek : FrameworkElement {
             readonly CropSurface surface;
             internal GridPeek(CropSurface surface) {this.surface=surface;IsHitTestVisible=false;surface.Moved+=InvalidateVisual;}
             const int Cells=3;const double Gap=3;
             protected override Size MeasureOverride(Size available) {
-                double width=Double.IsInfinity(available.Width)?196:available.Width;
+                double width=Double.IsInfinity(available.Width)?(Double.IsNaN(Width)?196:Width):available.Width;
                 double cell=(width-Gap*(Cells-1))/Cells;
                 return new Size(width,Math.Ceiling(cell/CropSurface.GridCell));
             }

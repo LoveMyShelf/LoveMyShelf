@@ -48,6 +48,34 @@ namespace LoveMyShelf {
             var surface=new CropSurface(picture,source.Crop,source.Rotation,CropSurface.SnapPixels>0,7);
             AutomationProperties.SetHelpText(surface,L.T("Drag to move it, and roll the wheel to fit the size."));
             var bar=new WrapPanel {Margin=new Thickness(0,8,0,0),HorizontalAlignment=HorizontalAlignment.Center};
+            // How it shows in the grid, very small, and the grid's own shapes (2026-11-28 user: "GIF crop needs that too, how
+            // much of the cell it fills; tiny is fine; and the one-cell and two-cell buttons").
+            var peek=new CropWindow.GridPeek(surface) {Width=96,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,8,2)};
+            peek.ToolTip=L.P("How it shows in your grid","내 바둑판에서는 이렇게 보여요");
+            var filled=UI.Text("",12,true);filled.VerticalAlignment=VerticalAlignment.Center;filled.Margin=new Thickness(0,0,12,0);
+            bar.Children.Add(peek);bar.Children.Add(filled);
+            Func<string,string,Action,Button> add=(text,tip,act)=>{
+                var b=UI.Btn(text,act);b.Margin=new Thickness(0,2,4,2);b.Padding=new Thickness(8,0,8,0);b.ToolTip=tip;
+                AutomationProperties.SetName(b,tip);bar.Children.Add(b);return b;
+            };
+            double cell=CropSurface.GridCell;
+            var fill=add(Covers.OneCellLabel(cell),L.P("Cuts it in the same shape as the grid's cells, so it fills its cell with no empty bands.",
+                "바둑판 칸과 같은 모양으로 잘라서 칸에 빈 띠 없이 꽉 차게 보여요."),()=>surface.SetAspect(CropSurface.GridCell));
+            var fillTwo=add(Covers.TwoCellsLabel(cell),L.P("Cuts it wide, to take two cells side by side and fill both with no empty bands.",
+                "가로로 길게 잘라서 칸 두 개를 빈 띠 없이 꽉 채워요."),()=>surface.SetAspect(Covers.TwoCells(CropSurface.GridCell)));
+            fillTwo.Margin=new Thickness(0,2,12,2);
+            var grid=CropSurface.Prefs;
+            fillTwo.Visibility=grid==null || grid.WideCovers?Visibility.Visible:Visibility.Collapsed;
+            Action showFilled=()=>{
+                var prefs=CropSurface.Prefs;
+                double shape=CropSurface.GridCell;
+                bool two=(prefs==null || prefs.WideCovers) && Covers.TakesTwoCells(surface.Aspect,shape);
+                int percent=(int)Math.Round(Covers.Fill(surface.Aspect,two?shape*2:shape)*100);
+                filled.Text=two?L.PF("2 cells · {0}%","칸 2개 · {0}%",percent):L.PF("{0}% of the cell","칸의 {0}%",percent);
+                peek.InvalidateVisual();
+                fillTwo.Visibility=prefs==null || prefs.WideCovers?Visibility.Visible:Visibility.Collapsed;
+            };
+            surface.ShapeChanged+=showFilled;surface.Moved+=showFilled;showFilled();
             var keep=new CheckBox {Content=L.P("🔒 Keep this shape","🔒 비율 고정"),VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,12,2),FontSize=13};
             keep.SetResourceReference(Control.ForegroundProperty,"Text");
             keep.Checked+=delegate {surface.LockShape=true;};keep.Unchecked+=delegate {surface.LockShape=false;};
@@ -56,23 +84,39 @@ namespace LoveMyShelf {
             var across=box(L.P("Width (any number, like 16 or 1080)","가로 (16이나 1080처럼 아무 숫자)"));
             var tall=box(L.P("Height (any number, like 9 or 1920)","세로 (9나 1920처럼 아무 숫자)"));
             AutomationProperties.SetName(across,L.P("Width","가로"));AutomationProperties.SetName(tall,L.P("Height","세로"));
+            var shapeBoxes=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};
+            // 2026-11-28 user: "typing numbers in the ratio doesn't work". Typing the width applied it at once with the old
+            // height and then wrote the picture's pixel count back over the boxes, so 9 then 8 never became 9:8. Now the
+            // shape is used once both are typed: Enter, or when the keyboard leaves both boxes (as in the cover editor).
+            // Typed = the boxes no longer say what was last shown in them.
+            string shownAcross="",shownTall="";
+            Action showShape=null;Action<bool> showNow=null;
             Action applyShape=()=>{
-                double w,h;
-                if(Double.TryParse(across.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out w) && Double.TryParse(tall.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out h) && w>0 && h>0)
-                    surface.SetAspect(w/h);
+                double w=0,h=0;
+                if(across.Text==shownAcross && tall.Text==shownTall)return;
+                bool ok=(Double.TryParse(across.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out w) ||
+                    Double.TryParse(across.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out w)) &&
+                    (Double.TryParse(tall.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out h) ||
+                    Double.TryParse(tall.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out h)) &&
+                    w>0 && h>0 && !Double.IsInfinity(w) && !Double.IsInfinity(h) && w/h>0 && !Double.IsInfinity(w/h);
+                if(ok){surface.SetAspect(w/h);shownAcross=across.Text;shownTall=tall.Text;}
+                else {shownAcross=shownTall=null;showNow(true);} // not numbers: back to the shape in use (DeepSeek)
             };
-            foreach(var t in new[]{across,tall}) {
+            foreach(var t in new[]{across,tall})
                 t.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){applyShape();surface.Focus();e.Handled=true;}};
-                t.LostKeyboardFocus+=delegate {applyShape();};
-            }
-            Action showShape=()=>{
-                var size=surface.PixelSize;
-                if(!across.IsKeyboardFocusWithin)across.Text=Math.Round(size.Width).ToString(CultureInfo.CurrentCulture);
-                if(!tall.IsKeyboardFocusWithin)tall.Text=Math.Round(size.Height).ToString(CultureInfo.CurrentCulture);
+            shapeBoxes.IsKeyboardFocusWithinChanged+=(s,e)=>{if(!(bool)e.NewValue)applyShape();};
+            // The shape as short numbers (9 : 16), not the picture's pixel count, and never while typing in them.
+            showNow=force=>{
+                if(!force && (across.IsKeyboardFocusWithin || tall.IsKeyboardFocusWithin))return;
+                string name=Covers.Name(surface.Aspect);int colonAt=name.IndexOf(':');
+                if(colonAt<0)return;
+                across.Text=shownAcross=name.Substring(0,colonAt);tall.Text=shownTall=name.Substring(colonAt+1);
             };
+            showShape=()=>showNow(false);
             surface.ShapeChanged+=showShape;surface.Moved+=showShape;showShape();
             var colon=UI.Text(":",13);colon.Margin=new Thickness(4,0,4,0);colon.VerticalAlignment=VerticalAlignment.Center;
-            bar.Children.Add(across);bar.Children.Add(colon);bar.Children.Add(tall);
+            shapeBoxes.Children.Add(across);shapeBoxes.Children.Add(colon);shapeBoxes.Children.Add(tall);
+            bar.Children.Add(shapeBoxes);
             var whole2=UI.Btn(L.P("No crop","자르지 않기"),()=>surface.WholePicture());whole2.Margin=new Thickness(12,0,0,2);
             var cancel=UI.Btn(L.T("Cancel"),()=>CloseCrop());cancel.Margin=new Thickness(12,0,0,2);
             var use=UI.Btn(L.P("Crop here","이대로 자르기"),()=>{UseCrop(surface);CloseCrop();},true);use.Margin=new Thickness(6,0,0,2);
