@@ -24,6 +24,10 @@ namespace LoveMyShelf {
         DateTime adjustFirst,adjustLast;
         int adjustField=-1;
         bool adjustFaded;
+        // What the lines were last told or last sent, so only a change from elsewhere (Q, W, E, R, Reset) is shown
+        // again. Showing the panel's own value back would cancel a step a line has not applied yet (it applies 60 ms
+        // later): holding an arrow then bounced -1 / +1 (2026-11-27 user report).
+        AdjustValues adjustKnown;
         // The panel's distance from the video's top-right corner (DIPs), kept between runs.
         static Vector adjustOffset=new Vector(12,12);
         static bool adjustOffsetRead;
@@ -44,7 +48,7 @@ namespace LoveMyShelf {
         void CloseAdjustPanel() {if(adjustPanel!=null && adjustPanel.IsOpen)adjustPanel.IsOpen=false;}
 
         void BuildAdjustPanel() {
-            adjustLines=new AdjustRows((field,v)=>{SetPlaybackAdjust(field,v);NoteAdjusting(field);});
+            adjustLines=new AdjustRows((field,v)=>{SetPlaybackAdjust(field,v);adjustKnown=AdjustNow;NoteAdjusting(field);});
             // Head: a grip to move the panel, then Reset, back to the menu, and close.
             var head=new DockPanel {Margin=new Thickness(0,0,0,4),LastChildFill=true};
             Func<string,string,Action,Button> small=(text,tip,act)=>{
@@ -131,9 +135,10 @@ namespace LoveMyShelf {
                 File.WriteAllText(AdjustPlaceFile,adjustOffset.X.ToString("0",CultureInfo.InvariantCulture)+","+adjustOffset.Y.ToString("0",CultureInfo.InvariantCulture));
             } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
         }
+        AdjustValues AdjustNow {get {var now=playbackAdjust;now.Brightness=PlaybackValue;return now;}}
         void ShowAdjustValues() {
             if(adjustLines==null)return;
-            var now=playbackAdjust;now.Brightness=PlaybackValue;adjustLines.Show(now);
+            adjustKnown=AdjustNow;adjustLines.Show(adjustKnown);
         }
         // A value changed by holding an arrow, the wheel or dragging: after 150 ms the other lines fade (not while typing).
         void NoteAdjusting(int field) {
@@ -143,12 +148,12 @@ namespace LoveMyShelf {
             adjustLast=now;adjustField=field;
         }
         void AdjustTick() {
-            if(adjustPanel==null || !adjustPanel.IsOpen)return;
+            if(adjustPanel==null)return; // runs only while the panel is open (started in OpenAdjustPanel)
             var now=DateTime.UtcNow;
             bool changing=(now-adjustLast).TotalMilliseconds<500 && (now-adjustFirst).TotalMilliseconds>=150 && !(Keyboard.FocusedElement is TextBox);
             SetAdjustFaded(changing);
-            // Q, W, E, R and the keys change the values too: the lines follow when nothing is being changed here.
-            if(!changing && !adjustCard.IsMouseCaptureWithin && !(Keyboard.FocusedElement is TextBox))ShowAdjustValues();
+            // Q, W, E, R and Reset change the values from elsewhere: only then the lines show them.
+            if(!AdjustNow.Equals(adjustKnown) && !adjustCard.IsMouseCaptureWithin && !(Keyboard.FocusedElement is TextBox))ShowAdjustValues();
         }
         void SetAdjustFaded(bool faded) {
             if(adjustCard==null || adjustFaded==faded)return;
