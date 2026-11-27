@@ -14,9 +14,10 @@ using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace LoveMyShelf {
-    // The folder tree with the writing box right under its last folder. The whole tree comes first: the box shows only
-    // when the tree fits with room to spare for all of the box, and while someone is typing in it. Otherwise the tree
-    // gets all the height and scrolls as before.
+    // The folder tree with the writing box under it. A short tree: the box sits right under its last folder. A long tree
+    // (2026-11-27 user: "폴더트리 맨 아래 의견 칸 없어" — it used to step aside): the box stays at the bottom of the tree
+    // column and the tree scrolls above it, as long as at least MinTree of tree stays in view. Only a very short window
+    // gives the whole column to the tree. Nothing here takes room from the pictures: it is all inside the tree column.
     internal sealed class TreeWithBox : Panel {
         readonly FrameworkElement tree;
         readonly AiWorkPanel box;
@@ -43,6 +44,7 @@ namespace LoveMyShelf {
             return null;
         }
         double treeHeight;
+        const double MinTree=120;
         protected override Size MeasureOverride(Size available) {
             double width=available.Width,height=available.Height;
             var open=new Size(width,double.PositiveInfinity);
@@ -50,7 +52,7 @@ namespace LoveMyShelf {
             box.Measure(open);double boxHeight=box.DesiredSize.Height;
             if(double.IsInfinity(height))height=whole+boxHeight;
             LastWhole=whole;LastBox=boxHeight;LastHeight=height;
-            BoxShown=whole+boxHeight<=height+0.5 || (box.Wanted && height-boxHeight>=60);
+            BoxShown=whole+boxHeight<=height+0.5 || height-boxHeight>=MinTree || (box.Wanted && height-boxHeight>=60);
             treeHeight=BoxShown?Math.Min(whole,height-boxHeight):height;
             tree.Measure(new Size(width,Math.Max(0,treeHeight)));
             return new Size(double.IsInfinity(width)?Math.Max(tree.DesiredSize.Width,box.DesiredSize.Width):width,height);
