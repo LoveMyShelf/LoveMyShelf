@@ -13,6 +13,7 @@ namespace LoveMyShelf {
     internal enum GifPlayback { Never, Hover, Always }
     // What Copy, Share and dragging a tile hand over.
     internal enum ShareContent { CoverAndOriginal, CoverOnly, OriginalOnly }
+    internal enum ShareCoverKind { Both, MovingOnly, StillOnly }
 
     internal sealed class Preferences {
         static int editorPreviewSide=2200;
@@ -77,6 +78,7 @@ namespace LoveMyShelf {
         public bool ExplorerMenu=true;   // on unless turned off; "Open with LoveMyShelf" in File Explorer's right-click menu
         public GifPlayback GridGif=GifPlayback.Hover;
         public ShareContent Share;
+        public ShareCoverKind ShareCovers;
         // Discord's free upload limit went from 10 MB to 20 MB in August 2026.
         public int ShareLimitMB=20;
         public int GifStripSeconds=4;
@@ -161,6 +163,7 @@ namespace LoveMyShelf {
                 string sort=(string)xml.Attribute("sort"), direction=(string)xml.Attribute("direction");
                 var editor=xml.Element("editor")??xml.Element("photos")??xml.Element("motion")??xml;
                 string place=(string)xml.Attribute("coverPlace"),gif=(string)xml.Attribute("gridGif"),share=(string)xml.Attribute("share");
+                string shareCovers=(string)xml.Attribute("shareCovers");
                 string theme=(string)xml.Attribute("theme");
                 var loaded=new Preferences {
                     Korean=(string)xml.Attribute("language")=="ko",
@@ -187,6 +190,7 @@ namespace LoveMyShelf {
                     Theme=theme=="light"?ThemeMode.Light:theme=="dark"?ThemeMode.Dark:ThemeMode.System,
                     GridGif=gif=="never"?GifPlayback.Never:gif=="always"?GifPlayback.Always:GifPlayback.Hover,
                     Share=share=="cover"?ShareContent.CoverOnly:share=="original"?ShareContent.OriginalOnly:ShareContent.CoverAndOriginal,
+                    ShareCovers=shareCovers=="moving"?ShareCoverKind.MovingOnly:shareCovers=="still"?ShareCoverKind.StillOnly:ShareCoverKind.Both,
                     ShareLimitMB=ReadNumber(xml,"shareLimitMB",1,2000,20),
                     GifStripSeconds=ReadNumber(xml,"gifStrip",2,120,4),
                     GifFormat=IndexOr(new[]{"gif","webp","mp4"},(string)xml.Attribute("gifFormat"),1),
@@ -335,6 +339,7 @@ namespace LoveMyShelf {
                     new XAttribute("theme",Theme==ThemeMode.Light?"light":Theme==ThemeMode.Dark?"dark":"system"),
                     new XAttribute("gridGif",GridGif==GifPlayback.Never?"never":GridGif==GifPlayback.Always?"always":"hover"),
                     new XAttribute("share",Share==ShareContent.CoverOnly?"cover":Share==ShareContent.OriginalOnly?"original":"both"),
+                    new XAttribute("shareCovers",ShareCovers==ShareCoverKind.MovingOnly?"moving":ShareCovers==ShareCoverKind.StillOnly?"still":"both"),
                     new XAttribute("shareLimitMB",ShareLimitMB),new XAttribute("gifStrip",GifStripSeconds),
                     new XAttribute("gifFormat",new[]{"gif","webp","mp4"}[Math.Max(0,Math.Min(2,GifFormat))]),
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),

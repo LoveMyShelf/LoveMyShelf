@@ -24,7 +24,7 @@
 ## 이럴 땐 다른 프로그램이 나아요
 
 - 카메라 RAW 파일을 봐야 할 때: 아직 못 열어요.
-- 사진을 보정하거나 그림을 편집하고 싶을 때: LoveMyShelf는 편집 프로그램이 아니에요.
+- 레이어나 세밀한 붓질처럼 본격 편집을 하고 싶을 때: 간단한 밝기·색 보정과 필요 없는 것 지우기는 되지만, 본격 편집은 다른 프로그램이 나아요.
 - 휴대폰 사진을 클라우드에 자동으로 모으고 싶을 때: LoveMyShelf는 내 컴퓨터 폴더만 봐요.
 - Mac이나 리눅스를 쓸 때: Windows 전용이에요.
 
@@ -136,7 +136,7 @@ GitHub 계정이 있으면 [Issues](https://github.com/LoveMyShelf/LoveMyShelf/i
 - [바뀐 점](CHANGELOG.md): 버전별로 달라진 내용
 - [이전 버전](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 - [개발자용: 소스에서 빌드하기와 코드 구성](docs/BUILDING.md)
-- 라이선스: [GPL-3.0](LICENSE). 함께 들어 있는 libmpv, FFmpeg, ONNX Runtime, Swin2SR, Pretendard는 각자의 라이선스를 따라요. 자세한 내용은 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)에 있어요.
+- 라이선스: [GPL-3.0](LICENSE). 함께 들어 있는 libmpv, FFmpeg, ONNX Runtime, Swin2SR, LaMa, Pretendard는 각자의 라이선스를 따라요. 자세한 내용은 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)에 있어요.
 
 ---
 
@@ -166,7 +166,7 @@ It's free, with no ads, sign-up or paid features, and all the source code is pub
 ## When another program is better
 
 - You need camera RAW files: these don't open yet.
-- You want to retouch or edit pictures: LoveMyShelf is not an editor.
+- You want full-scale photo editing such as layers or detailed retouching: quick brightness/color adjustments and erasing unwanted things are built in, but another program is better for full-scale editing.
 - You want phone photos gathered automatically into the cloud: LoveMyShelf only looks at folders on your computer.
 - You use a Mac or Linux: it is Windows only.
 
@@ -272,4 +272,4 @@ If you have a GitHub account, you can also write in [Issues](https://github.com/
 - [Changelog](CHANGELOG.md): what changed in each version
 - [Earlier versions](https://github.com/LoveMyShelf/LoveMyShelf/releases)
 - [For developers: building from source and code layout](docs/BUILDING.md)
-- License: [GPL-3.0](LICENSE). The bundled libmpv, FFmpeg, ONNX Runtime, Swin2SR and Pretendard follow their own licenses; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- License: [GPL-3.0](LICENSE). The bundled libmpv, FFmpeg, ONNX Runtime, Swin2SR, LaMa and Pretendard follow their own licenses; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

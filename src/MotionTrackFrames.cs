@@ -101,7 +101,7 @@ namespace LoveMyShelf {
                     input=AnimationPartInput(raw,request.Fps,width,height);
                 }
                 int outW,outH;
-                string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,video,out outW,out outH);
+                string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,video,out outW,out outH,true,source.EffectiveAdjust);
                 string flips=MotionLook.Flips(request);
                 if(flips!=null)chain+=","+flips;
                 string limit=Double.IsInfinity(until)?"":" -frames:v "+Math.Max(1,(int)Math.Ceiling((until-MotionTrackPath.TimeTolerance)/step)).ToString(CultureInfo.InvariantCulture);

@@ -12,7 +12,7 @@ LoveMyShelf itself is licensed under the GNU General Public License v3.0 (see `L
 
 ## ONNX Runtime (`upscale/onnxruntime.dll`, `upscale/onnxruntime_providers_shared.dll`, `upscale/DirectML.dll`)
 
-- What it does: runs the AI upscaling model on the CPU.
+- What it does: runs the AI upscaling, face, and object-erasing models locally on this computer.
 - Version: 1.24.4 (onnxruntime-directml package from PyPI).
 - License: MIT. Full text and third-party notices: `upscale/LICENSE-onnxruntime.txt` and `upscale/ThirdPartyNotices-onnxruntime.txt`. `DirectML.dll` is Microsoft's redistributable shipped in that package.
 
@@ -22,6 +22,13 @@ LoveMyShelf itself is licensed under the GNU General Public License v3.0 (see `L
 - Model: Swin2SR real-world x4 (`caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr`), ONNX conversion by Xenova on Hugging Face.
 - License: Apache License 2.0, <https://www.apache.org/licenses/LICENSE-2.0>.
 - Paper: Conde et al., *Swin2SR: SwinV2 Transformer for Compressed Image Super-Resolution and Restoration*, ECCV 2022 Workshops.
+
+## LaMa inpainting model (`erase/lama_512_int8.onnx`)
+
+- What it does: the AI inpainting model used by **Fill cleanly with AI** in the cover drawing tool (**Erase**). It runs on this computer only, on the CPU through the ONNX Runtime above.
+- Model: LaMa (*Resolution-robust Large Mask Inpainting with Fourier Convolutions*) by Roman Suvorov et al. (`advimman/lama`, <https://github.com/advimman/lama>), 512×512 INT8 ONNX export from `g-ronimo/lama` (<https://huggingface.co/g-ronimo/lama>), SHA-256 `cab19978adc306622fe37ef60d4a52103b99c98141d499c2a2366a7ed1255dbe`.
+- License: Apache License 2.0, full text in `erase/LICENSE-lama.txt` and model notes in `erase/README-model.txt`.
+- Paper: Suvorov et al., *Resolution-robust Large Mask Inpainting with Fourier Convolutions*, WACV 2022, <https://arxiv.org/abs/2109.07161>.
 
 ## Face models (`faces/face_detection_yunet_2023mar.onnx`, `faces/face_recognition_sface_2021dec.onnx`)
 

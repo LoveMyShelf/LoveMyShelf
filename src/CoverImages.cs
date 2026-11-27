@@ -12,12 +12,13 @@ namespace LoveMyShelf {
         // Saved coordinates are fractions of the upright original. Keep the crop at
         // native resolution, copying source pixels directly when the angle is zero.
         internal static BitmapSource NativeCover(BitmapSource source,Rect frame,double rotation,CancellationToken token,int brightness=0,
-            bool trimVerticalPadding=false) {
+            bool trimVerticalPadding=false,AdjustValues adjust=default(AdjustValues)) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
             int w=source.PixelWidth,h=source.PixelHeight;
             int width=Math.Max(1,checked((int)Math.Round(frame.Width*w)));
             int height=Math.Max(1,checked((int)Math.Round(frame.Height*h)));
-            if(rotation!=0 || brightness!=0) {
-                var rendered=Pictures.RenderRotatedCover(source,frame,rotation,width,height,brightness);
+            if(rotation!=0) {
+                var rendered=Pictures.RenderRotatedCover(source,frame,rotation,width,height,adjust.Brightness,adjust);
                 if(!trimVerticalPadding)return rendered;
                 // The bounds of the visible source tell us which rows contain image pixels, even for dark photos.
                 var destination=new Rect(0,0,width,height);
@@ -33,21 +34,37 @@ namespace LoveMyShelf {
             int left=Math.Max(0,x),top=Math.Max(0,y);
             int columns=Math.Min(w,checked(x+width))-left,rows=Math.Min(h,checked(y+height))-top;
             bool trim=trimVerticalPadding && columns>0 && rows>0;
+            if(!adjust.IsIdentity && columns==width && rows==height && left==x && top==y) {
+                var cut=new CroppedBitmap(source,new Int32Rect(left,top,columns,rows));
+                cut.Freeze();
+                return ColorAdjust.Apply(cut,adjust);
+            }
             var result=new WriteableBitmap(width,trim?rows:height,96,96,PixelFormats.Bgr32,null);
             if(columns>0 && rows>0) {
+                BitmapSource visibleSource=source;
+                int copyLeft=left,copyTop=top;
+                if(!adjust.IsIdentity) {
+                    var sub=new CroppedBitmap(source,new Int32Rect(left,top,columns,rows));
+                    sub.Freeze();
+                    var tone=adjust;tone.Sharpness=0;
+                    visibleSource=ColorAdjust.Apply(sub,tone);
+                    copyLeft=0;copyTop=0;
+                }
                 // Premultiplied RGB over black has the same color bytes as opaque BGR.
-                var pixels=new FormatConvertedBitmap(source,PixelFormats.Pbgra32,null,0);
+                var pixels=new FormatConvertedBitmap(visibleSource,PixelFormats.Pbgra32,null,0);
                 int stride=checked(columns*4);
                 int block=Math.Min(rows,Math.Max(1,1048576/stride));
                 var buffer=new byte[checked(block*stride)];
                 for(int row=0;row<rows;row+=block) {
                     token.ThrowIfCancellationRequested();
                     int n=Math.Min(block,rows-row);
-                    pixels.CopyPixels(new Int32Rect(left,top+row,columns,n),buffer,stride,0);
+                    pixels.CopyPixels(new Int32Rect(copyLeft,copyTop+row,columns,n),buffer,stride,0);
                     result.WritePixels(new Int32Rect(left-x,(trim?0:top-y)+row,columns,n),buffer,stride,0);
                 }
             }
-            result.Freeze();return result;
+            result.Freeze();
+            if(adjust.Sharpness>0)return ColorAdjust.Apply(result,new AdjustValues {Sharpness=adjust.Sharpness});
+            return result;
         }
 
         // Which part of a cover's height holds the picture (0..1), by the same rule as the JPG cover above.
@@ -88,16 +105,18 @@ namespace LoveMyShelf {
             Save(source,crop,rotation,output,1920,false,CancellationToken.None);
         }
 
-        internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output,int maxHeight,bool native,CancellationToken token,int brightness=0,string drawings=null) {
+        internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output,int maxHeight,bool native,CancellationToken token,int brightness=0,string drawings=null,
+            AdjustValues adjust=default(AdjustValues),BitmapSource eraseAi=null) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
             double width=source.PixelWidth*crop.Width,height=source.PixelHeight*crop.Height;
             // maxHeight is the long side: 1080 x 1920 for a 9:16 cover, as before; a wide cover gets 1920 across.
             double scale=maxHeight==0?1:Math.Min(1,maxHeight/Math.Max(width,height));
             token.ThrowIfCancellationRequested();
-            var image=native && scale==1?NativeCover(source,crop,rotation,token,brightness):
+            var image=native && scale==1?NativeCover(source,crop,rotation,token,adjust.Brightness,false,adjust):
                 Pictures.RenderRotatedCover(source,crop,rotation,
-                Math.Max(1,(int)Math.Round(width*scale)),Math.Max(1,(int)Math.Round(height*scale)),brightness);
+                Math.Max(1,(int)Math.Round(width*scale)),Math.Max(1,(int)Math.Round(height*scale)),adjust.Brightness,adjust);
             var encoder=new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(image,drawings)));encoder.Save(output);
+            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(image,drawings,eraseAi)));encoder.Save(output);
         }
 
         internal static BitmapSource Load(Stream input) {

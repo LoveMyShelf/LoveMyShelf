@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,6 +47,11 @@ namespace LoveMyShelf {
         public int TextColor=0xFFFFFF,EdgeColor=0x000000,BandColor=0x000000;
         public double EdgeSize=-1,BandStrength=60;
         public bool Band;
+        public bool HasOwnAdjust;
+        public AdjustValues Adjust;
+        internal EraseAiPatch TransientAiPatch;
+        internal AdjustValues EffectiveAdjust(AdjustValues fallback) {return HasOwnAdjust?Adjust:fallback;}
+        internal AdjustValues EffectiveAdjust(MotionSource s) {return HasOwnAdjust?Adjust:s.EffectiveAdjust;}
         internal MotionRequest Copy() {return (MotionRequest)MemberwiseClone();}
         // Make it smaller: a see-through GIF or WebP stays see-through (covers are drawn on black, so they never need it).
         internal bool KeepAlpha;
@@ -78,6 +84,7 @@ namespace LoveMyShelf {
                 .Append(TextPlace==3?";tx="+Math.Round(TextX,1).ToString(c)+";ty="+Math.Round(TextY,1).ToString(c):"")
                 .Append(TextStyle());
             if(!String.IsNullOrEmpty(Shapes))s.Append(";draw=").Append(MotionLook.Base64(Shapes));
+            if(HasOwnAdjust)s.Append(";adj=").Append(Adjust.KeyText());
             return s.ToString();
         }
         // Only what differs from white letters with the automatic black edge, so an unchanged text keeps its old key.
@@ -127,6 +134,8 @@ namespace LoveMyShelf {
                 if(values.TryGetValue("ew",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=30)r.EdgeSize=d;
                 if(values.TryGetValue("band",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=100){r.Band=true;r.BandStrength=d;}
                 if(values.TryGetValue("bc",out v) && Int32.TryParse(v,NumberStyles.HexNumber,c,out i))r.BandColor=i&0xFFFFFF;
+                AdjustValues parsedAdj;
+                if(values.TryGetValue("adj",out v) && AdjustValues.TryParse(v,out parsedAdj)){r.HasOwnAdjust=true;r.Adjust=parsedAdj;}
                 return r;
             } catch(Exception) {return null;}
         }
@@ -139,6 +148,16 @@ namespace LoveMyShelf {
         public Rect Crop;
         public double Rotation;
         public int Brightness;
+        public AdjustValues Adjust;
+        public string RecordFolder;
+        internal EraseAiPatch InitialEraseAi;
+        internal AdjustValues EffectiveAdjust {
+            get {
+                var a=Adjust;
+                if(a.IsIdentity && Brightness!=0)a.Brightness=Brightness;
+                return a;
+            }
+        }
         // The cover's shape in pixels, width over height (9:16 for covers made before 1.0.9).
         public double Aspect=Covers.Tall;
         // The JPG cover as it looks now, shown in the preview until the first moving frames are ready.
@@ -281,7 +300,8 @@ namespace LoveMyShelf {
         // only the strip and one row. Narrow: the choices come down under the strip, as before.
         const double WideBottom=180,SideGap=18,SideMin=236,SideMax=480;
         DockPanel page,lastRow,compactGuide;
-        StackPanel bottom,narrowHost,sidePanel,actions,moreChoices;
+        StackPanel bottom,narrowHost,sidePanel,moreChoices;
+        WrapPanel actions;
         Grid middle;
         ScrollViewer leftScroll,rightScroll;
         WrapPanel narrowRow;
@@ -295,7 +315,15 @@ namespace LoveMyShelf {
         readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
         readonly TextMark textMark=new TextMark();
         readonly MotionDrawLayer drawLayer=new MotionDrawLayer();
+        readonly EraseRunner eraseRunner=new EraseRunner();
+        AdjustPanel adjustPanel;
         MotionDrawPanel drawPanel;
+        Button saveNew;
+        CancellationTokenSource saveNewWork;
+        string staticEraseCacheKey;
+        BitmapSource staticEraseCachedPatch;
+        internal Func<MotionRequest,CancellationToken,Action<double>,Task<string>> SaveEditedFile;
+        internal string SavedEditedPath {get;private set;}
         Size sourcePixels;
         int drawSizeSetting,drawPixelHeight=1000;
         // 1.0.11: the text's style, folded away under [Text style]; remembered for the next window like the rest.
@@ -380,7 +408,7 @@ namespace LoveMyShelf {
             strip.SetResourceReference(Canvas.BackgroundProperty,"Paper");
             Canvas.SetTop(cells,TopRail);
             // Follows its owner into full screen, like Choose a scene and Make cover do.
-            var root=new DockPanel();root.Children.Add(FullScreen.TitleBar(this,FullScreen.IsFull(owner)));
+            var root=new DockPanel();root.Children.Add(FullScreen.TitleBar(this,owner!=null && FullScreen.IsFull(owner)));
             page=new DockPanel {Margin=new Thickness(20,12,20,16)};root.Children.Add(page);Content=root;
 
             // Bottom: the strip, then start and end with the buttons.
@@ -476,12 +504,21 @@ namespace LoveMyShelf {
                 moreGrid.ColumnDefinitions.Add(new ColumnDefinition());
                 Grid.SetColumn(moreColumns[i],i);moreGrid.Children.Add(moreColumns[i]);
             }
-            actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};
-            var cancel=UI.Btn(L.T("Cancel"),()=>DialogResult=false);cancel.IsCancel=true;
+            actions=new WrapPanel {HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};
+            saveNew=UI.Btn(L.P("Save as new file","새 파일로 저장"),SaveAsNewFile);
+            saveNew.Margin=new Thickness(0,0,6,2);
+            saveNew.Visibility=Visibility.Collapsed;
+            saveNew.ToolTip=L.P("Saves the moving picture with your adjustments, erases and drawings as a new file next to the original, and shows it in the folder. The original stays as it is.",
+                "구간, 보정, 지우기, 그림을 반영한 움짤을 원본 옆에 새 파일(예: 이름_편집.gif)로 저장하고 폴더에서 바로 보여 줘요. 원본은 그대로예요.");
+            var cancel=UI.Btn(L.T("Cancel"),()=>{
+                if(saveNewWork!=null){saveNewWork.Cancel();return;}
+                DialogResult=false;
+            });
+            cancel.IsCancel=true;cancel.Margin=new Thickness(0,0,0,2);
             make=UI.Btn(makeLabel,Finish,true);
-            make.IsDefault=true;make.Margin=new Thickness(6,0,0,0);
-            foreach(var button in new[]{cancel,make}){button.FontSize=14;button.MinHeight=32;}
-            actions.Children.Add(cancel);actions.Children.Add(make);
+            make.IsDefault=true;make.Margin=new Thickness(6,0,0,2);
+            foreach(var button in new[]{saveNew,cancel,make}){button.FontSize=14;button.MinHeight=32;}
+            actions.Children.Add(saveNew);actions.Children.Add(cancel);actions.Children.Add(make);
 
             // Middle: what is happening (left), the preview in the cover's 9:16 shape (click or Space pauses it), the choices (right).
             middle=new Grid();
@@ -590,11 +627,24 @@ namespace LoveMyShelf {
                     if(!e.IsRepeat)ToggleDoubleSpeed();
                     e.Handled=true;return;
                 }
+                // E / W / Q / R: brightness and style, matching the JPG cover editor and large view.
+                if(Keyboard.Modifiers==ModifierKeys.None && adjustPanel!=null &&
+                    (letter==Key.E || letter==Key.W || letter==Key.Q || letter==Key.R)) {
+                    if(letter==Key.R)adjustPanel.SwitchStyle();
+                    else {
+                        int stepBy=CropSurface.Prefs!=null?CropSurface.Prefs.BrightnessStep:3;
+                        int cur=Light.Level(adjustPanel.Values.Brightness);
+                        adjustPanel.SetBrightnessLevel(letter==Key.Q?0:Math.Max(-100,Math.Min(100,cur+(letter==Key.E?stepBy:-stepBy))));
+                    }
+                    e.Handled=true;return;
+                }
                 if(e.Key!=Key.Left && e.Key!=Key.Right)return;
                 // ← → move the handle one scene (the scene step); Shift + ← → about a whole second.
                 Nudge(activeHandle,(e.Key==Key.Left?-1:1)*(Keyboard.Modifiers==ModifierKeys.Shift?1000:Scenes.StepMs));e.Handled=true;
             };
             Closed+=delegate {
+                if(saveNewWork!=null)saveNewWork.Cancel();
+                eraseRunner.Dispose();
                 lifetime.Cancel();player.Stop();edgeScroll.Stop();prepareSoon.Stop();speedHold.Stop();wheelSettle.Stop();
                 foreach(var opening in new[]{roughPlayer,exactPlayer})
                     if(opening!=null)opening.ContinueWith(t=>{if(t.Status==TaskStatus.RanToCompletion && t.Result!=null)t.Result.Dispose();});
@@ -609,6 +659,7 @@ namespace LoveMyShelf {
                 exactPlayer=Task.Run(()=>MpvThumbnails.TryOpen(source.Path,lifetime.Token));
             }
             Loaded+=async delegate {
+                if(SaveEditedFile!=null)saveNew.Visibility=Visibility.Visible;
                 UpdateChips();UpdateSummary();SetStatus();
                 try {
                     var size=await Task.Run(()=>MotionMaker.PixelSize(source.Path,lifetime.Token));
@@ -721,7 +772,7 @@ namespace LoveMyShelf {
             // Quality as a number (1..100) under the three buttons: the buttons fill it in, typing makes it your own.
             int[] presets={90,75,55};
             Action<double> noteQuality=v=>{qualityTyped=true;Changed();};
-            qualityUnder=MotionLook.Number(saved!=null && saved.Q>0?saved.Q:presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))],1,100,5,L.P("(1–100, higher is sharper)","(1~100, 높을수록 선명)"),
+            qualityUnder=MotionLook.Number(saved!=null && saved.Q>0?saved.Q:presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))],1,100,5,L.P("(higher is sharper)","(높을수록 선명)"),
                 L.P("Picture quality as a number","화질 숫자"),noteQuality,out qualityNumber,out showQuality);
             qualityUnder.Margin=new Thickness(0,4,0,6);qualityUnder.HorizontalAlignment=HorizontalAlignment.Left;
             ((Panel)qualityField).Children.Add(qualityUnder);
@@ -746,7 +797,7 @@ namespace LoveMyShelf {
             // Quick places, or a place of your own: drag the text on the preview, or type where its middle goes.
             textPanel.Children.Add(Field(L.P("Text place","글자 자리"),Segment(new[]{L.P("Top","위"),L.P("Middle","가운데"),L.P("Bottom","아래"),L.P("Your own","직접")},textPlace,L.P("Text place","글자 자리"),
                 ()=>{if(placeChoices==null || movingText)return;textPlace=Picked(placeChoices);UpdatePreviewLook();Changed();},out placeChoices)));
-            var spot=new StackPanel {Orientation=Orientation.Horizontal};
+            var spot=new WrapPanel(); // the second number goes under the first when the side panel is narrow
             Func<double> readX,readY;
             spot.Children.Add(MotionLook.Number(textX,0,100,5,L.P("% across","% 가로"),L.P("Across: where the middle of the text is (0 = left, 100 = right)","가로 위치: 글자 가운데가 오는 곳 (0 왼쪽, 100 오른쪽)"),
                 v=>{textX=v;OwnTextPlace();},out readX,out showTextX));
@@ -763,22 +814,50 @@ namespace LoveMyShelf {
             textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,L.P("% of the height","% (높이 기준)"),L.P("Text size","글자 크기"),
                 v=>{textSize=v;UpdatePreviewLook();Changed();},out readSize,out writeSize)));
             textField=textPanel;
+            AdjustValues initAdj=saved!=null && saved.HasOwnAdjust?saved.Adjust:source.EffectiveAdjust;
+            adjustPanel=new AdjustPanel(initAdj,SampleForAutoAdjust);
+            adjustPanel.Margin=new Thickness(0,0,0,6);
             textStyle=new TextStylePanel(Field);
             var from=saved??lastStyle;
             if(from!=null)textStyle.Load(from.Font,from.TextColor,from.EdgeColor,from.EdgeSize,from.Band,from.BandColor,from.BandStrength);
             textStyle.Changed+=delegate {UpdatePreviewLook();Changed();};
             textStyle.Margin=new Thickness(0,0,0,6);
-            drawLayer.Load(saved!=null?saved.Shapes:null);
+            drawLayer.Load(saved!=null?saved.Shapes:null,source.InitialEraseAi);
+            drawLayer.CurrentEraseSceneMs=()=>(int)Math.Max(0,Math.Min(0xFFFFFF,Math.Round(CurrentSceneSourceMs())));
+            drawLayer.ErasePicture=CurrentFrameForErase;
+            drawLayer.StaticErasePatch=GetLiveStaticErasePatch;
+            drawLayer.EraseStrokesChanged+=delegate {
+                staticEraseCacheKey=null;
+                if(eraseRunner.IsRunning)eraseRunner.Cancel();
+            };
             drawLayer.Changed+=DrawingsChanged;
             drawLayer.Editing+=delegate {if(showingOwn)ShowDraft();};
             drawPanel=new MotionDrawPanel(drawLayer,TrackingControls());
+            eraseRunner.StateChanged+=()=>Dispatcher.BeginInvoke(new Action(()=>drawPanel.SetAiRunning(eraseRunner.IsRunning)));
+            drawPanel.OnCancelAiErase=()=>eraseRunner.Cancel();
+            drawPanel.OnRunAiErase=RunGifAiEraseAsync;
             drawPanel.VisibilityChanged+=delegate {
                 textMark.IsHitTestVisible=!drawPanel.IsEditing;
                 DrawingPanelOpenedOrClosed();
             };
-            drawPanel.OpenChanged+=delegate {PlaceDrawOptions();Fit();};
+            bool syncingFold=false;
+            adjustPanel.Changed+=delegate {
+                eraseRunner.Cancel();
+                drawLayer.InvalidateAiPatch();
+                staticEraseCacheKey=null;
+                RefreshStripFromDraft();
+                Changed();
+            };
+            adjustPanel.OpenChanged+=delegate {
+                if(!syncingFold && adjustPanel.IsOpen && drawPanel.IsOpen){syncingFold=true;drawPanel.SetOpen(false);syncingFold=false;}
+                PlaceDrawOptions();Fit();
+            };
+            drawPanel.OpenChanged+=delegate {
+                if(!syncingFold && drawPanel.IsOpen && adjustPanel.IsOpen){syncingFold=true;adjustPanel.SetOpen(false);syncingFold=false;}
+                PlaceDrawOptions();Fit();
+            };
             var styles=new StackPanel();
-            styles.Children.Add(textStyle);styles.Children.Add(drawPanel);styleField=styles;
+            styles.Children.Add(adjustPanel);styles.Children.Add(textStyle);styles.Children.Add(drawPanel);styleField=styles;
             UpdatePreviewLook();
         }
         // The style choices as a request (only the text-style part is used).
@@ -796,6 +875,130 @@ namespace LoveMyShelf {
         void OwnTextPlace() {
             if(textPlace!=3 && placeChoices!=null){textPlace=3;movingText=true;placeChoices[3].IsChecked=true;movingText=false;}
             UpdatePreviewLook();Changed();
+        }
+        AdjustValues CurrentAdjust {
+            get {return adjustPanel!=null?adjustPanel.Values:source.EffectiveAdjust;}
+        }
+        BitmapSource ApplyPreviewAdjust(BitmapSource scene) {
+            return scene==null?null:ColorAdjust.Apply(scene,CurrentAdjust);
+        }
+        double CurrentSceneSourceMs() {
+            return !Double.IsNaN(playAt)?playAt:source.Moment;
+        }
+        BitmapSource SampleForAutoAdjust() {
+            double at=CurrentSceneSourceMs();
+            if(draft!=null) {
+                var raw=draft.Near(at)??draft.Near((start+end)/2);
+                if(raw!=null)return raw;
+            }
+            try {
+                var thumb=MotionMaker.Thumbnail(source.Path,at,360,CancellationToken.None);
+                if(thumb!=null)return Pictures.RenderRotatedCover(thumb,source.Crop,source.Rotation,
+                    (int)Math.Max(2,Math.Round(240*source.Aspect)),240,0,AdjustValues.None);
+            } catch(Exception) {}
+            return preview.Source as BitmapSource;
+        }
+        void RefreshStripFromDraft() {
+            if(draft==null)return;
+            thumbs.Clear();exact.Clear();pictureVersion++;
+            Layout();
+        }
+        BitmapSource CurrentFrameForErase() {
+            if(showingOwn)return null;
+            var frame=preview.Source as BitmapSource;
+            if(frame==null || (!flipX && !flipY))return frame;
+            var flipped=new TransformedBitmap(frame,new ScaleTransform(flipX?-1:1,flipY?-1:1));
+            flipped.Freeze();
+            return flipped;
+        }
+        BitmapSource GetLiveStaticErasePatch(IList<MotionShape> shapes) {
+            if(showingOwn || shapes==null)return null;
+            var firstErase=shapes.FirstOrDefault(s=>s.IsErase);
+            if(firstErase==null)return null;
+            string spec=EraseStore.CanonicalEraseStrokes(shapes);
+            double refMs=firstErase.EraseSceneMs;
+            string key=spec+"|"+CurrentAdjust.KeyText()+"|"+(flipX?"1":"0")+(flipY?"1":"0")+"|"+Math.Round(refMs).ToString(CultureInfo.InvariantCulture);
+            if(key==staticEraseCacheKey && staticEraseCachedPatch!=null)return staticEraseCachedPatch;
+            BitmapSource refScene=null;
+            if(draft!=null) {
+                var raw=draft.Near(refMs)??draft.Near(CurrentSceneSourceMs());
+                if(raw!=null) {
+                    double rowsTop,rowsBottom;
+                    refScene=ApplyPreviewAdjust(raw);
+                    if(CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out rowsTop,out rowsBottom))
+                        refScene=CoverImages.WithoutBars(refScene,rowsTop,rowsBottom,source.Aspect);
+                    if(flipX || flipY) {
+                        var tr=new TransformedBitmap(refScene,new ScaleTransform(flipX?-1:1,flipY?-1:1));
+                        tr.Freeze();refScene=tr;
+                    }
+                }
+            }
+            if(refScene==null)refScene=CurrentFrameForErase();
+            if(refScene==null)return null;
+            staticEraseCachedPatch=CoverInpaint.BuildHybridPatch(refScene,shapes);
+            staticEraseCacheKey=key;
+            return staticEraseCachedPatch;
+        }
+        async Task RunGifAiEraseAsync() {
+            if(source==null || String.IsNullOrEmpty(source.Path) || !drawLayer.HasEraseShapes || drawLayer.EraseMode!=0 || !EraseEngine.Available)return;
+            held=true;player.Hold=true;SetStatus();
+            if(showingOwn)SwitchToDrawingPreview();
+            double refMs=CurrentSceneSourceMs();
+            var shapesSnap=new List<MotionShape>(drawLayer.Shapes);
+            string strokesSpec=EraseStore.CanonicalEraseStrokes(shapesSnap);
+            AdjustValues adjSnap=CurrentAdjust;
+            bool fxSnap=flipX,fySnap=flipY;
+            var reqSnap=Read();
+            int targetSide=Math.Min(1280,Math.Max(480,reqSnap.Height));
+            var token=lifetime.Token;
+            BitmapSource sceneBmp=null;
+            try {
+                sceneBmp=await Task.Run(()=>MotionMaker.RenderSceneAt(source,reqSnap,refMs,targetSide,token),token);
+            } catch(Exception) {}
+            if(sceneBmp==null)sceneBmp=CurrentFrameForErase();
+            if(sceneBmp==null || lifetime.IsCancellationRequested)return;
+            var patch=await eraseRunner.RunAsync(sceneBmp,shapesSnap,token);
+            if(patch==null || lifetime.IsCancellationRequested || !IsVisible)return;
+            if(drawLayer.EraseMode!=0 || fxSnap!=flipX || fySnap!=flipY || CurrentAdjust!=adjSnap)return;
+            if(EraseStore.CanonicalEraseStrokes(drawLayer.Shapes)!=strokesSpec)return;
+            string srcId=EraseStore.SourceIdentity(source.Path,0,refMs,null);
+            string cacheKey=EraseStore.BuildCacheKey(srcId,source.Crop,source.Rotation,adjSnap,strokesSpec,fxSnap,fySnap);
+            drawLayer.ApplyAiPatch(new EraseAiPatch(patch,strokesSpec,cacheKey,refMs));
+        }
+        async void SaveAsNewFile() {
+            if(trackWork!=null || saveNewWork!=null || SaveEditedFile==null)return;
+            ApplyNumber(fps,true);ApplyNumber(height,false);
+            var request=Read(false);var output=Read();
+            if(request.FpsOriginal)request.Fps=output.Fps;
+            if(request.SizeOriginal)request.Height=output.Height;
+            if(PreparedFor(output)) {
+                request.Prepared=preparedFile;request.PreparedKey=preparedKey;
+                request.PreparedBefore=preparedResult.Before;request.PreparedAfter=preparedResult.After;
+            }
+            var work=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            saveNewWork=work;
+            make.IsEnabled=saveNew.IsEnabled=false;
+            string oldLabel=(string)saveNew.Content;
+            saveNew.Content=L.P("Saving…","저장하는 중…");
+            try {
+                string savedPath=await SaveEditedFile(request,work.Token,p=>Dispatcher.BeginInvoke(new Action(()=>{
+                    if(saveNewWork==work)saveNew.Content=L.P("Saving… ","저장하는 중… ")+(int)Math.Floor(Math.Max(0,Math.Min(1,p))*100)+"%";
+                })));
+                if(!String.IsNullOrEmpty(savedPath) && !work.IsCancellationRequested) {
+                    SavedEditedPath=savedPath;
+                    DialogResult=false;
+                }
+            } catch(OperationCanceledException) {
+            } catch(Exception ex) {
+                if(!lifetime.IsCancellationRequested && IsVisible)UI.Error(this,ex);
+            } finally {
+                if(saveNewWork==work)saveNewWork=null;
+                work.Dispose();
+                if(!lifetime.IsCancellationRequested && IsVisible) {
+                    make.IsEnabled=saveNew.IsEnabled=true;
+                    saveNew.Content=oldLabel;
+                }
+            }
         }
         void UpdatePreviewLook() {
             preview.RenderTransform=!showingOwn && (flipX || flipY)?new ScaleTransform(flipX?-1:1,flipY?-1:1):null;
@@ -910,22 +1113,25 @@ namespace LoveMyShelf {
         }
         void PlaceDrawOptions() {
             var styles=(StackPanel)styleField;
-            int panelIndex=drawPanel.IsOpen?0:1;
-            if(styles.Children.IndexOf(drawPanel)!=panelIndex) {
-                styles.Children.Remove(drawPanel);styles.Children.Insert(panelIndex,drawPanel);
+            FrameworkElement topOpen=drawPanel.IsOpen?(FrameworkElement)drawPanel:adjustPanel!=null && adjustPanel.IsOpen?(FrameworkElement)adjustPanel:null;
+            if(topOpen!=null && styles.Children.IndexOf(topOpen)!=0) {
+                styles.Children.Remove(topOpen);styles.Children.Insert(0,topOpen);
+            } else if(topOpen==null && adjustPanel!=null) {
+                styles.Children.Clear();
+                styles.Children.Add(adjustPanel);styles.Children.Add(textStyle);styles.Children.Add(drawPanel);
             }
             if(wide)return;
-            bool drawing=drawPanel.IsOpen && more.IsExpanded;
-            int target=drawing?0:1;
+            bool panelOpen=(drawPanel.IsOpen || (adjustPanel!=null && adjustPanel.IsOpen)) && more.IsExpanded;
+            int target=panelOpen?0:1;
             bool moved=moreChoices.Children.IndexOf(styleField)!=target;
             if(moved) {
                 moreChoices.Children.Remove(styleField);moreChoices.Children.Insert(target,styleField);
             }
-            Panel speedHost=drawing?moreChoices:narrowHost;
+            Panel speedHost=panelOpen?moreChoices:narrowHost;
             if(narrowRow.Parent!=speedHost) {
-                Detach(narrowRow);speedHost.Children.Insert(drawing?1:0,narrowRow);
+                Detach(narrowRow);speedHost.Children.Insert(panelOpen?1:0,narrowRow);
             }
-            if(drawing && moved)moreScroll.ScrollToTop();
+            if(panelOpen && moved)moreScroll.ScrollToTop();
         }
         // The hints go in the free middle of the last row (between the times and the buttons) when two lines of them
         // fit there; with less room, or with a note to show first, they get a row of their own over the strip.
@@ -956,13 +1162,14 @@ namespace LoveMyShelf {
             double roomIfWide=pageHeight-WideBottom;
             Arrange(roomIfWide>=330 && (pageWidth-Math.Min(pageWidth,roomIfWide*source.Aspect))/2-SideGap>=SideMin);
             PlaceHints();PlaceDrawOptions();
-            bool drawing=drawPanel.IsOpen && (wide || more.IsExpanded);
+            bool drawing=(drawPanel.IsOpen || (adjustPanel!=null && adjustPanel.IsOpen)) && (wide || more.IsExpanded);
             hintBar.Visibility=drawing || (!wide && pageWidth<700 && more.IsExpanded)?Visibility.Collapsed:Visibility.Visible;
             double pictureHeight=drawing?56:FullPictureHeight;
             if(PictureHeight!=pictureHeight) {
                 PictureHeight=pictureHeight;strip.Height=PictureHeight+TopRail+PartLook.BottomRail;
                 cellsKey=null;Layout();
             }
+            if(adjustPanel!=null)adjustPanel.ControlsHeight=Math.Max(80,Math.Floor(pageHeight*0.30));
             if(drawing && !wide) {
                 // Keep the preview above the strip and let the settings use the remaining height.
                 double fixedRows=strip.Height+stripFrame.Margin.Top+compactGuide.ActualHeight+compactGuide.Margin.Top+
@@ -1158,7 +1365,7 @@ namespace LoveMyShelf {
                 if(!Exists(k) || exact.Contains(k))continue;
                 var scene=draft.Near(k*step+step/2);
                 if(scene==null)continue;
-                thumbs[k]=scene;exact.Add(k);failed.Remove(k);pictureVersion++;
+                thumbs[k]=ApplyPreviewAdjust(scene);exact.Add(k);failed.Remove(k);pictureVersion++;
             }
         }
         // How big each scene has to be read so the cover's part of it is still sharp on the strip. The cover's shape
@@ -1168,9 +1375,10 @@ namespace LoveMyShelf {
             if(c.Width<=0 || c.Height<=0)return CellPixels;
             return (int)Math.Max(48,Math.Min(2400,Math.Ceiling(CellPixels*Math.Max(1/c.Height,source.Aspect/c.Width))));
         }}
-        // The cover's part of a scene with the cover's turn and brightness: the same cut as the preview above.
+        // The cover's part of a scene with the cover's turn and adjustments: the same cut as the preview above.
         BitmapSource CoverLook(BitmapSource scene) {
-            return Pictures.RenderRotatedCover(scene,source.Crop,source.Rotation,(int)Math.Max(2,Math.Round(CellPixels*source.Aspect)),CellPixels,source.Brightness);
+            var adj=CurrentAdjust;
+            return Pictures.RenderRotatedCover(scene,source.Crop,source.Rotation,(int)Math.Max(2,Math.Round(CellPixels*source.Aspect)),CellPixels,adj.Brightness,adj);
         }
         async void Load(int k,bool precise) {
             int started=generation; // pictures for an older strip grid are thrown away
@@ -1386,6 +1594,8 @@ namespace LoveMyShelf {
                 L.T("In the folder window the sound plays when the mouse is on the tile. It also plays when you open or share the file somewhere else."));
         }
         MotionRequest Read(bool effective=true) {
+            var curAdj=CurrentAdjust;
+            bool hasOwnAdj=curAdj!=source.EffectiveAdjust || !curAdj.IsIdentity;
             var request=new MotionRequest {Before=(source.Moment-start)/1000,After=(end-source.Moment)/1000,Fps=fps.Value,
                 Height=height.Value,FpsOriginal=fps.Original,SizeOriginal=height.Original,Format=Formats[format.SelectedIndex],Quality=quality.SelectedIndex,
                 Speed=speed,Loop=Loops[Picked(loopChoices)],
@@ -1393,6 +1603,7 @@ namespace LoveMyShelf {
                 FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,
                 Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
                 Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY,Shapes=drawLayer.Value,
+                HasOwnAdjust=hasOwnAdj,Adjust=curAdj,TransientAiPatch=drawLayer.AiPatch,
                 Font=textStyle!=null?textStyle.FontId:"",TextColor=textStyle!=null?textStyle.TextColor:0xFFFFFF,EdgeColor=textStyle!=null?textStyle.EdgeColor:0,
                 EdgeSize=textStyle!=null?textStyle.EdgeSize:-1,Band=textStyle!=null && textStyle.Band,BandColor=textStyle!=null?textStyle.BandColor:0,
                 BandStrength=textStyle!=null?textStyle.BandStrength:60};
@@ -1592,6 +1803,7 @@ namespace LoveMyShelf {
                     if(work.IsCancellationRequested)return;
                     double[] sourceTimes;
                     var list=scenes.Scenes(from,to,out sourceTimes);
+                    list=list.ConvertAll(scene=>ApplyPreviewAdjust(scene));
                     double rowsTop,rowsBottom;
                     if(CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out rowsTop,out rowsBottom))
                         list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom,source.Aspect));
@@ -1990,7 +2202,7 @@ namespace LoveMyShelf {
                 MeasureVideo(token);
                 var request=new MotionRequest {Height=drawSide,Fps=15,Speed=1,Format="gif",Loop="forward"};
                 int outW,outH;
-                string chain=MotionMaker.Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH,false);
+                string chain=MotionMaker.Filters(source.Crop,source.Rotation,0,width,height,request,false,out outW,out outH,false,AdjustValues.None);
                 long gap=Step*stride;
                 string rate=(1000.0/gap).ToString("0.######",CultureInfo.InvariantCulture);
                 string before="-ss "+VideoFrames.Seconds(a*Step)+" -t "+(((b-a)/stride+1)*gap/1000.0).ToString("0.######",CultureInfo.InvariantCulture)+" ";
@@ -2005,7 +2217,7 @@ namespace LoveMyShelf {
                     double scale=Math.Min(1,(double)Math.Min(previewSide,400)/Math.Max(1,Math.Max(source.Crop.Height*raw.PixelHeight,source.Crop.Width*raw.PixelWidth)));
                     int h=Math.Max(2,(int)Math.Round(source.Crop.Height*raw.PixelHeight*scale)),w=Math.Max(2,(int)Math.Round(h*source.Aspect));
                     // Drawing needs the UI thread.
-                    var cover=(BitmapSource)dispatcher.Invoke(new Func<BitmapSource>(()=>Pictures.RenderRotatedCover(raw,source.Crop,source.Rotation,w,h,source.Brightness)));
+                    var cover=(BitmapSource)dispatcher.Invoke(new Func<BitmapSource>(()=>Pictures.RenderRotatedCover(raw,source.Crop,source.Rotation,w,h,0,AdjustValues.None)));
                     lock(gate)scenes[slot]=cover;
                 }
             }
@@ -2126,9 +2338,11 @@ namespace LoveMyShelf {
         internal static string Key(MotionSource s,MotionRequest r) {
             r=ResolveOutput(s,r,CancellationToken.None);
             var c=CultureInfo.InvariantCulture;
+            var adj=r.EffectiveAdjust(s);
+            string aiKey=r.TransientAiPatch!=null?r.TransientAiPatch.CacheKey:"";
             return String.Join("|",new[]{(s.Path??"").ToLowerInvariant(),Math.Round(s.Moment).ToString(c),
                 Math.Round(s.Crop.X,4).ToString(c),Math.Round(s.Crop.Y,4).ToString(c),Math.Round(s.Crop.Width,4).ToString(c),Math.Round(s.Crop.Height,4).ToString(c),
-                Math.Round(s.Rotation,2).ToString(c),"light"+s.Brightness.ToString(c),Math.Round(r.Before*1000).ToString(c),Math.Round(r.After*1000).ToString(c),
+                Math.Round(s.Rotation,2).ToString(c),"adj:"+adj.KeyText(),"ai:"+aiKey,Math.Round(r.Before*1000).ToString(c),Math.Round(r.After*1000).ToString(c),
                 r.Fps.ToString(c),r.Height.ToString(c),r.Format,r.Speed.ToString(c),r.Loop,r.Quality.ToString(c),"trimmed",
                 r.Format=="webp"?"effort"+WebpEffort.ToString(c):"",r.WithSound?"sound":"",r.Extras()});
         }
@@ -2163,7 +2377,10 @@ namespace LoveMyShelf {
         // is several times faster this way). Brightness is applied before the black border, so the border stays black.
         // trim: leave out the empty rows above and below the picture, like the JPG cover. The preview keeps the
         // full 9:16 because the strip shows the same pictures, and takes the rows off when it plays them.
-        internal static string Filters(Rect f,double rotation,int brightness,int width,int height,MotionRequest request,bool resample,out int outW,out int outH,bool trim=true) {
+        internal static string Filters(Rect f,double rotation,int brightness,int width,int height,MotionRequest request,bool resample,out int outW,out int outH,bool trim=true,
+            AdjustValues adjust=default(AdjustValues)) {
+            var effAdjust=request!=null && request.HasOwnAdjust?request.Adjust:adjust;
+            if(effAdjust.IsIdentity && brightness!=0)effAdjust.Brightness=brightness;
             double cx=(f.X+f.Width/2)*width,cy=(f.Y+f.Height/2)*height;
             double cw=Math.Max(2,f.Width*width),ch=Math.Max(2,f.Height*height);
             // The chosen size is the cover's long side (its height for a tall cover, as before; its width for a wide one).
@@ -2191,8 +2408,7 @@ namespace LoveMyShelf {
             if(ix0>0 || iy0>0 || iw<width || ih<height)steps.Add("crop="+iw+":"+ih+":"+ix0+":"+iy0+":exact=1");
             if(sw!=iw || sh!=ih)steps.Add("scale="+sw+":"+sh+":flags=lanczos");
             steps.Add(request.KeepAlpha?"format=rgba":"format=rgb24");
-            string light=Light.Filter(brightness); // the curve, or an old cover's white or black sheet
-            if(light!=null)steps.Add(light);
+            ColorAdjust.AppendFfmpegTone(steps,effAdjust,request.KeepAlpha);
             if(bw!=sw || bh!=sh)steps.Add("pad="+bw+":"+bh+":"+px+":"+py+":black");
             if(turned)steps.Add("rotate="+N(rotation*Math.PI/180)+":ow=iw:oh=ih:c=black");
             int cropW=Math.Max(2,Math.Min(bw,(int)Math.Round(cw*s))),cropH=Math.Max(2,Math.Min(bh,(int)Math.Round(ch*s)));
@@ -2205,6 +2421,7 @@ namespace LoveMyShelf {
                 outH=Even(outH*(last-first)/(double)cropH);
             }
             steps.Add("scale="+outW+":"+outH+":flags=lanczos");
+            ColorAdjust.AppendFfmpegSharpness(steps,effAdjust.Sharpness,request.KeepAlpha);
             steps.Add("setsar=1");
             return String.Join(",",steps);
         }
@@ -2212,7 +2429,8 @@ namespace LoveMyShelf {
         // Writes the motion cover next to the still one and returns it. The time window is clipped
         // to the start and end of the original. A file the window already made with the same choices is reused.
         internal static MotionResult Make(Photo photo,string original,MotionRequest request,string directory,bool beside,CancellationToken token) {
-            var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness,Aspect=photo.Aspect};
+            var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,
+                Brightness=photo.Brightness,Adjust=photo.Adjust,RecordFolder=photo.Folder,Aspect=photo.Aspect};
             Directory.CreateDirectory(directory);
             string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
             try {
@@ -2227,6 +2445,86 @@ namespace LoveMyShelf {
                     Path.GetFileName(photo.Thumb)+request.Format,beside),token,request.Extension);
                 return result;
             } finally {File.Delete(part);}
+        }
+
+        // Saves the edited moving picture as a standalone new file beside the original ("name_편집.gif", " (2)" on collision).
+        // Never overwrites the original or any existing file.
+        internal static string SaveEditedCopy(MotionSource source,MotionRequest request,CancellationToken token,
+            string fallbackDirectory=null,Action<double> progress=null) {
+            if(source==null || String.IsNullOrEmpty(source.Path))throw new ArgumentException("source");
+            string directory=Path.GetDirectoryName(source.Path);
+            if(String.IsNullOrEmpty(directory))directory=fallbackDirectory;
+            if(String.IsNullOrEmpty(directory))throw new InvalidOperationException(L.T("The source folder could not be found."));
+            string stem=SharedCoverFiles.EditedStem(source.Path);
+            try {
+                return SaveEditedCopyTo(directory,stem,source,request,token,progress);
+            } catch(Exception ex) {
+                if(String.IsNullOrEmpty(fallbackDirectory) || String.Equals(directory,fallbackDirectory,StringComparison.OrdinalIgnoreCase) ||
+                    token.IsCancellationRequested || !(ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException))throw;
+                return SaveEditedCopyTo(fallbackDirectory,stem,source,request,token,progress);
+            }
+        }
+
+        static string SaveEditedCopyTo(string directory,string stem,MotionSource source,MotionRequest request,CancellationToken token,Action<double> progress) {
+            Directory.CreateDirectory(directory);
+            string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
+            try {
+                var resolved=ResolveOutput(source,request,token);
+                if(request.Prepared!=null && request.PreparedKey==Key(source,resolved) && File.Exists(request.Prepared)) {
+                    File.Copy(request.Prepared,part,true);
+                    if(progress!=null)progress(1);
+                } else {
+                    Encode(source,resolved,part,token,progress);
+                }
+                if(!File.Exists(part) || new FileInfo(part).Length==0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
+                string ext=resolved.Extension;
+                for(int i=1;;i++) {
+                    token.ThrowIfCancellationRequested();
+                    string path=Path.Combine(directory,stem+(i==1?"":" ("+i+")")+ext);
+                    if(String.Equals(Path.GetFullPath(path),Path.GetFullPath(source.Path),StringComparison.OrdinalIgnoreCase))continue;
+                    if(File.Exists(path) || Directory.Exists(path))continue;
+                    try {File.Move(part,path);return path;}
+                    catch(IOException) {if(!File.Exists(path) && !Directory.Exists(path))throw;}
+                }
+            } finally {
+                try {if(File.Exists(part))File.Delete(part);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            }
+        }
+
+        // Renders a single scene at sceneMs with the exact crop, rotation, adjustments, trim and flips of the GIF cover.
+        internal static BitmapSource RenderSceneAt(MotionSource source,MotionRequest request,double sceneMs,int targetLongSide,CancellationToken token) {
+            var req=request.Copy();
+            req.Height=Math.Max(64,targetLongSide);
+            string flips=MotionLook.Flips(req);
+            if(VideoFrames.Supports(source.Path)) {
+                var size=VideoFrames.ReadOrientation(source.Path,token);
+                int width=size.Width,height=size.Height;
+                if(Math.Abs(size.Angle%180)==90){int swap=width;width=height;height=swap;}
+                if(width<=0 || height<=0)return null;
+                int outW,outH;
+                string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,req,false,out outW,out outH,true,source.EffectiveAdjust);
+                if(flips!=null)chain+=","+flips;
+                string seek=sceneMs>0?"-ss "+VideoFrames.Seconds(Math.Max(0,sceneMs))+" ":"";
+                var frames=VideoFrames.Pictures(seek,source.Path,"-frames:v 1 -vf "+VideoFrames.Quote(chain),token);
+                return frames.Count>0?frames[0]:null;
+            }
+            using(var file=new AnimationFrames(source.Path,token)) {
+                int idx=Math.Min(file.Count-1,file.Times.At(Math.Max(0,sceneMs)));
+                var raw=file.Read(idx,0);
+                int outW,outH;
+                Filters(source.Crop,source.Rotation,source.Brightness,raw.PixelWidth,raw.PixelHeight,req,false,out outW,out outH,true,source.EffectiveAdjust);
+                BitmapSource rendered=null;
+                var eff=req.EffectiveAdjust(source);
+                MotionDraw.RunSta(()=>{
+                    var r=Pictures.RenderRotatedCover(raw,source.Crop,source.Rotation,outW,outH,eff.Brightness,eff);
+                    if(req.FlipX || req.FlipY) {
+                        var tr=new TransformedBitmap(r,new ScaleTransform(req.FlipX?-1:1,req.FlipY?-1:1));
+                        tr.Freeze();r=tr;
+                    }
+                    rendered=r;
+                });
+                return rendered;
+            }
         }
 
         // Makes the file at part. For the window's preview it also reports progress (0..1) and hands over
@@ -2311,13 +2609,13 @@ namespace LoveMyShelf {
             if(end-start<50)throw new InvalidDataException(L.T("There are no scenes to show."));
             result.Before=(source.Moment-start)/1000;result.After=Math.Max(0,end-source.Moment)/1000;
             int outW,outH;
-            string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,true,out outW,out outH);
+            string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,true,out outW,out outH,true,source.EffectiveAdjust);
             result.Width=outW;result.Height=outH;
             int forward=result.Forward=Math.Max(1,(int)Math.Round((end-start)/1000/Math.Max(0.1,request.Speed)*request.Fps,MidpointRounding.AwayFromZero));
             // -t before -i makes FFmpeg stop reading at the end of the part. Given after -i, the GIF palette step
             // waited for the end of the whole video (a 3-second GIF from a long 4K video took minutes).
             string input=VideoPartInput(original,start,end);
-            result.Forward=Run(input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight,request.WithSound);
+            result.Forward=Run(source,input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight,request.WithSound);
         }
 
         // Samples the GIF/WebP at the chosen frame rate (and speed) into a temporary raw file for FFmpeg.
@@ -2329,11 +2627,11 @@ namespace LoveMyShelf {
                 int width,height;
                 int written=WriteAnimationPart(source,request,raw,result,token,progress,out width,out height);
                 int outW,outH;
-                string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH);
+                string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH,true,source.EffectiveAdjust);
                 result.Width=outW;result.Height=outH;
                 string input=AnimationPartInput(raw,request.Fps,width,height);
                 result.Forward=Math.Max(1,written);
-                result.Forward=Run(input,chain,request,result.Forward,outW,outH,part,token,progress,0.4,0.6,copies,copyHeight);
+                result.Forward=Run(source,input,chain,request,result.Forward,outW,outH,part,token,progress,0.4,0.6,copies,copyHeight);
             } finally {File.Delete(raw);}
         }
 
@@ -2374,7 +2672,42 @@ namespace LoveMyShelf {
         // GIF: a palette made from all frames, applied with the chosen dithering (sierra for High is smoothest;
         // bayer is lighter; Smaller uses 128 colors). Very long GIFs make the palette in a first pass instead of
         // holding every frame in memory.
-        static int Run(string input,string chain,MotionRequest request,int forward,int outW,int outH,string part,CancellationToken token,
+        static string BuildStaticErasePng(MotionSource source,MotionRequest request,List<MotionShape> drawings,int outW,int outH,string work,CancellationToken token) {
+            var eraseShapes=new List<MotionShape>();
+            for(int i=0;i<drawings.Count;i++)
+                if(drawings[i].IsErase && !drawings[i].IsPerFrameErase)eraseShapes.Add(drawings[i]);
+            if(eraseShapes.Count==0)return null;
+            BitmapSource patch=null;
+            if(eraseShapes[0].IsAiErase) {
+                string strokes=EraseStore.CanonicalEraseStrokes(eraseShapes);
+                if(request.TransientAiPatch!=null && request.TransientAiPatch.Patch!=null && request.TransientAiPatch.StrokesSpec==strokes) {
+                    patch=request.TransientAiPatch.Patch;
+                } else if(!String.IsNullOrEmpty(source.RecordFolder)) {
+                    string srcId=EraseStore.SourceIdentity(source.Path,0,eraseShapes[0].EraseSceneMs,null);
+                    string key=EraseStore.BuildCacheKey(srcId,source.Crop,source.Rotation,request.EffectiveAdjust(source),strokes,request.FlipX,request.FlipY);
+                    var rec=EraseStore.TryLoadFromRecord(source.RecordFolder,key,strokes,true);
+                    if(rec!=null)patch=rec.Patch;
+                }
+            }
+            if(patch==null) {
+                var scene=RenderSceneAt(source,request,eraseShapes[0].EraseSceneMs,Math.Max(outW,outH),token);
+                if(scene!=null)patch=CoverInpaint.BuildHybridPatch(scene,eraseShapes);
+            }
+            if(patch==null)return null;
+            Directory.CreateDirectory(work);
+            string path=Path.Combine(work,"erase.png");
+            MotionDraw.RunSta(()=>{
+                BitmapSource toSave=patch;
+                if(patch.PixelWidth!=outW || patch.PixelHeight!=outH) {
+                    var scaled=new TransformedBitmap(patch,new ScaleTransform(outW/(double)patch.PixelWidth,outH/(double)patch.PixelHeight));
+                    scaled.Freeze();toSave=scaled;
+                }
+                EraseStore.SaveBgraPng(toSave,path);
+            });
+            return path;
+        }
+
+        static int Run(MotionSource source,string input,string chain,MotionRequest request,int forward,int outW,int outH,string part,CancellationToken token,
             Action<double> progress,double progressFrom,double progressSpan,Action<BitmapSource,int> copies,int copyHeight,bool sound=false) {
             bool gif=request.Format=="gif";
             string palette=null,work=MotionLook.WorkFolder(part);
@@ -2383,13 +2716,15 @@ namespace LoveMyShelf {
                 string dress=MotionLook.Dress(request,outH,work);
                 token.ThrowIfCancellationRequested();
                 var drawings=MotionShape.Read(request.Shapes);
-                bool variable=drawings.Exists(shape=>shape.Track!=null && MotionTrackExport.Variable(shape.Track));
+                bool perFrameErase=drawings.Exists(shape=>shape.IsPerFrameErase);
+                bool variable=perFrameErase || drawings.Exists(shape=>shape.Track!=null && MotionTrackExport.Variable(shape.Track));
                 var tracked=!variable && drawings.Exists(shape=>shape.Track!=null)?new MotionTrackExport(drawings,request,outW,outH,work,token):null;
+                string eraseOverlay=!variable?BuildStaticErasePng(source,request,drawings,outW,outH,work,token):null;
                 string shapes=tracked==null && !variable?MotionDraw.WritePng(request.Shapes,outW,outH,work):null;
                 if(tracked!=null)chain+=",setpts=N"; // fps or raw input already established a 1/fps time base.
                 token.ThrowIfCancellationRequested();
                 // The original stays at input 0 (also the audio source). The palette is always the last input.
-                int pictureInput=0,nextInput=1,shapesInput=-1;
+                int pictureInput=0,nextInput=1,eraseInput=-1,shapesInput=-1;
                 if(variable) {
                     Directory.CreateDirectory(work);
                     string rendered=Path.Combine(work,"tracked.mkv");
@@ -2404,6 +2739,10 @@ namespace LoveMyShelf {
                 bool bounce=request.Loop=="bounce" && forward>=3,reverse=request.Loop=="reverse";
                 long held=(long)outW*outH*3*forward*(bounce?2:1);
                 string picture="["+pictureInput+":v:0]";
+                if(eraseOverlay!=null) {
+                    eraseInput=nextInput++;
+                    input+="-i "+VideoFrames.Quote(eraseOverlay)+" ";
+                }
                 if(shapes!=null) {
                     shapesInput=nextInput++;
                     input+="-i "+VideoFrames.Quote(shapes)+" ";
@@ -2413,7 +2752,7 @@ namespace LoveMyShelf {
                 if(gif && held>700L*1024*1024) {
                     palette=part+".palette.png";
                     var firstGraph=new StringBuilder(picture).Append(chain).Append("[made]");
-                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,shapesInput,request,outW,outH,tracked,variable,token);
+                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,eraseInput,shapesInput,request,outW,outH,tracked,variable,token);
                     firstGraph.Append(';').Append(firstPicture).Append(PaletteGen(request)).Append("[p]");
                     string first="-v error -nostdin -y "+input+"-an -sn -dn "+GraphOption(firstGraph,tracked,work,"palette")+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
@@ -2435,7 +2774,7 @@ namespace LoveMyShelf {
                     g.Append("scale=").Append(copyW).Append(':').Append(copyH).Append(":flags=bicubic,format=bgra[copy]");
                     current="[main]";
                 }
-                current=AppendDress(g,current,flips,dress,shapesInput,request,outW,outH,tracked,variable,token);
+                current=AppendDress(g,current,flips,dress,eraseInput,shapesInput,request,outW,outH,tracked,variable,token);
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -2481,11 +2820,15 @@ namespace LoveMyShelf {
             File.WriteAllText(file,graph.ToString(),new UTF8Encoding(false));
             return "-filter_complex_script "+VideoFrames.Quote(file);
         }
-        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int shapesInput,MotionRequest request,int width,int height,
+        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int eraseInput,int shapesInput,MotionRequest request,int width,int height,
             MotionTrackExport tracked,bool variable,CancellationToken token) {
             if(flips!=null) {
                 graph.Append(';').Append(current).Append(flips).Append("[flipped]");
                 current="[flipped]";
+            }
+            if(eraseInput>=0) {
+                graph.Append(';').Append(current).Append('[').Append(eraseInput).Append(":v]overlay=0:0:eof_action=repeat:format=rgb[erased]");
+                current="[erased]";
             }
             if(tracked!=null)current=tracked.Append(graph,current,token);
             else if(!variable)current=MotionDraw.AppendMosaics(graph,current,request.Shapes,width,height,request.KeepAlpha);
@@ -2497,7 +2840,7 @@ namespace LoveMyShelf {
                 graph.Append(';').Append(current).Append(dress).Append("[dressed]");
                 current="[dressed]";
             }
-            if((shapesInput>=0 || variable || tracked!=null) && request.KeepAlpha) {
+            if((eraseInput>=0 || shapesInput>=0 || variable || tracked!=null) && request.KeepAlpha) {
                 graph.Append(';').Append(current).Append("format=rgba[alpha]");
                 current="[alpha]";
             }

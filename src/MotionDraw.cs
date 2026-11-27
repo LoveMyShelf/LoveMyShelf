@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -16,7 +17,8 @@ using System.Windows.Media.Imaging;
 namespace LoveMyShelf {
     internal sealed class MotionShape {
         internal const int MaxShapes=50,MaxPoints=400,MaxMosaics=20;
-        internal const string Kinds="rbelaphm";
+        internal const int EraseStaticCSharp=24,EraseStaticAi=25,ErasePerFrame=26;
+        internal const string Kinds="rbelaphmx";
         static readonly CultureInfo Invariant=CultureInfo.InvariantCulture;
         internal readonly char Kind;
         internal readonly int Color,Thickness,FillColor,Opacity,Block;
@@ -30,10 +32,22 @@ namespace LoveMyShelf {
         }
         internal bool HasCorners {get {return Kind=='r' || Kind=='b' || Kind=='e' || Kind=='m';}}
         internal bool IsMosaic {get {return Kind=='m';}}
-        internal static bool IsPen(char kind) {return kind=='p' || kind=='h';}
+        internal bool IsErase {get {return Kind=='x';}}
+        internal bool IsPerFrameErase {get {return Kind=='x' && Block==ErasePerFrame;}}
+        internal bool IsAiErase {get {return Kind=='x' && Block==EraseStaticAi;}}
+        internal int EraseSceneMs {get {return Kind=='x'?Color:0;}}
+        internal static bool IsPen(char kind) {return kind=='p' || kind=='h' || kind=='x';}
         internal static bool CanFill(char kind) {return kind=='r' || kind=='b' || kind=='e' || kind=='a';}
         internal MotionShape WithPoints(Point[] points) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,points,Track);}
         internal MotionShape WithTrack(MotionTrackPath track) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,Points,track);}
+        internal MotionShape WithEraseMode(int block,int? sceneMs=null) {return new MotionShape(Kind,sceneMs??Color,Thickness,FillColor,Opacity,block,Points,Track);}
+        internal static string WithoutAiFlag(string value) {
+            var list=Read(value);
+            bool changed=false;
+            for(int i=0;i<list.Count;i++)
+                if(list[i].IsAiErase){list[i]=list[i].WithEraseMode(EraseStaticCSharp);changed=true;}
+            return changed?Save(list):Normalize(value);
+        }
         internal MotionShape At(double time) {return Track==null?this:WithBox(Track.At(time).Box);}
         internal Rect Box {get {return new Rect(Points[0],Points[1]);}}
         internal MotionShape WithBox(Rect box) {return WithPoints(new[]{box.TopLeft,box.BottomRight});}
@@ -146,7 +160,9 @@ namespace LoveMyShelf {
             using(var path=geometry.Open()) {
                 if(MotionShape.IsPen(shape.Kind)) {
                     path.BeginFigure(a,false,false);
-                    for(int i=1;i<shape.Points.Length;i++)path.LineTo(At(shape.Points[i],width,height),true,false);
+                    if(shape.Points.Length==2 && (b-a).LengthSquared<1e-8)
+                        path.LineTo(new Point(a.X+0.05,a.Y),true,false);
+                    else for(int i=1;i<shape.Points.Length;i++)path.LineTo(At(shape.Points[i],width,height),true,false);
                 } else {
                     Vector axis=b-a;
                     double length=axis.Length;
@@ -164,7 +180,7 @@ namespace LoveMyShelf {
         }
         // Both callers draw in output pixels. The preview scales the drawing context to the picture on screen.
         internal static void Render(DrawingContext dc,MotionShape shape,double width,double height) {
-            if(shape.IsMosaic)return;
+            if(shape.IsMosaic || shape.IsErase)return;
             double px=Pixels(shape,height);
             var brush=new SolidColorBrush(TextLook.ColorOf(shape.Color));
             dc.PushOpacity(shape.Opacity/100.0);
@@ -203,12 +219,15 @@ namespace LoveMyShelf {
             return current;
         }
 
-        internal static BitmapSource Apply(BitmapSource picture,string value) {
-            return Apply(picture,MotionShape.Read(value));
+        internal static BitmapSource Apply(BitmapSource picture,string value,BitmapSource aiErasePatch=null) {
+            return Apply(picture,MotionShape.Read(value),aiErasePatch);
         }
-        internal static BitmapSource Apply(BitmapSource picture,IList<MotionShape> shapes) {
-            if(shapes.Count==0)return picture;
+        internal static BitmapSource Apply(BitmapSource picture,IList<MotionShape> shapes,BitmapSource aiErasePatch=null) {
+            if(picture==null || shapes==null || shapes.Count==0)return picture;
+            if(shapes.Any(shape=>shape.IsErase))
+                picture=aiErasePatch!=null?EraseStore.Composite(picture,aiErasePatch):CoverInpaint.ApplyHybrid(picture,shapes);
             picture=ApplyMosaics(picture,shapes);
+            if(!shapes.Any(shape=>!shape.IsMosaic && !shape.IsErase))return picture;
             int w=picture.PixelWidth,h=picture.PixelHeight;
             var visual=new DrawingVisual();
             using(var dc=visual.RenderOpen()) {
@@ -274,7 +293,7 @@ namespace LoveMyShelf {
         }
 
         internal static string WritePng(string value,int width,int height,string folder) {
-            var shapes=MotionShape.Read(value).Where(shape=>!shape.IsMosaic).ToList();
+            var shapes=MotionShape.Read(value).Where(shape=>!shape.IsMosaic && !shape.IsErase).ToList();
             if(shapes.Count==0)return null;
             return WritePng(shapes,width,height,folder,"shapes.png",width,height);
         }
@@ -340,20 +359,21 @@ namespace LoveMyShelf {
         internal static readonly DrawPreferences Last=Load();
         internal bool Open;
         internal char Tool='r';
-        internal int Color=0xFFFFFF,Fill=-1,Thickness=6,Opacity=100,Block=24,MarkerThickness=20,MarkerOpacity=40;
+        internal int Color=0xFFFFFF,Fill=-1,Thickness=6,Opacity=100,Block=24,MarkerThickness=20,MarkerOpacity=40,EraseThickness=24;
         static DrawPreferences Load() {
             var result=new DrawPreferences();
             try {
                 if(!File.Exists(PathName))return result;
                 var parts=File.ReadAllText(PathName).Split('|');
-                if(parts.Length!=9 || parts[1].Length!=1 || MotionShape.Kinds.IndexOf(parts[1][0])<0)return result;
-                int[] values=new int[7];
+                if((parts.Length!=9 && parts.Length!=10) || parts[1].Length!=1 || MotionShape.Kinds.IndexOf(parts[1][0])<0)return result;
+                int[] values=new int[parts.Length-2];
                 for(int i=0;i<values.Length;i++)
                     if(!Int32.TryParse(parts[i+2],NumberStyles.Integer,CultureInfo.InvariantCulture,out values[i]))return result;
                 result.Open=parts[0]=="1";result.Tool=parts[1][0];
                 result.Color=Limit(values[0],0,0xFFFFFF);result.Fill=Limit(values[1],-1,0xFFFFFF);
                 result.Thickness=Limit(values[2],1,50);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,100);
                 result.MarkerThickness=Limit(values[5],1,50);result.MarkerOpacity=Limit(values[6],10,100);
+                if(values.Length>=8)result.EraseThickness=Limit(values[7],1,50);
             } catch(IOException ex) {ErrorLog.Quiet(ex);}
             catch(UnauthorizedAccessException ex) {ErrorLog.Quiet(ex);}
             return result;
@@ -363,7 +383,7 @@ namespace LoveMyShelf {
             try {
                 Directory.CreateDirectory(ErrorLog.Folder);
                 File.WriteAllText(PathName,String.Format(CultureInfo.InvariantCulture,
-                    "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}",Open?1:0,Tool,Color,Fill,Thickness,Opacity,Block,MarkerThickness,MarkerOpacity));
+                    "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}",Open?1:0,Tool,Color,Fill,Thickness,Opacity,Block,MarkerThickness,MarkerOpacity,EraseThickness));
             } catch(IOException ex) {ErrorLog.Quiet(ex);}
             catch(UnauthorizedAccessException ex) {ErrorLog.Quiet(ex);}
         }
@@ -371,13 +391,20 @@ namespace LoveMyShelf {
 
     internal sealed class MotionDrawPanel : StackPanel {
         readonly MotionDrawLayer layer;
-        readonly Button opener,undo,redo,delete,front,back,clear,none;
+        readonly Button opener,undo,redo,delete,front,back,clear,none,aiButton;
         readonly StackPanel body=new StackPanel {Margin=new Thickness(0,6,0,4)};
+        readonly StackPanel aiBusyPanel;
+        readonly Button[] normalThicknessPresets,eraseThicknessPresets;
         readonly RadioButton[] tools=new RadioButton[MotionShape.Kinds.Length];
-        readonly FrameworkElement strokeField,fillField,thicknessField,opacityField,blockField;
+        readonly FrameworkElement strokeField,fillField,thicknessField,opacityField,blockField,gifEraseField;
+        readonly RadioButton gifStaticChoice,gifPerFrameChoice;
+        readonly TextBlock gifPerFrameNote;
         readonly Action<int> showColor,showFill;
         readonly Action<double> showThickness,showOpacity,showBlock;
-        bool syncing;
+        readonly bool isGif;
+        bool syncing,aiRunning;
+        internal Func<Task> OnRunAiErase;
+        internal Action OnCancelAiErase;
         internal event Action OpenChanged,VisibilityChanged;
         internal bool IsOpen {get {return body.Visibility==Visibility.Visible;}}
         internal bool IsEditing {get {return body.IsVisible;}}
@@ -386,6 +413,7 @@ namespace LoveMyShelf {
 
         internal MotionDrawPanel(MotionDrawLayer layer,FrameworkElement tracking=null) {
             this.layer=layer;
+            isGif=tracking!=null;
             opener=UI.Btn("",Toggle);
             opener.HorizontalAlignment=HorizontalAlignment.Left;opener.Margin=new Thickness(0,2,0,2);
             AutomationProperties.SetName(opener,L.P("Draw","그림 그리기"));
@@ -394,13 +422,15 @@ namespace LoveMyShelf {
             Children.Add(opener);Children.Add(scroller);
             var toolRow=new WrapPanel();
             string[] names={L.P("Rectangle","네모"),L.P("Rounded rectangle","둥근 네모"),L.P("Ellipse","동그라미"),
-                L.P("Line","직선"),L.P("Arrow","화살표"),L.P("Pen","펜"),L.P("Highlighter","형광펜"),L.P("Mosaic box","모자이크")};
+                L.P("Line","직선"),L.P("Arrow","화살표"),L.P("Pen","펜"),L.P("Highlighter","형광펜"),L.P("Mosaic box","모자이크"),
+                L.P("Erase","지우기")};
             string group="draw-"+Guid.NewGuid().ToString("N");
             for(int i=0;i<names.Length;i++) {
                 char kind=MotionShape.Kinds[i];
                 string label=(i+1).ToString(CultureInfo.InvariantCulture)+"  "+names[i];
-                var tool=new RadioButton {Content=label,ToolTip=label,GroupName=group,
-                    Style=(Style)Application.Current.FindResource("SegmentChoice")};
+                var tool=new RadioButton {Content=label,ToolTip=kind=='x'?
+                    L.P("9  Erase: paint over unwanted things in the picture, such as date letters or passersby","9  지우기: 날짜 글씨나 지나가는 사람처럼 사진에 있는 필요 없는 것을 칠해서 지워요"):label,
+                    GroupName=group,Style=(Style)Application.Current.FindResource("SegmentChoice")};
                 tool.Click+=delegate {layer.SelectTool(kind);};
                 tools[i]=tool;toolRow.Children.Add(tool);
             }
@@ -411,14 +441,51 @@ namespace LoveMyShelf {
             none=UI.Btn(L.P("None","없음"),()=>layer.SetStyle(fill:-1));
             none.Margin=new Thickness(0,0,5,0);none.MinHeight=24;fills.Children.Insert(0,none);
             fillField=Field(fill,fills);
-            thicknessField=Field(L.P("Thickness","굵기"),Number(layer.Thickness,1,50,"",L.P("Thickness","굵기"),
-                v=>layer.SetStyle(width:v),new[]{3,6,12},out showThickness));
+
+            Func<double> readThick;
+            var thicknessRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
+            thicknessRow.Children.Add(MotionLook.Number(layer.Thickness,1,50,1,"",L.P("Thickness","굵기"),
+                v=>{if(!syncing)layer.SetStyle(width:(int)v);},out readThick,out showThickness));
+            normalThicknessPresets=MakePresetButtons(thicknessRow,L.P("Thickness","굵기"),"",new[]{3,6,12},n=>layer.SetStyle(width:n));
+            eraseThicknessPresets=MakePresetButtons(thicknessRow,L.P("Thickness","굵기"),"",new[]{12,24,48},n=>layer.SetStyle(width:n));
+            aiButton=UI.Btn(L.P("Fill with AI","AI로 메우기"),RunAiClicked,true);
+            aiButton.Margin=new Thickness(8,0,0,2);
+            aiButton.ToolTip=L.P("Fills the painted spots again with the AI on this PC. It takes about 2-3 seconds. Press Ctrl+Z once to undo.",
+                "칠한 곳을 내 PC 안의 AI로 다시 메워요. 2~3초쯤 걸려요. Ctrl+Z를 한 번 누르면 AI 적용 전으로 돌아가요.");
+            thicknessRow.Children.Add(aiButton);
+            aiBusyPanel=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,0,2),Visibility=Visibility.Collapsed};
+            var busyText=UI.Text(L.P("Refining…","다듬는 중…"),12,true);busyText.Margin=new Thickness(0,0,6,0);
+            var cancelAi=UI.Btn(L.T("Cancel"),()=>{if(OnCancelAiErase!=null)OnCancelAiErase();});
+            cancelAi.MinHeight=25;cancelAi.Padding=new Thickness(8,1,8,1);
+            aiBusyPanel.Children.Add(busyText);aiBusyPanel.Children.Add(cancelAi);
+            thicknessRow.Children.Add(aiBusyPanel);
+            thicknessField=Field(L.P("Thickness","굵기"),thicknessRow);
+
             opacityField=Field(L.P("Opacity","투명도"),Number(layer.ShapeOpacity,10,100,"%",L.P("Opacity","투명도"),
                 v=>layer.SetStyle(opacity:v),new[]{40,70,100},out showOpacity));
             string block=L.P("Block size","칸 크기");
             blockField=Field(block,Number(layer.Block,1,100,"px",block,v=>layer.SetStyle(block:v),new[]{12,24,48},out showBlock));
             blockField.ToolTip=L.P("Pixels when the cover is 1000 px tall.","표지 높이가 1000px일 때의 칸 크기예요.");
             foreach(var field in new[]{strokeField,fillField,thicknessField,opacityField,blockField})body.Children.Add(field);
+
+            if(isGif) {
+                var gifEraseBox=new StackPanel();
+                var modeRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
+                string eraseGroup="gif-erase-"+Guid.NewGuid().ToString("N");
+                gifStaticChoice=new RadioButton {Content=L.P("Cover with this scene's patch","이 장면 조각으로 덮기"),GroupName=eraseGroup,
+                    Style=(Style)Application.Current.FindResource("SegmentChoice"),IsChecked=true};
+                gifPerFrameChoice=new RadioButton {Content=L.P("Fill each scene separately","장면마다 따로 메우기"),GroupName=eraseGroup,
+                    Style=(Style)Application.Current.FindResource("SegmentChoice")};
+                gifStaticChoice.Click+=delegate {if(!syncing)layer.SetEraseMode(0);};
+                gifPerFrameChoice.Click+=delegate {if(!syncing)layer.SetEraseMode(1);};
+                modeRow.Children.Add(gifStaticChoice);modeRow.Children.Add(gifPerFrameChoice);
+                gifEraseBox.Children.Add(modeRow);
+                gifPerFrameNote=UI.Text(L.P("Moving backgrounds are filled quickly scene by scene","움직이는 배경은 장면마다 빠르게 메워요"),12,true);
+                gifPerFrameNote.TextWrapping=TextWrapping.Wrap;gifPerFrameNote.Margin=new Thickness(1,3,0,0);
+                gifEraseBox.Children.Add(gifPerFrameNote);
+                gifEraseField=Field(L.P("Fill mode","메우기"),gifEraseBox);
+                body.Children.Add(gifEraseField);
+            }
 
             var actions=new WrapPanel {Margin=new Thickness(0,5,0,4)};
             delete=UI.Btn(L.P("Delete","지우기"),layer.DeleteSelected);
@@ -436,17 +503,36 @@ namespace LoveMyShelf {
             layer.Updated+=Sync;
             ShowOpener(DrawPreferences.Last.Open);Sync();
         }
+        static Button[] MakePresetButtons(Panel row,string name,string unit,int[] presets,Action<int> change) {
+            var made=new Button[presets.Length];
+            for(int i=0;i<presets.Length;i++) {
+                int number=presets[i];
+                var button=UI.Btn(number.ToString(CultureInfo.InvariantCulture),()=>change(number));
+                button.Margin=new Thickness(4,0,0,2);button.MinWidth=30;
+                AutomationProperties.SetName(button,name+" "+number+unit);
+                made[i]=button;row.Children.Add(button);
+            }
+            return made;
+        }
+        async void RunAiClicked() {
+            if(aiRunning || OnRunAiErase==null)return;
+            await OnRunAiErase();
+        }
+        internal void SetAiRunning(bool running) {
+            if(aiRunning==running)return;
+            aiRunning=running;Sync();
+        }
+        internal void SetOpen(bool open) {
+            if(IsOpen==open)return;
+            DrawPreferences.Last.Open=open;DrawPreferences.Last.Save();
+            ShowOpener(open);
+            if(OpenChanged!=null)OpenChanged();
+        }
         FrameworkElement Number(int value,int min,int max,string unit,string name,Action<int> change,int[] presets,out Action<double> show) {
             Func<double> read;
             var row=new WrapPanel();
             row.Children.Add(MotionLook.Number(value,min,max,1,unit,name,v=>{if(!syncing)change((int)v);},out read,out show));
-            foreach(int preset in presets) {
-                int number=preset;
-                var button=UI.Btn(number.ToString(CultureInfo.InvariantCulture),()=>change(number));
-                button.Margin=new Thickness(4,0,0,2);button.MinWidth=30;
-                AutomationProperties.SetName(button,name+" "+number+unit);
-                row.Children.Add(button);
-            }
+            MakePresetButtons(row,name,unit,presets,change);
             return row;
         }
         static FrameworkElement Field(string label,FrameworkElement control) {
@@ -455,12 +541,7 @@ namespace LoveMyShelf {
             row.Children.Add(name);row.Children.Add(control);
             return row;
         }
-        void Toggle() {
-            bool open=!IsOpen;
-            DrawPreferences.Last.Open=open;DrawPreferences.Last.Save();
-            ShowOpener(open);
-            if(OpenChanged!=null)OpenChanged();
-        }
+        void Toggle() { SetOpen(!IsOpen); }
         void ShowOpener(bool open) {
             opener.Content=L.P("Draw","그림 그리기")+(open?"  ▴":"  ▾");
             body.Visibility=scroller.Visibility=open?Visibility.Visible:Visibility.Collapsed;
@@ -470,9 +551,24 @@ namespace LoveMyShelf {
             for(int i=0;i<tools.Length;i++)tools[i].IsChecked=MotionShape.Kinds[i]==layer.Tool;
             showColor(layer.Color);showFill(layer.FillColor);showThickness(layer.Thickness);showOpacity(layer.ShapeOpacity);showBlock(layer.Block);
             none.FontWeight=layer.FillColor<0?FontWeights.Bold:FontWeights.Normal;
-            strokeField.Visibility=thicknessField.Visibility=opacityField.Visibility=layer.IsMosaic?Visibility.Collapsed:Visibility.Visible;
+            bool erase=layer.IsErase;
+            strokeField.Visibility=opacityField.Visibility=(layer.IsMosaic || erase)?Visibility.Collapsed:Visibility.Visible;
+            thicknessField.Visibility=layer.IsMosaic?Visibility.Collapsed:Visibility.Visible;
             fillField.Visibility=layer.CanFill?Visibility.Visible:Visibility.Collapsed;
             blockField.Visibility=layer.IsMosaic?Visibility.Visible:Visibility.Collapsed;
+            foreach(var b in normalThicknessPresets)b.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
+            foreach(var b in eraseThicknessPresets)b.Visibility=erase?Visibility.Visible:Visibility.Collapsed;
+            bool showAi=(erase || layer.HasEraseShapes) && layer.HasEraseShapes && !layer.IsMosaic && EraseEngine.Available;
+            if(!erase)showAi=false;
+            aiBusyPanel.Visibility=showAi && aiRunning?Visibility.Visible:Visibility.Collapsed;
+            aiButton.Visibility=showAi && !aiRunning?Visibility.Visible:Visibility.Collapsed;
+            aiButton.IsEnabled=isGif?layer.EraseMode==0:layer.AiPatch==null;
+            if(gifEraseField!=null) {
+                gifEraseField.Visibility=(erase || layer.HasEraseShapes)?Visibility.Visible:Visibility.Collapsed;
+                gifStaticChoice.IsChecked=layer.EraseMode==0;
+                gifPerFrameChoice.IsChecked=layer.EraseMode==1;
+                gifPerFrameNote.Visibility=layer.EraseMode==1?Visibility.Visible:Visibility.Collapsed;
+            }
             undo.IsEnabled=layer.CanUndo;redo.IsEnabled=layer.CanRedo;delete.IsEnabled=layer.HasSelection;
             front.IsEnabled=layer.CanReorder(true);back.IsEnabled=layer.CanReorder(false);clear.IsEnabled=layer.HasShapes;
             syncing=false;
@@ -486,7 +582,7 @@ namespace LoveMyShelf {
                 if(key==Key.Y){layer.Redo();return true;}
             }
             if(Keyboard.Modifiers!=ModifierKeys.None)return false;
-            int index=key>=Key.D1 && key<=Key.D8?key-Key.D1:key>=Key.NumPad1 && key<=Key.NumPad8?key-Key.NumPad1:-1;
+            int index=key>=Key.D1 && key<=Key.D9?key-Key.D1:key>=Key.NumPad1 && key<=Key.NumPad9?key-Key.NumPad1:-1;
             if(index>=0){if(!e.IsRepeat)layer.SelectTool(MotionShape.Kinds[index]);return true;}
             if((key==Key.Delete || (allowX && key==Key.X)) && layer.HasSelection) {
                 if(!e.IsRepeat)layer.DeleteSelected();
@@ -502,11 +598,17 @@ namespace LoveMyShelf {
         sealed class Edit {
             internal readonly List<MotionShape> Shapes;
             internal readonly int Selected;
-            internal Edit(List<MotionShape> shapes,int selected) {Shapes=new List<MotionShape>(shapes);Selected=selected;}
+            internal readonly EraseAiPatch AiPatch;
+            internal readonly int EraseMode;
+            internal Edit(List<MotionShape> shapes,int selected,EraseAiPatch aiPatch,int eraseMode) {
+                Shapes=new List<MotionShape>(shapes);Selected=selected;AiPatch=aiPatch;EraseMode=eraseMode;
+            }
         }
         readonly List<Edit> undo=new List<Edit>(),redo=new List<Edit>();
         readonly List<Point> points=new List<Point>();
         List<MotionShape> shapes=new List<MotionShape>();
+        EraseAiPatch aiPatch;
+        int eraseMode;
         int selected=-1,handle=-1;
         bool active,onlySelection,dragging,drawing;
         double pixelHeight=1000;
@@ -515,8 +617,15 @@ namespace LoveMyShelf {
         double sceneTime;
         int trackCount;
         internal Func<double> FixedSceneTime;
-        internal event Action BeforePointer,PointerStarted,TrackLimit;
+        internal Func<BitmapSource> ErasePicture;
+        internal Func<IList<MotionShape>,BitmapSource> StaticErasePatch;
+        internal Func<int> CurrentEraseSceneMs;
+        internal event Action BeforePointer,PointerStarted,TrackLimit,EraseStrokesChanged;
         internal MotionShape SelectedShape {get {return HasSelection?shapes[selected]:null;}}
+        internal EraseAiPatch AiPatch {get {return aiPatch;}}
+        internal int EraseMode {get {return eraseMode;}}
+        internal IList<MotionShape> Shapes {get {return shapes;}}
+        internal bool HasEraseShapes {get {return shapes.Any(shape=>shape.IsErase);}}
         internal bool HasTracks {get {return trackCount!=0;}}
         internal IEnumerable<MotionTrackPath> Tracks {get {return shapes.Where(shape=>shape.Track!=null).Select(shape=>shape.Track);}}
 
@@ -543,7 +652,7 @@ namespace LoveMyShelf {
         internal Func<BitmapSource> MosaicPicture;
         char Kind {get {return HasSelection?shapes[selected].Kind:Tool;}}
         DrawPreferences Defaults {get {return DrawPreferences.Last;}}
-        int DefaultThickness {get {return Tool=='h'?Defaults.MarkerThickness:Defaults.Thickness;}}
+        int DefaultThickness {get {return Tool=='h'?Defaults.MarkerThickness:Tool=='x'?Defaults.EraseThickness:Defaults.Thickness;}}
         int DefaultOpacity {get {return Tool=='h'?Defaults.MarkerOpacity:Defaults.Opacity;}}
         internal string Value {get;private set;}
         internal bool IsDragging {get {return dragging;}}
@@ -558,6 +667,7 @@ namespace LoveMyShelf {
         internal int Block {get {return HasSelection?shapes[selected].Block:Defaults.Block;}}
         internal bool CanFill {get {return MotionShape.CanFill(Kind);}}
         internal bool IsMosaic {get {return Kind=='m';}}
+        internal bool IsErase {get {return Kind=='x';}}
         internal event Action Updated,Changed,Editing;
 
         internal MotionDrawLayer() {
@@ -565,9 +675,60 @@ namespace LoveMyShelf {
             Cursor=Cursors.Cross;Focusable=true;IsHitTestVisible=false;ClipToBounds=true;
             KeyboardNavigation.SetIsTabStop(this,false);
         }
-        internal void Load(string value) {
+        internal void Load(string value,EraseAiPatch initialAi=null) {
             CancelDrag();selected=-1;undo.Clear();redo.Clear();
-            shapes=MotionShape.Read(value);SaveValue();Update();
+            shapes=MotionShape.Read(value);
+            eraseMode=shapes.Any(shape=>shape.IsPerFrameErase)?1:0;
+            aiPatch=initialAi;
+            if(aiPatch==null) {
+                for(int i=0;i<shapes.Count;i++)
+                    if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
+            }
+            SaveValue();Update();
+        }
+        internal void SetInitialAiPatch(EraseAiPatch patch) {
+            aiPatch=patch;
+            if(patch==null) {
+                for(int i=0;i<shapes.Count;i++)
+                    if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
+                SaveValue();
+            }
+            Update();
+        }
+        internal void ApplyAiPatch(EraseAiPatch patch) {
+            if(patch==null || !HasEraseShapes)return;
+            if(aiPatch!=null && !String.IsNullOrEmpty(patch.CacheKey) && aiPatch.CacheKey==patch.CacheKey)return;
+            CancelDrag();Remember();
+            eraseMode=0;
+            int sceneMs=(int)Math.Max(0,Math.Min(0xFFFFFF,Math.Round(patch.SceneMs)));
+            for(int i=0;i<shapes.Count;i++)
+                if(shapes[i].IsErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticAi,sceneMs);
+            aiPatch=patch;
+            SaveChange(true);
+        }
+        internal void InvalidateAiPatch() {
+            if(aiPatch==null && !shapes.Any(s=>s.IsAiErase))return;
+            aiPatch=null;
+            for(int i=0;i<shapes.Count;i++)
+                if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
+            SaveValue();Update();
+        }
+        internal void SetEraseMode(int mode) {
+            mode=mode==1?1:0;
+            if(eraseMode==mode)return;
+            CancelDrag();
+            if(HasEraseShapes) {
+                Remember();
+                eraseMode=mode;
+                aiPatch=null;
+                int block=mode==1?MotionShape.ErasePerFrame:MotionShape.EraseStaticCSharp;
+                int sceneMs=mode==0 && CurrentEraseSceneMs!=null?CurrentEraseSceneMs():0;
+                for(int i=0;i<shapes.Count;i++)
+                    if(shapes[i].IsErase)shapes[i]=shapes[i].WithEraseMode(block,sceneMs);
+                SaveChange();
+            } else {
+                eraseMode=mode;Update();
+            }
         }
         internal void SelectTool(char kind) {
             CancelDrag();selected=-1;Tool=Defaults.Tool=kind;Defaults.Save();Update();
@@ -590,7 +751,15 @@ namespace LoveMyShelf {
             Value=MotionShape.Save(shapes);
             trackCount=shapes.Count(shape=>shape.Track!=null);
         }
-        void SaveChange() {
+        void SaveChange(bool keepAi=false) {
+            if(!keepAi && aiPatch!=null && EraseStore.CanonicalEraseStrokes(shapes)!=aiPatch.StrokesSpec) {
+                aiPatch=null;
+                for(int i=0;i<shapes.Count;i++)
+                    if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(eraseMode==1?MotionShape.ErasePerFrame:MotionShape.EraseStaticCSharp);
+                if(EraseStrokesChanged!=null)EraseStrokesChanged();
+            } else if(!keepAi && EraseStrokesChanged!=null) {
+                EraseStrokesChanged();
+            }
             SaveValue();
             Update();
             if(Changed!=null)Changed();
@@ -598,7 +767,7 @@ namespace LoveMyShelf {
 
         void Snapshot(List<Edit> history) {
             if(history.Count==MaxUndo)history.RemoveAt(0);
-            history.Add(new Edit(shapes,selected));
+            history.Add(new Edit(shapes,selected,aiPatch,eraseMode));
         }
         void Remember() {Snapshot(undo);redo.Clear();}
         internal void Undo() {Restore(undo,redo);}
@@ -608,7 +777,8 @@ namespace LoveMyShelf {
             if(from.Count==0)return;
             Snapshot(to);
             var edit=from[from.Count-1];from.RemoveAt(from.Count-1);
-            shapes=edit.Shapes;selected=edit.Selected;SaveChange();
+            shapes=edit.Shapes;selected=edit.Selected;aiPatch=edit.AiPatch;eraseMode=edit.EraseMode;
+            SaveChange(true);
         }
         internal void Clear() {
             CancelDrag();
@@ -622,9 +792,10 @@ namespace LoveMyShelf {
             Remember();shapes.RemoveAt(index);selected=-1;SaveChange();
         }
         int OrderTarget(bool front) {
-            return front?shapes.FindLastIndex(shape=>shape.IsMosaic==IsMosaic):shapes.FindIndex(shape=>shape.IsMosaic==IsMosaic);
+            return front?shapes.FindLastIndex(shape=>shape.IsMosaic==IsMosaic && shape.IsErase==IsErase):
+                shapes.FindIndex(shape=>shape.IsMosaic==IsMosaic && shape.IsErase==IsErase);
         }
-        internal bool CanReorder(bool front) {return HasSelection && selected!=OrderTarget(front);}
+        internal bool CanReorder(bool front) {return HasSelection && !IsErase && selected!=OrderTarget(front);}
         internal void Reorder(bool front) {
             CancelDrag();
             if(!CanReorder(front))return;
@@ -640,6 +811,8 @@ namespace LoveMyShelf {
             if(Kind=='h') {
                 if(width.HasValue)Defaults.MarkerThickness=width.Value;
                 if(opacity.HasValue)Defaults.MarkerOpacity=opacity.Value;
+            } else if(Kind=='x') {
+                if(width.HasValue)Defaults.EraseThickness=width.Value;
             } else {
                 if(width.HasValue)Defaults.Thickness=width.Value;
                 if(opacity.HasValue)Defaults.Opacity=opacity.Value;
@@ -647,8 +820,12 @@ namespace LoveMyShelf {
             Defaults.Save();
             if(HasSelection) {
                 var shape=shapes[selected];
-                var next=new MotionShape(shape.Kind,rgb??shape.Color,width??shape.Thickness,fill??shape.FillColor,
-                    opacity??shape.Opacity,block??shape.Block,shape.Points,shape.Track);
+                int nextColor=shape.IsErase?shape.Color:(rgb??shape.Color);
+                int nextFill=shape.IsErase?-1:(fill??shape.FillColor);
+                int nextOpacity=shape.IsErase?100:(opacity??shape.Opacity);
+                int nextBlock=shape.IsErase?shape.Block:(block??shape.Block);
+                var next=new MotionShape(shape.Kind,nextColor,width??shape.Thickness,nextFill,
+                    nextOpacity,nextBlock,shape.Points,shape.Track);
                 if(next.Color!=shape.Color || next.Thickness!=shape.Thickness || next.FillColor!=shape.FillColor ||
                     next.Opacity!=shape.Opacity || next.Block!=shape.Block) {
                     CancelDrag();Remember();shapes[selected]=next;SaveChange();return;
@@ -686,14 +863,33 @@ namespace LoveMyShelf {
             if(ActualWidth<=0 || ActualHeight<=0)return;
             // Give the layer hit-test bounds even before the first shape exists.
             if(active)dc.DrawRectangle(Brushes.Transparent,null,new Rect(0,0,ActualWidth,ActualHeight));
+            MotionShape liveErase=null;
             if(!onlySelection) {
                 var current=shapes.ConvertAll(shape=>shape.At(sceneTime));
                 if(pending!=null) {
-                    if(drawing)current.Add(pending);
-                    else current[selected]=pending;
+                    if(drawing) {
+                        if(pending.IsErase)liveErase=pending;
+                        else current.Add(pending);
+                    } else current[selected]=pending;
                 }
-                if(current.Any(shape=>shape.IsMosaic)) {
-                    var picture=MosaicPicture==null?null:MosaicPicture();
+                BitmapSource workingPic=null;
+                bool anyErase=current.Any(shape=>shape.IsErase);
+                bool anyMosaic=current.Any(shape=>shape.IsMosaic);
+                if(anyErase) {
+                    if(StaticErasePatch!=null && eraseMode==0) {
+                        var patch=aiPatch!=null && aiPatch.Patch!=null && pending==null?aiPatch.Patch:StaticErasePatch(current);
+                        if(patch!=null)dc.DrawImage(patch,new Rect(0,0,ActualWidth,ActualHeight));
+                    } else {
+                        var basePic=ErasePicture!=null?ErasePicture():(MosaicPicture!=null?MosaicPicture():null);
+                        if(basePic!=null) {
+                            workingPic=aiPatch!=null && aiPatch.Patch!=null && pending==null?
+                                EraseStore.Composite(basePic,aiPatch.Patch):CoverInpaint.ApplyHybrid(basePic,current);
+                            if(!anyMosaic)dc.DrawImage(workingPic,new Rect(0,0,ActualWidth,ActualHeight));
+                        }
+                    }
+                }
+                if(anyMosaic) {
+                    var picture=workingPic??(MosaicPicture==null?null:MosaicPicture());
                     if(picture!=null)dc.DrawImage(MotionDraw.ApplyMosaics(picture,current),new Rect(0,0,ActualWidth,ActualHeight));
                     else foreach(var shape in current.Where(shape=>shape.IsMosaic))
                         MotionDraw.MosaicPlaceholder(dc,new Rect(ToScreen(shape.Points[0]),ToScreen(shape.Points[1])));
@@ -702,6 +898,12 @@ namespace LoveMyShelf {
                 dc.PushTransform(new ScaleTransform(Scale,Scale));
                 foreach(var shape in current)MotionDraw.Render(dc,shape,width,pixelHeight);
                 dc.Pop();
+                if(liveErase!=null) {
+                    double brushPx=Math.Max(2,MotionDraw.Pixels(liveErase,pixelHeight)*Scale);
+                    var liveGeom=MotionDraw.GeometryOf(liveErase,ActualWidth,ActualHeight,brushPx);
+                    dc.DrawGeometry(null,MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(145,255,90,90)),brushPx),liveGeom);
+                    dc.DrawGeometry(null,MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(190,255,255,255)),Math.Max(1.5,brushPx*0.24)),liveGeom);
+                }
             }
             if(HasTracks) {
                 var lostPen=MotionDraw.Stroke(Brushes.Red,2);
@@ -713,6 +915,7 @@ namespace LoveMyShelf {
                     if(key.Lost)dc.DrawGeometry(null,lostPen,ScreenGeometry(shape.WithBox(key.Box)));
                 }
             }
+            if(liveErase!=null)return;
             var outlined=pending??(HasSelection?shapes[selected].At(sceneTime):null);
             if(!active || outlined==null)return;
             var geometry=ScreenGeometry(outlined);
@@ -754,7 +957,7 @@ namespace LoveMyShelf {
                 for(int i=0;i<handles.Length;i++)
                     if((ToScreen(handles[i])-start).Length<=HandleRadius+3){handle=i;break;}
             }
-            if(handle<0)selected=ShapeAt(start);
+            if(handle<0)selected=Tool=='x'?-1:ShapeAt(start);
             drawing=!HasSelection;
             dragShape=drawing?null:shapes[selected].At(sceneTime);
             if(PointerStarted!=null)PointerStarted();
@@ -765,6 +968,11 @@ namespace LoveMyShelf {
         protected override void OnMouseMove(MouseEventArgs e) {
             if(!dragging || ActualWidth<=0 || ActualHeight<=0)return;
             DragTo(e.GetPosition(this));
+        }
+        MotionShape NewEraseShape(Point[] strokePoints) {
+            int eraseColor=eraseMode==0 && CurrentEraseSceneMs!=null?CurrentEraseSceneMs():0;
+            int eraseBlock=eraseMode==1?MotionShape.ErasePerFrame:MotionShape.EraseStaticCSharp;
+            return new MotionShape('x',eraseColor,DefaultThickness,-1,100,eraseBlock,strokePoints);
         }
         void DragTo(Point mouse) {
             bool first=pending==null;
@@ -779,8 +987,9 @@ namespace LoveMyShelf {
                     }
                     if(points.Count<2)return;
                 }
-                pending=new MotionShape(Tool,Defaults.Color,DefaultThickness,MotionShape.CanFill(Tool)?Defaults.Fill:-1,DefaultOpacity,Defaults.Block,
-                    MotionShape.IsPen(Tool)?points.ToArray():new[]{anchor,Constrain(Tool,anchor,p)});
+                pending=Tool=='x'?NewEraseShape(points.ToArray()):
+                    new MotionShape(Tool,Defaults.Color,DefaultThickness,MotionShape.CanFill(Tool)?Defaults.Fill:-1,DefaultOpacity,Defaults.Block,
+                        MotionShape.IsPen(Tool)?points.ToArray():new[]{anchor,Constrain(Tool,anchor,p)});
             } else {
                 var original=dragShape;
                 Point[] moved=handle>=0?Resize(original,p):Move(original,mouse-start);
@@ -839,6 +1048,11 @@ namespace LoveMyShelf {
             if(final!=null && MotionShape.IsPen(final.Kind) && drawing)
                 final=final.WithPoints(MotionShape.Simplify(points));
             EndDrag();
+            if(final==null && drawing && Tool=='x') {
+                int hit=ShapeAt(start);
+                if(hit>=0){selected=hit;Update();return;}
+                if(shapes.Count<MotionShape.MaxShapes)final=NewEraseShape(new[]{anchor,anchor});
+            }
             if(final==null){InvalidateVisual();return;}
             var rounded=Array.ConvertAll(final.Points,p=>new Point(Math.Round(MotionShape.Clamp(p.X),4),Math.Round(MotionShape.Clamp(p.Y),4)));
             final=final.WithPoints(rounded);
@@ -850,8 +1064,15 @@ namespace LoveMyShelf {
                 final=shapes[selected].WithTrack(corrected);
             }
             Remember();
-            if(drawing){selected=shapes.Count;shapes.Add(final);}
-            else shapes[selected]=final;
+            if(drawing) {
+                if(final.IsErase && eraseMode==0 && CurrentEraseSceneMs!=null) {
+                    int sceneMs=final.EraseSceneMs;
+                    for(int i=0;i<shapes.Count;i++)
+                        if(shapes[i].IsErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp,sceneMs);
+                }
+                selected=final.IsErase?-1:shapes.Count;
+                shapes.Add(final);
+            } else shapes[selected]=final;
             SaveChange();
         }
         protected override void OnMouseRightButtonDown(MouseButtonEventArgs e) {

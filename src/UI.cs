@@ -197,7 +197,8 @@ namespace LoveMyShelf {
             bool upscale=(args.Length==3 || args.Length==4) && args[0]==UpscaleEngine.ChildSwitch;
             bool faces=args.Length==3 && args[0]==FaceEngine.ChildSwitch;
             bool similar=args.Length==3 && args[0]==SimilarEngine.ChildSwitch;
-            if(!AppInfo.Packaged || upscale || faces || similar)L.Korean=Preferences.Load(root).Korean;
+            bool erase=args.Length==4 && args[0]==EraseEngine.ChildSwitch;
+            if(!AppInfo.Packaged || upscale || faces || similar || erase)L.Korean=Preferences.Load(root).Korean;
             // Background upscaling runs in a separate copy of this program, without a window.
             if(upscale) {
                 Environment.Exit(UpscaleEngine.RunChild(args[1],args[2],args.Length==4 && args[3]==UpscaleEngine.GpuSwitch));
@@ -211,6 +212,11 @@ namespace LoveMyShelf {
             // So does reading pictures for "Find similar photos".
             if(similar) {
                 Environment.Exit(SimilarEngine.RunChild(args[1],args[2]));
+                return;
+            }
+            // AI object erasing on covers runs in a child process as well.
+            if(erase) {
+                Environment.Exit(EraseEngine.RunChild(args[1],args[2],args[3]));
                 return;
             }
             string openPath=ExplorerOpen.PathFrom(args); // a file or folder from "Open with LoveMyShelf"

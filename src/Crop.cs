@@ -26,6 +26,14 @@ namespace LoveMyShelf {
         public double Rotation { get; private set; }
         // The value saved with the cover: the level and its style (see Light). An old cover's white or black sheet is Milky.
         internal int Brightness {get {return Light.Encode(Level,style);}}
+        AdjustValues adjust;
+        internal AdjustValues Adjust {
+            get {
+                var a=adjust;
+                a.Brightness=Light.Encode(Level,style);
+                return a;
+            }
+        }
         int style=Light.Soft;
         // The -100..100 number on the slider.
         internal int Level {get;private set;}
@@ -34,16 +42,21 @@ namespace LoveMyShelf {
         Point last;
         internal event Action RotationChanged;
         internal event Action BrightnessChanged;
+        internal event Action AdjustChanged;
         // The frame's shape or size changed (a shape picked, an edge dragged, the wheel, Reset).
         internal event Action ShapeChanged;
-        public CropSurface(BitmapSource image, Rect? saved, double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,int brightness=0) {
+        public CropSurface(BitmapSource image, Rect? saved, double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,int brightness=0,
+            AdjustValues adjust=default(AdjustValues)) {
             this.image=image;this.snapEdges=snapEdges;Focusable=true; Cursor=Cursors.SizeAll;
             wheelZoomFactor=1+wheelZoomPercent/100.0;
             RenderOptions.SetBitmapScalingMode(this,BitmapScalingMode.HighQuality);
             Reset();
-            // Brightness carries over even for a new cover (from the video's playback brightness);
+            // Brightness and adjustments carry over even for a new cover (from the video's playback brightness);
             // the turn and the framing only come from a saved cover.
-            Level=Light.Level(brightness);style=Light.Style(brightness);
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
+            this.adjust=adjust.Clamped();
+            Level=Light.Level(this.adjust.Brightness);
+            style=this.adjust.Brightness!=0?Light.Style(this.adjust.Brightness):Light.Soft;
             if(saved.HasValue) {
                 Rotation=rotation;
                 aspect=Covers.AspectOf(saved.Value,image.PixelWidth,image.PixelHeight);
@@ -80,7 +93,11 @@ namespace LoveMyShelf {
         // The cover as it looks now, at most this many pixels on its long side (the GIF window's still picture).
         internal BitmapSource Still(int longSide=960) {
             int w=(int)Math.Max(1,Math.Round(aspect>=1?longSide:longSide*aspect)),h=(int)Math.Max(1,Math.Round(aspect>=1?longSide/aspect:longSide));
-            return Pictures.RenderRotatedCover(image,Fraction,Rotation,w,h,Brightness);
+            return Pictures.RenderRotatedCover(image,Fraction,Rotation,w,h,Brightness,Adjust);
+        }
+        internal BitmapSource UnadjustedStill(int longSide=320) {
+            int w=(int)Math.Max(1,Math.Round(aspect>=1?longSide:longSide*aspect)),h=(int)Math.Max(1,Math.Round(aspect>=1?longSide/aspect:longSide));
+            return Pictures.RenderRotatedCover(image,Fraction,Rotation,w,h,0,AdjustValues.None);
         }
         static double Limit(double value,double lo,double hi) { return Math.Max(lo,Math.Min(hi,value)); }
         static double LimitCenter(double center,double cropSize,double imageSize) {
@@ -112,7 +129,7 @@ namespace LoveMyShelf {
             viewSet=false;
             aspect=PictureAspect;
             zoom=1; Rotation=0; centerX=image.PixelWidth/2.0; centerY=image.PixelHeight/2.0; Clamp();
-            SetBrightness(0);
+            SetAdjust(AdjustValues.None,Light.Soft);
             if(RotationChanged!=null) RotationChanged();
             if(ShapeChanged!=null)ShapeChanged();
         }
@@ -147,13 +164,28 @@ namespace LoveMyShelf {
         internal void SetBrightness(double value) {
             int level=Light.Clamp((int)Math.Round(value));
             if(level==Level)return;
-            Level=level;InvalidateVisual();
+            Level=level;adjust.Brightness=Light.Encode(Level,style);InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
+            if(AdjustChanged!=null)AdjustChanged();
         }
         // R: Soft, See in the dark and Milky take turns. The level stays.
         internal void SwitchStyle() {
-            style=Light.NextStyle(style);InvalidateVisual();
+            style=Light.NextStyle(style);adjust.Brightness=Light.Encode(Level,style);InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
+            if(AdjustChanged!=null)AdjustChanged();
+        }
+        internal void SetAdjust(AdjustValues values,int? explicitStyle=null) {
+            values=values.Clamped();
+            int nextStyle=explicitStyle.HasValue?explicitStyle.Value:(values.Brightness!=0?Light.Style(values.Brightness):style);
+            int nextLevel=Light.Level(values.Brightness);
+            values.Brightness=Light.Encode(nextLevel,nextStyle);
+            bool brightChanged=nextLevel!=Level || nextStyle!=style;
+            bool anyChanged=values!=Adjust || brightChanged;
+            adjust=values;Level=nextLevel;style=nextStyle;
+            if(!anyChanged)return;
+            InvalidateVisual();
+            if(brightChanged && BrightnessChanged!=null)BrightnessChanged();
+            if(AdjustChanged!=null)AdjustChanged();
         }
         internal static double NormalizeRotation(double angle) {
             double turn=2*HalfTurn;
@@ -323,7 +355,7 @@ namespace LoveMyShelf {
             if(ActualWidth<1 || ActualHeight<1) return;
             Rect r=Frame;
             dc.DrawRectangle(Brushes.Black,null,new Rect(RenderSize));
-            Pictures.DrawCover(dc,image,Fraction,Rotation,r,Brightness);
+            Pictures.DrawCover(dc,image,Fraction,Rotation,r,Brightness,Adjust);
             // Still picture: the part outside the frame is dimmed, so what goes into the cover stands out.
             if(StillPicture) {
                 var outside=Geometry.Combine(new RectangleGeometry(new Rect(RenderSize)),new RectangleGeometry(r),GeometryCombineMode.Exclude,null);
@@ -409,14 +441,17 @@ namespace LoveMyShelf {
             ClipToBounds=true;Children.Add(surface);Children.Add(drawing);
             surface.Moved+=FrameMoved;
             surface.BrightnessChanged+=FrameMoved;
+            surface.AdjustChanged+=FrameMoved;
             drawing.MosaicPicture=GetMosaicPicture;
+            drawing.ErasePicture=GetMosaicPicture;
         }
+        internal BitmapSource RenderBasePicture() {return GetMosaicPicture();}
         BitmapSource GetMosaicPicture() {
             if(mosaicPicture==null) {
                 Size size=surface.PixelSize;
                 double scale=Math.Min(1,1920/Math.Max(size.Width,size.Height));
                 mosaicPicture=Pictures.RenderRotatedCover(surface.Source,surface.Fraction,surface.Rotation,
-                    Math.Max(1,(int)Math.Round(size.Width*scale)),Math.Max(1,(int)Math.Round(size.Height*scale)),surface.Brightness);
+                    Math.Max(1,(int)Math.Round(size.Width*scale)),Math.Max(1,(int)Math.Round(size.Height*scale)),surface.Brightness,surface.Adjust);
             }
             return mosaicPicture;
         }
@@ -436,17 +471,23 @@ namespace LoveMyShelf {
         public readonly CropSurface Surface;
         readonly MotionDrawLayer drawing=new MotionDrawLayer();
         readonly CropDrawingPicture cropPicture;
+        readonly AdjustPanel adjustPanel;
+        readonly EraseRunner eraseRunner=new EraseRunner();
         internal string Drawings {get {return drawing.Value;}}
+        internal EraseAiPatch EraseAi {get {return drawing.AiPatch;}}
+        internal string SavedEditedPath {get;private set;}
         internal bool BackToFrames { get; private set; }
         internal int FrameIndex { get; private set; }
         internal double? FrameTime {get{return nearby==null?(double?)null:nearby.Start(FrameIndex);}}
         internal int FrameTimeOffset {get{return nearby==null?0:nearby.TimestampOffset(FrameIndex);}}
         internal Func<CropWindow,Task> CommitCover;
+        internal Func<CropWindow,Task<string>> SaveEditedCopy;
+        internal Func<string> SourceIdentityProvider;
         // How much one press of E or W changes the brightness (the slider still moves one at a time).
         internal int BrightnessStep=3;
         // Runs after the cover is saved and before the editor closes (the large view opens here, so no gap shows).
         internal Func<Task> AfterCommit;
-        readonly Button save,motionButton;
+        readonly Button save,motionButton,saveNewButton;
         Func<CropWindow,MotionRequest,Task> commitMotion;
         Func<MotionSource> motionSource;
         readonly int previewSide;
@@ -459,37 +500,46 @@ namespace LoveMyShelf {
         // True once nothing more can be read before / after the scene list (the video's start or end).
         bool nearbyAtStart,nearbyAtEnd,readingMore;
         public CropWindow(Window owner,BitmapSource image,string name,Rect? saved,double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,
-            int previewSide=0,int brightness=0,string drawings=null) {
+            int previewSide=0,int brightness=0,string drawings=null,AdjustValues adjust=default(AdjustValues),EraseAiPatch initialEraseAi=null) {
             this.previewSide=previewSide>0?previewSide:Preferences.EditorPreviewSide;
             UI.WindowSetup(this,saved.HasValue?L.T("Make one more cover"):L.T("Make cover")); Owner=owner; ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
             Width=Math.Min(880,SystemParameters.WorkArea.Width); Height=Math.Min(850,SystemParameters.WorkArea.Height);
             MinWidth=390; MinHeight=360;
             var root=new DockPanel();
-            root.Children.Add(FullScreen.TitleBar(this,FullScreen.IsFull(owner)));
+            root.Children.Add(FullScreen.TitleBar(this,owner!=null && FullScreen.IsFull(owner)));
             var head=UI.Bar(new Thickness(6,2,6,2));
             var seq=UI.Text("",11,true);seq.Margin=new Thickness(4,0,6,0);UI.Right(head,seq);
             var title=UI.Text(name,12); title.TextTrimming=TextTrimming.CharacterEllipsis; head.Children.Add(title);
             DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
-            Surface=new CropSurface(image,saved,rotation,snapEdges,wheelZoomPercent,brightness);
+            Surface=new CropSurface(image,saved,rotation,snapEdges,wheelZoomPercent,brightness,adjust);
             AutomationProperties.SetHelpText(Surface,L.T("Drag to move it, and roll the wheel to fit the size."));
-            var bar=UI.Bar(new Thickness(6,2,6,2));
-            save=UI.Btn(L.T("Save cover"),SaveCover,true); save.IsDefault=true; UI.Right(bar,save);
+            var bar=new DockPanel {Margin=new Thickness(6,2,6,2),LastChildFill=true};
+            var reset=UI.Btn(L.T("Reset"),()=>{Surface.Reset();StartInKeptShape();});
+            reset.Margin=new Thickness(0,0,8,2);reset.VerticalAlignment=VerticalAlignment.Center;
+            DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
+            var rightButtons=new WrapPanel {HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};
+            saveNewButton=UI.Btn(L.P("Save as new file","새 파일로 저장"),SaveAsNewFile);
+            saveNewButton.Margin=new Thickness(0,0,5,2);
+            saveNewButton.Visibility=Visibility.Collapsed;
+            saveNewButton.ToolTip=L.P("Saves the cropped, adjusted, erased and drawn picture as a new file next to the original, and shows it in the folder. The original stays as it is.",
+                "자르고 보정하고 지우고 그린 모습을 원본 옆에 새 파일(예: 이름_편집.jpg)로 저장하고 폴더에서 바로 보여 줘요. 원본은 그대로예요.");
+            motionButton=UI.Btn(L.T("Make GIF cover"),MakeMotion);motionButton.Margin=new Thickness(0,0,5,2);
+            motionButton.Visibility=Visibility.Collapsed;motionButton.ToolTip=L.T("Saves the JPG cover and also makes a moving GIF cover around this scene.");
             var cancel=UI.Btn(L.T("Cancel"),()=>{
                 BackToFrames=previousFrame!=null;
                 DialogResult=false;
             });
-            cancel.Margin=new Thickness(0,0,5,0); UI.Right(bar,cancel);
-            motionButton=UI.Btn(L.T("Make GIF cover"),MakeMotion);motionButton.Margin=new Thickness(0,0,5,0);
-            motionButton.Visibility=Visibility.Collapsed;motionButton.ToolTip=L.T("Saves the JPG cover and also makes a moving GIF cover around this scene.");
-            UI.Right(bar,motionButton);
-            var reset=UI.Btn(L.T("Reset"),()=>{Surface.Reset();StartInKeptShape();}); reset.Margin=new Thickness(0,0,8,0); DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
-            bar.LastChildFill=false;
+            cancel.Margin=new Thickness(0,0,5,2);
+            save=UI.Btn(L.T("Save cover"),SaveCover,true); save.IsDefault=true; save.Margin=new Thickness(0,0,0,2);
+            rightButtons.Children.Add(saveNewButton);
+            rightButtons.Children.Add(motionButton);
+            rightButtons.Children.Add(cancel);
+            rightButtons.Children.Add(save);
+            bar.Children.Add(rightButtons);
             DockPanel.SetDock(bar,Dock.Bottom);root.Children.Add(bar);
             var rotationBar=RotationBar();
             DockPanel.SetDock(rotationBar,Dock.Bottom);root.Children.Add(rotationBar);
-            var brightnessBar=BrightnessBar();
-            DockPanel.SetDock(brightnessBar,Dock.Bottom);root.Children.Add(brightnessBar);
             var shapeBar=ShapeBar();
             DockPanel.SetDock(shapeBar,Dock.Bottom);root.Children.Add(shapeBar);
             // "How it shows in my grid" beside the picture, when the window is wide enough for it.
@@ -498,8 +548,9 @@ namespace LoveMyShelf {
             SizeChanged+=delegate {peekPanel.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;};
             Action showShape=()=>{var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);};
             Surface.ShapeChanged+=showShape;showShape();
-            drawing.Load(drawings);
+            drawing.Load(drawings,initialEraseAi);
             cropPicture=new CropDrawingPicture(Surface,drawing);
+            adjustPanel=new AdjustPanel(Surface.Adjust,()=>Surface.UnadjustedStill(320));
             var drawPanel=new MotionDrawPanel(drawing);
             var drawDock=new StackPanel {Margin=new Thickness(6,2,6,2)};
             var pauseNote=UI.Text(L.P("Fold [Draw] to change the crop again.",
@@ -508,12 +559,29 @@ namespace LoveMyShelf {
                 "자르는 곳을 바꿔도 그림은 표지 안에서 같은 자리에 있어요."),12,true);
             pauseNote.TextWrapping=positionNote.TextWrapping=TextWrapping.Wrap;
             positionNote.Visibility=Visibility.Collapsed;
+            drawDock.Children.Add(adjustPanel);
             drawDock.Children.Add(pauseNote);drawDock.Children.Add(positionNote);drawDock.Children.Add(drawPanel);
             DockPanel.SetDock(drawDock,Dock.Bottom);
             root.Children.Insert(root.Children.IndexOf(peekPanel),drawDock);
             root.Children.Add(cropPicture);Content=root;
 
+            bool syncingAdjust=false;
+            adjustPanel.Changed+=delegate {
+                if(syncingAdjust)return;
+                syncingAdjust=true;
+                Surface.SetAdjust(adjustPanel.Values,adjustPanel.LightStyle);
+                syncingAdjust=false;
+            };
+            Surface.AdjustChanged+=delegate {
+                if(!syncingAdjust)adjustPanel.Load(Surface.Adjust,Surface.LightStyle);
+            };
+            bool syncingFold=false;
+            adjustPanel.OpenChanged+=delegate {
+                if(syncingFold)return;
+                if(adjustPanel.IsOpen && drawPanel.IsOpen){syncingFold=true;drawPanel.SetOpen(false);syncingFold=false;}
+            };
             Action showDrawing=()=>{
+                if(!syncingFold && drawPanel.IsOpen && adjustPanel.IsOpen){syncingFold=true;adjustPanel.SetOpen(false);syncingFold=false;}
                 Surface.Drawing=drawPanel.IsOpen;
                 if(Surface.Drawing && Surface.IsMouseCaptured)Surface.ReleaseMouseCapture();
                 Surface.InvalidateVisual();
@@ -522,14 +590,44 @@ namespace LoveMyShelf {
                     barToPause.IsEnabled=!Surface.Drawing;
             };
             drawPanel.OpenChanged+=showDrawing;showDrawing();
-            SizeChanged+=delegate {drawPanel.ControlsHeight=Math.Max(64,ActualHeight*0.25);};
+            SizeChanged+=delegate {
+                double room=Math.Max(72,ActualHeight*0.26);
+                drawPanel.ControlsHeight=room;
+                adjustPanel.ControlsHeight=room;
+            };
             Rect previousCrop=Surface.Fraction;
             double previousRotation=Surface.Rotation;
-            Surface.Moved+=delegate {
+            AdjustValues previousAdjust=Surface.Adjust;
+            Action invalidateAiIfBaseChanged=()=>{
+                if(Surface.Fraction!=previousCrop || Surface.Rotation!=previousRotation || Surface.Adjust!=previousAdjust) {
+                    eraseRunner.Cancel();
+                    drawing.InvalidateAiPatch();
+                }
                 if((Surface.Fraction!=previousCrop || Surface.Rotation!=previousRotation) && drawing.HasShapes)
                     positionNote.Visibility=Visibility.Visible;
-                previousCrop=Surface.Fraction;previousRotation=Surface.Rotation;
+                previousCrop=Surface.Fraction;previousRotation=Surface.Rotation;previousAdjust=Surface.Adjust;
             };
+            Surface.Moved+=invalidateAiIfBaseChanged;
+            Surface.AdjustChanged+=invalidateAiIfBaseChanged;
+            drawing.EraseStrokesChanged+=delegate {if(eraseRunner.IsRunning)eraseRunner.Cancel();};
+            eraseRunner.StateChanged+=()=>Dispatcher.BeginInvoke(new Action(()=>drawPanel.SetAiRunning(eraseRunner.IsRunning)));
+            drawPanel.OnCancelAiErase=()=>eraseRunner.Cancel();
+            drawPanel.OnRunAiErase=async ()=>{
+                if(!drawing.HasEraseShapes || !EraseEngine.Available)return;
+                var basePic=cropPicture.RenderBasePicture();
+                var shapesSnap=new System.Collections.Generic.List<MotionShape>(drawing.Shapes);
+                string strokesSpec=EraseStore.CanonicalEraseStrokes(shapesSnap);
+                Rect cropSnap=Surface.Fraction;double rotSnap=Surface.Rotation;AdjustValues adjSnap=Surface.Adjust;
+                int frameSnap=FrameIndex;
+                string srcId=SourceIdentityProvider!=null?SourceIdentityProvider():"";
+                var patch=await eraseRunner.RunAsync(basePic,shapesSnap);
+                if(patch==null || !IsVisible || FrameIndex!=frameSnap)return;
+                if(Surface.Fraction!=cropSnap || Surface.Rotation!=rotSnap || Surface.Adjust!=adjSnap)return;
+                if(EraseStore.CanonicalEraseStrokes(drawing.Shapes)!=strokesSpec)return;
+                string key=EraseStore.BuildCacheKey(srcId,cropSnap,rotSnap,adjSnap,strokesSpec);
+                drawing.ApplyAiPatch(new EraseAiPatch(patch,strokesSpec,key,0));
+            };
+            Closed+=delegate {eraseRunner.Dispose();};
             drawing.Changed+=delegate {if(!drawing.HasShapes)positionNote.Visibility=Visibility.Collapsed;};
             PreviewMouseWheel+=(s,e)=>{if(Surface.Drawing && cropPicture.IsMouseOver)e.Handled=true;};
             ContentRendered+=delegate { Surface.Focus(); };
@@ -564,24 +662,26 @@ namespace LoveMyShelf {
                 e.Handled=true;
             };
         }
-        DockPanel BrightnessBar() {
-            var bar=UI.Bar(new Thickness(6,2,6,2));
-            var label=UI.Text(L.T("Brightness"),12);
-            label.Margin=new Thickness(0,0,8,0);bar.Children.Add(label);
-            var value=UI.Text("",12);value.MinWidth=40;bar.Children.Add(value);
-            var reset=RotationShortcut("0","Reset brightness to 0",()=>Surface.SetBrightness(0));
-            UI.Right(bar,reset);
-            // R: the style in use (Soft, See in the dark or Milky); a click moves to the next.
-            var style=RotationShortcut("","Switch brightness style",()=>Surface.SwitchStyle());
-            UI.Right(bar,style);
-            var slider=new DragSlider {Minimum=-100,Maximum=100,TickFrequency=1,IsSnapToTickEnabled=true,
-                SmallChange=1,LargeChange=10,IsMoveToPointEnabled=true,Margin=new Thickness(6,0,4,0)};
-            AutomationProperties.SetName(slider,L.T("Brightness"));
-            Action update=()=>{slider.Value=Surface.Level;value.Text=Surface.Level.ToString("+0;-0;0");style.Content="R  "+Light.StyleName(Surface.LightStyle);};
-            Surface.BrightnessChanged+=update;update();
-            slider.ValueChanged+=(s,e)=>Surface.SetBrightness(slider.Value);
-            bar.Children.Add(slider);
-            return bar;
+        internal void EnableSaveEditedCopy(Func<CropWindow,Task<string>> saveCopy) {
+            SaveEditedCopy=saveCopy;
+            saveNewButton.Visibility=saveCopy==null?Visibility.Collapsed:Visibility.Visible;
+        }
+        async void SaveAsNewFile() {
+            if(saving || !save.IsEnabled || SaveEditedCopy==null)return;
+            saving=true;
+            var layout=(UIElement)Content;
+            layout.IsEnabled=false;
+            string prevLabel=(string)saveNewButton.Content;
+            saveNewButton.Content=L.P("Saving…","저장하는 중…");
+            try {
+                SavedEditedPath=await SaveEditedCopy(this);
+            } catch(Exception ex) {
+                UI.Error(this,ex);
+                return;
+            } finally {
+                saving=false;layout.IsEnabled=true;saveNewButton.Content=prevLabel;
+            }
+            if(!String.IsNullOrEmpty(SavedEditedPath))DialogResult=false;
         }
         // The cover's shape: fill the grid's cell, the whole picture, a common shape, or any width and height typed in.
         FrameworkElement ShapeBar() {
@@ -635,10 +735,10 @@ namespace LoveMyShelf {
                 double cell=CropSurface.GridCell;
                 fill.Content=Covers.OneCellLabel(cell);
                 fill.ToolTip=L.P("Cuts the cover in the same shape as the grid's cells, so it fills its cell with no empty bands.",
-                    "바둑판 칸과 같은 모양으로 잘라서, 칸에 빈 띠 없이 꽉 차게 보여요.");
+                    "바둑판 칸과 같은 모양으로 잘라서 칸에 빈 띠 없이 꽉 차게 보여요.");
                 fillTwo.Content=Covers.TwoCellsLabel(cell);
                 fillTwo.ToolTip=L.P("Cuts a wide cover that takes two cells side by side and fills both with no empty bands.",
-                    "가로로 긴 표지로 잘라서, 칸 두 개를 빈 띠 없이 꽉 채워요.");
+                    "가로로 긴 표지로 잘라서 칸 두 개를 빈 띠 없이 꽉 채워요.");
                 AutomationProperties.SetName(fill,(string)fill.Content);AutomationProperties.SetName(fillTwo,(string)fillTwo.Content);
                 var grid=CropSurface.Prefs;
                 fillTwo.Visibility=grid==null || grid.WideCovers?Visibility.Visible:Visibility.Collapsed;
@@ -704,7 +804,7 @@ namespace LoveMyShelf {
             var cells=UI.Btn("",()=>{});cells.Margin=new Thickness(0,10,0,0);cells.HorizontalAlignment=HorizontalAlignment.Left;
             cells.Padding=new Thickness(8,0,8,0);panel.Children.Add(cells);
             cells.ToolTip=L.P("The shape of the grid's cells. Covers keep their own shape; only how they sit in the cells changes.",
-                "바둑판 칸의 모양이에요. 표지는 그대로이고, 칸에 들어가는 모습만 바뀌어요.");
+                "바둑판 칸의 모양이에요. 표지는 그대로이고 칸에 들어가는 모습만 바뀌어요.");
             cells.Click+=delegate {
                 var menu=new ContextMenu {PlacementTarget=cells,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom};
                 var prefs=CropSurface.Prefs;
@@ -727,10 +827,10 @@ namespace LoveMyShelf {
                 note.Text=two?L.P("It's wide, so it takes two cells side by side ("+percent+"% filled).","가로로 길어서 칸 두 개에 넓게 보여요 (칸을 "+percent+"% 채워요)."):
                     percent>=99?L.P("It fills its cell exactly.","칸에 꽉 차요."):
                     L.P("It fills "+percent+"% of its cell; the rest shows as a plain band. [Fill the grid's cell] makes it fill the cell.",
-                        "칸의 "+percent+"%를 채우고, 남는 곳은 빈 띠로 보여요. [칸에 꽉 맞추기]를 누르면 칸에 꽉 차요.");
+                        "칸의 "+percent+"%를 채우고 남는 곳은 빈 띠로 보여요. [칸에 꽉 맞추기]를 누르면 칸에 꽉 차요.");
                 peek.InvalidateMeasure();peek.InvalidateVisual();
             };
-            Surface.ShapeChanged+=update;Surface.RotationChanged+=update;Surface.BrightnessChanged+=update;
+            Surface.ShapeChanged+=update;Surface.RotationChanged+=update;Surface.BrightnessChanged+=update;Surface.AdjustChanged+=update;
             GalleryWindow.TileShapeChanged+=update;
             Closed+=delegate {GalleryWindow.TileShapeChanged-=update;};
             update();
@@ -760,7 +860,7 @@ namespace LoveMyShelf {
                 var to=new Rect(box.X+(box.Width-w)/2,box.Y+(box.Height-h)/2,w,h);
                 dc.PushClip(new RectangleGeometry(to));
                 dc.DrawRectangle(Brushes.Black,null,to);
-                Pictures.DrawCover(dc,surface.Source,surface.Fraction,surface.Rotation,to,surface.Brightness);
+                Pictures.DrawCover(dc,surface.Source,surface.Fraction,surface.Rotation,to,surface.Brightness,surface.Adjust);
                 dc.Pop();
                 dc.DrawRectangle(null,new Pen(UI.B("Accent"),2),box);
                 // The other cells: empty stand-ins for the files around it.
@@ -771,15 +871,24 @@ namespace LoveMyShelf {
             }
         }
         // Shows Make GIF for videos and GIFs. The callback saves the cover, then makes the GIF in the background.
-        internal void EnableMotion(Func<CropWindow,MotionRequest,Task> commit,Func<MotionSource> source) {
-            commitMotion=commit;motionSource=source;
+        Func<MotionRequest,System.Threading.CancellationToken,Action<double>,Task<string>> saveEditedMotion;
+        internal void EnableMotion(Func<CropWindow,MotionRequest,Task> commit,Func<MotionSource> source,
+            Func<MotionRequest,System.Threading.CancellationToken,Action<double>,Task<string>> saveEditedMotion=null) {
+            commitMotion=commit;motionSource=source;this.saveEditedMotion=saveEditedMotion;
             motionButton.Visibility=commit==null?Visibility.Collapsed:Visibility.Visible;
         }
         void MakeMotion() {
             if(saving || !save.IsEnabled || commitMotion==null)return;
             if(motionSource==null)return;
             var dialog=new MotionWindow(this,motionSource(),true);
-            if(CoverWork.Show(dialog)!=true)return;
+            dialog.SaveEditedFile=saveEditedMotion;
+            if(CoverWork.Show(dialog)!=true) {
+                if(!String.IsNullOrEmpty(dialog.SavedEditedPath)) {
+                    SavedEditedPath=dialog.SavedEditedPath;
+                    DialogResult=false;
+                }
+                return;
+            }
             var request=dialog.Value;
             SaveCover(editor=>commitMotion(editor,request));
         }
@@ -922,6 +1031,8 @@ namespace LoveMyShelf {
                 var image=await Task.Run(()=>nearby==null?AnimationFrames.Still(framePath,target,previewSide):
                     VideoFrames.AtTime(framePath,nearby.Start(target),nearby.TimestampOffset(target),previewSide,System.Threading.CancellationToken.None));
                 if(!IsVisible)return;
+                eraseRunner.Cancel();
+                drawing.InvalidateAiPatch();
                 Surface.ShowFrame(image);FrameIndex=target;
             } catch(Exception ex){if(IsVisible)UI.Error(this,ex);}
             finally {if(IsVisible)UpdateFrameControls(true);}

@@ -31,9 +31,26 @@ namespace LoveMyShelf {
                     item.Click+=delegate {menu.IsOpen=false;Run(owner,photo,content,sheet);};
                     parent.Items.Add(item);
                 }
+                var kinds=CoverKindsMenu(menu,owner);
+                parent.Items.Add(kinds);
+                menu.Opened+=delegate {
+                    kinds.Visibility=photo.HasCrop && photo.HasMotion?Visibility.Visible:Visibility.Collapsed;
+                };
             }
             menu.Items.Add(new Separator());
             menu.Items.Add(copy);menu.Items.Add(share);
+        }
+        internal static MenuItem CoverKindsMenu(ContextMenu menu,GalleryWindow owner) {
+            var kinds=new MenuItem {Header=L.P("Cover types","보낼 표지")};
+            foreach(var choice in new[]{ShareCoverKind.Both,ShareCoverKind.MovingOnly,ShareCoverKind.StillOnly}) {
+                var kind=choice;
+                var item=new MenuItem {IsCheckable=true,Header=kind==ShareCoverKind.MovingOnly?L.P("Moving cover only","움직이는 표지만"):
+                    kind==ShareCoverKind.StillOnly?L.P("Still cover only","멈춘 표지만"):L.P("Both","둘 다")};
+                menu.Opened+=delegate {item.IsChecked=owner.Settings.ShareCovers==kind;};
+                item.Click+=delegate {owner.RememberShareCovers(kind);};
+                kinds.Items.Add(item);
+            }
+            return kinds;
         }
         static string Label(ShareContent content,bool only) {
             if(only)return L.T("Original");
@@ -42,7 +59,7 @@ namespace LoveMyShelf {
 
         static async void Run(GalleryWindow owner,Photo photo,ShareContent content,bool sheet) {
             try {
-                var files=await ShareFiles.Collect(owner,photo,content,true);
+                var files=await ShareFiles.Collect(owner,photo,content,owner.Settings.ShareCovers,true);
                 if(files==null || files.Count==0)return;
                 if(sheet)ShareSheet.Show(owner,files);
                 else {
@@ -59,10 +76,11 @@ namespace LoveMyShelf {
         internal static async void RunMany(GalleryWindow owner,List<Photo> photos,bool sheet) {
             try {
                 var files=new List<string>();
+                var kinds=owner.Settings.ShareCovers;
                 bool? clip=null;
                 foreach(var photo in photos) {
                     var content=photo.HasCrop?owner.Settings.Share:ShareContent.OriginalOnly;
-                    files.AddRange(await ShareFiles.Collect(owner,photo,content,true,()=>{
+                    files.AddRange(await ShareFiles.Collect(owner,photo,content,kinds,true,()=>{
                         if(clip==null) {
                             var dialog=new LargeVideoWindow(owner,L.F("{0:N0} items",photos.Count),0);
                             if(dialog.ShowDialog()!=true)throw new OperationCanceledException();
@@ -98,7 +116,7 @@ namespace LoveMyShelf {
                 var targets=owner.DragTargets(photo);
                 var files=new List<string>();
                 foreach(var target in targets)
-                    files.AddRange(ShareFiles.Immediate(target,target.HasCrop?owner.Settings.Share:ShareContent.OriginalOnly));
+                    files.AddRange(ShareFiles.Immediate(target,target.HasCrop?owner.Settings.Share:ShareContent.OriginalOnly,owner.Settings.ShareCovers));
                 files=files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 if(files.Count==0)return;
                 tile.ReleaseMouseCapture();
@@ -124,24 +142,25 @@ namespace LoveMyShelf {
 
     internal static class ShareFiles {
         // Files that exist right now, without asking anything. Used for dragging.
-        internal static List<string> Immediate(Photo photo,ShareContent content) {
+        internal static List<string> Immediate(Photo photo,ShareContent content,ShareCoverKind kinds) {
             var files=new List<string>();
-            if(content!=ShareContent.OriginalOnly)files.AddRange(Covers(photo));
+            if(content!=ShareContent.OriginalOnly)files.AddRange(Covers(photo,kinds));
             if(content!=ShareContent.CoverOnly && File.Exists(photo.Original))files.Add(photo.Original);
             return files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
-        static IEnumerable<string> Covers(Photo photo) {
+        static IEnumerable<string> Covers(Photo photo,ShareCoverKind kinds) {
             if(!photo.HasCrop)yield break;
-            if(File.Exists(photo.ActiveCoverFile))yield return photo.ActiveCoverFile;
-            if(photo.HasMotion)yield return photo.MotionFile;
+            bool moving=photo.HasMotion;
+            if((kinds!=ShareCoverKind.MovingOnly || !moving) && File.Exists(photo.ActiveCoverFile))yield return photo.ActiveCoverFile;
+            if(moving && kinds!=ShareCoverKind.StillOnly)yield return photo.MotionFile;
         }
 
         // Covers and/or the original. A video larger than the limit asks: send as is, or a short clip around the cover.
-        internal static async Task<List<string>> Collect(GalleryWindow owner,Photo photo,ShareContent content,bool ask,Func<bool> decide=null) {
+        internal static async Task<List<string>> Collect(GalleryWindow owner,Photo photo,ShareContent content,ShareCoverKind kinds,bool ask,Func<bool> decide=null) {
             if(!photo.HasCrop)content=ShareContent.OriginalOnly;
             var files=new List<string>();
             if(content!=ShareContent.OriginalOnly) {
-                files.AddRange(Covers(photo));
+                files.AddRange(Covers(photo,kinds));
                 if(files.Count==0 && content==ShareContent.CoverOnly)throw new FileNotFoundException(L.T("The saved cover file can't be found."));
             }
             if(content!=ShareContent.CoverOnly) {

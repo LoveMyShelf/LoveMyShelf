@@ -46,13 +46,15 @@ namespace LoveMyShelf {
         }
 
         internal static string Write(string directory,string name,string folder,string revision,BitmapSource source,
-            Rect crop,double rotation,CancellationToken token,int brightness,bool trimVerticalPadding=true,bool beside=false,string drawings=null) {
+            Rect crop,double rotation,CancellationToken token,int brightness,bool trimVerticalPadding=true,bool beside=false,string drawings=null,
+            AdjustValues adjust=default(AdjustValues),BitmapSource eraseAi=null) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
             Directory.CreateDirectory(directory);
             string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
             try {
                 // A drawing is positioned in the full editor frame, including any padding the user saw.
-                var image=CoverImages.NativeCover(source,crop,rotation,token,brightness,trimVerticalPadding && String.IsNullOrEmpty(drawings));
-                image=MotionDraw.Apply(image,drawings);
+                var image=CoverImages.NativeCover(source,crop,rotation,token,adjust.Brightness,trimVerticalPadding && String.IsNullOrEmpty(drawings),adjust);
+                image=MotionDraw.Apply(image,drawings,eraseAi);
                 using(var stream=File.Create(part)) {
                     var encoder=new JpegBitmapEncoder {QualityLevel=100};
                     encoder.Frames.Add(BitmapFrame.Create(image));
@@ -60,6 +62,56 @@ namespace LoveMyShelf {
                 }
                 return Publish(part,directory,Stem(name,folder,revision,beside),token);
             } finally {File.Delete(part);}
+        }
+
+        // Saves the edited picture as a standalone new file beside the original ("name_편집.jpg", " (2)" on collision).
+        // Never overwrites the original or any existing file.
+        internal static string WriteEditedJpg(string originalPath,BitmapSource source,Rect crop,double rotation,
+            AdjustValues adjust,string drawings,BitmapSource eraseAi,CancellationToken token,string fallbackDirectory=null) {
+            if(String.IsNullOrEmpty(originalPath))throw new ArgumentException("originalPath");
+            string directory=Path.GetDirectoryName(originalPath);
+            if(String.IsNullOrEmpty(directory))directory=fallbackDirectory;
+            if(String.IsNullOrEmpty(directory))throw new InvalidOperationException(L.T("The source folder could not be found."));
+            string stem=EditedStem(originalPath);
+            try {
+                return WriteEditedJpgTo(directory,stem,originalPath,source,crop,rotation,adjust,drawings,eraseAi,token);
+            } catch(Exception ex) {
+                if(String.IsNullOrEmpty(fallbackDirectory) || String.Equals(directory,fallbackDirectory,StringComparison.OrdinalIgnoreCase) ||
+                    token.IsCancellationRequested || !(ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException))throw;
+                return WriteEditedJpgTo(fallbackDirectory,stem,originalPath,source,crop,rotation,adjust,drawings,eraseAi,token);
+            }
+        }
+
+        internal static string EditedStem(string originalPath) {
+            string stem=Path.GetFileNameWithoutExtension(originalPath);
+            if(String.IsNullOrEmpty(stem))stem="picture";
+            if(stem.Length>120)stem=stem.Substring(0,120).TrimEnd();
+            return stem+L.P("_edited","_편집");
+        }
+
+        static string WriteEditedJpgTo(string directory,string stem,string originalPath,BitmapSource source,Rect crop,double rotation,
+            AdjustValues adjust,string drawings,BitmapSource eraseAi,CancellationToken token) {
+            Directory.CreateDirectory(directory);
+            string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
+            try {
+                var image=CoverImages.NativeCover(source,crop,rotation,token,adjust.Brightness,String.IsNullOrEmpty(drawings),adjust);
+                image=MotionDraw.Apply(image,drawings,eraseAi);
+                using(var stream=File.Create(part)) {
+                    var encoder=new JpegBitmapEncoder {QualityLevel=98};
+                    encoder.Frames.Add(BitmapFrame.Create(image));
+                    encoder.Save(stream);
+                }
+                for(int i=1;;i++) {
+                    token.ThrowIfCancellationRequested();
+                    string path=Path.Combine(directory,stem+(i==1?"":" ("+i+")")+".jpg");
+                    if(String.Equals(Path.GetFullPath(path),Path.GetFullPath(originalPath),StringComparison.OrdinalIgnoreCase))continue;
+                    if(File.Exists(path) || Directory.Exists(path))continue;
+                    try {File.Move(part,path);return path;}
+                    catch(IOException) {if(!File.Exists(path) && !Directory.Exists(path))throw;}
+                }
+            } finally {
+                try {if(File.Exists(part))File.Delete(part);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
+            }
         }
 
         internal static string Publish(string temp,string directory,string stem,CancellationToken token,string extension=".jpg") {
@@ -80,7 +132,7 @@ namespace LoveMyShelf {
             string output=null;
             try {
                 output=Write(directory,old.Name,old.Folder,Path.GetFileName(old.Thumb),source,old.Crop,old.Rotation,token,old.Brightness,
-                    trimVerticalPadding:false,drawings:old.Drawings);
+                    trimVerticalPadding:false,drawings:old.Drawings,adjust:old.Adjust,eraseAi:old.LoadEraseAiPatch(false));
                 lock(MetadataLock) {
                     token.ThrowIfCancellationRequested();
                     var xml=XElement.Load(metadata);

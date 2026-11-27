@@ -79,38 +79,66 @@ namespace LoveMyShelf {
             transform.Translate(destination.X+destination.Width/2,destination.Y+destination.Height/2);
             return transform;
         }
-        internal static void DrawCover(DrawingContext dc,BitmapSource source,Rect fraction,double rotation,Rect destination,int brightness=0) {
+        internal static void DrawCover(DrawingContext dc,BitmapSource source,Rect fraction,double rotation,Rect destination,int brightness=0,
+            AdjustValues adjust=default(AdjustValues)) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
             double w=source.PixelWidth,h=source.PixelHeight;
-            dc.PushTransform(new MatrixTransform(CoverTransform(w,h,fraction,rotation,destination)));
+            var matrix=CoverTransform(w,h,fraction,rotation,destination);
+            dc.PushTransform(new MatrixTransform(matrix));
+            if(!adjust.IsIdentity && (long)source.PixelWidth*source.PixelHeight>2500000L && matrix.HasInverse) {
+                var inv=matrix;inv.Invert();
+                double minX=w,minY=h,maxX=0,maxY=0;
+                foreach(var pt in new[]{destination.TopLeft,destination.TopRight,destination.BottomRight,destination.BottomLeft}) {
+                    var sp=inv.Transform(pt);
+                    if(sp.X<minX)minX=sp.X;if(sp.X>maxX)maxX=sp.X;
+                    if(sp.Y<minY)minY=sp.Y;if(sp.Y>maxY)maxY=sp.Y;
+                }
+                int sx=Math.Max(0,(int)Math.Floor(minX)-4),sy=Math.Max(0,(int)Math.Floor(minY)-4);
+                int sr=Math.Min((int)w,(int)Math.Ceiling(maxX)+4),sb=Math.Min((int)h,(int)Math.Ceiling(maxY)+4);
+                if(sr-sx>=4 && sb-sy>=4 && (long)(sr-sx)*(sb-sy)<(long)source.PixelWidth*source.PixelHeight*3/4) {
+                    var sub=new CroppedBitmap(source,new Int32Rect(sx,sy,sr-sx,sb-sy));
+                    sub.Freeze();
+                    dc.DrawImage(ColorAdjust.Apply(sub,adjust),new Rect(sx,sy,sr-sx,sb-sy));
+                    dc.Pop();
+                    return;
+                }
+            }
             var bounds=new Rect(0,0,w,h);
-            // Every style, Milky's white or black sheet too, is drawn on the colors (see Light).
-            dc.DrawImage(Light.Apply(source,brightness),bounds);
+            // Every style, Milky's white or black sheet too, is drawn on the colors (see Light and ColorAdjust).
+            dc.DrawImage(ColorAdjust.Apply(source,adjust),bounds);
             dc.Pop();
         }
-        internal static BitmapSource RenderRotatedCover(BitmapSource source,Rect fraction,double rotation,int width,int height,int brightness=0) {
+        internal static BitmapSource RenderRotatedCover(BitmapSource source,Rect fraction,double rotation,int width,int height,int brightness=0,
+            AdjustValues adjust=default(AdjustValues)) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
+            var tone=adjust;tone.Sharpness=0;
             var visual=new DrawingVisual();
             RenderOptions.SetBitmapScalingMode(visual,BitmapScalingMode.HighQuality);
             var destination=new Rect(0,0,width,height);
             using(var dc=visual.RenderOpen()) {
                 dc.DrawRectangle(Brushes.Black,null,destination);
-                DrawCover(dc,source,fraction,rotation,destination,brightness);
+                DrawCover(dc,source,fraction,rotation,destination,tone.Brightness,tone);
             }
             var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
-            target.Render(visual);target.Freeze();return target;
+            target.Render(visual);target.Freeze();
+            if(adjust.Sharpness>0)return ColorAdjust.Apply(target,new AdjustValues {Sharpness=adjust.Sharpness});
+            return target;
         }
         internal static BitmapSource ViewCover(BitmapSource source,Photo photo) {
+            var adjust=photo.Adjust;
+            if(adjust.IsIdentity && photo.Brightness!=0)adjust.Brightness=photo.Brightness;
             if(!String.IsNullOrEmpty(photo.Drawings))
                 return MotionDraw.Apply(CoverImages.NativeCover(source,photo.Crop,photo.Rotation,
-                    System.Threading.CancellationToken.None,photo.Brightness),photo.Drawings);
+                    System.Threading.CancellationToken.None,adjust.Brightness,false,adjust),photo.Drawings,photo.LoadEraseAiPatch(false));
             if(photo.Rotation==0) {
                 var cut=Cut(source,photo.Crop);
-                return photo.Brightness==0?cut:RenderRotatedCover(cut,new Rect(0,0,1,1),0,cut.PixelWidth,cut.PixelHeight,photo.Brightness);
+                return adjust.IsIdentity?cut:ColorAdjust.Apply(cut,adjust);
             }
             Rect frame=photo.Crop;
             double width=frame.Width*source.PixelWidth,height=frame.Height*source.PixelHeight;
             double scale=Math.Min(1,Math.Max(source.PixelWidth,source.PixelHeight)/Math.Max(width,height));
             return RenderRotatedCover(source,frame,photo.Rotation,
-                Math.Max(1,(int)Math.Round(width*scale)),Math.Max(1,(int)Math.Round(height*scale)),photo.Brightness);
+                Math.Max(1,(int)Math.Round(width*scale)),Math.Max(1,(int)Math.Round(height*scale)),adjust.Brightness,adjust);
         }
         internal static BitmapSource SavedPreview(Photo photo) {
             if(File.Exists(photo.ActiveCoverFile))return Load(photo.ActiveCoverFile,448);
@@ -137,13 +165,15 @@ namespace LoveMyShelf {
         public static void Thumbnail(BitmapSource source, Rect fraction, string path,double rotation=0,int brightness=0) {
             using (var output = File.Create(path)) Thumbnail(source,fraction,output,rotation,brightness);
         }
-        internal static void Thumbnail(BitmapSource source, Rect fraction, Stream output,double rotation=0,int brightness=0,string drawings=null) {
+        internal static void Thumbnail(BitmapSource source, Rect fraction, Stream output,double rotation=0,int brightness=0,string drawings=null,
+            AdjustValues adjust=default(AdjustValues),BitmapSource eraseAi=null) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
             var encoder = new JpegBitmapEncoder { QualityLevel = 88 };
             // At most 448 on the long side, in the cover's own shape (252 x 448 for a 9:16 cover).
             double aspect=Covers.AspectOf(fraction,source.PixelWidth,source.PixelHeight);
             int w=Math.Max(1,(int)Math.Round(aspect>=1?448:448*aspect)),h=Math.Max(1,(int)Math.Round(aspect>=1?448/aspect:448));
-            var picture=rotation==0 && brightness==0?RenderCrop(source,fraction,w,h):RenderRotatedCover(source,fraction,rotation,w,h,brightness);
-            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(picture,drawings)));
+            var picture=rotation==0 && adjust.IsIdentity?RenderCrop(source,fraction,w,h):RenderRotatedCover(source,fraction,rotation,w,h,adjust.Brightness,adjust);
+            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(picture,drawings,eraseAi)));
             encoder.Save(output);
         }
     }
@@ -186,6 +216,7 @@ namespace LoveMyShelf {
         internal double Aspect=Covers.Tall;
         public double Rotation;
         internal int Brightness;
+        internal AdjustValues Adjust;
         public bool Linked, ExcludedFromCollection;
         public int FrameIndex;
         internal double? FrameTime;
@@ -210,6 +241,32 @@ namespace LoveMyShelf {
         internal bool IsExtra {get {return LeadFolder!=null;}}
         public long Order;
         internal long CoverCreated;
+        internal EraseAiPatch LoadEraseRecord(bool forGif=false) {
+            if(String.IsNullOrEmpty(Folder))return null;
+            if(!forGif) {
+                var shapes=MotionShape.Read(Drawings);
+                if(!shapes.Any(s=>s.IsAiErase))return null;
+                string strokes=EraseStore.CanonicalEraseStrokes(shapes);
+                var adj=Adjust;if(adj.IsIdentity && Brightness!=0)adj.Brightness=Brightness;
+                string srcId=EraseStore.SourceIdentity(Original,FrameIndex,FrameTime,PictureFile);
+                string key=EraseStore.BuildCacheKey(srcId,Crop,Rotation,adj,strokes);
+                return EraseStore.TryLoadFromRecord(Folder,key,strokes,false);
+            } else {
+                if(MotionSettings==null)return null;
+                var shapes=MotionShape.Read(MotionSettings.Shapes);
+                var aiShape=shapes.FirstOrDefault(s=>s.IsAiErase);
+                if(aiShape==null)return null;
+                string strokes=EraseStore.CanonicalEraseStrokes(shapes);
+                var adj=MotionSettings.EffectiveAdjust(Adjust);
+                string srcId=EraseStore.SourceIdentity(Original,0,aiShape.EraseSceneMs,null);
+                string key=EraseStore.BuildCacheKey(srcId,Crop,Rotation,adj,strokes,MotionSettings.FlipX,MotionSettings.FlipY);
+                return EraseStore.TryLoadFromRecord(Folder,key,strokes,true);
+            }
+        }
+        internal BitmapSource LoadEraseAiPatch(bool forGif=false) {
+            var rec=LoadEraseRecord(forGif);
+            return rec!=null?rec.Patch:null;
+        }
     }
     public class GalleryStore {
         public readonly string Root;
@@ -366,7 +423,9 @@ namespace LoveMyShelf {
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
             int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs,
-            string picture=null,double? rank=null,double aspect=Covers.Tall,string drawings=null) {
+            string picture=null,double? rank=null,double aspect=Covers.Tall,string drawings=null,AdjustValues adjust=default(AdjustValues)) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
+            brightness=adjust.Brightness;
             new XElement("photo",new XAttribute("name",name),new XAttribute("original",original),
                 new XAttribute("thumb",thumb), new XAttribute("order",order),new XAttribute("coverCreated",coverCreated),new XAttribute("frame",frameIndex),
                 new XAttribute("x",Num(crop.X)),new XAttribute("y",Num(crop.Y)),
@@ -376,6 +435,10 @@ namespace LoveMyShelf {
                 // "brightness": the old white or black sheet; "soft" and "light" (See in the dark): the curves (see Light).
                 // Older versions ignore "soft" and "light".
                 brightness==0?null:new XAttribute(Light.Style(brightness)==Light.Sheet?"brightness":Light.Style(brightness)==Light.Dark?"light":"soft",Light.Level(brightness)),
+                adjust.Contrast==0?null:new XAttribute("contrast",adjust.Contrast),
+                adjust.Saturation==0?null:new XAttribute("saturation",adjust.Saturation),
+                adjust.Temperature==0?null:new XAttribute("temp",adjust.Temperature),
+                adjust.Sharpness<=0?null:new XAttribute("sharp",adjust.Sharpness),
                 frameTime.HasValue?new XAttribute("frameTimeMs",Num(frameTime.Value)):null,
                 frameTimeOffset>0?new XAttribute("frameTimeOffset",frameTimeOffset):null,
                 sceneMs.HasValue?new XAttribute("sceneMs",Num(sceneMs.Value)):null,
@@ -419,12 +482,14 @@ namespace LoveMyShelf {
                 try {picture=Path.GetFileName(picture);} catch(ArgumentException) {picture=null;}
                 if(String.IsNullOrEmpty(picture))picture=null;
             }
+            int brightness=n.Attribute("soft")!=null?Light.Encode((int)n.Attribute("soft"),Light.Soft):
+                n.Attribute("light")!=null?Light.Encode((int)n.Attribute("light"),Light.Dark):Light.Legacy((int?)n.Attribute("brightness")??0);
+            var adjust=AdjustValues.ReadXml(n,brightness);
             return new Photo { Folder=folder,Name=(string)n.Attribute("name"), Crop=r,Order=(long)n.Attribute("order"),
                 SavedSceneMs=sceneMs,Picture=picture,Rank=rank,Drawings=(string)n.Attribute("drawings"),
                 CoverCreated=coverCreated,
                 Rotation=CropSurface.NormalizeRotation(rotation),
-                Brightness=n.Attribute("soft")!=null?Light.Encode((int)n.Attribute("soft"),Light.Soft):
-                    n.Attribute("light")!=null?Light.Encode((int)n.Attribute("light"),Light.Dark):Light.Legacy((int?)n.Attribute("brightness")??0),
+                Brightness=adjust.Brightness,Adjust=adjust,
                 FrameIndex=(int?)n.Attribute("frame")??0,
                 Aspect=Covers.Valid((double?)n.Attribute("aspect")),
                 FrameTime=frameTime,FrameTimeOffset=frameTimeOffset,
@@ -933,7 +998,11 @@ namespace LoveMyShelf {
         }
         internal Photo Reframe(Photo old,BitmapSource preview,Rect crop,int? frameIndex,double rotation,
             double? frameTime,int frameTimeOffset,CoverOutputMode mode,int maxHeight,System.Threading.CancellationToken token,
-            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null,string drawings=null) {
+            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null,string drawings=null,
+            AdjustValues adjust=default(AdjustValues),EraseAiPatch eraseAi=null) {
+            if(adjust.IsIdentity && brightness!=0)adjust.Brightness=brightness;
+            adjust=adjust.Clamped();
+            brightness=adjust.Brightness;
             drawings=MotionShape.Normalize(drawings??old.Drawings);
             // picture: a picture made outside LoveMyShelf that the cover is cut from, instead of the original.
             // The original stays the file the cover belongs to, so where the cover is saved and how it is found again don't change.
@@ -984,9 +1053,24 @@ namespace LoveMyShelf {
                         File.SetAttributes(pictureCopy,FileAttributes.Normal);
                     }
                 }
+                string savedPicturePath=pictureName==null?null:Path.Combine(old.Folder,pictureName);
+                var parsedShapes=MotionShape.Read(drawings);
+                string canonicalErase=EraseStore.CanonicalEraseStrokes(parsedShapes);
+                string expectedEraseKey=parsedShapes.Any(s=>s.IsErase)?
+                    EraseStore.BuildCacheKey(EraseStore.SourceIdentity(original,selectedFrame,selectedTime,savedPicturePath),crop,rotation,adjust,canonicalErase):null;
+                if(eraseAi!=null && eraseAi.Patch!=null && expectedEraseKey!=null && eraseAi.StrokesSpec==canonicalErase) {
+                    eraseAi=new EraseAiPatch(eraseAi.Patch,canonicalErase,expectedEraseKey,eraseAi.SceneMs);
+                } else if(eraseAi==null && expectedEraseKey!=null && parsedShapes.Any(s=>s.IsAiErase)) {
+                    eraseAi=EraseStore.TryLoadFromRecord(old.Folder,expectedEraseKey,canonicalErase,false);
+                } else {
+                    eraseAi=null;
+                }
+                if(eraseAi==null)drawings=MotionShape.WithoutAiFlag(drawings);
+                BitmapSource erasePatchBmp=eraseAi!=null?eraseAi.Patch:null;
+
                 if(coverDirectory==null) {
-                    using(var output=File.Create(newThumb))Pictures.Thumbnail(preview,crop,output,rotation,brightness,drawings);
-                    using(var output=File.Create(display))CoverImages.Save(source,crop,rotation,output,maxHeight,native,token,brightness,drawings);
+                    using(var output=File.Create(newThumb))Pictures.Thumbnail(preview,crop,output,rotation,brightness,drawings,adjust,erasePatchBmp);
+                    using(var output=File.Create(display))CoverImages.Save(source,crop,rotation,output,maxHeight,native,token,brightness,drawings,adjust,erasePatchBmp);
                 } else {
                     if(old.Linked && !originalAway)OriginalLocator.Remember(old,original,required:true);
                     string folderTarget=SharedCoverFiles.TargetFolder(place,coverDirectory,original,old.Linked);
@@ -1002,20 +1086,21 @@ namespace LoveMyShelf {
                     }
                     bool beside=originalAway?besideEarlier:folderTarget!=coverDirectory && place==CoverPlace.BesideOriginal;
                     try {
-                        coverFile=SharedCoverFiles.Write(folderTarget,old.Name,old.Folder,id,source,crop,rotation,token,brightness,beside:beside,drawings:drawings);
+                        coverFile=SharedCoverFiles.Write(folderTarget,old.Name,old.Folder,id,source,crop,rotation,token,brightness,beside:beside,drawings:drawings,adjust:adjust,eraseAi:erasePatchBmp);
                     } catch(Exception ex) {
                         // A phone, a read-only or an offline cloud folder: keep the cover in the cover folder instead.
                         if(folderTarget==coverDirectory || token.IsCancellationRequested ||
                             !(ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException))throw;
-                        coverFile=SharedCoverFiles.Write(coverDirectory,old.Name,old.Folder,id,source,crop,rotation,token,brightness,drawings:drawings);
+                        coverFile=SharedCoverFiles.Write(coverDirectory,old.Name,old.Folder,id,source,crop,rotation,token,brightness,drawings:drawings,adjust:adjust,eraseAi:erasePatchBmp);
                         fellBack=true;
                     }
                 }
                 token.ThrowIfCancellationRequested();
+                EraseStore.SaveToRecord(old.Folder,eraseAi,false);
                 long coverCreated=old.CoverCreated>0?old.CoverCreated:DateTime.UtcNow.Ticks;
                 WriteMeta(part,old.Name,Path.GetFileName(old.Original),thumb,crop,old.Order,coverCreated,selectedFrame,
                     rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs,pictureName,CurrentRank(old.Folder,old.Rank),
-                    Covers.AspectOf(crop,(preview??source).PixelWidth,(preview??source).PixelHeight),drawings);
+                    Covers.AspectOf(crop,(preview??source).PixelWidth,(preview??source).PixelHeight),drawings,adjust);
                 string target=Path.Combine(old.Folder,"photo.xml");
                 lock(SharedCoverFiles.MetadataLock) {
                     if(File.Exists(target)) {
@@ -1023,7 +1108,7 @@ namespace LoveMyShelf {
                             previous=Read(old.Folder,old.Linked?original:null);
                             // Editing the JPG drawing alone leaves the separately made moving cover in place.
                             if(previous.MotionFile!=null && (previous.Drawings??"")!=drawings && previous.Crop==crop &&
-                                previous.Rotation==rotation && previous.Brightness==brightness && previous.FrameIndex==selectedFrame &&
+                                previous.Rotation==rotation && previous.Adjust==adjust && previous.FrameIndex==selectedFrame &&
                                 previous.FrameTime==selectedTime && previous.FrameTimeOffset==selectedOffset && previous.Picture==pictureName) {
                                 var current=XElement.Load(target);
                                 var next=XElement.Load(part);

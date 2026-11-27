@@ -1083,11 +1083,37 @@ namespace LoveMyShelf {
                     K(T("Skip back / forward (videos)","뒤로 / 앞으로 건너뛰기 (영상)"),"←","→"),K(T("Skip one second (videos)","1초 건너뛰기 (영상)"),"Shift","←","→"),
                     K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark / Milky","밝기 방식: 부드럽게 / 어두운 곳 보기 / 뽀얗게"),"R"),
                     K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});
-            make.Items.Add(new Card {Title=T("Rotation and brightness","회전과 밝기"),
+            make.Items.Add(new Card {Title=T("Rotation","회전"),
                 Lines=new[]{T("Move the [[Rotation]] slider and the picture tilts 0.1° at a time. A picture lying on its side can be stood up in one go with the 90° buttons.",
                     "[[회전]] 슬라이더를 움직이면 사진이 0.1도씩 기울어요. 옆으로 누운 사진은 90도 버튼으로 한 번에 세울 수 있어요."),
-                    T("Move the [[Brightness]] slider and the picture gets brighter or darker. Click [[Reset]] and both rotation and brightness go back to how they started.",
-                      "[[밝기]] 슬라이더를 움직이면 사진이 밝아지거나 어두워져요. [[원래대로]]를 누르면 회전과 밝기가 모두 처음 상태로 돌아가요.")}});
+                    T("Click [[Reset]] at the bottom left and the frame, rotation and adjustments all return to how they started.",
+                      "왼쪽 아래의 [[원래대로]]를 누르면 테두리, 회전, 보정이 모두 처음 상태로 돌아가요.")}});
+            make.Items.Add(new Card {Title=T("Adjusting colors and brightness","색과 밝기 보정하기"),
+                Lines=new[]{
+                    T("Click [[Adjust ▾]] to unfold the adjustment controls. Both the Make cover screen and the Make GIF cover screen have it.",
+                      "[[보정 ▾]]을 누르면 보정 칸이 펼쳐져요. 표지 만들기 화면과 GIF 표지 만들기 화면 둘 다 있어요."),
+                    T("Click [[Auto adjust]] and LoveMyShelf finds natural brightness and color settings in one click. Pictures that already look balanced are left as they are.",
+                      "[[자동 보정]]을 누르면 한 번에 사진에 어울리는 밝기와 색을 찾아 줘요. 이미 균형이 괜찮은 사진은 거의 바꾸지 않고 그대로 둬요."),
+                    T("You can also set [[Brightness]], [[Contrast]], [[Saturation]], [[Color temp]] (negative makes it cooler to reduce a yellowish tint; positive makes it warmer) and [[Sharpness]] yourself with the [[−]] and [[+]] buttons, the number boxes or the preset buttons. For brightness, {{Q}}, {{W}}, {{E}} and {{R}} (Soft, See in the dark, Milky) work the same way. [[Reset]] inside [[Adjust ▾]] puts all adjustment numbers back to 0.",
+                      "[[밝기]], [[대비]], [[채도]], [[색 온도]](음수는 차갑게 해서 누런기를 줄이고 양수는 따뜻하게 해요), [[선명하게]]를 [[−]], [[+]] 버튼이나 숫자 칸, 자주 쓰는 값 버튼으로 직접 조절할 수도 있어요. 밝기는 {{Q}}, {{W}}, {{E}} 키와 {{R}} 키(부드럽게, 어두운 곳 보기, 뽀얗게)도 함께 쓸 수 있어요. 보정 칸 안의 [[원래대로]]를 누르면 보정 숫자가 모두 0으로 돌아가요."),
+                    T("Adjustments apply only to the cover and never change the original file. They are saved in the cover's record, so when you edit the cover later you can tweak the numbers again.",
+                      "보정은 표지에만 적용되고 원본 파일은 그대로예요. 설정이 표지 기록에 함께 남아서 나중에 표지를 다시 열어도 숫자를 이어서 고칠 수 있어요.")}});
+            make.Items.Add(new Card {Title=T("Erasing unwanted things in a picture","사진에 있는 필요 없는 것 지우기"),
+                Lines=new[]{
+                    T("Unfold [[Draw ▾]] and pick [[9  Erase]] (or press {{9}}) to erase unwanted things in a picture, such as printed date letters or someone passing by in the background. It is in both the JPG cover screen and the Make GIF cover screen.",
+                      "[[그림 그리기 ▾]]를 펼치고 [[9  지우기]](또는 숫자 키 {{9}})를 고르면 사진에 찍힌 날짜 글씨나 뒤에 지나가는 사람처럼 사진에 있는 필요 없는 것을 지울 수 있어요. JPG 표지 화면과 GIF 표지 만들기 화면 둘 다 있어요."),
+                    T("Paint over what you want to erase and let go of the mouse, and it is filled in right away using the surrounding colors and texture.",
+                      "지우고 싶은 곳을 칠하고 마우스를 놓으면 주변 색과 결을 바탕으로 바로 메워져요."),
+                    T("Once there is at least one erase stroke, [[Fill with AI]] appears next to the thickness row. Click it when a spot is large or has background lines, and the AI model on your PC fills the painted spots again. It takes about 2-3 seconds. Press {{Ctrl}} + {{Z}} once to go back to before AI was applied; adding or deleting an erase stroke goes back to the fast fill.",
+                      "지우기 획이 하나라도 있으면 굵기 줄 옆에 [[AI로 메우기]] 버튼이 나타나요. 지울 자리가 넓거나 배경 선이 지나갈 때 누르면 내 PC 안의 AI가 칠한 곳을 다시 메워요. 2~3초쯤 걸려요. {{Ctrl}} + {{Z}}를 한 번 누르면 AI 적용 전으로 바로 돌아가요. 획을 더 칠하거나 지우면 빠른 메우기로 돌아가요."),
+                    T("In Make GIF cover, [[Cover with this scene's patch]] covers the spot steadily using the scene you are looking at now (and lets you use [[Fill with AI]]), while [[Fill each scene separately]] fills moving backgrounds quickly scene by scene.",
+                      "GIF 표지 만들기에서는 [[이 장면 조각으로 덮기]]를 고르면 지금 보고 있는 장면을 기준으로 흔들림 없이 덮어 주고 [[AI로 메우기]]도 쓸 수 있어요. 배경이 움직일 때는 [[장면마다 따로 메우기]]를 고르면 장면마다 빠르게 메워요.")}});
+            make.Items.Add(new Card {Title=T("Saving an edited copy as a new file","편집해서 새 파일로 저장하기"),
+                Lines=new[]{
+                    T("Click [[Save as new file]] in the Make cover screen or the Make GIF cover screen to save everything you cropped, rotated, adjusted, erased and drew as a standalone file right next to the original (such as ‘name_edited.jpg’ or ‘name_edited.gif’).",
+                      "표지 만들기 화면이나 GIF 표지 만들기 화면에서 [[새 파일로 저장]]을 누르면 자르고 회전하고 보정하고 지우고 그린 모습을 원본 옆에 새 파일(예: ‘이름_편집.jpg’, ‘이름_편집.gif’)로 따로 저장해요."),
+                    T("If a file with that name is already there, ‘ (2)’, ‘ (3)’ and so on are added automatically. The original is never overwritten, and the saved file is shown right away in the folder window.",
+                      "같은 이름의 파일이 이미 있으면 ‘ (2)’, ‘ (3)’처럼 번호가 저절로 붙어요. 원본은 덮어쓰지 않아요. 저장한 뒤에는 그 파일을 폴더 화면에서 바로 보여 줘요.")}});
             make.Items.Add(new Card {Title=T("Several covers from one original","원본 하나로 표지 여러 장"),
                 Lines=new[]{T("[[Add cover]] in the large view (or [[Make one more cover]] when you right-click a tile) keeps the covers you made before and makes one more. When a video with a cover plays, the buttons are in the order [[Pause]] · [[Add cover]] · [[View cover]] · [[Close]], so you can add a cover while watching and keep watching. [[Edit cover]] changes the cover you're looking at. If there is a GIF cover, only the button for the cover on screen appears: [[Edit GIF cover]] while the GIF cover plays, and [[Edit JPG cover]] after you click [[View JPG cover]].",
                     "크게 보기의 [[표지 추가]](칸을 오른쪽 클릭하면 [[표지 하나 더 만들기]])를 누르면 먼저 만든 표지는 그대로 두고 표지를 한 장 더 만들어요. 표지가 있는 영상을 재생할 때는 버튼이 [[일시정지]] · [[표지 추가]] · [[표지 보기]] · [[닫기]] 순서로 놓여 있어서, 영상을 보다가 표지를 추가하고 이어서 볼 수 있어요. [[표지 수정]]은 지금 보고 있는 표지를 고쳐요. GIF 표지가 있는 경우에는 지금 보이는 표지에 맞는 버튼만 나와요. GIF 표지가 재생 중일 때는 [[GIF 표지 수정]]이, [[JPG 표지 보기]]를 누른 뒤에는 [[JPG 표지 수정]]이 나와요."),
@@ -1352,8 +1378,10 @@ namespace LoveMyShelf {
                       "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 위·가운데·아래 중에 고르고, [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
                     T("To put the text exactly where you want, drag it on the preview with the mouse, or type the place across and down (%) in [[Exact place]]; the place becomes [[Your own]]. The text never goes outside the picture.",
                       "글자를 원하는 자리에 정확히 놓으려면 미리보기 위의 글자를 마우스로 끌거나, [[정확한 자리]]에 가로·세로 위치(%)를 넣어요. 그러면 자리가 [[직접]]으로 바뀌어요. 글자는 그림 밖으로 나가지 않아요."),
-                    T("[[Draw]]: open it and drag on the preview to draw boxes, circles, lines, arrows, pen lines or a mosaic box (keys 1 to 8 pick the tool). Click a drawing to move it or resize it from its corners. Drawings stay in place for the whole GIF. JPG covers have the same [[Draw]].",
-                      "[[그림 그리기]]: 펼친 뒤 미리보기 위를 끌면 네모·동그라미·직선·화살표·펜·모자이크를 그려요(숫자 키 1~8로 도구를 골라요). 그린 것을 누르면 옮기거나 모서리로 크기를 바꿀 수 있어요. 그림은 GIF 내내 같은 자리에 있어요. JPG 표지 창에도 같은 [[그림 그리기]]가 있어요."),
+                    T("[[Adjust]]: unfold it to use [[Auto adjust]] or set brightness, contrast, saturation, color temperature and sharpness for this GIF cover.",
+                      "[[보정]]: 펼치면 [[자동 보정]]을 쓰거나 밝기, 대비, 채도, 색 온도, 선명하게를 이 GIF 표지에 맞게 조절할 수 있어요."),
+                    T("[[Draw]]: open it and drag on the preview to draw boxes, circles, lines, arrows, pen lines, a mosaic box, or erase unwanted things (keys 1 to 9 pick the tool). Click a drawing to move it or resize it from its corners. Drawings stay in place for the whole GIF. JPG covers have the same [[Draw]].",
+                      "[[그림 그리기]]: 펼친 뒤 미리보기 위를 끌면 네모, 동그라미, 직선, 화살표, 펜, 모자이크를 그리거나 필요 없는 것을 지워요(숫자 키 1~9로 도구를 골라요). 그린 것을 누르면 옮기거나 모서리로 크기를 바꿀 수 있어요. 그림은 GIF 내내 같은 자리에 있어요. JPG 표지 창에도 같은 [[그림 그리기]]가 있어요."),
                     T("[[Follow motion]]: pick a box, circle or mosaic and turn it on, and it follows what is under it through the whole part (a face, a sign). If it goes wrong in a scene, drag it to the right place there and press [[Track again from this scene]]. Scenes where it lost the spot show a red dashed line in the preview.",
                       "[[움직임 따라가기]]: 네모·동그라미·모자이크를 고르고 켜면 그 아래에 있는 것(얼굴, 글씨)을 구간 내내 따라가요. 어느 장면에서 어긋나면 그 장면에서 맞는 자리로 끌어 놓고 [[이 장면부터 다시 따라가기]]를 눌러요. 놓친 장면은 미리보기에서 빨간 점선으로 보여요."),
                     T("[[Picture quality]]: besides High, Normal and Low you can type any number from 1 to 100. Higher is sharper and bigger.",

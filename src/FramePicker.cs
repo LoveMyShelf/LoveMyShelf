@@ -66,11 +66,14 @@ namespace LoveMyShelf {
         // The list's height at the last layout, to tell where a scene was on screen before the window changed size.
         double shownHeight;
         internal CropWindow SavedCrop { get; private set; }
+        internal string SavedEditedPath { get; private set; }
         internal bool OpenFullList { get; private set; }
         internal Func<CropWindow,Task> CommitCover;
         // Runs after a cover is saved, while the editor is still open (opens the new cover's large view on top).
         internal Func<Task> AfterCommit;
         internal Func<CropWindow,MotionRequest,Task> CommitMotion;
+        internal Func<CropWindow,Task<string>> SaveEditedCopy;
+        internal Func<CropWindow,MotionRequest,CancellationToken,Action<double>,Task<string>> SaveEditedMotion;
         // Seconds the arrow keys skip in the cover editor (the large view's setting).
         internal int SkipSeconds=5;
         internal int BrightnessStep=3;
@@ -295,15 +298,22 @@ namespace LoveMyShelf {
                 if(Framing!=null){rotation=Framing.Turn;saved=Framing.CoverFrame(image.PixelWidth,image.PixelHeight);}
                 if(Area!=null){rotation=Area.Turn;saved=Area.Fraction;}
                 // Brightness set while watching this video (E / W / Q, even back to 0) wins; otherwise the saved cover's own.
+                var initialAdjust=BrightnessChosen?new AdjustValues {Brightness=brightness}:(own?photo.Adjust:AdjustValues.None);
+                if(initialAdjust.IsIdentity && !BrightnessChosen && own && photo.Brightness!=0)initialAdjust.Brightness=photo.Brightness;
                 var editor=new CropWindow(this,image,photo.Name,saved,rotation,snapEdges,wheelZoomPercent,previewSide,
-                    BrightnessChosen?brightness:own?photo.Brightness:0);
+                    initialAdjust.Brightness,null,initialAdjust);
                 editor.CommitCover=CommitCover;editor.AfterCommit=AfterCommit;editor.SkipSeconds=SkipSeconds;editor.BrightnessStep=BrightnessStep;
+                editor.SourceIdentityProvider=()=>EraseStore.SourceIdentity(path,editor.FrameIndex,editor.FrameTime,null);
                 editor.AddFrameControls(path,index,frameCount,current);
+                if(SaveEditedCopy!=null)editor.EnableSaveEditedCopy(SaveEditedCopy);
                 if(CommitMotion!=null && MotionMaker.Supports(path))
                     editor.EnableMotion(CommitMotion,()=>new MotionSource {Path=path,Moment=MotionSource.MomentOf(path,editor.FrameTime,editor.FrameIndex),
                         Crop=editor.Surface.Fraction,Rotation=editor.Surface.Rotation,Brightness=editor.Surface.Brightness,
-                        Aspect=editor.Surface.Aspect,Still=editor.Surface.Still()});
+                        Adjust=editor.Surface.Adjust,Aspect=editor.Surface.Aspect,Still=editor.Surface.Still()},
+                        SaveEditedMotion==null?(Func<MotionRequest,CancellationToken,Action<double>,Task<string>>)null:
+                            (req,tok,prog)=>SaveEditedMotion(editor,req,tok,prog));
                 if(CoverWork.Show(editor)==true) {SavedCrop=editor;DialogResult=true;}
+                else if(!String.IsNullOrEmpty(editor.SavedEditedPath)) {SavedEditedPath=editor.SavedEditedPath;DialogResult=false;}
                 else if(!editor.BackToFrames) DialogResult=false;
             } catch(Exception ex){if(!closed)UI.Error(this,ex);}
             finally {if(!closed){scroll.IsEnabled=true;ResumeReading();}}

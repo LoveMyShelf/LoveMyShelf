@@ -179,7 +179,7 @@
       </Setter.Value>
     </Setter>
   </Style>
-  <Style TargetType="Button">
+  <Style x:Key="AppButtonBase" TargetType="ButtonBase">
     <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="Padding" Value="11,4"/>
@@ -192,7 +192,7 @@
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Template">
       <Setter.Value>
-        <ControlTemplate TargetType="Button">
+        <ControlTemplate TargetType="ButtonBase">
           <Border x:Name="Box" CornerRadius="8" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"/>
           </Border>
@@ -205,6 +205,16 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+  </Style>
+  <Style TargetType="Button" BasedOn="{StaticResource AppButtonBase}"/>
+  <Style x:Key="SelectionToggle" TargetType="ToggleButton" BasedOn="{StaticResource AppButtonBase}">
+    <Style.Triggers>
+      <Trigger Property="IsChecked" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Raised}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource FocusLine}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+      </Trigger>
+    </Style.Triggers>
   </Style>
   <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
     <Setter Property="Background" Value="{DynamicResource Raised}"/>

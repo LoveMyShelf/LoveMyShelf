@@ -26,9 +26,11 @@ The repository contains only the source. To run a build with all features, place
 | --- | --- | --- |
 | `libmpv-2.dll` | 영상 재생 · video playback | [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake) |
 | `tools/ffmpeg.exe`, `tools/ffprobe.exe`, `tools/*.dll` | 장면 읽기, 움직이는 표지 저장 · frame reading, animated cover export | [FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds) (GPL shared) |
-| `upscale/onnxruntime.dll`, `upscale/DirectML.dll`, `upscale/onnxruntime_providers_shared.dll` | AI로 키우기 · AI upscale | `onnxruntime-directml` 1.24.4 (PyPI) |
-| `upscale/model.onnx` | AI 모델 · AI upscale model | [Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr](https://huggingface.co/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr) |
-| `fonts/` | 글꼴(Pretendard) · UI font | 이 저장소에 포함 · included in this repository |
+| `upscale/onnxruntime.dll`, `upscale/DirectML.dll`, `upscale/onnxruntime_providers_shared.dll` | AI 실행 엔진 · ONNX Runtime | `onnxruntime-directml` 1.24.4 (PyPI) |
+| `upscale/model.onnx` | AI로 키우기 모델 · AI upscale model | [Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr](https://huggingface.co/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr) |
+| `faces/face_detection_yunet_2023mar.onnx`, `faces/face_recognition_sface_2021dec.onnx` | 얼굴로 사람 찾기 모델 · face detection/recognition models | [OpenCV Zoo](https://github.com/opencv/opencv_zoo) |
+| `erase/lama_512_int8.onnx` | 필요 없는 것 AI로 지우기 모델 · LaMa inpainting model | [advimman/lama](https://github.com/advimman/lama), [g-ronimo/lama](https://huggingface.co/g-ronimo/lama) |
+| `fonts/` | 글꼴(Pretendard 등) · UI and cover fonts | 이 저장소에 포함 · included in this repository |
 
 정확한 버전은 [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)에 있어요. .NET Framework 4.8은 Windows 10 1903 이후에 기본으로 들어 있어요.
 Exact versions are in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md). .NET Framework 4.8 is included with Windows 10 1903 and later.
@@ -45,7 +47,7 @@ Exact versions are in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md). .NET 
 | `Viewer.cs`, `MpvPlayer.cs`, `SeekPreview.cs`, `ViewFraming.cs`, `CoverStrip.cs` | large view, libmpv playback in a child window, seek-bar thumbnails, carrying the view's turn and zoom into thumbnails and covers, covers of one original |
 | `SpeakerRouting.cs` | which speaker a video plays on, by the monitor its window is on |
 | `Subtitles.cs`, `SubtitleExplorer.cs` | reading and saving SMI/SRT/ASS/VTT, subtitle explorer and sync |
-| `Crop.cs`, `CoverImages.cs` | cover editor surface, rendering a crop from the original |
+| `Crop.cs`, `CoverImages.cs`, `Adjust.cs`, `Erase.cs` | cover editor surface, color/clarity adjustment, C# hybrid & LaMa ONNX erasing, rendering a crop from the original |
 | `FramePicker.cs`, `VideoFrames.cs` | video frame grid, FFmpeg frame reading |
 | `Motion.cs`, `AnimationFrames.cs` | animated cover window and export, animated image decoding |
 | `Store.cs` | per-folder records, cover metadata |
