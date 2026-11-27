@@ -145,7 +145,10 @@ namespace LoveMyShelf {
         public int ClearVoiceLevel=1;   // 0 gentle, 1 normal, 2 strong
         // The large view's keys the person changed in Advanced (action id → key); empty means all defaults. See ViewerKeys.
         public Dictionary<string,System.Windows.Input.Key> Shortcuts=new Dictionary<string,System.Windows.Input.Key>(StringComparer.Ordinal);
-        public bool SnapEdges=true;
+        // How strongly the cover frame sticks to the picture's edges: screen pixels where it starts to stick (0 = off).
+        // 2026-11-27 user: the magnet was too weak, so 20 instead of the old fixed 8.
+        public int SnapPixels=20;
+        public bool SnapEdges {get {return SnapPixels>0;}}
         public int WheelZoomPercent=7;
         public bool PinTopOnWheel=true;
         public bool OpenPhotoOriginal, OpenMotionOriginal;
@@ -239,7 +242,7 @@ namespace LoveMyShelf {
                     ClearVoice=(string)xml.Attribute("clearVoice")=="true",
                     ClearVoiceLevel=ReadNumber(xml,"clearVoiceLevel",0,2,1),
                     Shortcuts=ViewerKeys.Read(xml),
-                    SnapEdges=(string)editor.Attribute("snapEdges")!="false",
+                    SnapPixels=(string)editor.Attribute("snapEdges")=="false" && editor.Attribute("snapPixels")==null?0:ReadNumber(editor,"snapPixels",0,100,20),
                     WheelZoomPercent=ReadNumber(editor,"wheelZoomPercent",1,50,7),
                     PinTopOnWheel=(string)editor.Attribute("pinTop")!="false"
                 };
@@ -357,7 +360,7 @@ namespace LoveMyShelf {
                     new XAttribute("sort",Sort==PhotoSort.Modified?"date":Sort==PhotoSort.CoverOrder?"cover":Sort==PhotoSort.Size?"size":Sort==PhotoSort.Type?"type":"name"),
                     new XAttribute("direction",Descending?"desc":"asc"),new XAttribute("skipSeconds",SkipSeconds),new XAttribute("brightnessStep",BrightnessStep),new XAttribute("turnDegrees",RotationStep),new XAttribute("tileNames",TileNames),CoverTimes?new XAttribute("coverTimes","true"):null,new XAttribute("tileShape",Covers.ShapeKeys[Math.Max(0,Math.Min(Covers.ShapeKeys.Length-1,TileShape))]),WideCovers?null:new XAttribute("wideCovers","off"),CropLock?new XAttribute("cropLock","on"):null,CropZoom?new XAttribute("cropZoom","on"):null,CropShape>0?new XAttribute("cropShape",CropShape):null,GifHoverSound?null:new XAttribute("gifHoverSound","off"),String.IsNullOrWhiteSpace(CaptureDirectory)?null:new XAttribute("captureDirectory",CaptureDirectory),CaptureAsShown?new XAttribute("captureLook","shown"):null,CaptureJpg?new XAttribute("captureFormat","jpg"):null,String.IsNullOrEmpty(SeenVersion)?null:new XAttribute("seenVersion",SeenVersion),String.IsNullOrEmpty(SubtitleBounds)?null:new XAttribute("subtitleBounds",SubtitleBounds),String.IsNullOrEmpty(ViewerBounds)?null:new XAttribute("viewerBounds",ViewerBounds),new XAttribute("volume",Volume),ClearVoice?new XAttribute("clearVoice","true"):null,new XAttribute("clearVoiceLevel",ClearVoiceLevel),
                     SpeakersXml(),ViewerKeys.Xml(Shortcuts),
-                    new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
+                    new XElement("editor",new XAttribute("snapEdges",SnapEdges),new XAttribute("snapPixels",SnapPixels),new XAttribute("wheelZoomPercent",WheelZoomPercent),new XAttribute("pinTop",PinTopOnWheel)));
             }
         }
     }

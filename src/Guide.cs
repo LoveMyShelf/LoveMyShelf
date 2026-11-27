@@ -1106,8 +1106,10 @@ namespace LoveMyShelf {
                       "지우고 싶은 곳을 칠하고 마우스를 놓으면 주변 색과 결을 바탕으로 바로 메워져요."),
                     T("Once there is at least one erase stroke, [[Fill with AI]] appears next to the thickness row. Click it when a spot is large or has background lines, and the AI model on your PC fills the painted spots again. It takes about 2-3 seconds. Press {{Ctrl}} + {{Z}} once to go back to before AI was applied; adding or deleting an erase stroke goes back to the fast fill.",
                       "지우기 획이 하나라도 있으면 굵기 줄 옆에 [[AI로 메우기]] 버튼이 나타나요. 지울 자리가 넓거나 배경 선이 지나갈 때 누르면 내 PC 안의 AI가 칠한 곳을 다시 메워요. 2~3초쯤 걸려요. {{Ctrl}} + {{Z}}를 한 번 누르면 AI 적용 전으로 바로 돌아가요. 획을 더 칠하거나 지우면 빠른 메우기로 돌아가요."),
-                    T("In Make GIF cover, [[Cover with this scene's patch]] covers the spot steadily using the scene you are looking at now (and lets you use [[Fill with AI]]), while [[Fill each scene separately]] fills moving backgrounds quickly scene by scene.",
-                      "GIF 표지 만들기에서는 [[이 장면 조각으로 덮기]]를 고르면 지금 보고 있는 장면을 기준으로 흔들림 없이 덮어 주고 [[AI로 메우기]]도 쓸 수 있어요. 배경이 움직일 때는 [[장면마다 따로 메우기]]를 고르면 장면마다 빠르게 메워요.")}});
+                    T("After an AI fill, [[Fill again]] tries a little differently each time. If only one spot looks odd, paint over just that spot and press [[Fill with AI]]: only the new spot is filled again.",
+                      "AI로 메운 뒤에 [[다시 메우기]]를 누르면 누를 때마다 조금 다른 방법으로 다시 메워요. 한 곳만 이상하면 그 위만 다시 칠하고 [[AI로 메우기]]를 눌러요. 새로 칠한 곳만 다시 메워요."),
+                    T("In Make GIF cover, choosing [[9 Erase]] stops the preview on the scene shown, so you can paint on it. To paint on another scene, click it on the scene strip. How the spots are filled is chosen by looking at the background: when it stays still, the fill made on one scene is used for every scene (and [[Fill with AI]] can be used); when it moves, each scene is filled on its own. If it looks wrong while playing, press [[Change]].",
+                      "GIF 표지 만들기에서 [[9 지우기]]를 고르면 미리보기가 지금 장면에서 멈춰서 그 위에 칠할 수 있어요. 다른 장면에서 칠하려면 장면 띠에서 그 장면을 눌러요. 지운 곳을 채우는 방법은 배경을 보고 알아서 골라요. 배경이 멈춰 있으면 한 장면에서 채운 모습을 모든 장면에 쓰고([[AI로 메우기]]도 쓸 수 있어요), 배경이 움직이면 장면마다 따로 채워요. 재생할 때 어색하면 [[바꾸기]]를 눌러요.")}});
             make.Items.Add(new Card {Title=T("Saving an edited copy as a new file","편집해서 새 파일로 저장하기"),
                 Lines=new[]{
                     T("Click [[Save as new file]] in the Make cover screen or the Make GIF cover screen to save everything you cropped, rotated, adjusted, erased and drew as a standalone file right next to the original (such as ‘name_edited.jpg’ or ‘name_edited.gif’).",
@@ -1138,12 +1140,13 @@ namespace LoveMyShelf {
                 Choices=new[]{new Choice(T("Don't show (off)","보이지 않기 (끄기)"),T("Only the pictures show.","그림만 보여요.")),
                     new Choice(T("Show (on)","보이기 (켜기)"),T("The scene time shows on each cover made from a video.","영상으로 만든 표지마다 장면 시간이 보여요."))},
                 Default=0,Columns=2,Get=p=>p.CoverTimes?1:0,Set=(p,i)=>p.CoverTimes=i==1});
-            make.Items.Add(new Setting {Id="snap",SectionId="editor",Title=T("Should the frame stick to the picture's edges?","테두리를 사진 가장자리에 붙일까요?"),
-                Lines=new[]{T("While you drag, when an edge of the picture comes close to the frame, it can stick like a magnet so that it lines up straight. This prevents a thin gap inside the frame. Keep dragging after it sticks and it comes loose again.",
-                    "사진을 끌다가 사진 가장자리가 테두리 가까이 오면 자석처럼 딱 붙어서 반듯하게 맞춰지게 할 수 있어요. 테두리 안쪽에 가느다란 빈틈이 생기는 걸 막아 줘요. 붙은 뒤에도 계속 끌면 다시 떨어져요.")},
-                Choices=new[]{new Choice(T("Stick (on)","붙이기 (켜기)"),T("When an edge comes close, it sticks like a magnet.","가장자리가 가까이 오면 자석처럼 붙어요.")),
-                    new Choice(T("Don't stick (off)","붙이지 않기 (끄기)"),T("It stops exactly where you drag it. Good when you want to move it a tiny bit at a time.","끌어다 놓은 위치에 그대로 멈춰요. 아주 조금씩 옮기고 싶을 때 좋아요."))},
-                Default=0,Columns=2,Get=p=>p.SnapEdges?0:1,Set=(p,i)=>p.SnapEdges=i==0});
+            make.Items.Add(Numbers("snap",T("How strongly should the frame stick to the picture's edges?","테두리를 사진 가장자리에 얼마나 세게 붙일까요?"),new[]{0,10,20,40},20,
+                p=>p.SnapPixels,(p,v)=>p.SnapPixels=v,v=>v==0?T("Off","끄기"):v.ToString(System.Globalization.CultureInfo.InvariantCulture)+" px",
+                v=>v==0?T("It stops exactly where you drag it","끌어다 놓은 자리에 그대로 멈춰요"):v==10?T("Sticks only when very close","아주 가까울 때만 붙어요"):v==20?T("Sticks firmly","단단히 붙어요"):v==40?T("Sticks from far away","멀리서도 붙어요"):"",4));
+            var snapSetting=(Setting)make.Items.Last();
+            snapSetting.Lines=new[]{T("While you drag, when an edge of the picture comes this many pixels (on screen) from the frame, it sticks like a magnet so that it lines up straight. This prevents a thin gap inside the frame. Keep dragging a little further and it comes loose again. 0 turns it off.",
+                "사진을 끌다가 사진 가장자리가 테두리에서 화면으로 이만큼(px) 가까이 오면 자석처럼 딱 붙어서 반듯하게 맞춰져요. 테두리 안쪽에 가느다란 빈틈이 생기는 걸 막아 줘요. 붙은 뒤에 조금 더 끌면 다시 떨어져요. 0이면 붙지 않아요.")};
+            Typed(snapSetting,"px",0,100,1);
             make.Items.Add(Numbers("wheel",T("How much should one wheel step zoom?","휠을 한 칸 굴릴 때 얼마나 확대할까요?"),new[]{3,5,7,10,15},7,
                 p=>p.WheelZoomPercent,(p,v)=>p.WheelZoomPercent=v,v=>v+"%",
                 v=>v==3?T("Very little at a time. For fitting precisely","아주 조금씩. 세밀하게 맞출 때"):v==7?T("This is enough for most","대부분 이걸로 충분해요"):v==15?T("In big steps. For changing the size quickly","큼직하게. 크기를 빨리 바꿀 때"):"",3));
@@ -1374,8 +1377,8 @@ namespace LoveMyShelf {
                 Lines=new[]{T("Open [[More choices]] in the Make GIF cover window (in a wide window they are on the right).","GIF 표지 만들기 창의 [[더 보기]]를 열면 있어요(창이 넓으면 오른쪽에 바로 보여요)."),
                     T("[[Flip]]: turn the picture left ↔ right or up ↕ down. [[Plays]]: how many times it plays, 0 means forever (an MP4 always plays as a video). [[Pause at the end]]: how many seconds the last picture stays before it starts again.",
                       "[[뒤집기]]: 좌우나 위아래로 뒤집어요. [[재생 횟수]]: 몇 번 재생할지예요. 0이면 계속 반복해요(MP4는 영상이라 해당 없어요). [[끝에서 멈춤]]: 마지막 장면에서 몇 초 멈췄다가 다시 시작할지예요."),
-                    T("[[Text]]: one line of text in white with a black edge, at the top, middle or bottom. [[Text size]] is a percent of the picture's height (8 is a good start).",
-                      "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 위·가운데·아래 중에 고르고, [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
+                    T("[[Text]]: one line of text in white with a black edge. Drag it on the preview to move it, or type [[Exact place]] in percent. [[Text size]] is a percent of the picture's height (8 is a good start).",
+                      "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 미리보기에서 끌어 옮기거나 [[정확한 자리]]에 %로 적어요. [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
                     T("To put the text exactly where you want, drag it on the preview with the mouse, or type the place across and down (%) in [[Exact place]]; the place becomes [[Your own]]. The text never goes outside the picture.",
                       "글자를 원하는 자리에 정확히 놓으려면 미리보기 위의 글자를 마우스로 끌거나, [[정확한 자리]]에 가로·세로 위치(%)를 넣어요. 그러면 자리가 [[직접]]으로 바뀌어요. 글자는 그림 밖으로 나가지 않아요."),
                     T("[[Adjust]]: unfold it to use [[Auto adjust]] or set brightness, contrast, saturation, color temperature and sharpness for this GIF cover.",

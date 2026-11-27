@@ -432,7 +432,10 @@ namespace LoveMyShelf {
 
     internal sealed class MotionDrawPanel : StackPanel {
         readonly MotionDrawLayer layer;
-        readonly Button opener,undo,redo,delete,front,back,clear,none,aiButton;
+        readonly Button opener,undo,redo,delete,front,back,clear,none,aiButton,againButton;
+        readonly TextBlock aiNote;
+        // Which try the window should give the AI: 0 the painted spots as they are, 1..3 a different try (EraseAgain).
+        internal int AiVariant {get;private set;}
         readonly StackPanel body=new StackPanel {Margin=new Thickness(0,6,0,4)};
         readonly StackPanel aiBusyPanel;
         readonly Button[] normalThicknessPresets,eraseThicknessPresets;
@@ -443,8 +446,9 @@ namespace LoveMyShelf {
         readonly StackPanel areaBox;
         readonly AdjustRows areaRows;
         readonly AdjustRow featherRow;
-        readonly RadioButton gifStaticChoice,gifPerFrameChoice;
-        readonly TextBlock gifPerFrameNote;
+        readonly TextBlock gifModeText,gifPauseNote;
+        // The GIF window decides how erased spots are filled; the person can still switch with [Change].
+        internal event Action EraseModeSwitched;
         readonly Action<int> showColor,showFill;
         readonly Action<double> showThickness,showOpacity,showBlock;
         readonly bool isGif;
@@ -535,6 +539,11 @@ namespace LoveMyShelf {
             aiButton.ToolTip=L.P("Fills the painted spots again with the AI on this PC. It takes about 2-3 seconds. Press Ctrl+Z once to undo.",
                 "칠한 곳을 내 PC 안의 AI로 다시 메워요. 2~3초쯤 걸려요. Ctrl+Z를 한 번 누르면 AI 적용 전으로 돌아가요.");
             thicknessRow.Children.Add(aiButton);
+            againButton=UI.Btn(L.P("Fill again","다시 메우기"),RunAgainClicked);
+            againButton.Margin=new Thickness(8,0,0,2);
+            againButton.ToolTip=L.P("Fills the painted spots again a little differently each time. Ctrl+Z goes back to the result before.",
+                "누를 때마다 조금 다른 방법으로 다시 메워요. Ctrl+Z를 누르면 앞 결과로 돌아가요.");
+            thicknessRow.Children.Add(againButton);
             aiBusyPanel=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,0,2),Visibility=Visibility.Collapsed};
             var busyText=UI.Text(L.P("Refining…","다듬는 중…"),12,true);busyText.Margin=new Thickness(0,0,6,0);
             var cancelAi=UI.Btn(L.T("Cancel"),()=>{if(OnCancelAiErase!=null)OnCancelAiErase();});
@@ -542,6 +551,9 @@ namespace LoveMyShelf {
             aiBusyPanel.Children.Add(busyText);aiBusyPanel.Children.Add(cancelAi);
             thicknessRow.Children.Add(aiBusyPanel);
             thicknessField=Field(L.P("Thickness","굵기"),thicknessRow);
+            aiNote=UI.Text(L.P("If one spot looks odd, paint over just that spot and press [Fill with AI]: only the new spot is filled again.",
+                "한 곳만 이상하면 그 위만 다시 칠하고 [AI로 메우기]를 눌러요. 새로 칠한 곳만 다시 메워요."),12,true);
+            aiNote.TextWrapping=TextWrapping.Wrap;aiNote.Margin=new Thickness(2,2,0,2);
 
             opacityField=Field(L.P("Opacity","투명도"),Number(layer.ShapeOpacity,10,100,"%",L.P("Opacity","투명도"),
                 v=>layer.SetStyle(opacity:v),new[]{40,70,100},out showOpacity));
@@ -549,23 +561,27 @@ namespace LoveMyShelf {
             blockField=Field(block,Number(layer.Block,1,100,"px",block,v=>layer.SetStyle(block:v),new[]{12,24,48},out showBlock));
             blockField.ToolTip=L.P("Pixels when the cover is 1000 px tall.","표지 높이가 1000px일 때의 칸 크기예요.");
             foreach(var field in new[]{strokeField,fillField,thicknessField,opacityField,blockField})body.Children.Add(field);
+            body.Children.Insert(body.Children.IndexOf(thicknessField)+1,aiNote);
 
             if(isGif) {
-                var gifEraseBox=new StackPanel();
-                var modeRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
-                string eraseGroup="gif-erase-"+Guid.NewGuid().ToString("N");
-                gifStaticChoice=new RadioButton {Content=L.P("Cover with this scene's patch","이 장면 조각으로 덮기"),GroupName=eraseGroup,
-                    Style=(Style)Application.Current.FindResource("SegmentChoice"),IsChecked=true};
-                gifPerFrameChoice=new RadioButton {Content=L.P("Fill each scene separately","장면마다 따로 메우기"),GroupName=eraseGroup,
-                    Style=(Style)Application.Current.FindResource("SegmentChoice")};
-                gifStaticChoice.Click+=delegate {if(!syncing)layer.SetEraseMode(0);};
-                gifPerFrameChoice.Click+=delegate {if(!syncing)layer.SetEraseMode(1);};
-                modeRow.Children.Add(gifStaticChoice);modeRow.Children.Add(gifPerFrameChoice);
-                gifEraseBox.Children.Add(modeRow);
-                gifPerFrameNote=UI.Text(L.P("Moving backgrounds are filled quickly scene by scene","움직이는 배경은 장면마다 빠르게 메워요"),12,true);
-                gifPerFrameNote.TextWrapping=TextWrapping.Wrap;gifPerFrameNote.Margin=new Thickness(1,3,0,0);
-                gifEraseBox.Children.Add(gifPerFrameNote);
-                gifEraseField=Field(L.P("Fill mode","메우기"),gifEraseBox);
+                // GIF erase (2026-11-27 user: "nothing stops the screen, I don't know what 'fill' means"): picking
+                // [9 Erase] stops the preview; one line says what to do; how the spots are filled is chosen by looking
+                // at the background, said in plain words, with [Change] for the other way.
+                gifPauseNote=UI.Text(L.P("The preview is stopped. Paint over what to erase. To paint on another scene, click it on the scene strip below. Space plays it again.",
+                    "영상을 멈췄어요. 지울 곳을 칠하세요. 다른 장면에서 칠하려면 아래 장면 띠에서 그 장면을 눌러요. Space를 누르면 다시 재생돼요."),12,true);
+                gifPauseNote.TextWrapping=TextWrapping.Wrap;gifPauseNote.Margin=new Thickness(2,4,0,2);
+                body.Children.Insert(body.Children.IndexOf(areaBox),gifPauseNote);
+                var gifEraseBox=new DockPanel();
+                var change=UI.Btn(L.P("Change","바꾸기"),()=>{
+                    if(EraseModeSwitched!=null)EraseModeSwitched();
+                    layer.SetEraseMode(layer.EraseMode==1?0:1);
+                });
+                change.Margin=new Thickness(6,0,0,2);change.VerticalAlignment=VerticalAlignment.Top;
+                change.ToolTip=L.P("If the erased spots look wrong while it plays, try the other way.","재생할 때 지운 곳이 어색하면 다른 방법으로 바꿔 봐요.");
+                DockPanel.SetDock(change,Dock.Right);gifEraseBox.Children.Add(change);
+                gifModeText=UI.Text("",12);gifModeText.TextWrapping=TextWrapping.Wrap;gifModeText.VerticalAlignment=VerticalAlignment.Center;
+                gifEraseBox.Children.Add(gifModeText);
+                gifEraseField=Field(L.P("Filling","채우기"),gifEraseBox);
                 body.Children.Add(gifEraseField);
             }
 
@@ -598,6 +614,12 @@ namespace LoveMyShelf {
         }
         async void RunAiClicked() {
             if(aiRunning || OnRunAiErase==null)return;
+            AiVariant=0;
+            await OnRunAiErase();
+        }
+        async void RunAgainClicked() {
+            if(aiRunning || OnRunAiErase==null)return;
+            AiVariant=EraseAgain.Next(AiVariant);
             await OnRunAiErase();
         }
         internal void SetAiRunning(bool running) {
@@ -649,12 +671,17 @@ namespace LoveMyShelf {
             if(!erase)showAi=false;
             aiBusyPanel.Visibility=showAi && aiRunning?Visibility.Visible:Visibility.Collapsed;
             aiButton.Visibility=showAi && !aiRunning?Visibility.Visible:Visibility.Collapsed;
-            aiButton.IsEnabled=isGif?layer.EraseMode==0:layer.AiPatch==null;
+            aiButton.IsEnabled=isGif?layer.EraseMode==0 && layer.AiPatch==null:layer.AiPatch==null;
+            bool filled=layer.AiPatch!=null && (!isGif || layer.EraseMode==0);
+            againButton.Visibility=showAi && !aiRunning && filled?Visibility.Visible:Visibility.Collapsed;
+            aiButton.Visibility=showAi && !aiRunning && !filled?Visibility.Visible:Visibility.Collapsed;
+            aiNote.Visibility=showAi && filled?Visibility.Visible:Visibility.Collapsed;
             if(gifEraseField!=null) {
                 gifEraseField.Visibility=(erase || layer.HasEraseShapes)?Visibility.Visible:Visibility.Collapsed;
-                gifStaticChoice.IsChecked=layer.EraseMode==0;
-                gifPerFrameChoice.IsChecked=layer.EraseMode==1;
-                gifPerFrameNote.Visibility=layer.EraseMode==1?Visibility.Visible:Visibility.Collapsed;
+                gifModeText.Text=layer.EraseMode==1?
+                    L.P("The background moves, so each scene is filled on its own.","배경이 움직여서 장면마다 따로 채워요."):
+                    L.P("The background stays still, so the fill made on one scene is used for every scene.","배경이 멈춰 있어서 한 장면에서 채운 모습을 모든 장면에 써요.");
+                gifPauseNote.Visibility=erase?Visibility.Visible:Visibility.Collapsed;
             }
             undo.IsEnabled=layer.CanUndo;redo.IsEnabled=layer.CanRedo;delete.IsEnabled=layer.HasSelection;
             front.IsEnabled=layer.CanReorder(true);back.IsEnabled=layer.CanReorder(false);clear.IsEnabled=layer.HasShapes;
@@ -711,6 +738,9 @@ namespace LoveMyShelf {
         internal event Action BeforePointer,PointerStarted,TrackLimit,EraseStrokesChanged;
         internal MotionShape SelectedShape {get {return HasSelection?shapes[selected]:null;}}
         internal EraseAiPatch AiPatch {get {return aiPatch;}}
+        // The last AI fill, kept after new strokes drop it, so only the new strokes need filling on top of it.
+        EraseAiPatch earlierAi;
+        internal EraseAiPatch EarlierAi {get {return earlierAi;}}
         internal int EraseMode {get {return eraseMode;}}
         internal IList<MotionShape> Shapes {get {return shapes;}}
         internal bool HasEraseShapes {get {return shapes.Any(shape=>shape.IsErase);}}
@@ -774,7 +804,7 @@ namespace LoveMyShelf {
             CancelDrag();selected=-1;undo.Clear();redo.Clear();
             shapes=MotionShape.Read(value);
             eraseMode=shapes.Any(shape=>shape.IsPerFrameErase)?1:0;
-            aiPatch=initialAi;
+            aiPatch=earlierAi=initialAi;
             if(aiPatch==null) {
                 for(int i=0;i<shapes.Count;i++)
                     if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
@@ -782,7 +812,7 @@ namespace LoveMyShelf {
             SaveValue();Update();
         }
         internal void SetInitialAiPatch(EraseAiPatch patch) {
-            aiPatch=patch;
+            aiPatch=earlierAi=patch;
             if(patch==null) {
                 for(int i=0;i<shapes.Count;i++)
                     if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
@@ -792,28 +822,29 @@ namespace LoveMyShelf {
         }
         internal void ApplyAiPatch(EraseAiPatch patch) {
             if(patch==null || !HasEraseShapes)return;
-            if(aiPatch!=null && !String.IsNullOrEmpty(patch.CacheKey) && aiPatch.CacheKey==patch.CacheKey)return;
+            if(aiPatch!=null && !String.IsNullOrEmpty(patch.CacheKey) && aiPatch.CacheKey==patch.CacheKey && aiPatch.Patch==patch.Patch)return;
             CancelDrag();Remember();
             eraseMode=0;
             int sceneMs=(int)Math.Max(0,Math.Min(0xFFFFFF,Math.Round(patch.SceneMs)));
             for(int i=0;i<shapes.Count;i++)
                 if(shapes[i].IsErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticAi,sceneMs);
-            aiPatch=patch;
+            aiPatch=earlierAi=patch;
             SaveChange(true);
         }
         internal void InvalidateAiPatch() {
+            earlierAi=null; // the picture under it changed
             if(aiPatch==null && !shapes.Any(s=>s.IsAiErase))return;
             aiPatch=null;
             for(int i=0;i<shapes.Count;i++)
                 if(shapes[i].IsAiErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp);
             SaveValue();Update();
         }
-        internal void SetEraseMode(int mode) {
+        internal void SetEraseMode(int mode,bool remember=true) {
             mode=mode==1?1:0;
             if(eraseMode==mode)return;
             CancelDrag();
             if(HasEraseShapes) {
-                Remember();
+                if(remember)Remember();
                 eraseMode=mode;
                 aiPatch=null;
                 int block=mode==1?MotionShape.ErasePerFrame:MotionShape.EraseStaticCSharp;
@@ -900,6 +931,7 @@ namespace LoveMyShelf {
             Snapshot(to);
             var edit=from[from.Count-1];from.RemoveAt(from.Count-1);lastAreaIndex=-1;
             shapes=edit.Shapes;selected=edit.Selected;aiPatch=edit.AiPatch;eraseMode=edit.EraseMode;
+            if(aiPatch!=null)earlierAi=aiPatch;
             SaveChange(true);
         }
         internal void Clear() {

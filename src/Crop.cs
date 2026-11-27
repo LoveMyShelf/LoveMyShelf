@@ -263,8 +263,10 @@ namespace LoveMyShelf {
             var delta=SourceDelta(dx,dy);
             centerX-=delta.X; centerY-=delta.Y; Clamp();
         }
+        // From Guide & Options: how many screen pixels away an edge starts to stick (0 = never). It lets go 1.5 times as far.
+        internal static int SnapPixels=20;
         static double SnapCenter(double center,double cropSize,double imageSize,double unitsPerPixel,ref double? snapped) {
-            const double engage=8,release=12;
+            double engage=SnapPixels,release=SnapPixels*1.5;
             if(snapped.HasValue && Math.Abs(center-snapped.Value)<=release*unitsPerPixel)return snapped.Value;
             double near=cropSize/2,far=imageSize-near;
             double edge=Math.Abs(center-near)<=Math.Abs(center-far)?near:far;
@@ -280,7 +282,7 @@ namespace LoveMyShelf {
             Clamp();
             // Keep the pointer's raw position so the stronger hold still releases predictably.
             dragX=centerX;dragY=centerY;
-            if(!snapEdges || Rotation%90!=0)return;
+            if(!snapEdges || SnapPixels<=0 || Rotation%90!=0)return;
             double unitsPerPixel=CropW/Frame.Width;
             bool quarterTurn=Math.Abs(Rotation)==90;
             centerX=SnapCenter(dragX,quarterTurn?CropH:CropW,image.PixelWidth,unitsPerPixel,ref snappedX);
@@ -673,10 +675,18 @@ namespace LoveMyShelf {
                 Rect cropSnap=Surface.Fraction;double rotSnap=Surface.Rotation;AdjustValues adjSnap=Surface.Adjust;
                 int frameSnap=FrameIndex;
                 string srcId=SourceIdentityProvider!=null?SourceIdentityProvider():"";
-                var patch=await eraseRunner.RunAsync(basePic,shapesSnap);
+                // Strokes added after an AI fill: only they are filled, on top of the earlier fill. [Fill again]: a new try at all of them.
+                int variant=drawPanel.AiVariant;
+                var earlier=drawing.EarlierAi;
+                var added=variant==0 && drawing.AiPatch==null?EraseAgain.Added(shapesSnap,earlier):null;
+                if(added!=null && (earlier.Patch.PixelWidth!=basePic.PixelWidth || earlier.Patch.PixelHeight!=basePic.PixelHeight))added=null;
+                var runOn=added!=null?EraseStore.Composite(basePic,earlier.Patch):basePic;
+                var patch=await eraseRunner.RunAsync(EraseAgain.Turn(runOn,variant),EraseAgain.Shapes(added??shapesSnap,variant,runOn.PixelHeight));
                 if(patch==null || !IsVisible || FrameIndex!=frameSnap)return;
                 if(Surface.Fraction!=cropSnap || Surface.Rotation!=rotSnap || Surface.Adjust!=adjSnap)return;
                 if(EraseStore.CanonicalEraseStrokes(drawing.Shapes)!=strokesSpec)return;
+                patch=EraseAgain.Turn(patch,variant);
+                if(added!=null)patch=EraseAgain.Merge(earlier.Patch,patch);
                 string key=EraseStore.BuildCacheKey(srcId,cropSnap,rotSnap,adjSnap,strokesSpec);
                 drawing.ApplyAiPatch(new EraseAiPatch(patch,strokesSpec,key,0));
             };

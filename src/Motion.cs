@@ -205,6 +205,7 @@ namespace LoveMyShelf {
         internal static void UseDefaults(Preferences settings) {
             StripSeconds=settings.GifStripSeconds;PreviewStepMs=settings.GifPreviewStepMs;Scenes.StepMs=settings.SceneStepMs;
             StripPictureHeight=Math.Max(StripLow,Math.Min(StripHigh,settings.GifStripHeight));
+            CropSurface.SnapPixels=Math.Max(0,Math.Min(100,settings.SnapPixels));
             lastFps=settings.GifFps;lastHeight=settings.GifHeight;lastFpsOriginal=lastSizeOriginal=false;
             highFps=settings.GifHighFps;largeSize=settings.GifLargeSize;settings.ApplyEditorPreviewSide();
             lastQuality=Math.Max(0,Math.Min(2,settings.GifQuality));lastFormat=Math.Max(0,Math.Min(2,settings.GifFormat));
@@ -314,7 +315,7 @@ namespace LoveMyShelf {
         Expander more;
         FrameworkElement speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,textField,playsField,targetField,styleField;
         // 1.0.9 extras: what was picked, kept for the next window until LoveMyShelf closes.
-        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=2;static double lastHold,lastTargetMb=20,lastTextSize=8,lastTextX=50,lastTextY=50;
+        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=3;static double lastHold,lastTargetMb=20,lastTextSize=8,lastTextX=50,lastTextY=88;
         bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double hold,targetMb=20,textSize=8,textX=50,textY=50;
         Action<double> showTextX,showTextY;
         readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
@@ -382,6 +383,8 @@ namespace LoveMyShelf {
             if(saved!=null) {
                 flipX=saved.FlipX;flipY=saved.FlipY;plays=saved.Plays;hold=saved.Hold;targetOn=saved.TargetMb>0;if(saved.TargetMb>0)targetMb=saved.TargetMb;
                 textBox.Text=saved.Text??"";textPlace=saved.TextPlace;textSize=saved.TextSize;textX=saved.TextX;textY=saved.TextY;qualityTyped=saved.Q>0;
+                // Older covers saved top / middle / bottom: they still show there; the numbers start near it.
+                if(textPlace<3){textX=50;textY=textPlace==0?8:textPlace==1?50:92;}
             }
             if(saved!=null) {
                 // Opens on the part and the choices the GIF was made with; the strip widens to show all of it.
@@ -623,7 +626,7 @@ namespace LoveMyShelf {
                 if(Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)return;
                 var letter=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 if(e.OriginalSource is ComboBox || e.OriginalSource is ComboBoxItem)return;
-                if(e.Key==Key.Space && drawPanel.IsKeyboardFocusWithin)return;
+                if(e.Key==Key.Space && drawPanel.IsKeyboardFocusWithin && !(Keyboard.FocusedElement is System.Windows.Controls.Primitives.ButtonBase))return;
                 if(e.Key==Key.Space){if(!e.IsRepeat)TogglePause();e.Handled=true;return;}
                 // Z / X / C / V: the same keys as playback speed in the large view, in Korean input mode too.
                 if(Keyboard.Modifiers==ModifierKeys.None && (letter==Key.Z || letter==Key.X || letter==Key.C)) {
@@ -755,7 +758,6 @@ namespace LoveMyShelf {
         // the control goes under its name.
         // ---------- 1.0.9 extras: flips, plays and a pause, quality as a number, a size to stay under, a line of text ----------
         FrameworkElement qualityUnder;
-        RadioButton[] placeChoices;
         void BuildExtras(MotionRequest saved) {
             // Flip: left-right, up-down.
             var flips=new StackPanel {Orientation=Orientation.Horizontal};
@@ -801,9 +803,8 @@ namespace LoveMyShelf {
             textBox.ToolTip=L.P("One line, up to 60 letters. Leave it empty for no text.","한 줄, 60자까지예요. 비워 두면 글자를 넣지 않아요.");
             textBox.TextChanged+=delegate {UpdatePreviewLook();Changed();};
             textPanel.Children.Add(Field(L.P("Text","글자"),textBox));
-            // Quick places, or a place of your own: drag the text on the preview, or type where its middle goes.
-            textPanel.Children.Add(Field(L.P("Text place","글자 자리"),Segment(new[]{L.P("Top","위"),L.P("Middle","가운데"),L.P("Bottom","아래"),L.P("Your own","직접")},textPlace,L.P("Text place","글자 자리"),
-                ()=>{if(placeChoices==null || movingText)return;textPlace=Picked(placeChoices);UpdatePreviewLook();Changed();},out placeChoices)));
+            // Where the text goes: drag it on the preview, or type where its middle goes. (The top / middle / bottom
+            // buttons were taken out on 2026-11-27, user: "you can just drag it, why are these there".)
             var spot=new WrapPanel(); // the second number goes under the first when the side panel is narrow
             Func<double> readX,readY;
             spot.Children.Add(MotionLook.Number(textX,0,100,5,L.P("% across","% 가로"),L.P("Across: where the middle of the text is (0 = left, 100 = right)","가로 위치: 글자 가운데가 오는 곳 (0 왼쪽, 100 오른쪽)"),
@@ -815,7 +816,7 @@ namespace LoveMyShelf {
             var dragNote=UI.Text(NoticeLook.KeepWords(L.P("You can also drag the text on the preview with the mouse.","미리보기 위의 글자를 마우스로 끌어서 옮길 수도 있어요.")),12,true);
             dragNote.TextWrapping=TextWrapping.Wrap;dragNote.Margin=new Thickness(0,0,0,6);textPanel.Children.Add(dragNote);
             textMark.Moving+=(x,y)=>{textX=x;textY=y;if(showTextX!=null)showTextX(x);if(showTextY!=null)showTextY(y);
-                if(textPlace!=3){textPlace=3;movingText=true;placeChoices[3].IsChecked=true;movingText=false;}};
+                textPlace=3;};
             textMark.Moved+=delegate {UpdatePreviewLook();Changed();};
             Func<double> readSize;Action<double> writeSize;
             textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,L.P("% of the height","% (높이 기준)"),L.P("Text size","글자 크기"),
@@ -843,6 +844,7 @@ namespace LoveMyShelf {
             eraseRunner.StateChanged+=()=>Dispatcher.BeginInvoke(new Action(()=>drawPanel.SetAiRunning(eraseRunner.IsRunning)));
             drawPanel.OnCancelAiErase=()=>eraseRunner.Cancel();
             drawPanel.OnRunAiErase=RunGifAiEraseAsync;
+            SetupEraseFlow();
             drawPanel.VisibilityChanged+=delegate {
                 textMark.IsHitTestVisible=!drawPanel.IsEditing;
                 DrawingPanelOpenedOrClosed();
@@ -859,10 +861,13 @@ namespace LoveMyShelf {
             adjustPanel.OpenChanged+=delegate {
                 if(!syncingFold && adjustPanel.IsOpen && drawPanel.IsOpen){syncingFold=true;drawPanel.SetOpen(false);syncingFold=false;}
                 PlaceDrawOptions();Fit();
+                // The panel may sit low in the side column: show it at once, so its controls are in view.
+                if(adjustPanel.IsOpen)Dispatcher.BeginInvoke(new Action(()=>adjustPanel.BringIntoView()),System.Windows.Threading.DispatcherPriority.Loaded);
             };
             drawPanel.OpenChanged+=delegate {
                 if(!syncingFold && drawPanel.IsOpen && adjustPanel.IsOpen){syncingFold=true;adjustPanel.SetOpen(false);syncingFold=false;}
                 PlaceDrawOptions();Fit();
+                if(drawPanel.IsOpen)Dispatcher.BeginInvoke(new Action(()=>drawPanel.BringIntoView()),System.Windows.Threading.DispatcherPriority.Loaded);
             };
             var styles=new StackPanel();
             styles.Children.Add(adjustPanel);styles.Children.Add(textStyle);styles.Children.Add(drawPanel);styleField=styles;
@@ -878,10 +883,9 @@ namespace LoveMyShelf {
         }
         // The made file's own frames already carry the flips, shapes and text.
         bool showingOwn,preparedOwn;
-        bool movingText;
         // Typing an exact place makes the place "Your own".
         void OwnTextPlace() {
-            if(textPlace!=3 && placeChoices!=null){textPlace=3;movingText=true;placeChoices[3].IsChecked=true;movingText=false;}
+            textPlace=3;
             UpdatePreviewLook();Changed();
         }
         AdjustValues CurrentAdjust {
@@ -965,10 +969,18 @@ namespace LoveMyShelf {
             } catch(Exception) {}
             if(sceneBmp==null)sceneBmp=CurrentFrameForErase();
             if(sceneBmp==null || lifetime.IsCancellationRequested)return;
-            var patch=await eraseRunner.RunAsync(sceneBmp,shapesSnap,token);
+            // Strokes added after an AI fill of the same scene: only they are filled, on top of it. [Fill again]: a new try.
+            int variant=drawPanel.AiVariant;
+            var earlier=drawLayer.EarlierAi;
+            var added=variant==0 && drawLayer.AiPatch==null && earlier!=null && Math.Abs(earlier.SceneMs-refMs)<1?EraseAgain.Added(shapesSnap,earlier):null;
+            if(added!=null && (earlier.Patch.PixelWidth!=sceneBmp.PixelWidth || earlier.Patch.PixelHeight!=sceneBmp.PixelHeight))added=null;
+            var runOn=added!=null?EraseStore.Composite(sceneBmp,earlier.Patch):sceneBmp;
+            var patch=await eraseRunner.RunAsync(EraseAgain.Turn(runOn,variant),EraseAgain.Shapes(added??shapesSnap,variant,runOn.PixelHeight),token);
             if(patch==null || lifetime.IsCancellationRequested || !IsVisible)return;
             if(drawLayer.EraseMode!=0 || fxSnap!=flipX || fySnap!=flipY || CurrentAdjust!=adjSnap)return;
             if(EraseStore.CanonicalEraseStrokes(drawLayer.Shapes)!=strokesSpec)return;
+            patch=EraseAgain.Turn(patch,variant);
+            if(added!=null)patch=EraseAgain.Merge(earlier.Patch,patch);
             string srcId=EraseStore.SourceIdentity(source.Path,0,refMs,null);
             string cacheKey=EraseStore.BuildCacheKey(srcId,source.Crop,source.Rotation,adjSnap,strokesSpec,fxSnap,fySnap);
             drawLayer.ApplyAiPatch(new EraseAiPatch(patch,strokesSpec,cacheKey,refMs));
@@ -1462,6 +1474,7 @@ namespace LoveMyShelf {
             Presses++;
             double x=Pointer(e).X;
             if(e.ClickCount==2 && DoubleClickStrip(x)){e.Handled=true;return;}
+            if(e.ClickCount==1 && drawPanel.IsEditing && drawLayer.IsErase && x>X(start)+10 && x<X(end)-10 && SeekDrawingScene(Ms(x))){e.Handled=true;return;}
             PressStrip(x);
             strip.CaptureMouse();e.Handled=true;
         }
@@ -1470,7 +1483,7 @@ namespace LoveMyShelf {
         // scene the start, after it the end (a cover scene outside the part: the nearer end).
         internal bool DoubleClickStrip(double x) {
             int which=x<X(start)?1:x>X(end)?2:0;
-            if(which==0 && drawPanel.IsEditing && drawLayer.HasTracks && SeekDrawingScene(Ms(x)))return true;
+            if(which==0 && drawPanel.IsEditing && (drawLayer.HasTracks || drawLayer.IsErase) && SeekDrawingScene(Ms(x)))return true;
             if(which==0) {
                 double at=Ms(x),moment=source.Moment;
                 if(moment>start && moment<end)which=at<moment?1:2;
@@ -1859,7 +1872,7 @@ namespace LoveMyShelf {
                         }
                         var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(each)),request);
                         drawingFrames=frames;drawingTimeline=OrderTimes(request,sourceTimes);
-                        StartDraft(frames,drawingTimeline,held && drawLayer.HasTracks?playAt:Double.NaN);
+                        StartDraft(frames,drawingTimeline,held && (drawLayer.HasTracks || drawLayer.HasEraseShapes || drawLayer.IsErase)?playAt:Double.NaN);
                         SetStatus();
                     }
                     draftOwed=false;
