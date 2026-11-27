@@ -13,6 +13,7 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 - **표지와 GIF 위에 그림 그리기:** JPG 표지 창과 GIF 표지 만들기 창의 [그림 그리기]에서 네모·동그라미·직선·화살표·펜·형광펜·모자이크를 그려요. 원본 파일은 그대로이고, [표지 수정]에서 다시 고칠 수 있어요. GIF 표지에서는 [움직임 따라가기]를 켜면 네모·동그라미·모자이크가 영상 속 얼굴이나 글씨를 따라가요.
 - **사진 일부만 보정하기:** 표지 창의 [보정]에서 [일부만 보정]을 누르고 사진에서 고칠 곳을 끌면, 그곳만 밝기·대비·채도·색 온도·선명하게를 따로 바꿀 수 있어요. 네모·동그라미·칠하기 중에 고르고, 가장자리를 얼마나 부드럽게 할지도 숫자로 정해요. GIF 표지에도 똑같이 들어가요. 보정 값은 줄을 한 번 누른 뒤 ←/→를 꾹 누르면 빠르게 바뀌고, 오래 누를수록 더 빨라져요. 고른 줄 위에서 마우스 휠을 굴려도 돼요. 창이 넓으면 보정 칸이 사진 오른쪽에 있어서 사진이 작아지지 않아요. GIF 표지 만들기 창에서는 미리보기와 장면 띠 사이의 선을 위아래로 끌어 둘의 크기를 정할 수 있고, 다음에 열어도 그대로예요.
+- **영상 보면서 대비·채도도 바꿔요:** 크게 보기에서 화면을 오른쪽 클릭하면 나오는 조작 창의 [대비·채도·색]에서 보는 동안 대비·채도·색 온도·선명하게를 바꿀 수 있어요. 파일은 그대로이고, 거기서 만드는 표지는 같은 값으로 시작해요. [목소리 또렷하게]의 세기도 1~100 숫자로 정해요.
 - **테두리 자석 세기를 정할 수 있어요:** 표지 만들기에서 사진 가장자리가 테두리에 자석처럼 붙는 세기를 설명서 겸 옵션에서 px로 정할 수 있어요. 기본은 전보다 세게 했고, 0이면 붙지 않아요.
 - **최대화해도 아래가 잘려 보이지 않아요:** 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요.
 
@@ -20,6 +21,7 @@ Maximizing a window while the folder window is in full screen no longer looks cu
 
 - **Draw on covers and GIFs:** In [Draw] in the JPG cover window and the Make GIF cover window, draw boxes, circles, lines, arrows, pen and highlighter lines and mosaic boxes. The original file stays as it is, and you can change the drawing later in [Edit cover]. On GIF covers, [Follow motion] makes a box, circle or mosaic follow a face or a sign in the video.
 - **Adjust only part of the picture:** In [Adjust] in the cover window, click [Only a part] and drag over the spot to fix: only that spot gets its own brightness, contrast, saturation, color temperature and sharpness. Pick a box, a circle or painting, and set how soft the edge is as a number. It works the same on GIF covers. To change a value, click its line once and hold ← or →: it changes quickly, and faster the longer you hold. Rolling the mouse wheel over the chosen line works too. In a wide window the adjustments sit to the right of the picture, so the picture doesn't get smaller. In the Make GIF cover window, drag the line between the preview and the scene strip up or down to share the room between them. It stays that way next time.
+- **Change contrast and saturation while watching:** In the large view, [Contrast · saturation · color] in the controls window (right-click the screen) changes contrast, saturation, color temperature and sharpness while you watch. The file stays as it is, and a cover made from there starts with the same values. The strength of [Clear voice] is a number from 1 to 100 too.
 - **Set how strongly the frame sticks:** In Make cover, you can set in Guide & Options how strongly the picture's edges stick to the frame like a magnet, in px. It is stronger than before by default, and 0 turns it off.
 - **Nothing is cut off at the bottom when you maximize:** With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed.
 

@@ -101,6 +101,13 @@ namespace LoveMyShelf {
         internal bool CropNearby {get;private set;}
         // The brightness set with E/W while watching; the scene grid and the cover editor start from it.
         internal int PlaybackBrightness {get {return PlaybackValue;}}
+        // Contrast, saturation, color temperature and sharpness while watching (brightness is playbackBrightness).
+        // Like brightness: for this video only, and the cover editor and the GIF cover start from them.
+        AdjustValues playbackAdjust;
+        bool adjustShown,adjustChosen;
+        // True once contrast, saturation, color temperature or sharpness was changed for this video.
+        internal bool AdjustChosen {get {return adjustChosen;}}
+        internal AdjustValues PlaybackAdjust {get {var a=playbackAdjust;a.Brightness=PlaybackValue;return a;}}
         internal bool BrightnessChosen {get {return brightnessChosen;}}
         // The turn, zoom and place on screen, for the seek thumbnail, the scene list and the cover editor.
         // Null when the picture is simply upright at its own size.
@@ -964,7 +971,8 @@ namespace LoveMyShelf {
                 var area=new Rect(0,0,width,height);
                 dc.PushClip(new RectangleGeometry(area));
                 // The same brightness as on screen: the curve, or the Windows player's white or black layer.
-                dc.DrawImage(media==null?Light.Apply(frame,PlaybackValue):frame,whole);
+                var look=playbackAdjust;look.Brightness=0;
+                dc.DrawImage(media==null?ColorAdjust.Apply(Light.Apply(frame,PlaybackValue),look):frame,whole);
                 if(media!=null && playbackBrightness!=0) {
                     var cover=new SolidColorBrush(playbackBrightness>0?Colors.White:Colors.Black) {Opacity=Math.Abs(playbackBrightness)/100.0};
                     dc.DrawRectangle(cover,null,area);
@@ -1604,6 +1612,33 @@ namespace LoveMyShelf {
                 style.ToolTip=L.T("Switch brightness style");
                 row(L.T("Brightness"),new[]{key("Q  "+reset,()=>ChangeBrightness(0),true),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
                     key("E  "+L.T("Brighter"),()=>ChangeBrightness(1),true),style});
+                if(mpv!=null) {
+                    // [Adjust ▾]: contrast, saturation, color temperature, sharpness (and brightness) as lines: click one,
+                    // hold ← / →, roll the wheel over it, or type the number. Only while watching; the file stays as it is.
+                    var adjustRows=new AdjustRows((field,v)=>SetPlaybackAdjust(field,v));
+                    var adjustReset=UI.Btn(reset,()=>{
+                        playbackBrightness=0;playbackStyle=Light.Soft;playbackAdjust=AdjustValues.None;brightnessChosen=adjustChosen=true;
+                        ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;refresh();
+                    });
+                    adjustReset.Focusable=false;adjustReset.HorizontalAlignment=HorizontalAlignment.Left;adjustReset.Margin=new Thickness(0,2,0,4);
+                    var adjustBox=new StackPanel {Width=330,Margin=new Thickness(0,2,0,4)};
+                    adjustBox.Children.Add(adjustReset);adjustBox.Children.Add(adjustRows);
+                    adjustBox.Visibility=adjustShown?Visibility.Visible:Visibility.Collapsed;
+                    var adjustToggle=key("",()=>{
+                        if(holdRepeating)return;
+                        adjustShown=!adjustShown;adjustBox.Visibility=adjustShown?Visibility.Visible:Visibility.Collapsed;
+                    },true);
+                    live.Add(()=>{
+                        adjustToggle.Content=L.P("Contrast · saturation · color","대비·채도·색")+(adjustShown?"  ▴":"  ▾");
+                        var now=playbackAdjust;now.Brightness=PlaybackValue;adjustRows.Show(now);
+                    });
+                    adjustToggle.ToolTip=L.P("Contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them.",
+                        "보는 동안 대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요.");
+                    row(L.P("Adjust","보정"),new[]{adjustToggle});
+                    int at=rows.RowDefinitions.Count;
+                    rows.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+                    Grid.SetRow(adjustBox,at);Grid.SetColumn(adjustBox,1);rows.Children.Add(adjustBox);
+                }
             }
             row(L.T("Rotation"),new[]{key("I  "+reset,ResetTurn,true),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
             row(L.T("Zoom (wheel)"),new[]{key(reset,()=>SetZoom(1),true),key("−  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("+  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
@@ -1620,14 +1655,15 @@ namespace LoveMyShelf {
             if(motion && clearVoiceReady) {
                 var voice=key("",ToggleClearVoice,true);
                 live.Add(()=>voice.Content="N  "+L.T(clearVoice?"Turn off":"Turn on"));
-                var levels=new List<Button> {voice};
-                for(int i=0;i<ClearVoiceLevels.Length;i++) {
-                    int level=i;
-                    var choice=key("",()=>ChooseClearVoiceLevel(level),true);
-                    live.Add(()=>choice.Content=(clearVoice && clearVoiceLevel==level?"✓ ":"")+L.T(ClearVoiceLevels[level]));
-                    levels.Add(choice);
-                }
-                row(L.T("Clear voice"),levels.ToArray());
+                row(L.T("Clear voice"),new[]{voice});
+                // The strength as a number (2026-11-27 user: "make Clear voice take a number too"): 25 gentle, 50 normal, 100 strong.
+                var strength=new AdjustRow(L.P("Strength","세기"),1,100,v=>{SetClearVoiceStrength(v);refresh();}) {Width=330,Margin=new Thickness(0,0,0,4)};
+                strength.ToolTip=L.P("1 to 100. About 25 is gentle, 50 normal, 100 strong. Strong raises quiet voices the most, but noise in quiet scenes too. Click the line once and hold ← or →, or roll the wheel over it.",
+                    "1~100이에요. 25쯤이 약하게, 50이 보통, 100이 강하게예요. 세게 할수록 작은 목소리가 커지지만 조용한 장면의 잡음도 커져요. 줄을 한 번 누르고 ←/→를 꾹 누르거나 휠을 굴려요.");
+                live.Add(()=>strength.Show(clearVoiceLevel));
+                int voiceAt=rows.RowDefinitions.Count;
+                rows.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+                Grid.SetRow(strength,voiceAt);Grid.SetColumn(strength,1);rows.Children.Add(strength);
             }
             if(motion && subtitlesReady && !forCrop)row(L.T("Subtitles"),new[]{key(L.T("Open the subtitle explorer"),OpenSubtitleExplorer,false)});
             if(motion && mpv!=null && (Subtitle!=null || HasOwnSubtitle))
@@ -1653,6 +1689,8 @@ namespace LoveMyShelf {
             card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
             popup.Child=card;
             card.PreviewKeyDown+=(s,e)=>{
+                // Esc while typing a number puts the number back instead of closing.
+                if(e.Key==Key.Escape && Keyboard.FocusedElement is TextBox && AdjustRow.OwnsKey(e))return;
                 if(e.Key==Key.Escape){if(!e.IsRepeat){popup.IsOpen=false;ReturnAreaKeys();}e.Handled=true;}
             };
             popup.Closed+=delegate {holdTimer.Stop();if(keyPanel==popup)keyPanel=null;};
@@ -1666,10 +1704,9 @@ namespace LoveMyShelf {
         static void LabelControl(Control control,string label) {
             AutomationProperties.SetName(control,label);control.ToolTip=label;
         }
-        static readonly string[] ClearVoiceLevels={"Gentle","Normal","Strong"};
         // clearVoiceReady: this video plays with sound through mpv, so Clear voice can be used.
         bool clearVoice,clearVoiceReady;
-        int clearVoiceLevel=1;
+        int clearVoiceLevel=50; // strength 1..100
         void ToggleDoubleRate() {
             SetRate(Math.Abs(rate-2)<0.001?1:2);
             ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
@@ -1680,18 +1717,19 @@ namespace LoveMyShelf {
                 return;
             }
             clearVoice=!clearVoice;
-            ShowCornerNote(clearVoice?L.F("Clear voice: {0}",L.T(ClearVoiceLevels[clearVoiceLevel])):L.T("Clear voice off"));
+            ShowCornerNote(clearVoice?L.F("Clear voice: {0}",clearVoiceLevel):L.T("Clear voice off"));
         }
-        // Choosing a level also turns the feature on.
-        void ChooseClearVoiceLevel(int level) {
-            if(!clearVoice || level!=clearVoiceLevel) { // the same level again would only interrupt the sound
-                if(mpv==null || !mpv.SetClearVoice(true,level)) {
+        // Choosing a strength also turns the feature on.
+        void SetClearVoiceStrength(int strength) {
+            strength=Math.Max(1,Math.Min(100,strength));
+            if(!clearVoice || strength!=clearVoiceLevel) { // the same strength again would only interrupt the sound
+                if(mpv==null || !mpv.SetClearVoice(true,strength)) {
                     ShowCornerNote(L.T("Clear voice isn't available for this video"));
                     return;
                 }
-                clearVoice=true;clearVoiceLevel=level;
+                clearVoice=true;clearVoiceLevel=strength;
             }
-            ShowCornerNote(L.F("Clear voice: {0}",L.T(ClearVoiceLevels[level])));
+            ShowCornerNote(L.F("Clear voice: {0}",strength));
         }
         bool muted;
         void ApplyAudio() {
@@ -1750,6 +1788,19 @@ namespace LoveMyShelf {
             ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0} · {1}",playbackBrightness,Light.StyleName(playbackStyle)));
         }
         // R: Soft, See in the dark and Milky take turns. The level stays.
+        // One line of [Adjust] changed: field 0 brightness level, 1 contrast, 2 saturation, 3 color temperature, 4 sharpness.
+        void SetPlaybackAdjust(int field,int value) {
+            if(field==0){playbackBrightness=Math.Max(-100,Math.Min(100,value));brightnessChosen=true;}
+            else {
+                if(field==1)playbackAdjust.Contrast=value;
+                else if(field==2)playbackAdjust.Saturation=value;
+                else if(field==3)playbackAdjust.Temperature=value;
+                else playbackAdjust.Sharpness=value;
+                adjustChosen=true;
+            }
+            playbackAdjust=playbackAdjust.Clamped();
+            ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
+        }
         void SwitchBrightnessStyle() {
             playbackStyle=Light.NextStyle(playbackStyle);brightnessChosen=true;
             ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
@@ -1757,7 +1808,7 @@ namespace LoveMyShelf {
         }
         void ApplyPlaybackBrightness() {
             int value=motion?PlaybackValue:0,level=Light.Level(value);
-            if(mpv!=null)mpv.Brightness=value;
+            if(mpv!=null){mpv.Brightness=value;mpv.Look=motion?playbackAdjust:AdjustValues.None;}
             if(pictureRaw!=null)picture.Source=Light.Apply(pictureRaw,value);
             if(turnRaw!=null)turnImage.Source=Light.Apply(turnRaw,value);
             if(media==null || level==0){brightnessLayer.Visibility=Visibility.Collapsed;return;}
@@ -2187,6 +2238,7 @@ namespace LoveMyShelf {
             // ...and at its own brightness. Going back and forth between the cover and the video keeps it.
             if(items[index].Original!=brightnessFile) {
                 brightnessFile=items[index].Original;playbackBrightness=0;playbackStyle=Light.Soft;brightnessChosen=false;seekPreview.Brightness=0;
+                playbackAdjust=AdjustValues.None;adjustChosen=false;
             }
             if(partFile!=null && !PartIsHere)DropPart(); // a part belongs to the file it was marked in
             var current=new CancellationTokenSource();loading=current;var token=current.Token;

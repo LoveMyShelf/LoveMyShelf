@@ -300,6 +300,13 @@ namespace LoveMyShelf {
                 // Brightness set while watching this video (E / W / Q, even back to 0) wins; otherwise the saved cover's own.
                 var initialAdjust=BrightnessChosen?new AdjustValues {Brightness=brightness}:(own?photo.Adjust:AdjustValues.None);
                 if(initialAdjust.IsIdentity && !BrightnessChosen && own && photo.Brightness!=0)initialAdjust.Brightness=photo.Brightness;
+                // Contrast, saturation, color temperature and sharpness changed in the large view come along too.
+                var viewer=Owner as Viewer;
+                if(viewer!=null && viewer.AdjustChosen) {
+                    var look=viewer.PlaybackAdjust;
+                    initialAdjust.Contrast=look.Contrast;initialAdjust.Saturation=look.Saturation;
+                    initialAdjust.Temperature=look.Temperature;initialAdjust.Sharpness=look.Sharpness;
+                }
                 var editor=new CropWindow(this,image,photo.Name,saved,rotation,snapEdges,wheelZoomPercent,previewSide,
                     initialAdjust.Brightness,null,initialAdjust);
                 editor.CommitCover=CommitCover;editor.AfterCommit=AfterCommit;editor.SkipSeconds=SkipSeconds;editor.BrightnessStep=BrightnessStep;

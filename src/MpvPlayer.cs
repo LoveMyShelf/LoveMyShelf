@@ -187,20 +187,28 @@ namespace LoveMyShelf {
         }}
         // The E / W brightness (a Light value: level and style) as a small shader on the video, the same curve as
         // everywhere else. It is not in screenshot-raw / screenshot "video": those pictures get the curve from Light afterwards.
-        int brightness;bool shaderOn;
+        int brightness;AdjustValues look;string shaderList="";
         internal int Brightness {set {
             if(value==brightness || handle==IntPtr.Zero)return;
-            brightness=value;
-            if(value==0) {
-                if(shaderOn){shaderOn=false;Property("glsl-shaders","");}
-                return;
-            }
-            Property("glsl-shader-opts",Light.MpvOptions(value));
-            if(!shaderOn) {
-                try {Property("glsl-shaders",Light.MpvShader());shaderOn=true;}
-                catch(System.IO.IOException) {} catch(UnauthorizedAccessException) {}
-            }
+            brightness=value;ApplyShaders();
         }}
+        // Contrast, saturation, color temperature and sharpness while watching (MpvAdjust.cs). Brightness comes from above.
+        internal AdjustValues Look {set {
+            value.Brightness=0;
+            if(value==look || handle==IntPtr.Zero)return;
+            look=value;ApplyShaders();
+        }}
+        void ApplyShaders() {
+            var files=new List<string>();var options=new List<string>();
+            try {
+                if(brightness!=0){files.Add(Light.MpvShader());options.Add(Light.MpvOptions(brightness));}
+                var more=MpvAdjust.Files(look);
+                if(more.Count>0){files.AddRange(more);options.Add(MpvAdjust.Options(look));}
+            } catch(System.IO.IOException) {} catch(UnauthorizedAccessException) {}
+            if(options.Count>0)Property("glsl-shader-opts",String.Join(",",options.ToArray()));
+            string list=String.Join(";",files.ToArray());
+            if(list!=shaderList){shaderList=list;Property("glsl-shaders",list);}
+        }
         // Turned or resized, the player's window is the whole view instead of just the picture, and mpv itself
         // sizes and moves the picture inside it. A window that changed size with every step would flicker.
         // zoom: how big the picture is against mpv's own fit (below 1 is smaller). panX and panY are fractions of that size.
@@ -360,10 +368,15 @@ namespace LoveMyShelf {
         }
         // Clear voice: trims low rumble, lifts the range that carries speech, and raises quiet speech.
         // The level (gentle, normal, strong) sets how far quiet speech may be raised.
-        static readonly string[] ClearVoiceRaise={"3","6.25","12.5"};
-        public bool SetClearVoice(bool on,int level) {
-            string raise=ClearVoiceRaise[Math.Max(0,Math.Min(ClearVoiceRaise.Length-1,level))];
-            string filter=on?"lavfi=[highpass=f=90,equalizer=f=3000:t=q:w=1:g=3,speechnorm=p=0.9:e="+raise+":r=0.00001:l=1]":"";
+        // strength 1..100. The old three levels stay where they were: 25 gentle (e=3), 50 normal (e=6.25), 100 strong (e=12.5);
+        // in between it goes in a straight line, from e=1 at 0. The 3 kHz lift grows to +3 dB by 50 and stays there.
+        // (2026-11-27 debate: DeepSeek and Gemini; 0 = off is the N key.)
+        public bool SetClearVoice(bool on,int strength) {
+            double s=Math.Max(1,Math.Min(100,strength));
+            double raise=s<=25?1+2*s/25:s<=50?3+3.25*(s-25)/25:6.25+6.25*(s-50)/50;
+            double lift=Math.Min(3,3*s/50);
+            string filter=on?"lavfi=[highpass=f=90,equalizer=f=3000:t=q:w=1:g="+lift.ToString("0.##",Inv)+
+                ",speechnorm=p=0.9:e="+raise.ToString("0.###",Inv)+":r=0.00001:l=1]":"";
             return handle!=IntPtr.Zero && mpv_set_property_string(handle,Utf8("af"),Utf8(filter))>=0;
         }
         // Exact seeks land on the first frame that starts at or after the target.
