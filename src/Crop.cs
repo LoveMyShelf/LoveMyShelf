@@ -134,6 +134,16 @@ namespace LoveMyShelf {
             if(RotationChanged!=null) RotationChanged();
             if(ShapeChanged!=null)ShapeChanged();
         }
+        // Everything [Reset] changes, to bring it back with [Undo reset] (ResetToggle).
+        internal object State() {return Tuple.Create(new Rect(centerX,centerY,zoom,aspect),Rotation,adjust,style);}
+        internal void SetState(object value) {
+            var s=(Tuple<Rect,double,AdjustValues,int>)value;
+            centerX=s.Item1.X;centerY=s.Item1.Y;zoom=s.Item1.Width;aspect=s.Item1.Height;Rotation=s.Item2;viewSet=false;Clamp();
+            SetAdjust(s.Item3,s.Item4);
+            if(RotationChanged!=null) RotationChanged();
+            if(ShapeChanged!=null)ShapeChanged();
+            InvalidateVisual();
+        }
         // The whole picture in its own shape, keeping the turn and the brightness.
         internal void WholePicture() {
             aspect=PictureAspect;zoom=1;centerX=image.PixelWidth/2.0;centerY=image.PixelHeight/2.0;Clamp();
@@ -528,7 +538,11 @@ namespace LoveMyShelf {
             Surface=new CropSurface(image,saved,rotation,snapEdges,wheelZoomPercent,brightness,adjust);
             AutomationProperties.SetHelpText(Surface,L.T("Drag to move it, and roll the wheel to fit the size."));
             var bar=new DockPanel {Margin=new Thickness(6,2,6,2),LastChildFill=true};
-            var reset=UI.Btn(L.T("Reset"),()=>{Surface.Reset();StartInKeptShape();});
+            // [Reset] puts the frame, the turn and the adjustments back; pressed again, it brings back what was just before.
+            var reset=UI.Btn(L.T("Reset"),()=>{});
+            var resetToggle=ResetToggle.Attach(reset,Surface.State,Surface.SetState,()=>{Surface.Reset();StartInKeptShape();});
+            Surface.Moved+=resetToggle.Changed;Surface.ShapeChanged+=resetToggle.Changed;
+            Surface.RotationChanged+=resetToggle.Changed;Surface.AdjustChanged+=resetToggle.Changed;
             reset.Margin=new Thickness(0,0,8,2);reset.VerticalAlignment=VerticalAlignment.Center;
             DockPanel.SetDock(reset,Dock.Left);bar.Children.Add(reset);
             var rightButtons=new WrapPanel {HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};

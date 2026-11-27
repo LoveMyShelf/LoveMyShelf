@@ -355,6 +355,7 @@ namespace LoveMyShelf {
         // Wide layout with only one column, on the right (the info card on top of it): for a wide video, when two
         // columns don't fit beside the preview but one does (2026-11-27, "pictures and videos must show big").
         bool oneSide;
+        ResetToggle speedReset;
         const double OneSideColumn=316; // the file type's longest choice fits
         // The settings column folded away (◂), so the preview takes the width; ▸ brings it back. Kept while LoveMyShelf runs.
         static bool columnFolded;
@@ -663,7 +664,7 @@ namespace LoveMyShelf {
                 if(e.Key==Key.Space){if(!e.IsRepeat)TogglePause();e.Handled=true;return;}
                 // Z / X / C / V: the same keys as playback speed in the large view, in Korean input mode too.
                 if(Keyboard.Modifiers==ModifierKeys.None && (letter==Key.Z || letter==Key.X || letter==Key.C)) {
-                    if(letter==Key.Z)SetSpeed(1);else StepSpeed(letter==Key.X?-1:1);
+                    if(letter==Key.Z){if(!e.IsRepeat && speedReset!=null)speedReset.Press();}else StepSpeed(letter==Key.X?-1:1);
                     e.Handled=true;return;
                 }
                 if(Keyboard.Modifiers==ModifierKeys.None && letter==Key.V) {
@@ -757,7 +758,9 @@ namespace LoveMyShelf {
                 if(speedHoldAction==null)speedHold.Stop();else speedHoldAction();
             };
             speedText.FontWeight=FontWeights.SemiBold;speedText.TextAlignment=TextAlignment.Center;speedText.Width=50;
-            var reset=key("Z  "+L.T("Reset"),L.T("Original speed"),()=>SetSpeed(1),false);
+            var reset=key("Z  "+L.T("Reset"),L.T("Original speed"),()=>{if(speedReset!=null)speedReset.Press();},false);
+            // Z / [Reset] goes to 1×; pressed again right away, back to the speed from before.
+            speedReset=ResetToggle.For(reset,()=>speed,v=>SetSpeed((double)v),()=>SetSpeed(1));speedReset.KeyPrefix="Z  ";
             var slower=key("X  −",L.T("Slower"),()=>StepSpeed(-1),true);slower.Margin=new Thickness(4,0,0,0);
             var faster=key("C  +",L.T("Faster"),()=>StepSpeed(1),true);
             doubleSpeed=key("V  "+L.T("2×"),L.T("2× speed. Press again for 1×"),ToggleDoubleSpeed,false);
@@ -780,6 +783,7 @@ namespace LoveMyShelf {
             value=Math.Max(SlowestSpeed,Math.Min(FastestSpeed,Math.Round(value,2)));
             if(Math.Abs(value-speed)<0.0001)return;
             speed=value;ShowSpeed();
+            if(speedReset!=null)speedReset.Changed();
             if(IsLoaded)Changed();
         }
         // The next step on the 0.1 grid, so 0.75× goes to 0.8× or 0.7×.

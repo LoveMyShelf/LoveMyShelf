@@ -597,6 +597,7 @@ namespace LoveMyShelf {
     // Folded [Adjust ▾] panel shared by CropWindow (JPG cover) and MotionWindow (GIF cover).
     internal sealed class AdjustPanel : StackPanel {
         readonly Button opener, autoBtn, resetBtn, styleBtn;
+        readonly ResetToggle resetToggle;
         readonly StackPanel body = new StackPanel { Margin = new Thickness(0, 6, 0, 4) };
         readonly ScrollViewer scroller;
         readonly Func<BitmapSource> samplePicture;
@@ -636,9 +637,18 @@ namespace LoveMyShelf {
             autoBtn.Margin = new Thickness(0, 0, 6, 2);
             autoBtn.ToolTip = L.P("Finds natural brightness and color settings in one click. Pictures that already look good stay as they are.",
                 "한 번 누르면 사진에 맞는 밝기와 색을 찾아 줘요. 이미 괜찮은 사진은 그대로 둬요.");
-            resetBtn = UI.Btn(L.T("Reset"), ResetAdjust);
+            resetBtn = UI.Btn(L.T("Reset"), () => { });
             resetBtn.Margin = new Thickness(0, 0, 6, 2);
-            resetBtn.ToolTip = L.P("Puts all adjustment numbers back to 0.", "보정 숫자를 모두 0으로 되돌려요.");
+            resetBtn.ToolTip = L.P("Puts all adjustment numbers back to 0. Press again to bring back the numbers from before.", "보정 숫자를 모두 0으로 되돌려요. 한 번 더 누르면 바로 전 숫자로 돌아가요.");
+            resetToggle = ResetToggle.Attach(resetBtn, () => Tuple.Create(current, lightStyle), v => {
+                var t = (Tuple<AdjustValues, int>)v;
+                lightStyle = t.Item2;
+                bool changed = t.Item1 != current;
+                current = t.Item1;
+                statusNote.Visibility = Visibility.Collapsed;
+                SyncControls();
+                if (changed && Changed != null) Changed();
+            }, ResetAdjust);
             // The brightness style sits with the buttons for the whole picture, so every row below has the same shape.
             styleBtn = UI.Btn("", SwitchStyle);
             styleBtn.Margin = new Thickness(0, 0, 6, 2);
@@ -748,7 +758,8 @@ namespace LoveMyShelf {
         void SyncControls() {
             rows.Show(current);
             styleBtn.Content = "R  " + Light.StyleName(lightStyle);
-            resetBtn.IsEnabled = !current.IsIdentity || lightStyle != Light.Soft;
+            if (resetToggle != null) resetToggle.Changed();
+            resetBtn.IsEnabled = !current.IsIdentity || lightStyle != Light.Soft || (resetToggle != null && resetToggle.CanUndo);
             ShowHeader();
         }
 
