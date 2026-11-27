@@ -28,6 +28,8 @@ namespace LoveMyShelf {
         // again. Showing the panel's own value back would cancel a step a line has not applied yet (it applies 60 ms
         // later): holding an arrow then bounced -1 / +1 (2026-11-27 user report).
         AdjustValues adjustKnown;
+        // [Reset] and [Auto] both turn into [Undo] until something else changes (ResetToggle, the adjust session's).
+        ResetToggle adjustReset,adjustAuto;
         // The panel's distance from the video's top-right corner (DIPs), kept between runs.
         static Vector adjustOffset=new Vector(12,12);
         static bool adjustOffsetRead;
@@ -48,25 +50,37 @@ namespace LoveMyShelf {
         void CloseAdjustPanel() {if(adjustPanel!=null && adjustPanel.IsOpen)adjustPanel.IsOpen=false;}
 
         void BuildAdjustPanel() {
-            adjustLines=new AdjustRows((field,v)=>{SetPlaybackAdjust(field,v);adjustKnown=AdjustNow;NoteAdjusting(field);});
+            adjustLines=new AdjustRows((field,v)=>{SetPlaybackAdjust(field,v);adjustKnown=AdjustNow;NoteAdjusting(field);LookChanged();});
             // Head: a grip to move the panel, then Reset, back to the menu, and close.
             var head=new DockPanel {Margin=new Thickness(0,0,0,4),LastChildFill=true};
             Func<string,string,Action,Button> small=(text,tip,act)=>{
                 var b=new Button {Content=text,MinHeight=24,MinWidth=0,Padding=new Thickness(8,0,8,1),Margin=new Thickness(4,0,0,0),FontSize=12.5,Focusable=false,ToolTip=tip};
-                b.Click+=delegate {act();};
+                if(act!=null)b.Click+=delegate {act();};
                 return b;
             };
             var close=small("✕",L.P("Close (Esc)","닫기 (Esc)"),CloseAdjustPanel);DockPanel.SetDock(close,Dock.Right);
             var menu=small(L.P("← Menu","← 메뉴"),L.P("Back to all the controls","모든 조작으로 돌아가요"),()=>{CloseAdjustPanel();ShowControls();});DockPanel.SetDock(menu,Dock.Right);
-            var reset=small(L.T("Reset"),L.P("Brightness and colors back to how the file is","밝기와 색을 파일 그대로 되돌려요"),()=>{
+            var reset=small(L.T("Reset"),L.P("Brightness and colors back to how the file is","밝기와 색을 파일 그대로 되돌려요"),null);DockPanel.SetDock(reset,Dock.Right);
+            adjustReset=ResetToggle.Attach(reset,ReadLook,SetLook,()=>{
                 playbackBrightness=0;playbackStyle=Light.Soft;playbackAdjust=AdjustValues.None;brightnessChosen=adjustChosen=true;
                 ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;ShowAdjustValues();
-            });DockPanel.SetDock(reset,Dock.Right);
+            });
+            string autoTip=L.P("Looks at the scene on screen now and sets brightness and colors for the whole video, as the cover editor's Auto does. Press again to go back.",
+                "지금 화면의 장면을 보고 밝기와 색을 정해서 영상 전체에 적용해요. 표지 창의 자동 보정과 같은 계산이에요. 한 번 더 누르면 되돌려요.");
+            var auto=small(L.P("Auto","자동"),autoTip,null);DockPanel.SetDock(auto,Dock.Right);
+            adjustAuto=ResetToggle.For(auto,ReadLook,SetLook,AutoAdjust);
+            auto.Click+=delegate {
+                adjustAuto.Press();
+                // Its own words: what [Undo] brings back is the look from just before Auto.
+                if(adjustAuto.CanUndo)auto.ToolTip=L.P("Brings back the brightness and colors from just before Auto.","자동 보정 바로 전 밝기와 색으로 돌아가요.");
+                adjustReset.Changed();
+            };
+            reset.Click+=delegate {adjustAuto.Changed();};
             var grip=new TextBlock {Text="⠿  "+L.P("Adjust","보정"),FontSize=13.5,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center,
                 Cursor=Cursors.SizeAll,Background=Brushes.Transparent,Padding=new Thickness(2,2,8,2),
                 ToolTip=L.P("Drag here to move the panel. It stays where you put it.","여기를 끌어 패널을 옮겨요. 놓은 자리를 기억해요.")};
             grip.SetResourceReference(TextBlock.ForegroundProperty,"Text");
-            head.Children.Add(close);head.Children.Add(menu);head.Children.Add(reset);head.Children.Add(grip);
+            head.Children.Add(close);head.Children.Add(menu);head.Children.Add(reset);head.Children.Add(auto);head.Children.Add(grip);
             adjustHead=head;
             var stack=new StackPanel();stack.Children.Add(head);stack.Children.Add(adjustLines);
             adjustCard=new Border {Child=stack,Width=AdjustWidth,CornerRadius=new CornerRadius(8),Padding=new Thickness(10,8,10,8),BorderThickness=new Thickness(1),
@@ -135,6 +149,29 @@ namespace LoveMyShelf {
                 File.WriteAllText(AdjustPlaceFile,adjustOffset.X.ToString("0",CultureInfo.InvariantCulture)+","+adjustOffset.Y.ToString("0",CultureInfo.InvariantCulture));
             } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
         }
+        // [Auto]: the scene on screen now decides; the values then hold for the whole video (2026-11-27 user request,
+        // passed on by the adjust session: "누른 순간 화면 기준으로 정해서 영상 전체에 적용"). Same math as the cover editor.
+        void AutoAdjust() {
+            if(mpv==null)return;
+            System.Windows.Media.Imaging.BitmapSource frame=null;
+            try {frame=mpv.GrabFrame();} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
+            if(frame==null){ShowCornerNote(L.P("Couldn't read the scene on screen. Try again in a moment.","지금 장면을 읽지 못했어요. 잠시 뒤에 다시 눌러 주세요."));return;}
+            var estimated=ColorAdjust.EstimateAuto(frame);
+            if(estimated.IsIdentity){ShowCornerNote(L.P("Already looks balanced, so nothing was changed.","이미 균형이 괜찮아서 그대로 두었어요."));return;}
+            playbackStyle=Light.Soft;playbackBrightness=Light.Level(estimated.Brightness);
+            estimated.Brightness=0;playbackAdjust=estimated.Clamped();
+            brightnessChosen=adjustChosen=true;
+            ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;ShowAdjustValues();
+            ShowCornerNote(L.P("Auto adjust: set from this scene for the whole video","자동 보정: 이 장면을 기준으로 영상 전체에 적용했어요"));
+        }
+        // The whole look on screen, for [Undo] of Reset and Auto.
+        object ReadLook() {return Tuple.Create(playbackBrightness,playbackStyle,playbackAdjust);}
+        void SetLook(object saved) {
+            var look=(Tuple<int,int,AdjustValues>)saved;
+            playbackBrightness=look.Item1;playbackStyle=look.Item2;playbackAdjust=look.Item3;brightnessChosen=adjustChosen=true;
+            ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;ShowAdjustValues();
+        }
+        void LookChanged() {if(adjustReset!=null)adjustReset.Changed();if(adjustAuto!=null)adjustAuto.Changed();}
         AdjustValues AdjustNow {get {var now=playbackAdjust;now.Brightness=PlaybackValue;return now;}}
         void ShowAdjustValues() {
             if(adjustLines==null)return;
@@ -153,7 +190,7 @@ namespace LoveMyShelf {
             bool changing=(now-adjustLast).TotalMilliseconds<500 && (now-adjustFirst).TotalMilliseconds>=150 && !(Keyboard.FocusedElement is TextBox);
             SetAdjustFaded(changing);
             // Q, W, E, R and Reset change the values from elsewhere: only then the lines show them.
-            if(!AdjustNow.Equals(adjustKnown) && !adjustCard.IsMouseCaptureWithin && !(Keyboard.FocusedElement is TextBox))ShowAdjustValues();
+            if(!AdjustNow.Equals(adjustKnown) && !adjustCard.IsMouseCaptureWithin && !(Keyboard.FocusedElement is TextBox)){ShowAdjustValues();LookChanged();}
         }
         void SetAdjustFaded(bool faded) {
             if(adjustCard==null || adjustFaded==faded)return;
