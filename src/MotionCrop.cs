@@ -21,13 +21,12 @@ namespace LoveMyShelf {
         FrameworkElement cropField;
 
         FrameworkElement CropField() {
-            var row=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
-            var open=UI.Btn(L.P("Change where it's cut","자르는 곳 고치기"),()=>EditCrop());
-            open.Margin=new Thickness(0,0,8,2);
+            // 2026-11-27 user: "'where it's cut', 'change where it's cut'… just say Crop". One button, no row name.
+            var open=UI.Btn(L.P("Crop","자르기"),()=>EditCrop());
+            open.Margin=new Thickness(0,4,0,4);open.HorizontalAlignment=HorizontalAlignment.Left;
             open.ToolTip=L.P("Shows the scene whole and lets you move and resize the frame, like when you make a cover. Only the GIF changes; the JPG cover stays as it is.",
                 "장면 전체를 보여 주고, 표지 만들 때처럼 테두리를 옮기고 크기를 바꿀 수 있어요. GIF만 바뀌고 JPG 표지는 그대로예요.");
-            row.Children.Add(open);
-            return Field(L.P("Cut","자르는 곳"),row);
+            return open;
         }
 
         async void EditCrop() {
@@ -74,9 +73,9 @@ namespace LoveMyShelf {
             surface.ShapeChanged+=showShape;surface.Moved+=showShape;showShape();
             var colon=UI.Text(":",13);colon.Margin=new Thickness(4,0,4,0);colon.VerticalAlignment=VerticalAlignment.Center;
             bar.Children.Add(across);bar.Children.Add(colon);bar.Children.Add(tall);
-            var whole2=UI.Btn(L.P("Whole picture","원본 그대로"),()=>surface.WholePicture());whole2.Margin=new Thickness(12,0,0,2);
+            var whole2=UI.Btn(L.P("No crop","자르지 않기"),()=>surface.WholePicture());whole2.Margin=new Thickness(12,0,0,2);
             var cancel=UI.Btn(L.T("Cancel"),()=>CloseCrop());cancel.Margin=new Thickness(12,0,0,2);
-            var use=UI.Btn(L.P("Use this","이대로 쓰기"),()=>{UseCrop(surface);CloseCrop();},true);use.Margin=new Thickness(6,0,0,2);
+            var use=UI.Btn(L.P("Crop here","이대로 자르기"),()=>{UseCrop(surface);CloseCrop();},true);use.Margin=new Thickness(6,0,0,2);
             bar.Children.Add(whole2);bar.Children.Add(cancel);bar.Children.Add(use);
             var note=UI.Text(L.P("Drag the frame's corners and edges, or roll the wheel. Only the GIF cover changes.",
                 "테두리의 모서리와 변을 끌거나 휠을 굴려요. GIF 표지만 바뀌어요."),12,true);

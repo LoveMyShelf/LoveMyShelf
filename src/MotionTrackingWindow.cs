@@ -49,11 +49,11 @@ namespace LoveMyShelf {
                 else BeginTracking(size,false);
             };
             var options=new Expander {Header=L.P("Tracking options","따라가기 설정"),Content=followSize,Margin=new Thickness(0,0,0,4)};
-            retrack=UI.Btn(L.P("Track again from this scene","이 장면부터 다시 따라가기"),
+            retrack=UI.Btn(L.P("Track again","다시 따라가기"),
                 ()=>BeginTracking(drawLayer.SelectedShape.Track.FollowSize,true));
             retrack.HorizontalAlignment=HorizontalAlignment.Left;
             retrack.Content=new TextBlock {Text=(string)retrack.Content,TextWrapping=TextWrapping.Wrap};
-            AutomationProperties.SetName(retrack,L.P("Track again from this scene","이 장면부터 다시 따라가기"));
+            AutomationProperties.SetName(retrack,L.P("Track again","다시 따라가기"));
             trackingControls=new StackPanel {Margin=new Thickness(0,2,0,4)};
             trackingControls.Children.Add(followMotion);trackingControls.Children.Add(options);trackingControls.Children.Add(retrack);
             drawLayer.Updated+=SyncTrackingControls;

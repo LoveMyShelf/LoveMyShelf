@@ -360,6 +360,11 @@ namespace LoveMyShelf {
         BitmapSource staticEraseCachedPatch;
         internal Func<MotionRequest,CancellationToken,Action<double>,Task<string>> SaveEditedFile;
         internal string SavedEditedPath {get;private set;}
+        // Set by the folder window: [Save as new file] is saved there in the background and this window closes at once
+        // (2026-11-27 user: "only Cancel can be pressed, I can't even leave"). Without it (checks), it is saved here.
+        internal static Action<MotionRequest,Func<MotionRequest,CancellationToken,Action<double>,Task<string>>,Window> BackgroundSaver;
+        // The choices handed to the background save (null when the window closed another way).
+        internal MotionRequest SaveAsNew {get;private set;}
         Size sourcePixels;
         int drawSizeSetting,drawPixelHeight=1000;
         // 1.0.11: the text's style, folded away under [Text style]; remembered for the next window like the rest.
@@ -411,7 +416,7 @@ namespace LoveMyShelf {
             var area=SystemParameters.WorkArea;
             Width=Math.Min(960,area.Width);Height=Math.Min(820,area.Height);MinWidth=Math.Min(600,area.Width);MinHeight=Math.Min(600,area.Height);
             // Editing a saved GIF cover: this button replaces it; [Save as new file] leaves it as it is.
-            makeLabel=fromEditor?L.T("Save JPG cover and make GIF cover"):editing?L.P("Replace this GIF cover","이 GIF 표지로 바꾸기"):L.T("Make");
+            makeLabel=fromEditor?L.T("Save JPG cover and make GIF cover"):editing?L.P("Replace the cover","표지 바꾸기"):L.T("Make");
             replacing=editing && !fromEditor;
             lastAuto=AutoMake;seenHighFps=highFps;seenLargeSize=largeSize;
             span=Math.Max(2,StripSeconds)*1000.0;step=span/Thumbs;
@@ -503,6 +508,13 @@ namespace LoveMyShelf {
             startChip=TimeChip(L.T("Start"),1,L.T("Start one scene earlier"),L.T("Start one scene later"),out startTime);
             endChip=TimeChip(L.T("End"),2,L.T("End one scene earlier"),L.T("End one scene later"),out endTime);
             endChip.Margin=new Thickness(8,0,0,0);
+            // Play / pause, before start and end. A click on the preview draws while Draw is open, so this always works
+            // (2026-11-27 user: "with Draw open a click draws; I have to fold it to pause"). Space does the same.
+            playButton=new Button {MinWidth=76,MinHeight=30,Padding=new Thickness(8,1,8,2),FontSize=12.5,Focusable=false,
+                VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,8,0),ToolTip=L.P("Pause or play the preview (Space)","미리보기 멈춤·재생 (Space)")};
+            playButton.Click+=delegate {TogglePause();};
+            AutomationProperties.SetName(playButton,L.P("Pause or play","멈춤·재생"));
+            chips.Children.Add(playButton);
             chips.Children.Add(startChip);chips.Children.Add(endChip);
             DockPanel.SetDock(chips,Dock.Left);lastRow.Children.Add(chips);
             bottom.Children.Add(lastRow);
@@ -559,8 +571,8 @@ namespace LoveMyShelf {
             saveNew=UI.Btn(L.P("Save as new file","새 파일로 저장"),SaveAsNewFile);
             saveNew.Margin=new Thickness(0,0,6,2);
             saveNew.Visibility=Visibility.Collapsed;
-            saveNew.ToolTip=L.P("Saves the moving picture with your adjustments, erases and drawings as a new file next to the original, and shows it in the folder. The original stays as it is.",
-                "구간, 보정, 지우기, 그림을 반영한 움짤을 원본 옆에 새 파일(예: 이름_편집.gif)로 저장하고 폴더에서 바로 보여 줘요. 원본은 그대로예요.");
+            saveNew.ToolTip=L.P("Saves it as a new file next to the original (like name_편집.gif), in the background: this window closes at once. The original stays as it is.",
+                "원본 옆에 새 파일(예: 이름_편집.gif)로 저장해요. 저장은 뒤에서 하고 이 창은 바로 닫혀요. 원본은 그대로예요.");
             var cancel=UI.Btn(L.T("Cancel"),()=>{
                 if(saveNewWork!=null){saveNewWork.Cancel();return;}
                 DialogResult=false;
@@ -572,8 +584,8 @@ namespace LoveMyShelf {
             if(replacing) {
                 make.ToolTip=L.P("Makes the GIF cover again with these choices and puts it in place of the one you have now (the old file goes to the Recycle Bin).",
                     "지금 고른 대로 GIF 표지를 다시 만들어 지금 GIF 표지와 바꿔요. 옛 파일은 휴지통으로 가요.");
-                saveNew.ToolTip=L.P("Leaves the GIF cover you have now as it is, and saves this as a separate new file next to the original (like name_편집.gif).",
-                    "지금 GIF 표지는 그대로 두고, 이것을 원본 옆에 따로 새 파일(예: 이름_편집.gif)로 저장해요.");
+                saveNew.ToolTip=L.P("Leaves the GIF cover you have now as it is, and saves this as a new file next to the original (like name_편집.gif), in the background.",
+                    "지금 GIF 표지는 그대로 두고, 원본 옆에 새 파일(예: 이름_편집.gif)로 저장해요. 저장은 뒤에서 하고 이 창은 바로 닫혀요.");
             }
             foreach(var button in new[]{saveNew,cancel,make}){button.FontSize=14;button.MinHeight=32;}
             actions.Children.Add(saveNew);actions.Children.Add(cancel);actions.Children.Add(make);
@@ -720,7 +732,7 @@ namespace LoveMyShelf {
                 foreach(var opening in new[]{roughPlayer,exactPlayer})
                     if(opening!=null)opening.ContinueWith(t=>{if(t.Status==TaskStatus.RanToCompletion && t.Result!=null)t.Result.Dispose();});
                 // Preview files go away, except the one handed to Make.
-                string keep=Value!=null?Value.Prepared:null;
+                string keep=Value!=null?Value.Prepared:SaveAsNew!=null?SaveAsNew.Prepared:null;
                 foreach(var file in previewFiles)if(file!=keep)MotionMaker.DeleteLater(file);
             };
             // Videos: two hidden players keep the file open. One fills the strip at once with keyframes,
@@ -766,7 +778,8 @@ namespace LoveMyShelf {
         // Speed: [Z Reset] [X −] 1.2× [C +] [V 2×]. One press is 0.1; a held button keeps going, like a held key.
         // V goes straight to 2×, and from 2× back to 1×.
         FrameworkElement SpeedControl() {
-            var row=new StackPanel {Orientation=Orientation.Horizontal};
+            // Wraps in a narrow side column instead of running past its edge, where nothing scrolls sideways (2026-11-27 user).
+            var row=new WrapPanel();
             Func<string,string,Action,bool,Button> key=(label,tip,act,repeats)=>{
                 var button=new Button {Content=label,MinHeight=30,MinWidth=0,Padding=new Thickness(8,1,8,2),FontSize=12.5,Focusable=false,ToolTip=tip,
                     VerticalAlignment=VerticalAlignment.Center};
@@ -796,7 +809,10 @@ namespace LoveMyShelf {
             ShowSpeed();
             return row;
         }
-        Button doubleSpeed;
+        Button doubleSpeed,playButton;
+        void ShowPlayButton() {
+            if(playButton!=null)playButton.Content=held?L.P("▶ Play","▶ 재생"):L.P("⏸ Pause","⏸ 멈춤");
+        }
         void ToggleDoubleSpeed() {SetSpeed(Math.Abs(speed-2)<0.0001?1:2);}
         void ShowSpeed() {
             speedText.Text=L.F("{0}×",speed.ToString("0.##",CultureInfo.CurrentCulture));
@@ -824,7 +840,7 @@ namespace LoveMyShelf {
         FrameworkElement qualityUnder;
         void BuildExtras(MotionRequest saved) {
             // Flip: left-right, up-down.
-            var flips=new StackPanel {Orientation=Orientation.Horizontal};
+            var flips=new WrapPanel();
             foreach(int axis in new[]{0,1}) {
                 int which=axis;
                 var box=new CheckBox {Content=which==0?L.P("Left ↔ right","좌우"):L.P("Up ↕ down","위아래"),IsChecked=which==0?flipX:flipY,Margin=new Thickness(0,2,14,2),FontSize=13};
@@ -838,13 +854,13 @@ namespace LoveMyShelf {
             // How many times it plays (0 = forever) and a pause on the last picture.
             var playsPanel=new StackPanel();
             Func<double> readPlays,readHold;Action<double> writePlays,writeHold;
-            playsPanel.Children.Add(Field(L.P("Plays","재생 횟수"),MotionLook.Number(plays,0,100,1,L.P("times (0 = forever)","번 (0이면 계속)"),L.P("How many times it plays","재생 횟수"),
+            playsPanel.Children.Add(Field(L.P("Plays","재생 횟수"),MotionLook.Number(plays,0,100,1,L.P("times","번"),L.P("How many times it plays (0 = forever)","재생 횟수 (0이면 계속)"),
                 v=>{plays=(int)v;Changed();},out readPlays,out writePlays)));
             playsPanel.Children.Add(Field(L.P("Pause at the end","끝에서 멈춤"),MotionLook.Number(hold,0,10,0.5,L.P("s","초"),L.P("Seconds the last picture stays","끝에서 멈추는 시간 (초)"),
                 v=>{hold=v;Changed();},out readHold,out writeHold)));
             // Smooth loop: on/off and how many seconds the end fades into the start.
             var blendRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
-            var blendBox=new CheckBox {Content=L.P("Fade the end into the start","끝과 처음을 부드럽게 이어요"),IsChecked=blend>0.01,
+            var blendBox=new CheckBox {Content=L.P("On","켜기"),ToolTip=L.P("Fades the end into the start, so the loop has no jump.","끝과 처음을 부드럽게 이어서 반복할 때 튀지 않아요."),IsChecked=blend>0.01,
                 Margin=new Thickness(0,2,10,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
             blendBox.SetResourceReference(Control.ForegroundProperty,"Text");
             double blendSeconds=blend>0.01?blend:0.5;
@@ -863,14 +879,14 @@ namespace LoveMyShelf {
             // Quality as a number (1..100) under the three buttons: the buttons fill it in, typing makes it your own.
             int[] presets={90,75,55};
             Action<double> noteQuality=v=>{qualityTyped=true;Changed();};
-            qualityUnder=MotionLook.Number(saved!=null && saved.Q>0?saved.Q:presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))],1,100,5,L.P("(higher is sharper)","(높을수록 선명)"),
-                L.P("Picture quality as a number","화질 숫자"),noteQuality,out qualityNumber,out showQuality);
+            qualityUnder=MotionLook.Number(saved!=null && saved.Q>0?saved.Q:presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))],1,100,5,"",
+                L.P("Picture quality as a number (higher is sharper)","화질 숫자 (높을수록 선명)"),noteQuality,out qualityNumber,out showQuality);
             qualityUnder.Margin=new Thickness(0,4,0,6);qualityUnder.HorizontalAlignment=HorizontalAlignment.Left;
             ((Panel)qualityField).Children.Add(qualityUnder);
             // A button replaces a typed number; Changed runs again so the summary and the file use the button's value.
             quality.SelectionChanged+=delegate {bool was=qualityTyped;qualityTyped=false;if(showQuality!=null)showQuality(presets[Math.Max(0,Math.Min(2,quality.SelectedIndex))]);if(was)Changed();};
             // A size to stay under: made smaller by itself until it fits.
-            var limit=new StackPanel {Orientation=Orientation.Horizontal};
+            var limit=new WrapPanel();
             var on=new CheckBox {Content=L.P("Fit under","이 크기 안으로"),IsChecked=targetOn,Margin=new Thickness(0,2,8,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
             on.SetResourceReference(Control.ForegroundProperty,"Text");
             Func<double> readMb;Action<double> writeMb;
@@ -901,7 +917,7 @@ namespace LoveMyShelf {
                 textPlace=3;};
             textMark.Moved+=delegate {UpdatePreviewLook();Changed();};
             Func<double> readSize;Action<double> writeSize;
-            textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,L.P("% of the height","% (높이 기준)"),L.P("Text size","글자 크기"),
+            textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,"%",L.P("Text size (% of the picture's height)","글자 크기 (그림 높이의 %)"),
                 v=>{textSize=v;UpdatePreviewLook();Changed();},out readSize,out writeSize)));
             textField=textPanel;
             AdjustValues initAdj=saved!=null && saved.HasOwnAdjust?saved.Adjust:source.EffectiveAdjust;
@@ -1077,6 +1093,12 @@ namespace LoveMyShelf {
                 request.Prepared=preparedFile;request.PreparedKey=preparedKey;
                 request.PreparedBefore=preparedResult.Before;request.PreparedAfter=preparedResult.After;
             }
+            if(BackgroundSaver!=null) {
+                SaveAsNew=request;
+                BackgroundSaver(request,SaveEditedFile,Owner);
+                try {DialogResult=false;} catch(InvalidOperationException) {Close();} // shown without ShowDialog (checks)
+                return;
+            }
             var work=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
             saveNewWork=work;
             make.IsEnabled=saveNew.IsEnabled=false;
@@ -1117,7 +1139,7 @@ namespace LoveMyShelf {
         void NumberField(Panel panel,OutputNumber field,string label,bool rate) {
             var row=new StackPanel {Orientation=Orientation.Horizontal};
             var box=field.Box=new TextBox {Width=64,MinHeight=26,MaxLength=15,TextAlignment=TextAlignment.Center,VerticalContentAlignment=VerticalAlignment.Center};
-            string original=rate?L.P("Same as original","원본과 같게"):L.P("Same as original size","원본 크기와 같게");
+            string original=rate?L.P("As the original","원본대로"):L.P("Original size","원본 크기");
             string setting=rate?"gifHighFps":"gifLargeSize";
             AutomationProperties.SetName(box,label);
             Button presets=null;
@@ -1896,9 +1918,10 @@ namespace LoveMyShelf {
         // The little label over the preview: "paused", the progress when nothing else is moving, or a problem.
         // The card on the left (one line in a narrow window) says the rest.
         void SetStatus() {
+            ShowPlayButton();
             bool making=preparing>=0;
             // While the preview plays nothing sits on it: the card (or the line in a narrow window) already says it is the preview.
-            string text=trackingStatus??(problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):held?L.T("Paused · click to play"):null);
+            string text=trackingStatus??(problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):held?(drawPanel.IsEditing?L.P("Paused · Space plays","멈춤 · Space로 재생"):L.T("Paused · click to play")):null);
             status.Text=text??"";
             statusPill.Visibility=text==null?Visibility.Collapsed:Visibility.Visible;
             UpdateGuide();
@@ -3122,9 +3145,37 @@ namespace LoveMyShelf {
         static string PaletteGen(MotionRequest request) {return MotionLook.GifPalette(request);}
         static void Execute(string args,Action<BitmapSource,int> copies,int copyW,int copyH,int copyRate,int forward,int fps,CancellationToken token,
             Action<double> progress,double progressFrom,double progressSpan) {
+            // Without copies to count, FFmpeg says how many pictures it wrote (-progress), so the bar keeps moving to the
+            // end instead of standing at the last step's number (2026-11-27 user: "it doesn't move from 45%").
+            bool counted=copies==null && progress!=null;
+            if(counted)args="-progress pipe:1 -nostats "+args;
             using(var p=VideoFrames.Run("ffmpeg",args))
             using(token.Register(()=>VideoFrames.Stop(p))) {
-                if(copies!=null) {
+                Quiet(p);
+                if(counted) {
+                    // A GIF made in one go writes its pictures only after its palette, so until the first number comes
+                    // the bar creeps on by the clock (never past 90% of this step).
+                    var clock=System.Diagnostics.Stopwatch.StartNew();
+                    double guess=Math.Max(1000,forward*25.0),shown=0;
+                    var gate=new object();bool over=false;
+                    // One at a time, only forward, and never after this step is over (DeepSeek).
+                    Action<double,double> tell=(share,least)=>{
+                        lock(gate) {
+                            if(over || share<shown+least)return;
+                            shown=share;
+                            try {progress(progressFrom+progressSpan*share);} catch(Exception) {}
+                        }
+                    };
+                    var creep=new Timer(_=>tell(0.9*(1-Math.Exp(-clock.ElapsedMilliseconds/guess)),0.01),null,500,500);
+                    try {
+                        string line;
+                        while((line=p.StandardOutput.ReadLine())!=null) {
+                            int frame;
+                            if(line.StartsWith("frame=",StringComparison.Ordinal) && Int32.TryParse(line.Substring(6).Trim(),NumberStyles.Integer,CultureInfo.InvariantCulture,out frame) && frame>0)
+                                tell(Math.Min(0.99,frame/(double)Math.Max(1,forward)),1e-9);
+                        }
+                    } finally {lock(gate)over=true;creep.Dispose();}
+                } else if(copies!=null) {
                     var output=p.StandardOutput.BaseStream;
                     int bytes=copyW*copyH*4,got=0;
                     double expected=Math.Max(1,copyRate<fps?forward*copyRate/(double)fps:forward);
@@ -3150,6 +3201,8 @@ namespace LoveMyShelf {
             return true;
         }
 
+        // Making a cover runs below normal priority, so the PC stays usable while it works (2026-11-27 user: "it lags").
+        internal static void Quiet(System.Diagnostics.Process p) {try {p.PriorityClass=System.Diagnostics.ProcessPriorityClass.BelowNormal;} catch(Exception) {}}
         static BitmapSource Bgra(BitmapSource source) {
             if(source.Format==PixelFormats.Bgra32)return source;
             var converted=new FormatConvertedBitmap(source,PixelFormats.Bgra32,null,0);converted.Freeze();return converted;

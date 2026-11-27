@@ -30,28 +30,61 @@ namespace LoveMyShelf {
                     "-an -c:v ffv1 -threads:v 2 -pix_fmt bgra -f matroska "+VideoFrames.Quote(output);
                 using(var decoder=VideoFrames.Run("ffmpeg",decode))
                 using(token.Register(()=>VideoFrames.Stop(decoder))) {
+                    Quiet(decoder);
                     try {
                         using(var encoder=VideoFrames.Run("ffmpeg",encode,true))
                         using(token.Register(()=>VideoFrames.Stop(encoder))) {
+                            Quiet(encoder);
                             try {
                                 int stride=checked(width*4);
-                                var pixels=new byte[checked(stride*height)];
                                 var unbaked=decoder.StandardOutput.BaseStream;
                                 var baked=encoder.StandardInput.BaseStream;
                                 double step=SourceSecondsPerFrame(request);
                                 int copyRate=copies==null?0:Math.Max(1,Math.Min(request.Fps,request.Fps*PreviewCopyLimit/Math.Max(1,expected)));
                                 int copied=0;
-                                var at=new MotionShape[shapes.Count];
-                                while(Fill(unbaked,pixels)) {
+                                // Erasing, mosaics and part adjustments only change pixels, so several pictures are done at once
+                                // (half the PC's cores, below normal priority); pen drawings need the one drawing thread.
+                                // 2026-11-27 user: "1% a second" on a 12-core laptop.
+                                int lanes=shapes.All(s=>s.IsErase || s.IsMosaic || s.IsArea)?Math.Max(1,Math.Min(8,Environment.ProcessorCount/2)):1;
+                                // Each lane holds about three pictures at a time: big pictures get fewer lanes (about 300 MB at most).
+                                lanes=(int)Math.Max(1,Math.Min(lanes,300L*1024*1024/Math.Max(1L,3L*stride*height)));
+                                var batch=new byte[lanes][];
+                                for(int i=0;i<lanes;i++)batch[i]=new byte[checked(stride*height)];
+                                var options=new System.Threading.Tasks.ParallelOptions {MaxDegreeOfParallelism=lanes,CancellationToken=token};
+                                bool more=true;
+                                while(more) {
+                                    int n=0;
+                                    while(n<lanes && (more=Fill(unbaked,batch[n])))n++;
+                                    if(n==0)break;
                                     token.ThrowIfCancellationRequested();
-                                    var original=BitmapSource.Create(width,height,96,96,PixelFormats.Bgra32,null,pixels,stride);
-                                    if(copies!=null && copied<PreviewCopyLimit && (long)count*copyRate>=(long)copied*request.Fps) {
-                                        copies(UndressedCopy(original,request,copyHeight),copyRate);copied++;
+                                    int first=count;
+                                    var originals=new BitmapSource[n];
+                                    for(int k=0;k<n;k++) {
+                                        originals[k]=BitmapSource.Create(width,height,96,96,PixelFormats.Bgra32,null,batch[k],stride);originals[k].Freeze();
+                                        if(copies!=null && copied<PreviewCopyLimit && (long)(first+k)*copyRate>=(long)copied*request.Fps) {
+                                            copies(UndressedCopy(originals[k],request,copyHeight),copyRate);copied++;
+                                        }
                                     }
-                                    for(int i=0;i<at.Length;i++)at[i]=shapes[i].At(count*step);
-                                    Bgra(MotionDraw.Apply(original,at)).CopyPixels(pixels,stride,0);
-                                    baked.Write(pixels,0,pixels.Length);
-                                    count++;
+                                    Action<int> bake=k=>{
+                                        var at=new MotionShape[shapes.Count];
+                                        for(int i=0;i<at.Length;i++)at[i]=shapes[i].At((first+k)*step);
+                                        Bgra(MotionDraw.Apply(originals[k],at)).CopyPixels(batch[k],stride,0);
+                                    };
+                                    if(n==1)bake(0);
+                                    else {
+                                        try {
+                                            System.Threading.Tasks.Parallel.For(0,n,options,k=>{
+                                                var thread=Thread.CurrentThread;var was=thread.Priority;
+                                                thread.Priority=ThreadPriority.BelowNormal;
+                                                try {bake(k);} finally {thread.Priority=was;}
+                                            });
+                                        } catch(AggregateException many) {
+                                            // The first real problem, as one lane would have thrown it.
+                                            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(many.Flatten().InnerExceptions[0]).Throw();
+                                        }
+                                    }
+                                    for(int k=0;k<n;k++)baked.Write(batch[k],0,batch[k].Length);
+                                    count+=n;
                                     if(progress!=null)progress(Math.Min(1,count/(double)Math.Max(1,expected)));
                                 }
                                 baked.Dispose();

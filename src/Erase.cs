@@ -247,7 +247,7 @@ namespace LoveMyShelf {
             }
             int w = source.PixelWidth, h = source.PixelHeight;
             if (w < 4 || h < 4) return source;
-            byte[] rawMask = RasterizeMask(shapes, w, h);
+            byte[] rawMask = SameMask(spec, shapes, w, h);
             var rgbBmp = source.Format == PixelFormats.Rgb24 ? source : new FormatConvertedBitmap(source, PixelFormats.Rgb24, null, 0);
             var srcRgb = new byte[w * h * 3];
             rgbBmp.CopyPixels(srcRgb, w * 3, 0);
@@ -259,6 +259,21 @@ namespace LoveMyShelf {
                 if (recentFull.Count > 24) recentFull.RemoveAt(recentFull.Count - 1);
             }
             return result;
+        }
+
+        // The painted spots drawn once for every picture of a GIF that has the same spots and size (read-only: callers
+        // make new arrays from it).
+        static readonly List<KeyValuePair<string, byte[]>> recentMasks = new List<KeyValuePair<string, byte[]>>();
+        static byte[] SameMask(string spec, IList<MotionShape> shapes, int w, int h) {
+            string key = w + "x" + h + "|" + spec;
+            lock (recentMasks) foreach (var kept in recentMasks) if (kept.Key == key) return kept.Value;
+            byte[] mask = RasterizeMask(shapes, w, h);
+            lock (recentMasks) {
+                foreach (var kept in recentMasks) if (kept.Key == key) return kept.Value; // another picture drew it meanwhile
+                recentMasks.Insert(0, new KeyValuePair<string, byte[]>(key, mask));
+                if (recentMasks.Count > 4) recentMasks.RemoveAt(recentMasks.Count - 1);
+            }
+            return mask;
         }
 
         // Builds a transparent BGRA32 patch of (w, h) containing only the erased hole + 2px soft feather border.

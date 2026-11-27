@@ -805,6 +805,9 @@ namespace LoveMyShelf {
             this.pickCoverFolder=pickCoverFolder??(owner=>UI.PickFolder(owner,
                 L.T("Choose the folder where cover files will be saved."),Preferences.SuggestedCoverParent,true));
             settings=Preferences.Load(store.Root);L.Korean=settings.Korean;MotionWindow.UseDefaults(settings);ViewerKeys.Use(settings);
+            // The folder window last used saves new files (DeepSeek: not one that has closed).
+            MotionWindow.BackgroundSaver=SaveNewMotionInBackground;
+            Activated+=delegate {MotionWindow.BackgroundSaver=SaveNewMotionInBackground;};
             if(!another)Task.Run(()=>MotionMaker.SweepPreviews()); // GIF preview files left behind by a sudden exit
             allCrops=new Album(CollectionKey,L.T("Cover collection"));
             unfinished=new Album(UnfinishedKey,L.T("Unfinished cover collection"));
@@ -2833,6 +2836,46 @@ namespace LoveMyShelf {
             string fallbackDir=settings.CoverDirectory;
             return Task.Run(()=>MotionMaker.SaveEditedCopy(source,request,token,fallbackDir,progress),token);
         }
+        // [Save as new file] in Make GIF cover, saved here in the background so that window closes at once. A large view on
+        // screen shows how far it is only in its player bar; otherwise a small notice. When it's done, the notice says the
+        // file's name and folder, and [Show] finds it (2026-11-27 user: "say where the new file goes").
+        void SaveNewMotionInBackground(MotionRequest request,Func<MotionRequest,CancellationToken,Action<double>,Task<string>> save,Window from) {
+            if(save==null)return;
+            var watcher=from as Viewer;
+            if(watcher==null || !watcher.CanShowGifWork)watcher=Application.Current.Windows.OfType<Viewer>().FirstOrDefault(v=>v.CanShowGifWork);
+            SaveNewMotion(request,save,watcher);
+        }
+        async void SaveNewMotion(MotionRequest request,Func<MotionRequest,CancellationToken,Action<double>,Task<string>> save,Viewer watcher) {
+            var job=new object();
+            bool quiet=watcher!=null;
+            string label=L.P("New file","새 파일");
+            var working=quiet?null:Notify(L.P("Saving a new file","새 파일로 저장하는 중"),"",null,NoticeKind.Busy);
+            if(quiet)watcher.GifWorkStarted(job,label);
+            var work=BackgroundWork.Start(L.P("Saving a new file","새 파일로 저장 중"),label);
+            var last=DateTime.MinValue;
+            Action<double> progress=share=>{
+                work.Progress(share);
+                var now=DateTime.UtcNow;if((now-last).TotalMilliseconds<250 && share<1)return;last=now;
+                if(quiet)Dispatcher.BeginInvoke(new Action(()=>watcher.GifWorkProgress(job,share)));
+            };
+            try {
+                string path=await save(request,lifetime.Token,progress);
+                if(lifetime.IsCancellationRequested)return;
+                if(working!=null)working.Dismiss();
+                if(String.IsNullOrEmpty(path))return;
+                string name=Path.GetFileName(path),folder=Path.GetDirectoryName(path);
+                Notify(L.PF("Saved {0}","{0} 저장했어요",name),folder,()=>RevealSavedFile(path),NoticeKind.Done,false,10,L.P("Show","보기"));
+            } catch(OperationCanceledException) {
+            } catch(Exception ex) {
+                if(working!=null)working.Dismiss();
+                if(!lifetime.IsCancellationRequested)Notify(L.P("Couldn't save the new file","새 파일을 저장하지 못했어요"),ex.Message,null,NoticeKind.Warning);
+            } finally {
+                work.End();
+                if(quiet)watcher.GifWorkEnded(job,false);
+                if(working!=null)working.Dismiss();
+                MotionMaker.DeleteLater(request.Prepared);
+            }
+        }
         internal void RevealSavedFile(string path) {
             if(String.IsNullOrEmpty(path) || lifetime.IsCancellationRequested)return;
             try {
@@ -2890,7 +2933,8 @@ namespace LoveMyShelf {
                 // A cover that already has a GIF: Edit GIF cover, starting from the part and choices it was made with.
                 var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false,photo.HasMotion,photo.HasMotion?photo.MotionSettings:null);
                 dialog.SaveEditedFile=(req,tok,prog)=>SaveEditedMotionFromSource(source,req,tok,prog);
-                if(CoverWork.Show(dialog,photo,this,original)==true)MakeMotion(photo,dialog.Value);
+                var watcher=owner as Viewer;
+                if(CoverWork.Show(dialog,photo,this,original)==true)MakeMotion(photo,dialog.Value,watcher!=null && watcher.CanShowGifWork?watcher:null);
                 else if(!String.IsNullOrEmpty(dialog.SavedEditedPath))RevealSavedFile(dialog.SavedEditedPath);
             } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
         }
