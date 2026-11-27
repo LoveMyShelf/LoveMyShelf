@@ -391,6 +391,9 @@ namespace LoveMyShelf {
         internal event Action<Photo,string> Failed;     // photo, message
 
         internal bool IsBusy {get {return running!=null || queue.Count>0;}}
+        // The cover being upscaled now (the folder window's bottom bar shows it with the other background work).
+        internal string RunningFolder {get {var job=running;return job==null?null:job.Photo.Folder;}}
+        internal string RunningName {get {var job=running;return job==null?null:job.Photo.Name;}}
         internal UpscaleStage Stage(string folder,out int percent) {
             percent=0;
             if(running!=null && Same(running.Photo.Folder,folder)) {

@@ -978,6 +978,7 @@ namespace LoveMyShelf {
             foreach(var button in new[]{queueButton,openCoverFolder,sortButton,sizing}) {
                 button.Margin=new Thickness(3,0,0,0);footerControls.Children.Add(button);
             }
+            SetupWork(footerControls); // background work and its percent, in this group only while there is some (GalleryWork.cs)
             footerStatus.Children.Add(filter);
             // Shown as All, Finished (cover O), Unfinished (cover X); the numbers stay All=0, Unfinished=1, Finished=2.
             foreach(int i in new[]{0,2,1}) {
@@ -2904,8 +2905,14 @@ namespace LoveMyShelf {
             // Just the title and the file: the line about working in the background made the card three lines taller.
             var working=quiet?null:Notify(L.T("Making the GIF cover"),photo.Name,null,NoticeKind.Busy);
             if(quiet)watcher.GifWorkStarted(job,photo.Name);
-            Action<double> progress=null;
-            if(quiet){var last=DateTime.MinValue;progress=share=>{var now=DateTime.UtcNow;if((now-last).TotalMilliseconds<250 && share<1)return;last=now;Dispatcher.BeginInvoke(new Action(()=>watcher.GifWorkProgress(job,share)));};}
+            // Every window's bottom bar shows it while it runs ("GIF 만드는 중 45% · 약 30초 남음"); the large view also in its player bar.
+            var work=BackgroundWork.Start(L.P("Making GIF","GIF 만드는 중"),photo.Name);
+            var last=DateTime.MinValue;
+            Action<double> progress=share=>{
+                work.Progress(share);
+                var now=DateTime.UtcNow;if((now-last).TotalMilliseconds<250 && share<1)return;last=now;
+                if(quiet)Dispatcher.BeginInvoke(new Action(()=>watcher.GifWorkProgress(job,share)));
+            };
             try {
                 var place=settings.CoverPlace;string coverDirectory=settings.CoverDirectory;
                 var result=await Task.Run(()=>{
@@ -2952,7 +2959,7 @@ namespace LoveMyShelf {
                     Notify(L.T("Couldn’t make the GIF cover"),photo.Name+Environment.NewLine+ex.Message,null,NoticeKind.Warning);
             }
             // The Make GIF window's ready-made file has been copied (or wasn't usable); either way it's done.
-            finally {if(working!=null)working.Dismiss();MotionMaker.DeleteLater(request.Prepared);}
+            finally {work.End();if(working!=null)working.Dismiss();MotionMaker.DeleteLater(request.Prepared);}
         }
         // Where Make another cover saves: a new record for originals that already have one.
         Photo AddTarget(Photo photo,string resolved=null) {
