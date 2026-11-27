@@ -1067,6 +1067,7 @@ namespace LoveMyShelf {
             area.SizeChanged+=delegate {PlaceFolderPane();};
             PlaceFolderPane();
             SetupSimilar(area);
+            SetupUncovered(area);
             var host=new Grid();area.Children.Add(host);
             grid.BorderThickness=new Thickness(0);grid.Padding=new Thickness(0);grid.Margin=new Thickness(2,0,1,0);UI.Use(grid,Control.BackgroundProperty,"Paper");
             var style=new Style(typeof(ListBoxItem));
@@ -1541,6 +1542,7 @@ namespace LoveMyShelf {
             UI.Use(tagsButton,Control.BorderBrushProperty,ShowingTag?"Accent":"Line");
             filter.Visibility=active.Source!=null || ShowingScope?Visibility.Visible:Visibility.Collapsed;
             ShowSimilarBar();
+            ShowUncoveredBar();
             if(updateFooter!=null)updateFooter();
             int view;
             folderFilter=folderFilters.TryGetValue(active.Folder,out view)?view:0;
@@ -2038,7 +2040,9 @@ namespace LoveMyShelf {
                     }));
                     List<Photo> saved;
                     try {
-                        saved=await Task.Run(()=>{
+                        if(pending && UncoveredRangeNow==UncoveredRange.Computer)
+                            saved=await UncoveredOnComputer(scanToken,sort,descending,foundSoFar,n=>skipped=n);
+                        else saved=await Task.Run(()=>{
                             if(scope!=null) {
                                 var gathered=store.FolderTreePhotos(scope,out skipped,scanToken,foundSoFar);
                                 scanToken.ThrowIfCancellationRequested();
@@ -2132,6 +2136,7 @@ namespace LoveMyShelf {
                 folderUnavailable?L.T("Check that the folder is still in its place, then press F5. If you unplugged a phone or a USB drive, connect it again."):
                 L.T(searching?"Search with another name, or clear the search box.":
                     ShowingTag?"Files on a drive that isn't connected come back when the drive is connected again. To put this tag on a file, right-click the file and click [Tags…].":
+                    ShowingUnfinished && UncoveredRangeNow==UncoveredRange.Computer?"Photos and videos on this computer that have no cover yet gather here.":
                     ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to LoveMyShelf and their subfolders, gather here.":
                     ShowingScope?(folderFilter!=0 && scopePhotos!=null && scopePhotos.Count>0?"Click [All] at the bottom left to see everything.":""):
                     pending?"Click [All] at the bottom left to see everything.":

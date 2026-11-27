@@ -132,7 +132,12 @@ namespace LoveMyShelf {
         }
         internal static bool Any {get {lock(Gate)return All().Count>0;}}
         // Adds and removes tags on several originals at once; a tag that isn't named stays as it is on each of them.
+        // Set by the store: a file from the whole-computer list gets its folder's records first, so the tag can be found again.
+        internal static Action<Photo> NeedRecords;
         internal static void Change(IEnumerable<Photo> photos,IEnumerable<string> add,IEnumerable<string> remove) {
+            photos=photos.ToList();
+            var need=NeedRecords;
+            if(need!=null && add!=null && add.Any())foreach(var p in photos)try {need(p);} catch(Exception quiet) {ErrorLog.Quiet(quiet);}
             var files=photos.Select(p=>Tuple.Create(AlbumOf(p),NameOf(p))).ToList();
             Change(files,add,remove);
         }

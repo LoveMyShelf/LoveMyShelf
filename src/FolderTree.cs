@@ -304,12 +304,15 @@ namespace LoveMyShelf {
             };
             var gather=new MenuItem();gather.Click+=delegate {owner.GatherFolder(entry.Path);};
             var similar=new MenuItem();similar.Click+=delegate {owner.FindSimilar(entry.Path);};
-            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(gather);menu.Items.Add(similar);menu.Items.Add(new Separator());menu.Items.Add(explorer);
+            // One list of folders left out of the Unfinished cover collection, in either range.
+            var leaveOut=new MenuItem();leaveOut.Click+=delegate {owner.LeaveOutOfUncovered(entry.Path,!owner.LeftOutOfUncovered(entry.Path));};
+            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(gather);menu.Items.Add(similar);menu.Items.Add(leaveOut);menu.Items.Add(new Separator());menu.Items.Add(explorer);
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
                 gather.Header=L.T("Gather this folder only");
                 gather.Visibility=owner.CanGatherFolder(entry.Path)?Visibility.Visible:Visibility.Collapsed;
                 similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
+                leaveOut.Header=owner.LeftOutOfUncovered(entry.Path)?L.P("Put back into the Unfinished cover collection","표지 X 모음에 다시 넣기"):L.P("Leave out of the Unfinished cover collection","표지 X 모음에서 빼기");
                 shelf.Header=L.T(owner.OnShelf(entry.Path)?"Remove from LoveMyShelf":"Add to LoveMyShelf");
             };
             return menu;

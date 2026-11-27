@@ -819,6 +819,13 @@ namespace LoveMyShelf {
                 Custom=p=>T("Now ","지금 ")+name(get(p))+T(" (a value you typed in earlier)"," (예전에 직접 입력한 값)")};
         }
 
+        // An on/off setting of the Unfinished cover collection; those options live in their own file (UncoveredOptions).
+        static Setting OnOff(string id,string title,string on,string off,Func<UncoveredOptions,bool> get,Action<UncoveredOptions,bool> set,bool def) {
+            return new Setting {Id=id,SectionId="uncovered",Title=title,
+                Choices=new[]{new Choice(T("On","켜기"),on),new Choice(T("Off","끄기"),off)},
+                Default=def?0:1,Columns=2,Get=p=>get(UncoveredOptions.Current)?0:1,Set=(p,i)=>UncoveredOptions.Change(o=>set(o,i==0))};
+        }
+
         // Gives a number setting its "Type your own" card. The range and step are in the unit shown beside the box.
         static Setting Typed(Setting setting,string unit,double min,double max,double step,int scale=1) {
             setting.Entry=new NumberEntry {Unit=unit,Min=min,Max=max,Step=step,Scale=scale};
@@ -919,8 +926,8 @@ namespace LoveMyShelf {
                     T("A file with a cover shows the cover in its tile.","표지를 만든 파일은 칸에 표지가 보여요."),
                     T("At the bottom left, [[All]] shows every tile, [[Finished]] shows only tiles with a cover, and [[Unfinished]] shows only tiles that have no cover yet.",
                       "왼쪽 아래의 [[전체]]는 모든 칸을, [[표지 O]]는 표지가 있는 칸만, [[표지 X]]는 아직 표지가 없는 칸만 보여 줘요. 여기서 X는 오류가 아니라 ‘아직 표지가 없다’는 뜻이에요."),
-                    T("[[Cover collection]] at the bottom middle gathers the covers of every folder in one place. [[Unfinished cover collection]] next to it gathers only the files that have no cover yet, from the folders you added to LoveMyShelf and their subfolders.",
-                      "아래쪽 가운데의 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆의 [[표지 X 모음]]은 LoveMyShelf에 추가한 폴더와 그 하위 폴더에서 아직 표지가 없는 파일만 모아 보여 줘요."),
+                    T("[[Cover collection]] at the bottom middle gathers the covers of every folder in one place. [[Unfinished cover collection]] next to it gathers only the files that have no cover yet. You choose whether it looks only in the folders you added or on the whole computer.",
+                      "아래쪽 가운데의 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆의 [[표지 X 모음]]은 아직 표지가 없는 파일만 모아 보여 줘요. 추가한 폴더에서만 찾을지, 컴퓨터 전체에서 찾을지 고를 수 있어요."),
                     T("When the window gets narrow, as when two windows are side by side, the names of the buttons at the bottom get shorter, like [[O set]] or [[O]], or turn into icons. [[New window]] and [[Guide & Options]] at the top turn into icons (⧉ ?) too. Point the mouse at one to see its full name.",
                       "창 두 개를 나란히 띄울 때처럼 창이 좁아지면 아래쪽 버튼 이름이 [[O 모음]], [[O]]처럼 짧아지거나 아이콘으로 바뀌어요. 위쪽의 [[새 창]]과 [[설명서 겸 옵션]]도 아이콘(⧉ ?)으로 바뀌어요. 마우스를 올리면 원래 이름이 나와요."),
                     T("Each time you click [[Cover size]] at the bottom right, the tile size changes through 4 steps.","오른쪽 아래의 [[표지 크기]]를 누를 때마다 칸 크기가 4단계로 바뀌어요.")}});
@@ -1060,6 +1067,61 @@ namespace LoveMyShelf {
                 Choices=new[]{new Choice(T("Fill it with the next one","뒤 표지로 채우기"),T("The next one-cell file goes into the empty cell. The order changes by just one place.","바로 뒤의 한 칸짜리 파일을 빈칸에 놓아요. 순서는 딱 한 칸만 바뀌어요.")),
                     new Choice(T("Leave it empty","빈칸 그대로"),T("The order stays exactly as it is and the cell stays empty.","순서를 그대로 지키고 줄 끝을 비워 둬요."))},
                 Default=0,Columns=2,Get=p=>p.FillWideGaps?0:1,Set=(p,i)=>p.FillWideGaps=i==0});
+
+            // ----- Unfinished cover collection -----
+            var uncovered=add("uncovered",T("Unfinished cover collection","표지 X 모음"));
+            uncovered.Items.Add(new Card {Title=T("Where the files without a cover are looked for","표지가 없는 파일을 어디서 찾을까요"),
+                Lines=new[]{
+                    T("The Unfinished cover collection gathers the photos and videos that have no cover yet. It can look in two ranges. [[Added folders only]] looks in the folders you added to LoveMyShelf and the folders inside them. [[Whole computer]] looks on every drive of this computer.",
+                      "표지 X 모음은 아직 표지가 없는 사진과 영상을 모아 보여 줘요. 찾는 범위는 두 가지예요. [[추가한 폴더만]]은 LoveMyShelf에 추가한 폴더와 그 안의 폴더에서 찾고, [[컴퓨터 전체]]는 이 컴퓨터의 모든 드라이브에서 찾아요."),
+                    T("Change it with the button at the top of the Unfinished cover collection, or right here. The range you choose is remembered. At first it starts with [[Added folders only]] if you added folders, and with [[Whole computer]] if you haven't added any.",
+                      "범위는 표지 X 모음 위쪽의 버튼이나 바로 아래에서 바꿔요. 고른 범위는 기억해요. 처음에는 추가한 폴더가 있으면 [[추가한 폴더만]]으로, 하나도 없으면 [[컴퓨터 전체]]로 시작해요."),
+                    T("The first look at the whole computer can take a few minutes when there are many files. It goes on in the background while you look at other folders, and [[Stop]] shows what was found until then. The list is kept while LoveMyShelf is open, so the next visit shows it right away. To find new folders too, click [[Check again]].",
+                      "컴퓨터 전체를 처음 훑을 때는 파일이 많으면 몇 분 걸릴 수 있어요. 그동안 다른 폴더를 봐도 뒤에서 알아서 진행되고, [[멈추기]]를 누르면 그때까지 찾은 것만 보여 줘요. 한 번 훑은 목록은 LoveMyShelf를 켜 둔 동안 기억해서 다음에 열면 바로 나와요. 새로 생긴 폴더까지 찾으려면 [[다시 확인]]을 눌러요."),
+                    T("It needs no administrator rights. It looks only at file names and places, not at what is in the photos and videos. Folders this Windows account can't open are skipped, and the number of them is shown.",
+                      "관리자 권한은 필요 없어요. 사진과 영상의 내용은 읽지 않고 파일 이름과 위치만 봐요. 지금 Windows 계정으로 열 수 없는 폴더는 건너뛰고, 몇 개였는지 알려 줘요.")},
+                Tips=new[]{
+                    T("To leave a folder out, right-click it in the folder tree and click [[Leave out of the Unfinished cover collection]]. The folders inside it are left out too, in both ranges. To put it back, click [[Put back into the Unfinished cover collection]] in the same menu, or choose it under [[Folders left out]] in the button at the top.",
+                      "빼고 싶은 폴더는 폴더 트리에서 오른쪽 클릭하고 [[표지 X 모음에서 빼기]]를 눌러요. 그 안의 폴더도 함께 빠지고, 두 범위에 모두 적용돼요. 다시 넣으려면 같은 메뉴의 [[표지 X 모음에 다시 넣기]]를 누르거나, 위쪽 버튼의 [[빼 둔 폴더]]에서 골라요."),
+                    T("Files that are only in the cloud and not downloaded yet, as in OneDrive, are left out of the whole-computer range. Opening one to draw its tile could download the whole file.",
+                      "OneDrive처럼 클라우드에만 있고 아직 내려받지 않은 파일은 컴퓨터 전체 범위에서 빼요. 칸 그림을 그리려고 열면 파일 전체가 내려받아질 수 있어서예요.")}});
+            uncovered.Items.Add(new Setting {Id="uncoveredRange",SectionId="uncovered",Title=T("Where should the Unfinished cover collection look?","표지 X 모음은 어디서 찾을까요?"),
+                Choices=new[]{new Choice(T("Added folders only","추가한 폴더만"),T("The folders you added and the folders inside them. Quick.","추가한 폴더와 그 안의 폴더예요. 빨라요.")),
+                    new Choice(T("Whole computer","컴퓨터 전체"),T("Every drive this Windows account can open. The first look takes a while.","이 Windows 계정이 열 수 있는 모든 드라이브예요. 처음 훑을 때 시간이 좀 걸려요."))},
+                Default=0,Columns=2,
+                Get=p=>{var g=Gallery;return (g!=null?g.UncoveredRangeNow:UncoveredOptions.Current.RangeFor(1))==UncoveredRange.Computer?1:0;},
+                Set=(p,i)=>UncoveredOptions.Change(o=>{o.Range=i==1?UncoveredRange.Computer:UncoveredRange.Added;o.HintDone=true;})});
+            uncovered.Items.Add(OnOff("uncoveredRemovable",T("Look on external drives too?","외장 드라이브에서도 찾을까요?"),
+                T("USB drives and memory cards that are connected are looked through too.","연결된 USB 드라이브와 메모리 카드도 훑어요."),
+                T("Only the drives inside this computer.","이 컴퓨터 안의 드라이브만 훑어요."),o=>o.Removable,(o,v)=>o.Removable=v,true));
+            uncovered.Items.Add(OnOff("uncoveredNetwork",T("Look on network drives too?","네트워크 드라이브에서도 찾을까요?"),
+                T("Network drives with a letter are looked through too. They can be slow.","드라이브 문자가 붙은 네트워크 드라이브도 훑어요. 느릴 수 있어요."),
+                T("Network folders you added still show.","추가한 네트워크 폴더는 그래도 보여요."),o=>o.Network,(o,v)=>o.Network=v,false));
+            uncovered.Items.Add(OnOff("uncoveredHidden",T("Look in hidden folders too?","숨김 폴더에서도 찾을까요?"),
+                T("Folders File Explorer hides are looked through too.","파일 탐색기가 숨기는 폴더도 훑어요."),
+                T("Hidden folders are skipped, like File Explorer.","파일 탐색기처럼 숨김 폴더는 건너뛰어요."),o=>o.Hidden,(o,v)=>o.Hidden=v,false));
+            uncovered.Items.Add(OnOff("uncoveredSystem",T("Leave out Windows and program folders?","Windows·프로그램 폴더는 뺄까요?"),
+                T("Windows, Program Files, AppData, the Recycle Bin and System Volume Information are skipped. They hold thousands of icons.","Windows, Program Files, AppData, 휴지통, System Volume Information은 건너뛰어요. 아이콘 그림이 수천 개씩 들어 있는 곳이에요."),
+                T("Those folders are looked through too.","그 폴더들도 모두 훑어요."),o=>o.SkipSystem,(o,v)=>o.SkipSystem=v,true));
+            uncovered.Items.Add(Typed(Numbers("uncoveredMinSize",T("Leave out files smaller than this?","이 크기보다 작은 파일은 뺄까요?"),new[]{0,10,100,1024},0,
+                p=>UncoveredOptions.Current.MinSizeKb,(p,v)=>UncoveredOptions.Change(o=>o.MinSizeKb=v),
+                v=>v==0?T("Show all","모두 보기"):v.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)+" KB",
+                v=>v==0?T("Small icons and stickers show too","작은 아이콘과 스티커도 보여요"):v==10?T("Leaves out tiny icons","아주 작은 아이콘을 빼요"):v==100?T("Leaves out most icons and small pictures","아이콘과 작은 그림을 대부분 빼요"):v==1024?T("Only files of 1 MB or more","1MB 이상인 파일만"):"",4),"KB",0,10485760,10));
+            uncovered.Items.Add(Typed(Numbers("uncoveredDrives",T("How many drives should be read at once?","드라이브 몇 개를 한꺼번에 읽을까요?"),new[]{1,2,4},1,
+                p=>UncoveredOptions.Current.DrivesAtOnce,(p,v)=>UncoveredOptions.Change(o=>o.DrivesAtOnce=v),
+                v=>T(v+(v==1?" drive":" drives"),v+"개"),
+                v=>v==1?T("Safe for hard disks","하드디스크에 무리가 없어요"):v==2?T("Good when each drive is a separate disk","드라이브마다 디스크가 따로면 좋아요"):v==4?T("For several SSDs","SSD가 여러 개일 때"):"",3),T("drives","개"),1,8,1));
+            uncovered.Items.Add(Typed(Numbers("uncoveredWorkers",T("How many helpers should read each drive?","드라이브 하나를 몇 명이 나눠 읽을까요?"),new[]{1,4,8,16},4,
+                p=>UncoveredOptions.Current.WorkersPerDrive,(p,v)=>UncoveredOptions.Change(o=>o.WorkersPerDrive=v),
+                v=>T(v.ToString(),v+"명"),
+                v=>v==1?T("Quietest, slowest","가장 조용하고 느려요"):v==4?T("Enough for most","대부분 이걸로 충분해요"):v==16?T("Fast on SSDs","SSD에서 빨라요"):"",4),T("helpers","명"),1,32,1));
+            ((Setting)uncovered.Items.Last()).Lines=new[]{T("More helpers read an SSD faster. On a hard disk, more than 4 rarely helps.","SSD는 많을수록 빨라요. 하드디스크는 4명보다 많아도 거의 빨라지지 않아요.")};
+            uncovered.Items.Add(Typed(Numbers("uncoveredRecheck",T("How often should the whole computer be looked through again?","컴퓨터 전체를 얼마나 자주 다시 훑을까요?"),new[]{0,10,30,120},30,
+                p=>UncoveredOptions.Current.RecheckMinutes,(p,v)=>UncoveredOptions.Change(o=>o.RecheckMinutes=v),
+                v=>v==0?T("Only when I ask","누를 때만"):T(v+" min",v+"분"),
+                v=>v==0?T("Only when you click Check again","다시 확인을 누를 때만"):v==30?T("When you open it after 30 minutes","30분이 지난 뒤 열면"):"",4),T("min","분"),0,1440,5));
+            ((Setting)uncovered.Items.Last()).Lines=new[]{T("When you open the Unfinished cover collection and this much time has passed since the last look, it looks through everything again in the background. Files in folders already found always show as they are now.",
+                "표지 X 모음을 열었을 때 지난번에 훑은 뒤로 이만큼 지났으면, 뒤에서 처음부터 다시 훑어요. 이미 찾은 폴더 안의 파일은 언제나 지금 상태대로 보여요.")};
 
             // ----- Making a cover -----
             var make=add("editor",T("Making a cover","표지 만들기"));

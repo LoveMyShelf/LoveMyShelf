@@ -299,6 +299,7 @@ namespace LoveMyShelf {
             {"Only files with a cover","표지 있는 것만 보기"},
             {"Every file has a cover","모든 파일에 표지가 있어요"},
             {"Photos and videos that have no cover yet, from the folders you added to LoveMyShelf and their subfolders, gather here.","LoveMyShelf에 추가한 폴더와 그 하위 폴더에서 아직 표지가 없는 사진과 영상이 여기에 모여요."},
+            {"Photos and videos on this computer that have no cover yet gather here.","이 컴퓨터에서 아직 표지가 없는 사진과 영상이 여기에 모여요."},
             {"{0:N0} files without a cover found. Still looking.","표지 없는 파일을 {0:N0}개 찾았어요. 계속 찾는 중이에요."},
             {"Gather this folder only","이 폴더만 모아 보기"},
             {"Including subfolders","하위 폴더 포함"},
