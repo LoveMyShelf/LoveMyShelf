@@ -9,13 +9,13 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 
 namespace LoveMyShelf {
-    // The bar above the tiles of the Unfinished cover collection: where it looks (the folders added to LoveMyShelf, or
-    // the whole computer), what the reading is doing, [Stop] and [Check again]. The first visit shows one hint line.
+    // The Unfinished cover collection's range: where it looks (the folders added to LoveMyShelf, or the whole computer),
+    // what the reading is doing, Stop and Check again, all from one button in the bottom bar.
     public partial class GalleryWindow {
-        DockPanel uncoveredBar;
-        Button uncoveredRange,uncoveredStop,uncoveredAgain;
-        TextBlock uncoveredStatus;
-        FrameworkElement uncoveredHint;
+        // No row of its own above the tiles (2026-11-27 user: the space for pictures must never shrink): the range
+        // button sits in the bottom bar where [All] [O] [X] are in a folder, and everything else is in its list.
+        Button uncoveredRange;
+        bool uncoveredHintShown;
         DispatcherTimer uncoveredTimer;
         bool uncoveredReadAgain;
 
@@ -24,29 +24,8 @@ namespace LoveMyShelf {
         internal UncoveredRange UncoveredRangeNow {get {return UncoveredOptions.Current.RangeFor(AddedFolderCount);}}
 
         void SetupUncovered(DockPanel area) {
-            uncoveredBar=new DockPanel {Visibility=Visibility.Collapsed,Margin=new Thickness(10,6,10,4)};
-            DockPanel.SetDock(uncoveredBar,Dock.Top);
-            var lines=new StackPanel();uncoveredBar.Children.Add(lines);
-            // Shown once: the choice is made without a question window, and this line says it can be changed.
-            var hint=new WrapPanel {Margin=new Thickness(0,0,0,6)};
-            var hintText=UI.Text("",13,true);hintText.TextWrapping=TextWrapping.Wrap;hintText.MaxWidth=640;hintText.Margin=new Thickness(0,0,10,4);
-            hintText.VerticalAlignment=VerticalAlignment.Center;
-            var toComputer=UI.Btn("",()=>{UncoveredOptions.Change(o=>{o.Range=UncoveredRange.Computer;o.HintDone=true;});},true);
-            toComputer.Margin=new Thickness(0,0,6,4);toComputer.Padding=new Thickness(12,0,12,0);
-            var keep=UI.Btn("",()=>{UncoveredOptions.Change(o=>{o.Range=UncoveredRange.Added;o.HintDone=true;});});
-            keep.Margin=new Thickness(0,0,6,4);
-            hint.Children.Add(hintText);hint.Children.Add(toComputer);hint.Children.Add(keep);
-            hint.Tag=new object[]{hintText,toComputer,keep};
-            uncoveredHint=hint;lines.Children.Add(hint);
-            var row=new WrapPanel();
-            uncoveredRange=UI.Btn("",OpenUncoveredMenu);uncoveredRange.Margin=new Thickness(0,0,8,4);
-            uncoveredStop=UI.Btn("",()=>UncoveredFolders.Stop());uncoveredStop.Margin=new Thickness(0,0,8,4);
-            uncoveredAgain=UI.Btn("",()=>{uncoveredReadAgain=true;Refresh();});uncoveredAgain.Margin=new Thickness(0,0,8,4);
-            uncoveredStatus=UI.Text("",12.5,true);uncoveredStatus.TextWrapping=TextWrapping.Wrap;uncoveredStatus.MaxWidth=700;
-            uncoveredStatus.Margin=new Thickness(0,0,0,4);uncoveredStatus.VerticalAlignment=VerticalAlignment.Center;
-            row.Children.Add(uncoveredRange);row.Children.Add(uncoveredStop);row.Children.Add(uncoveredAgain);row.Children.Add(uncoveredStatus);
-            lines.Children.Add(row);
-            area.Children.Add(uncoveredBar);
+            uncoveredRange=UI.Btn("",OpenUncoveredMenu);uncoveredRange.Visibility=Visibility.Collapsed;
+            filter.Children.Add(uncoveredRange);
             uncoveredTimer=new DispatcherTimer {Interval=TimeSpan.FromMilliseconds(300)};
             uncoveredTimer.Tick+=delegate {
                 if(!ShowingUnfinished || !UncoveredFolders.Busy)uncoveredTimer.Stop();
@@ -57,38 +36,47 @@ namespace LoveMyShelf {
             UncoveredOptions.Changed+=changed;
             Closed+=delegate {UncoveredOptions.Changed-=changed;uncoveredTimer.Stop();};
         }
+        // In the Unfinished cover collection the bottom-left slot shows the range button instead of [All] [O] [X].
         void ShowUncoveredBar() {
-            if(uncoveredBar==null)return;
-            uncoveredBar.Visibility=ShowingUnfinished?Visibility.Visible:Visibility.Collapsed;
-            if(ShowingUnfinished)UpdateUncoveredBar();
+            if(uncoveredRange==null)return;
+            bool on=ShowingUnfinished;
+            uncoveredRange.Visibility=on?Visibility.Visible:Visibility.Collapsed;
+            foreach(var b in filterButtons)if(b!=null)b.Visibility=on?Visibility.Collapsed:Visibility.Visible;
+            if(on)filter.Visibility=Visibility.Visible;
+            if(!on)return;
+            UpdateUncoveredBar();
+            // The first visit says once, in a notice in the corner, which range is used and how to change it.
+            var o=UncoveredOptions.Current;
+            if(!uncoveredHintShown && !o.HintDone && !o.Range.HasValue && AddedFolderCount>0) {
+                uncoveredHintShown=true;
+                UncoveredOptions.Change(x=>x.HintDone=true);
+                Notify(U("Only the folders you added show now","지금은 추가한 폴더만 보여요"),
+                    U("Finished collects the files you made covers for; Unfinished looks for files without a cover in the range you choose. The button at the bottom left changes it.",
+                      "표지 O에는 표지를 만든 파일이 모이고, 표지 X는 고른 범위에서 표지가 없는 파일을 찾아요. 왼쪽 아래 버튼에서 바꿀 수 있어요."),
+                    ()=>UncoveredOptions.Change(x=>x.Range=UncoveredRange.Computer),NoticeKind.Info,false,20,U("Switch to the whole computer","컴퓨터 전체로 바꾸기"));
+            }
         }
         void UpdateUncoveredBar() {
-            if(uncoveredBar==null || !ShowingUnfinished)return;
-            var o=UncoveredOptions.Current;
-            int added=AddedFolderCount;
-            bool computer=o.RangeFor(added)==UncoveredRange.Computer,busy=computer && UncoveredFolders.Busy;
-            uncoveredRange.Content=(computer?U("Whole computer","컴퓨터 전체"):U("Added folders only","추가한 폴더만"))+" ▾";
-            uncoveredRange.ToolTip=U("Choose where the files without a cover are looked for.","표지가 없는 파일을 어디서 찾을지 골라요.");
-            uncoveredStop.Content=U("Stop","멈추기");
-            uncoveredStop.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
-            uncoveredAgain.Content=U("Check again","다시 확인");
-            uncoveredAgain.Visibility=computer && !busy?Visibility.Visible:Visibility.Collapsed;
-            uncoveredAgain.ToolTip=U("Looks through every drive again, so new folders show too.","모든 드라이브를 처음부터 다시 훑어서 새로 생긴 폴더도 찾아요.");
-            if(busy)uncoveredStatus.Text=UncoveredProgressText();
-            else if(computer) {
-                string text=UncoveredFolders.Partial?U("Stopped: what was found until then is shown. [Check again] looks through everything.","멈췄어요. 그때까지 찾은 것만 보여요. [다시 확인]을 누르면 처음부터 끝까지 찾아요."):
-                    UncoveredFolders.HasList?L.PF("Looked through the whole computer at {0:t}.","{0:t}에 컴퓨터 전체를 훑었어요.",UncoveredFolders.ReadAt):"";
-                if(UncoveredFolders.HasList && UncoveredFolders.Unreadable>0)
-                    text+=" "+L.PF("{0:N0} folders could not be opened and were skipped.","열 수 없는 폴더 {0:N0}개는 건너뛰었어요.",UncoveredFolders.Unreadable);
-                uncoveredStatus.Text=text.Trim();
-            } else uncoveredStatus.Text=L.PF("Looks in the {0:N0} folders you added and the folders inside them.","추가한 폴더 {0:N0}개와 그 안의 폴더에서 찾아요.",added);
-            var parts=(object[])uncoveredHint.Tag;
-            ((TextBlock)parts[0]).Text=U("Only the folders you added show now. Finished collects the files you made covers for; Unfinished looks for files without a cover in the range you choose.",
-                "지금은 추가한 폴더만 보여요. 표지 O에는 표지를 만든 파일이 모이고, 표지 X는 고른 범위에서 표지가 없는 파일을 찾아요.");
-            ((Button)parts[1]).Content=U("Switch to the whole computer","컴퓨터 전체로 바꾸기");
-            ((Button)parts[2]).Content=U("Keep it","그대로 두기");
-            uncoveredHint.Visibility=!o.HintDone && !o.Range.HasValue && added>0?Visibility.Visible:Visibility.Collapsed;
+            if(uncoveredRange==null || !ShowingUnfinished)return;
+            bool computer=UncoveredRangeNow==UncoveredRange.Computer,busy=computer && UncoveredFolders.Busy;
+            var p=UncoveredFolders.Progress;
+            // While the computer is read, the button itself counts, so it never looks frozen.
+            uncoveredRange.Content=(computer?U("Whole computer","컴퓨터 전체"):U("Added folders only","추가한 폴더만"))+
+                (busy && p!=null?" · "+L.PF("{0:N0} folders","폴더 {0:N0}개",p.Folders):"")+" ▾";
+            uncoveredRange.ToolTip=UncoveredStatusText();
             if(busy && !uncoveredTimer.IsEnabled)uncoveredTimer.Start();
+        }
+        // What the collection is doing now: on the button's tooltip and at the top of its list.
+        string UncoveredStatusText() {
+            bool computer=UncoveredRangeNow==UncoveredRange.Computer;
+            if(!computer)return L.PF("Looks in the {0:N0} folders you added and the folders inside them.","추가한 폴더 {0:N0}개와 그 안의 폴더에서 찾아요.",AddedFolderCount);
+            if(UncoveredFolders.Busy)return UncoveredProgressText();
+            string text=UncoveredFolders.Partial?U("Stopped: what was found until then is shown. Check again looks through everything.","멈췄어요. 그때까지 찾은 것만 보여요. 다시 확인을 누르면 처음부터 끝까지 찾아요."):
+                UncoveredFolders.HasList?L.PF("Looked through the whole computer at {0:t}.","{0:t}에 컴퓨터 전체를 훑었어요.",UncoveredFolders.ReadAt):
+                U("Looks on every drive of this computer.","이 컴퓨터의 모든 드라이브에서 찾아요.");
+            if(UncoveredFolders.HasList && UncoveredFolders.Unreadable>0)
+                text+=" "+L.PF("{0:N0} folders could not be opened and were skipped.","열 수 없는 폴더 {0:N0}개는 건너뛰었어요.",UncoveredFolders.Unreadable);
+            return text;
         }
         static string UncoveredProgressText() {
             var p=UncoveredFolders.Progress;
@@ -98,8 +86,19 @@ namespace LoveMyShelf {
         }
         void OpenUncoveredMenu() {
             var o=UncoveredOptions.Current;
-            bool computer=UncoveredRangeNow==UncoveredRange.Computer;
-            var menu=new ContextMenu {PlacementTarget=uncoveredRange,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom};
+            bool computer=UncoveredRangeNow==UncoveredRange.Computer,busy=computer && UncoveredFolders.Busy;
+            // Opens upward: the button is at the bottom of the window.
+            var menu=new ContextMenu {PlacementTarget=uncoveredRange,Placement=System.Windows.Controls.Primitives.PlacementMode.Top};
+            var status=new MenuItem {Header=new TextBlock {Text=UncoveredStatusText(),TextWrapping=TextWrapping.Wrap,MaxWidth=320},IsEnabled=false};
+            menu.Items.Add(status);
+            if(busy) {
+                var stop=new MenuItem {Header=U("Stop","멈추기"),ToolTip=U("Shows what was found until now.","지금까지 찾은 것만 보여 줘요.")};
+                stop.Click+=delegate {UncoveredFolders.Stop();};menu.Items.Add(stop);
+            } else if(computer) {
+                var again=new MenuItem {Header=U("Check again","다시 확인"),ToolTip=U("Looks through every drive again, so new folders show too.","모든 드라이브를 처음부터 다시 훑어서 새로 생긴 폴더도 찾아요.")};
+                again.Click+=delegate {uncoveredReadAgain=true;Refresh();};menu.Items.Add(again);
+            }
+            menu.Items.Add(new Separator());
             var added=new MenuItem {Header=U("Added folders only","추가한 폴더만"),IsCheckable=true,IsChecked=!computer,
                 ToolTip=U("The folders you added to LoveMyShelf and the folders inside them. Quick.","LoveMyShelf에 추가한 폴더와 그 안의 폴더예요. 빨라요.")};
             added.Click+=delegate {UncoveredOptions.Change(x=>{x.Range=UncoveredRange.Added;x.HintDone=true;});};

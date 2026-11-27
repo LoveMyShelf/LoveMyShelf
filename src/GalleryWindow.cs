@@ -1540,7 +1540,7 @@ namespace LoveMyShelf {
             UI.Use(unfinishedButton,Control.BorderBrushProperty,ShowingUnfinished?"Accent":"Line");
             UI.Use(tagsButton,Control.ForegroundProperty,ShowingTag?"Accent":"Text");
             UI.Use(tagsButton,Control.BorderBrushProperty,ShowingTag?"Accent":"Line");
-            filter.Visibility=active.Source!=null || ShowingScope?Visibility.Visible:Visibility.Collapsed;
+            filter.Visibility=active.Source!=null || ShowingScope || ShowingUnfinished?Visibility.Visible:Visibility.Collapsed;
             ShowSimilarBar();
             ShowUncoveredBar();
             if(updateFooter!=null)updateFooter();
