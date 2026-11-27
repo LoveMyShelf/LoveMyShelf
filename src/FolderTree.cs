@@ -309,7 +309,8 @@ namespace LoveMyShelf {
             menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(gather);menu.Items.Add(similar);menu.Items.Add(leaveOut);menu.Items.Add(new Separator());menu.Items.Add(explorer);
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
-                gather.Header=L.T("Gather this folder only");
+                // 2026-11-28 user: "'이 폴더만 모아보기'라는 말도 참 기괴하네. 여기에 하위폴더 다 본다는 의미가 어디에 있는데."
+                gather.Header=L.T("View with all subfolders at once");
                 gather.Visibility=owner.CanGatherFolder(entry.Path)?Visibility.Visible:Visibility.Collapsed;
                 similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
                 leaveOut.Header=owner.LeftOutOfUncovered(entry.Path)?L.P("Put back into the Unfinished cover collection","표지 X 모음에 다시 넣기"):L.P("Leave out of the Unfinished cover collection","표지 X 모음에서 빼기");

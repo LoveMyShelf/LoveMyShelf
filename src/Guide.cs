@@ -1005,7 +1005,9 @@ namespace LoveMyShelf {
                 Lines=new[]{T("Even when you make, hide or delete a cover, the other tiles stay right where they are, so you don't lose your place. A deleted tile stays as an empty slot. To tidy up empty slots, press {{F5}} or choose a sort again.",
                     "표지를 만들거나 숨기거나 지워도 다른 칸은 제자리에 그대로 있어요. 그래서 보던 위치를 놓치지 않아요. 지운 칸은 빈칸으로 남아요. 빈칸을 정리하려면 {{F5}}를 누르거나 정렬을 다시 고르면 돼요."),
                     T("The folders you added to LoveMyShelf are in the folder tree on the left. Drag a folder onto another one in the tree to change their order. Right-click for [[Open in new window]] and [[Remove from LoveMyShelf]]. The two collection buttons at the bottom middle are always there.",
-                      "LoveMyShelf에 추가한 폴더는 왼쪽 폴더 트리에 있어요. 트리 안에서 폴더를 다른 폴더 위로 끌어다 놓으면 순서가 바뀌어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[LoveMyShelf에서 제거]]가 있어요. 아래쪽 가운데의 모음 버튼 두 개는 항상 그 자리에 있어요.")}});
+                      "LoveMyShelf에 추가한 폴더는 왼쪽 폴더 트리에 있어요. 트리 안에서 폴더를 다른 폴더 위로 끌어다 놓으면 순서가 바뀌어요. 오른쪽 클릭하면 [[새 창에서 열기]]와 [[LoveMyShelf에서 제거]]가 있어요. 아래쪽 가운데의 모음 버튼 두 개는 항상 그 자리에 있어요."),
+                    T("Right-click a folder you added and click [[View with all subfolders at once]]: the photos and videos of that folder and of every folder inside it show together on one screen. The address bar then says ‘· Including subfolders’.",
+                      "추가한 폴더를 오른쪽 클릭하고 [[하위 폴더까지 한 번에 보기]]를 누르면, 그 폴더와 그 안의 모든 폴더에 있는 사진·영상이 한 화면에 모여요. 위 주소 줄에는 '· 하위 폴더 포함'이 붙어요.")}});
             browse.Items.Add(new Card {Title=T("Select many at once: hold the right button and drag","여러 개 한 번에 선택하기: 오른쪽 버튼을 누른 채 끌기"),
                 Lines=new[]{T("Hold the right mouse button and drag over the tiles. A rectangle appears, and every tile it touches is selected. The tiles sit close together, so you can start right on a tile. (This is LoveMyShelf's own way. Dragging with the left button from an empty spot, as in File Explorer, works too.)",
                     "마우스 오른쪽 버튼을 누른 채 칸 위로 끌어 보세요. 사각형이 생기고, 사각형에 닿은 칸이 모두 선택돼요. 칸끼리 붙어 있어서 칸 위에서 바로 시작해도 돼요. (LoveMyShelf만의 방식이에요. 파일 탐색기처럼 빈 곳에서 왼쪽 버튼으로 끌어도 돼요.)"),

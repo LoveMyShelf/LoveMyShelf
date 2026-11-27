@@ -15,10 +15,10 @@
     summaryKo="폴더 창을 전체 화면으로 둔 채 다른 창을 최대화해도 아래가 잘려 보이지 않아요."
     summaryEn="Maximizing a window while the folder window is in full screen no longer looks cut off at the bottom.">
     <item group="new" icon="folder"
-      titleKo="이 폴더만 모아 보기"
-      titleEn="Gather this folder only"
-      textKo="왼쪽 폴더 목록에서 폴더를 오른쪽 클릭하고 [이 폴더만 모아 보기]를 누르면, 그 폴더와 하위 폴더의 사진·영상이 한 화면에 모여요. 아래 [전체]·[표지 X]·[표지 O]로 바로 나눠 볼 수 있고, 칸에 마우스를 올리면 어느 하위 폴더에 있는지 보여요. 다른 폴더는 그대로예요."
-      textEn="Right-click a folder in the folder list on the left and click [Gather this folder only]: the photos and videos in that folder and its subfolders come together on one screen. [All], [Unfinished] and [Finished] at the bottom split them right away, and pointing at a tile shows which subfolder it is in. Other folders stay as they are."/>
+      titleKo="하위 폴더까지 한 번에 보기"
+      titleEn="View with all subfolders at once"
+      textKo="왼쪽 폴더 목록에서 폴더를 오른쪽 클릭하고 [하위 폴더까지 한 번에 보기]를 누르면, 그 폴더와 하위 폴더의 사진·영상이 한 화면에 모여요. 아래 [전체]·[표지 X]·[표지 O]로 바로 나눠 볼 수 있고, 칸에 마우스를 올리면 어느 하위 폴더에 있는지 보여요. 다른 폴더는 그대로예요."
+      textEn="Right-click a folder in the folder list on the left and click [View with all subfolders at once]: the photos and videos in that folder and its subfolders come together on one screen. [All], [Unfinished] and [Finished] at the bottom split them right away, and pointing at a tile shows which subfolder it is in. Other folders stay as they are."/>
     <item group="new" icon="image"
       titleKo="표지와 GIF 위에 그림 그리기"
       titleEn="Draw on covers and GIFs"
