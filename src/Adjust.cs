@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using System.Xml.Linq;
 
 namespace LoveMyShelf {
@@ -607,6 +608,8 @@ namespace LoveMyShelf {
 
         internal event Action Changed, OpenChanged;
         internal bool IsOpen { get { return body.Visibility == Visibility.Visible; } }
+        // The [Adjust ▾] button, which a window may take out and put beside the [Draw ▾] button.
+        internal Button Opener { get { return opener; } }
         internal double ControlsHeight { set { scroller.MaxHeight = Math.Max(0, value); } }
         internal AdjustValues Values { get { return current; } }
         internal int LightStyle { get { return lightStyle; } }
@@ -629,88 +632,133 @@ namespace LoveMyShelf {
             Children.Add(opener);
             Children.Add(scroller);
 
-            var topRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 4), VerticalAlignment = VerticalAlignment.Center };
+            var topRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 2), VerticalAlignment = VerticalAlignment.Center };
             autoBtn = UI.Btn(L.P("Auto adjust", "자동 보정"), RunAuto, true);
             autoBtn.Margin = new Thickness(0, 0, 6, 2);
             autoBtn.ToolTip = L.P("Finds natural brightness and color settings in one click. Pictures that already look good stay as they are.",
                 "한 번 누르면 사진에 맞는 밝기와 색을 찾아 줘요. 이미 괜찮은 사진은 그대로 둬요.");
             resetBtn = UI.Btn(L.T("Reset"), ResetAdjust);
-            resetBtn.Margin = new Thickness(0, 0, 8, 2);
+            resetBtn.Margin = new Thickness(0, 0, 6, 2);
             resetBtn.ToolTip = L.P("Puts all adjustment numbers back to 0.", "보정 숫자를 모두 0으로 되돌려요.");
+            // The brightness style sits with the buttons for the whole picture, so every row below has the same shape.
+            styleBtn = UI.Btn("", SwitchStyle);
+            styleBtn.Margin = new Thickness(0, 0, 6, 2);
+            styleBtn.ToolTip = L.P("Switch brightness style (R): Soft, See in the dark, Milky",
+                "밝기 방식을 바꿔요 (R): 부드럽게, 어두운 곳 보기, 뽀얗게");
             statusNote = UI.Text("", 12, true);
-            statusNote.Margin = new Thickness(2, 2, 0, 2);
+            statusNote.Margin = new Thickness(2, 0, 0, 2);
+            statusNote.TextWrapping = TextWrapping.Wrap;
             statusNote.Visibility = Visibility.Collapsed;
             topRow.Children.Add(autoBtn);
             topRow.Children.Add(resetBtn);
-            topRow.Children.Add(statusNote);
+            topRow.Children.Add(styleBtn);
             body.Children.Add(topRow);
+            body.Children.Add(statusNote);
 
-            styleBtn = UI.Btn("", SwitchStyle);
-            styleBtn.Margin = new Thickness(6, 0, 0, 2);
-            styleBtn.ToolTip = L.P("Switch brightness style (R): Soft, See in the dark, Milky",
-                "밝기 방식을 바꿔요 (R): 부드럽게, 어두운 곳 보기, 뽀얗게");
-
-            var brightRow = NumberRow(0, -100, 100, 5, L.T("Brightness"),
-                v => SetField(brightnessLevel: v),
-                new[] { Tuple.Create(-30, "-30"), Tuple.Create(0, "0"), Tuple.Create(30, "+30") },
-                out showBrightness);
-            brightRow.Children.Add(styleBtn);
-            body.Children.Add(Field(L.T("Brightness"), brightRow));
-
-            body.Children.Add(Field(L.P("Contrast", "대비"), NumberRow(0, -100, 100, 5, L.P("Contrast", "대비"),
-                v => SetField(contrast: v),
-                new[] { Tuple.Create(-20, "-20"), Tuple.Create(0, "0"), Tuple.Create(20, "+20"), Tuple.Create(40, "+40") },
-                out showContrast)));
-
-            body.Children.Add(Field(L.P("Saturation", "채도"), NumberRow(0, -100, 100, 5, L.P("Saturation", "채도"),
-                v => SetField(saturation: v),
-                new[] { Tuple.Create(-20, "-20"), Tuple.Create(0, "0"), Tuple.Create(20, "+20"), Tuple.Create(40, "+40") },
-                out showSaturation)));
-
-            var tempField = Field(L.P("Color temp", "색 온도"), NumberRow(0, -100, 100, 5, L.P("Color temperature", "색 온도"),
-                v => SetField(temperature: v),
-                new[] { Tuple.Create(-30, L.P("-30 Cool", "-30 차갑게")), Tuple.Create(0, "0"), Tuple.Create(30, L.P("+30 Warm", "+30 따뜻하게")) },
-                out showTemperature));
-            tempField.ToolTip = L.P("Negative makes it cooler (less yellow); positive makes it warmer.",
+            body.Children.Add(Row(L.T("Brightness"), -100, 100, v => SetField(brightnessLevel: v),
+                new[] { Tuple.Create(0, "0"), Tuple.Create(-30, "-30"), Tuple.Create(30, "+30") },
+                out showBrightness));
+            body.Children.Add(Row(L.P("Contrast", "대비"), -100, 100, v => SetField(contrast: v),
+                new[] { Tuple.Create(0, "0"), Tuple.Create(-20, "-20"), Tuple.Create(20, "+20"), Tuple.Create(40, "+40") },
+                out showContrast));
+            body.Children.Add(Row(L.P("Saturation", "채도"), -100, 100, v => SetField(saturation: v),
+                new[] { Tuple.Create(0, "0"), Tuple.Create(-20, "-20"), Tuple.Create(20, "+20"), Tuple.Create(40, "+40") },
+                out showSaturation));
+            var tempRow = Row(L.P("Color temp", "색 온도"), -100, 100, v => SetField(temperature: v),
+                new[] { Tuple.Create(0, "0"), Tuple.Create(-30, L.P("-30 Cool", "-30 차갑게")), Tuple.Create(30, L.P("+30 Warm", "+30 따뜻하게")) },
+                out showTemperature);
+            tempRow.ToolTip = L.P("Negative makes it cooler (less yellow); positive makes it warmer.",
                 "음수는 차갑게(누런기 줄이기), 양수는 따뜻하게 해요.");
-            body.Children.Add(tempField);
-
-            body.Children.Add(Field(L.P("Sharpness", "선명하게"), NumberRow(0, 0, 100, 5, L.P("Sharpness", "선명하게"),
-                v => SetField(sharpness: v),
+            body.Children.Add(tempRow);
+            body.Children.Add(Row(L.P("Sharpness", "선명하게"), 0, 100, v => SetField(sharpness: v),
                 new[] { Tuple.Create(0, "0"), Tuple.Create(20, "20"), Tuple.Create(40, "40"), Tuple.Create(60, "60") },
-                out showSharpness)));
+                out showSharpness));
 
             body.Visibility = scroller.Visibility = Visibility.Collapsed;
             Load(initial);
         }
 
-        WrapPanel NumberRow(int value, int min, int max, int step, string name, Action<int> change, Tuple<int, string>[] presets, out Action<double> show) {
-            Func<double> read;
-            var row = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
-            var num = MotionLook.Number(value, min, max, step, "", name, v => { if (!syncing) change((int)Math.Round(v)); }, out read, out show);
-            num.Margin = new Thickness(0, 0, 2, 2);
-            row.Children.Add(num);
-            for (int i = 0; i < presets.Length; i++) {
-                int target = presets[i].Item1;
-                string label = presets[i].Item2;
-                var btn = UI.Btn(label, () => change(target));
-                btn.Margin = new Thickness(4, 0, 0, 2);
-                btn.MinWidth = 30;
-                btn.Padding = new Thickness(7, 1, 7, 1);
-                AutomationProperties.SetName(btn, name + " " + label);
-                row.Children.Add(btn);
-            }
-            return row;
-        }
+        // One line per setting: name | slider | [−] number [+] | [▾] quick values. The slider is for one quick drag,
+        // the number box is always there for exact values, and the quick values wait behind the small menu.
+        // The slider never takes keyboard focus, so the window's keys (Q/W/E/R, arrows) keep working.
+        FrameworkElement Row(string name, int min, int max, Action<int> change, Tuple<int, string>[] presets, out Action<double> show) {
+            var row = new DockPanel { Margin = new Thickness(0, 3, 0, 0), LastChildFill = true };
+            var label = UI.Text(name, 12);
+            label.Width = 62;
+            label.TextWrapping = TextWrapping.Wrap;
+            label.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(label, Dock.Left);
+            row.Children.Add(label);
 
-        static FrameworkElement Field(string label, FrameworkElement control) {
-            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
-            var name = UI.Text(label, 12);
-            name.Width = 72;
-            name.TextWrapping = TextWrapping.Wrap;
-            name.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(name);
-            row.Children.Add(control);
+            var menuBtn = new Button { Content = "▾", MinHeight = 27, MinWidth = 26, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(2, 0, 0, 0) };
+            menuBtn.ToolTip = L.P("Quick values", "자주 쓰는 값");
+            AutomationProperties.SetName(menuBtn, name + " " + L.P("quick values", "자주 쓰는 값"));
+            menuBtn.Click += delegate {
+                var menu = new ContextMenu { PlacementTarget = menuBtn, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                for (int i = 0; i < presets.Length; i++) {
+                    int target = presets[i].Item1;
+                    var item = new MenuItem { Header = presets[i].Item2 };
+                    item.Click += delegate { change(target); };
+                    menu.Items.Add(item);
+                }
+                menu.IsOpen = true;
+            };
+            DockPanel.SetDock(menuBtn, Dock.Right);
+            row.Children.Add(menuBtn);
+
+            Func<double> read;
+            Action<double> showNumber;
+            var num = MotionLook.Number(0, min, max, 5, "", name, v => { if (!syncing) change((int)Math.Round(v)); }, out read, out showNumber);
+            num.Margin = new Thickness(4, 0, 0, 0);
+            DockPanel.SetDock(num, Dock.Right);
+            row.Children.Add(num);
+
+            var slider = new Slider {
+                Minimum = min, Maximum = max, Value = 0, Focusable = false, IsMoveToPointEnabled = true,
+                VerticalAlignment = VerticalAlignment.Center, SmallChange = 1, LargeChange = 10
+            };
+            AutomationProperties.SetName(slider, name);
+            slider.ToolTip = name;
+            // While dragging, the picture follows about 10 times a second; letting go applies the last value at once.
+            int pending = 0;
+            bool owed = false;
+            var tick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
+            tick.Tick += delegate { tick.Stop(); if (owed) { owed = false; change(pending); } };
+            slider.ValueChanged += (s, e) => {
+                if (syncing) return;
+                pending = (int)Math.Round(e.NewValue);
+                showNumber(pending);
+                owed = true;
+                if (!tick.IsEnabled) tick.Start();
+            };
+            slider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragCompletedEvent,
+                new System.Windows.Controls.Primitives.DragCompletedEventHandler((s, e) => {
+                    tick.Stop();
+                    if (owed) { owed = false; change(pending); }
+                }));
+            row.Children.Add(slider);
+            // In a very narrow column (the GIF window's side at its smallest) the slider goes first, so nothing gets cut.
+            row.SizeChanged += delegate {
+                var want = row.ActualWidth >= 250 ? Visibility.Visible : Visibility.Collapsed;
+                if (slider.Visibility != want) slider.Visibility = want;
+            };
+            // A number typed but not yet applied goes in first (the slider never takes the focus that would apply it).
+            slider.PreviewMouseLeftButtonDown += delegate {
+                if (num.IsKeyboardFocusWithin) {
+                    var window = Window.GetWindow(row);
+                    if (window != null) window.Focus();
+                }
+            };
+            show = v => {
+                // A value set from elsewhere (a key, auto adjust, reset) wins over a slider value still waiting to apply.
+                tick.Stop();
+                owed = false;
+                showNumber(v);
+                bool was = syncing;
+                syncing = true;
+                slider.Value = v;
+                syncing = was;
+            };
             return row;
         }
 

@@ -409,6 +409,8 @@ namespace LoveMyShelf {
         internal bool IsOpen {get {return body.Visibility==Visibility.Visible;}}
         internal bool IsEditing {get {return body.IsVisible;}}
         internal double ControlsHeight {set {scroller.MaxHeight=Math.Max(0,value);}}
+        // The [Draw ▾] button, which a window may take out and put beside the [Adjust ▾] button.
+        internal Button Opener {get {return opener;}}
         readonly ScrollViewer scroller;
 
         internal MotionDrawPanel(MotionDrawLayer layer,FrameworkElement tracking=null) {

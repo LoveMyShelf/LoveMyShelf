@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows;
@@ -485,6 +486,8 @@ namespace LoveMyShelf {
         internal Func<string> SourceIdentityProvider;
         // How much one press of E or W changes the brightness (the slider still moves one at a time).
         internal int BrightnessStep=3;
+        // From this window width the [Adjust]/[Draw] controls stand in a column of this width beside the picture.
+        const double SideToolsWidth=900,SideColumn=320;
         // Runs after the cover is saved and before the editor closes (the large view opens here, so no gap shows).
         internal Func<Task> AfterCommit;
         readonly Button save,motionButton,saveNewButton;
@@ -542,27 +545,81 @@ namespace LoveMyShelf {
             DockPanel.SetDock(rotationBar,Dock.Bottom);root.Children.Add(rotationBar);
             var shapeBar=ShapeBar();
             DockPanel.SetDock(shapeBar,Dock.Bottom);root.Children.Add(shapeBar);
-            // "How it shows in my grid" beside the picture, when the window is wide enough for it.
+            // The column beside the picture: "How it shows in my grid", and in a wide window also [Adjust] and [Draw]
+            // (2026-11-27, DeepSeek·Gemini·Codex debate): the picture keeps its full height while adjusting or drawing.
             var peekPanel=PeekPanel();
-            DockPanel.SetDock(peekPanel,Dock.Right);root.Children.Add(peekPanel);
-            SizeChanged+=delegate {peekPanel.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;};
+            var side=new DockPanel {LastChildFill=true};
+            ((FrameworkElement)peekPanel).HorizontalAlignment=HorizontalAlignment.Left;
+            DockPanel.SetDock(peekPanel,Dock.Top);side.Children.Add(peekPanel);
+            DockPanel.SetDock(side,Dock.Right);root.Children.Add(side);
             Action showShape=()=>{var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);};
             Surface.ShapeChanged+=showShape;showShape();
             drawing.Load(drawings,initialEraseAi);
             cropPicture=new CropDrawingPicture(Surface,drawing);
             adjustPanel=new AdjustPanel(Surface.Adjust,()=>Surface.UnadjustedStill(320));
             var drawPanel=new MotionDrawPanel(drawing);
-            var drawDock=new StackPanel {Margin=new Thickness(6,2,6,2)};
             var pauseNote=UI.Text(L.P("Fold [Draw] to change the crop again.",
                 "그리는 중에는 자르기를 바꿀 수 없어요. 자르기를 바꾸려면 [그림 그리기]를 접어요."),12,true);
             var positionNote=UI.Text(L.P("Drawings keep their place in the cover when you change the crop.",
                 "자르는 곳을 바꿔도 그림은 표지 안에서 같은 자리에 있어요."),12,true);
             pauseNote.TextWrapping=positionNote.TextWrapping=TextWrapping.Wrap;
             positionNote.Visibility=Visibility.Collapsed;
-            drawDock.Children.Add(adjustPanel);
-            drawDock.Children.Add(pauseNote);drawDock.Children.Add(positionNote);drawDock.Children.Add(drawPanel);
+            // [Adjust ▾] [Draw ▾] on one line (one open at a time), the notes, then the open one's controls.
+            var openers=new WrapPanel();
+            foreach(var opener in new Button[]{adjustPanel.Opener,drawPanel.Opener}) {
+                ((Panel)opener.Parent).Children.Remove(opener);
+                opener.Margin=new Thickness(0,2,6,2);openers.Children.Add(opener);
+            }
+            var toolHeads=new StackPanel();
+            toolHeads.Children.Add(openers);toolHeads.Children.Add(pauseNote);toolHeads.Children.Add(positionNote);
+            var toolBodies=new StackPanel();
+            toolBodies.Children.Add(adjustPanel);toolBodies.Children.Add(drawPanel);
+            // Narrow window: the same controls under the picture, as before.
+            var drawDock=new StackPanel {Margin=new Thickness(6,2,6,2)};
             DockPanel.SetDock(drawDock,Dock.Bottom);
-            root.Children.Insert(root.Children.IndexOf(peekPanel),drawDock);
+            root.Children.Insert(root.Children.IndexOf(side),drawDock);
+            // Wide window: in the column, the buttons stay put and only the open controls scroll.
+            DockPanel.SetDock(toolHeads,Dock.Top);
+            var sideScroll=new ScrollViewer {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
+            // The panels' own scroll boxes have no height limit here, so the wheel scrolls the column itself.
+            sideScroll.PreviewMouseWheel+=(s,e)=>{
+                if(sideScroll.ScrollableHeight<=0)return;
+                sideScroll.ScrollToVerticalOffset(sideScroll.VerticalOffset-e.Delta/3.0);e.Handled=true;
+            };
+            var peekExtras=new List<UIElement>();
+            var peekItems=((Panel)peekPanel).Children;
+            for(int i=2;i<peekItems.Count;i++)peekExtras.Add(peekItems[i]);
+            bool inSide=false,placed=false;
+            Action place=()=>{
+                bool wideNow=ActualWidth>=SideToolsWidth;
+                side.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;
+                if(!placed || wideNow!=inSide) {
+                    placed=true;inSide=wideNow;
+                    foreach(var item in new FrameworkElement[]{toolHeads,toolBodies}){var p=item.Parent as Panel;if(p!=null)p.Children.Remove(item);}
+                    sideScroll.Content=null;
+                    if(side.Children.Contains(sideScroll))side.Children.Remove(sideScroll);
+                    if(inSide) {
+                        side.Width=SideColumn;
+                        toolHeads.Margin=new Thickness(4,2,10,2);sideScroll.Margin=new Thickness(4,0,10,6);
+                        side.Children.Add(toolHeads);sideScroll.Content=toolBodies;side.Children.Add(sideScroll);
+                    } else {
+                        side.Width=Double.NaN;
+                        toolHeads.Margin=new Thickness(0);
+                        drawDock.Children.Add(toolHeads);drawDock.Children.Add(toolBodies);
+                    }
+                    drawDock.Visibility=inSide?Visibility.Collapsed:Visibility.Visible;
+                }
+                double room=inSide?Double.PositiveInfinity:Math.Max(72,ActualHeight*0.26);
+                drawPanel.ControlsHeight=room;
+                adjustPanel.ControlsHeight=room;
+                // While a panel is open in the column, the grid preview keeps its picture and drops its note and cell button.
+                bool tight=inSide && (adjustPanel.IsOpen || drawPanel.IsOpen);
+                foreach(var extra in peekExtras)extra.Visibility=tight?Visibility.Collapsed:Visibility.Visible;
+            };
+            SizeChanged+=delegate {place();};
+            adjustPanel.OpenChanged+=place;drawPanel.OpenChanged+=place;
+            place();
             root.Children.Add(cropPicture);Content=root;
 
             bool syncingAdjust=false;
@@ -590,11 +647,6 @@ namespace LoveMyShelf {
                     barToPause.IsEnabled=!Surface.Drawing;
             };
             drawPanel.OpenChanged+=showDrawing;showDrawing();
-            SizeChanged+=delegate {
-                double room=Math.Max(72,ActualHeight*0.26);
-                drawPanel.ControlsHeight=room;
-                adjustPanel.ControlsHeight=room;
-            };
             Rect previousCrop=Surface.Fraction;
             double previousRotation=Surface.Rotation;
             AdjustValues previousAdjust=Surface.Adjust;
