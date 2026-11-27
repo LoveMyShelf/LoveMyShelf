@@ -16,6 +16,7 @@ When a new version comes out, a notice appears inside the program. Click it to u
 - **GIF가 반복될 때 튀지 않게:** GIF 표지 만들기의 [더 보기]에서 [부드러운 반복]을 켜면, 끝 장면이 처음 장면으로 서서히 섞여서 반복될 때 튀지 않아요. 섞는 시간은 초로 정하고(기본 0.5초), 파일은 그만큼 짧아져요. 반복 재생일 때만 쓸 수 있어요.
 - **영상 보면서 대비·채도도 바꿔요:** 크게 보기에서 화면을 오른쪽 클릭하면 나오는 조작 창의 [대비·채도·색]에서 보는 동안 대비·채도·색 온도·선명하게를 바꿀 수 있어요. 파일은 그대로이고, 거기서 만드는 표지는 같은 값으로 시작해요. [목소리 또렷하게]의 세기도 1~100 숫자로 정해요.
 - **테두리 자석 세기를 정할 수 있어요:** 표지 만들기에서 사진 가장자리가 테두리에 자석처럼 붙는 세기를 설명서 겸 옵션에서 px로 정할 수 있어요. 기본은 전보다 세게 했고, 0이면 붙지 않아요.
+- **GIF 표지 만들기 창이 쓰기 쉬워졌어요:** GIF 표지 만들기 창을 쓰기 쉽게 고쳤어요. [지우기]가 [그림 그리기] 옆의 따로 된 버튼이 됐고, 그림 위에 마우스를 올리면 붓 크기만 한 동그라미가 보여요. 붓 크기는 1000(그림 높이만큼)까지 정할 수 있어요. 왔다 갔다 비벼 칠한 곳도 칠한 그대로 메워지고, [장면마다]를 고르면 칠하기를 멈춘 뒤 모든 장면을 뒤에서 메워요. 시작·끝 옆에 [⏸ 멈춤]/[▶ 재생] 버튼이 생겼고, 오른쪽 칸 버튼이 창 크기와 상관없이 잘리지 않아요. [새 파일로 저장]은 뒤에서 저장하고 창은 바로 닫혀요. 끝나면 파일 이름과 폴더를 알려 줘요. GIF 만드는 진행률이 중간에 멈춰 보이지 않고, 장면마다 지우는 GIF는 2배 넘게 빨리 만들어져요.
 - **최대화해도 아래가 잘려 보이지 않아요:** 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요.
 
 Maximizing a window while the folder window is in full screen no longer looks cut off at the bottom.
@@ -25,6 +26,7 @@ Maximizing a window while the folder window is in full screen no longer looks cu
 - **GIFs that loop without a jump:** Turn on [Smooth loop] under [More choices] in Make GIF cover, and the last scenes fade into the first ones, so the GIF doesn't jump when it starts again. Set the fade in seconds (0.5 by default); the file gets that much shorter. It works with Loop only.
 - **Change contrast and saturation while watching:** In the large view, [Contrast · saturation · color] in the controls window (right-click the screen) changes contrast, saturation, color temperature and sharpness while you watch. The file stays as it is, and a cover made from there starts with the same values. The strength of [Clear voice] is a number from 1 to 100 too.
 - **Set how strongly the frame sticks:** In Make cover, you can set in Guide & Options how strongly the picture's edges stick to the frame like a magnet, in px. It is stronger than before by default, and 0 turns it off.
+- **An easier Make GIF cover window:** The Make GIF cover window is easier to use. [Erase] is now a button of its own next to [Draw], and a circle the size of the brush follows the mouse over the picture. The brush can be up to 1000 (the picture's height). A spot rubbed over back and forth is filled just as you painted it, and with [Each scene] every scene is filled in the background once you stop painting. [⏸ Pause]/[▶ Play] sits next to the start and end, and the buttons in the right column are never cut off, whatever the window size. [Save as new file] saves in the background and the window closes at once; when it is done, the file name and folder are shown. The progress of making a GIF no longer seems to stop halfway, and GIFs with a spot erased on each scene are made more than twice as fast.
 - **Nothing is cut off at the bottom when you maximize:** With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed.
 
 ---

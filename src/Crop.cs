@@ -598,15 +598,15 @@ namespace LoveMyShelf {
             cropPicture=new CropDrawingPicture(Surface,drawing);
             adjustPanel=new AdjustPanel(Surface.Adjust,()=>Surface.UnadjustedStill(320));
             var drawPanel=new MotionDrawPanel(drawing);
-            var pauseNote=UI.Text(L.P("Fold [Draw] to change the crop again.",
-                "그리는 중에는 자르기를 바꿀 수 없어요. 자르기를 바꾸려면 [그림 그리기]를 접어요."),12,true);
+            var pauseNote=UI.Text(L.P("Fold [Draw] or [Erase] to change the crop again.",
+                "그리거나 지우는 중에는 자르기를 바꿀 수 없어요. 자르기를 바꾸려면 [그림 그리기]나 [지우기]를 접어요."),12,true);
             var positionNote=UI.Text(L.P("Drawings keep their place in the cover when you change the crop.",
                 "자르는 곳을 바꿔도 그림은 표지 안에서 같은 자리에 있어요."),12,true);
             pauseNote.TextWrapping=positionNote.TextWrapping=TextWrapping.Wrap;
             positionNote.Visibility=Visibility.Collapsed;
             // [Adjust ▾] [Draw ▾] on one line (one open at a time), the notes, then the open one's controls.
             var openers=new WrapPanel();
-            foreach(var opener in new Button[]{adjustPanel.Opener,drawPanel.Opener}) {
+            foreach(var opener in new Button[]{adjustPanel.Opener,drawPanel.Opener,drawPanel.EraseOpener}) {
                 ((Panel)opener.Parent).Children.Remove(opener);
                 opener.Margin=new Thickness(0,2,6,2);openers.Children.Add(opener);
             }

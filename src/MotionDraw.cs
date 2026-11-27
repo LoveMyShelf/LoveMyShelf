@@ -16,7 +16,9 @@ using System.Windows.Media.Imaging;
 
 namespace LoveMyShelf {
     internal sealed class MotionShape {
-        internal const int MaxShapes=50,MaxPoints=400,MaxMosaics=20,MaxAreas=8;
+        // MaxShapes 300 (was 50): a long erase drag is kept as several pieces of up to MaxPoints points each, never thinned
+        // out (2026-11-27 user: a rubbed-over spot came out as a few thin lines). MaxThickness: up to the picture's height.
+        internal const int MaxShapes=300,MaxPoints=400,MaxMosaics=20,MaxAreas=8,MaxThickness=1000;
         internal const int EraseStaticCSharp=24,EraseStaticAi=25,ErasePerFrame=26;
         internal const string Kinds="rbelaphmx";
         // Parts adjusted on their own (AdjustAreas.cs): box, ellipse, painted. One tool [0] with a shape choice.
@@ -88,7 +90,7 @@ namespace LoveMyShelf {
                 if(AllKinds.IndexOf(kind)<0 || (!IsPen(kind) && fields.Length!=8))continue;
                 int color,thickness;
                 if(fields[1].Length!=6 || !Int32.TryParse(fields[1],NumberStyles.AllowHexSpecifier,Invariant,out color) ||
-                    !Int32.TryParse(fields[2],NumberStyles.Integer,Invariant,out thickness) || thickness<1 || thickness>50)continue;
+                    !Int32.TryParse(fields[2],NumberStyles.Integer,Invariant,out thickness) || thickness<1 || thickness>MaxThickness)continue;
                 var style=fields[3].Split(':');
                 if((style.Length!=1 && style.Length!=4) || (style[0]!="0" && style[0]!="1"))continue;
                 int fill=style[0]=="1"?color:-1,opacity=100,block=24;
@@ -394,7 +396,7 @@ namespace LoveMyShelf {
         internal static readonly DrawPreferences Last=Load();
         internal bool Open;
         internal char Tool='r';
-        internal int Color=0xFFFFFF,Fill=-1,Thickness=6,Opacity=100,Block=24,MarkerThickness=20,MarkerOpacity=40,EraseThickness=24;
+        internal int Color=0xFFFFFF,Fill=-1,Thickness=6,Opacity=100,Block=24,MarkerThickness=20,MarkerOpacity=40,EraseThickness=40;
         // Parts (kept for this run only): the shape last picked, the next part's values (a little brighter, so it shows
         // at once), its soft edge and the painting brush.
         internal char AreaKind='g';
@@ -412,9 +414,9 @@ namespace LoveMyShelf {
                 result.Open=parts[0]=="1";result.Tool=parts[1][0];
                 if(MotionShape.AreaKinds.IndexOf(result.Tool)>=0)result.AreaKind=result.Tool;
                 result.Color=Limit(values[0],0,0xFFFFFF);result.Fill=Limit(values[1],-1,0xFFFFFF);
-                result.Thickness=Limit(values[2],1,50);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,100);
-                result.MarkerThickness=Limit(values[5],1,50);result.MarkerOpacity=Limit(values[6],10,100);
-                if(values.Length>=8)result.EraseThickness=Limit(values[7],1,50);
+                result.Thickness=Limit(values[2],1,MotionShape.MaxThickness);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,100);
+                result.MarkerThickness=Limit(values[5],1,MotionShape.MaxThickness);result.MarkerOpacity=Limit(values[6],10,100);
+                if(values.Length>=8)result.EraseThickness=Limit(values[7],1,MotionShape.MaxThickness);
             } catch(IOException ex) {ErrorLog.Quiet(ex);}
             catch(UnauthorizedAccessException ex) {ErrorLog.Quiet(ex);}
             return result;
@@ -432,13 +434,17 @@ namespace LoveMyShelf {
 
     internal sealed class MotionDrawPanel : StackPanel {
         readonly MotionDrawLayer layer;
-        readonly Button opener,undo,redo,delete,front,back,clear,none,aiButton,againButton;
+        readonly Button opener,eraseOpener,undo,redo,delete,front,back,clear,none,aiButton,againButton;
+        readonly TextBlock thicknessName;
+        readonly RadioButton fillOnce,fillEach;
+        // The [Erase ▾] button: erasing is its own tool, not one of the drawing tools (2026-11-27 user).
+        internal Button EraseOpener {get {return eraseOpener;}}
+        char lastDrawTool='r';
         readonly TextBlock aiNote;
         // Which try the window should give the AI: 0 the painted spots as they are, 1..3 a different try (EraseAgain).
         internal int AiVariant {get;private set;}
         readonly StackPanel body=new StackPanel {Margin=new Thickness(0,6,0,4)};
         readonly StackPanel aiBusyPanel;
-        readonly Button[] normalThicknessPresets,eraseThicknessPresets;
         readonly RadioButton[] tools=new RadioButton[MotionShape.Kinds.Length];
         readonly FrameworkElement strokeField,fillField,thicknessField,opacityField,blockField,gifEraseField;
         readonly RadioButton areaTool;
@@ -467,11 +473,17 @@ namespace LoveMyShelf {
             this.layer=layer;
             isGif=tracking!=null;
             opener=UI.Btn("",Toggle);
-            opener.HorizontalAlignment=HorizontalAlignment.Left;opener.Margin=new Thickness(0,2,0,2);
+            opener.HorizontalAlignment=HorizontalAlignment.Left;opener.Margin=new Thickness(0,2,6,2);
             AutomationProperties.SetName(opener,L.P("Draw","그림 그리기"));
+            eraseOpener=UI.Btn("",ToggleErase);
+            eraseOpener.HorizontalAlignment=HorizontalAlignment.Left;eraseOpener.Margin=new Thickness(0,2,0,2);
+            eraseOpener.ToolTip=L.P("Paint over unwanted things, like date letters or passersby, and they are filled in from around them (9)",
+                "날짜 글씨나 지나가는 사람처럼 필요 없는 것을 칠하면 주변으로 메워요 (9)");
+            AutomationProperties.SetName(eraseOpener,L.P("Erase","지우기"));
             scroller=new ScrollViewer {Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
-            Children.Add(opener);Children.Add(scroller);
+            var openers=new WrapPanel();openers.Children.Add(opener);openers.Children.Add(eraseOpener);
+            Children.Add(openers);Children.Add(scroller);
             var toolRow=new WrapPanel();
             string[] names={L.P("Rectangle","네모"),L.P("Rounded rectangle","둥근 네모"),L.P("Ellipse","동그라미"),
                 L.P("Line","직선"),L.P("Arrow","화살표"),L.P("Pen","펜"),L.P("Highlighter","형광펜"),L.P("Mosaic box","모자이크"),
@@ -485,6 +497,7 @@ namespace LoveMyShelf {
                     GroupName=group,Style=(Style)Application.Current.FindResource("SegmentChoice")};
                 tool.Click+=delegate {layer.SelectTool(kind);};
                 tools[i]=tool;toolRow.Children.Add(tool);
+                if(kind=='x')tool.Visibility=Visibility.Collapsed; // erasing has its own [Erase] button
             }
             areaTool=new RadioButton {Content="0  "+L.P("Adjust part","부분 보정"),GroupName=group,Style=(Style)Application.Current.FindResource("SegmentChoice"),
                 ToolTip=L.P("0  Adjust part: drag over a part of the picture and change only its brightness, contrast, saturation, color temperature and sharpness",
@@ -492,6 +505,7 @@ namespace LoveMyShelf {
             areaTool.Click+=delegate {layer.SelectTool(DrawPreferences.Last.AreaKind);};
             toolRow.Children.Add(areaTool);
             body.Children.Add(toolRow);
+            this.toolRow=toolRow;
             // Shown only for [0 Adjust part]: the shape, then that part's own five values and its soft edge.
             areaBox=new StackPanel {Margin=new Thickness(0,4,0,0)};
             var shapeRow=new WrapPanel();
@@ -530,10 +544,10 @@ namespace LoveMyShelf {
 
             Func<double> readThick;
             var thicknessRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
-            thicknessRow.Children.Add(MotionLook.Number(layer.Thickness,1,50,1,"",L.P("Thickness","굵기"),
-                v=>{if(!syncing)layer.SetStyle(width:(int)v);},out readThick,out showThickness));
-            normalThicknessPresets=MakePresetButtons(thicknessRow,L.P("Thickness","굵기"),"",new[]{3,6,12},n=>layer.SetStyle(width:n));
-            eraseThicknessPresets=MakePresetButtons(thicknessRow,L.P("Thickness","굵기"),"",new[]{12,24,48},n=>layer.SetStyle(width:n));
+            // No preset buttons and no low ceiling (2026-11-27 user: "12 24 48 is weird", "why max 50, the text is bigger").
+            // 1000 = the picture's height. The brush shows as a circle over the preview (see MotionDrawLayer).
+            thicknessRow.Children.Add(MotionLook.Number(layer.Thickness,1,MotionShape.MaxThickness,1,"",L.P("Thickness (1000 = the picture's height)","굵기 (1000이면 그림 높이만큼)"),
+                v=>{if(!syncing){layer.SetStyle(width:(int)v);layer.ShowBrush();}},out readThick,out showThickness));
             aiButton=UI.Btn(L.P("Fill with AI","AI로 메우기"),RunAiClicked,true);
             aiButton.Margin=new Thickness(8,0,0,2);
             aiButton.ToolTip=L.P("Fills the painted spots again with the AI on this PC. It takes about 2-3 seconds. Press Ctrl+Z once to undo.",
@@ -551,6 +565,7 @@ namespace LoveMyShelf {
             aiBusyPanel.Children.Add(busyText);aiBusyPanel.Children.Add(cancelAi);
             thicknessRow.Children.Add(aiBusyPanel);
             thicknessField=Field(L.P("Thickness","굵기"),thicknessRow);
+            thicknessName=(TextBlock)((DockPanel)thicknessField).Children[0];
             aiNote=UI.Text(L.P("If one spot looks odd, paint over just that spot and press [Fill with AI]: only the new spot is filled again.",
                 "한 곳만 이상하면 그 위만 다시 칠하고 [AI로 메우기]를 눌러요. 새로 칠한 곳만 다시 메워요."),12,true);
             aiNote.TextWrapping=TextWrapping.Wrap;aiNote.Margin=new Thickness(2,2,0,2);
@@ -567,21 +582,35 @@ namespace LoveMyShelf {
                 // GIF erase (2026-11-27 user: "nothing stops the screen, I don't know what 'fill' means"): picking
                 // [9 Erase] stops the preview; one line says what to do; how the spots are filled is chosen by looking
                 // at the background, said in plain words, with [Change] for the other way.
-                gifPauseNote=UI.Text(L.P("The preview is stopped. Paint over what to erase. To paint on another scene, click it on the scene strip below. Space plays it again.",
-                    "영상을 멈췄어요. 지울 곳을 칠하세요. 다른 장면에서 칠하려면 아래 장면 띠에서 그 장면을 눌러요. Space를 누르면 다시 재생돼요."),12,true);
+                // Three short steps instead of sentences (2026-11-27 user: "reading these sentences takes forever; give it a
+                // name and explain on mouse-over", "after this, what do I do?"). The details are on the tooltip.
+                gifPauseNote=UI.Text(L.P("1 Paint over it   2 The result shows   3 Press ▶ Play to check every scene",
+                    "1 지울 곳 칠하기   2 결과가 바로 보여요   3 ▶ 재생으로 모든 장면 확인"),12,true);
                 gifPauseNote.TextWrapping=TextWrapping.Wrap;gifPauseNote.Margin=new Thickness(2,4,0,2);
+                gifPauseNote.ToolTip=L.P("The preview stops while you erase. The painted spot is filled from around it at once on this scene; the other scenes are filled in the background, then ▶ Play shows them all. To paint on another scene, click it on the strip. Ctrl+Z undoes a stroke.",
+                    "지우는 동안 미리보기가 멈춰요. 칠한 곳은 이 장면에서 바로 주변으로 메워지고, 다른 장면은 뒤에서 메운 뒤 ▶ 재생으로 모두 볼 수 있어요. 다른 장면에서 칠하려면 장면 띠에서 그 장면을 눌러요. Ctrl+Z로 한 번 칠한 것을 되돌려요.");
                 body.Children.Insert(body.Children.IndexOf(areaBox),gifPauseNote);
-                var gifEraseBox=new DockPanel();
-                var change=UI.Btn(L.P("Change","바꾸기"),()=>{
+                // How the spots are filled: picked by itself from the background, two short choices to change it.
+                var fillRow=new WrapPanel();
+                string fillGroup="fill-"+Guid.NewGuid().ToString("N");
+                fillOnce=new RadioButton {Content=L.P("Same for all scenes","모든 장면 같게"),GroupName=fillGroup,Style=(Style)Application.Current.FindResource("SegmentChoice"),
+                    ToolTip=L.P("For a background that stays still: the fill made on one scene is used on every scene.","배경이 멈춰 있을 때: 한 장면에서 메운 모습을 모든 장면에 써요.")};
+                fillEach=new RadioButton {Content=L.P("Each scene","장면마다"),GroupName=fillGroup,Style=(Style)Application.Current.FindResource("SegmentChoice"),
+                    ToolTip=L.P("For a moving background: every scene is filled on its own.","배경이 움직일 때: 장면마다 따로 메워요.")};
+                RoutedEventHandler picked=(s,e)=>{
+                    if(syncing)return;
+                    int mode=fillEach.IsChecked==true?1:0;
+                    if(mode==layer.EraseMode)return;
                     if(EraseModeSwitched!=null)EraseModeSwitched();
-                    layer.SetEraseMode(layer.EraseMode==1?0:1);
-                });
-                change.Margin=new Thickness(6,0,0,2);change.VerticalAlignment=VerticalAlignment.Top;
-                change.ToolTip=L.P("If the erased spots look wrong while it plays, try the other way.","재생할 때 지운 곳이 어색하면 다른 방법으로 바꿔 봐요.");
-                DockPanel.SetDock(change,Dock.Right);gifEraseBox.Children.Add(change);
-                gifModeText=UI.Text("",12);gifModeText.TextWrapping=TextWrapping.Wrap;gifModeText.VerticalAlignment=VerticalAlignment.Center;
-                gifEraseBox.Children.Add(gifModeText);
-                gifEraseField=Field(L.P("Filling","채우기"),gifEraseBox);
+                    layer.SetEraseMode(mode);
+                };
+                fillOnce.Checked+=picked;fillEach.Checked+=picked;
+                fillRow.Children.Add(fillOnce);fillRow.Children.Add(fillEach);
+                gifModeText=UI.Text("",12,true);gifModeText.Margin=new Thickness(8,0,0,0);gifModeText.VerticalAlignment=VerticalAlignment.Center;
+                fillRow.Children.Add(gifModeText);
+                gifEraseField=Field(L.P("Fill","메우기"),fillRow);
+                ((FrameworkElement)gifEraseField).ToolTip=L.P("Picked by itself from whether the background moves. Change it if the erased spot looks wrong when it plays.",
+                    "배경이 움직이는지 보고 저절로 골라요. 재생할 때 지운 곳이 어색하면 바꿔 봐요.");
                 body.Children.Add(gifEraseField);
             }
 
@@ -591,7 +620,7 @@ namespace LoveMyShelf {
             back=UI.Btn(L.P("Send to back","맨 뒤로"),()=>layer.Reorder(false));
             undo=UI.Btn(L.P("Undo Ctrl+Z","되돌리기 Ctrl+Z"),layer.Undo);
             redo=UI.Btn(L.P("Redo Ctrl+Y","다시 하기 Ctrl+Y"),layer.Redo);
-            clear=UI.Btn(L.P("Clear all","모두 지우기"),layer.Clear);
+            clear=UI.Btn(L.P("Clear all","모두 지우기"),()=>{if(layer.IsErase)layer.ClearErase();else layer.Clear();});
             foreach(var button in new[]{delete,front,back,undo,redo,clear}) {
                 button.Margin=new Thickness(0,0,5,4);actions.Children.Add(button);
             }
@@ -601,6 +630,7 @@ namespace LoveMyShelf {
             layer.Updated+=Sync;
             ShowOpener(DrawPreferences.Last.Open);Sync();
         }
+        readonly WrapPanel toolRow;
         static Button[] MakePresetButtons(Panel row,string name,string unit,int[] presets,Action<int> change) {
             var made=new Button[presets.Length];
             for(int i=0;i<presets.Length;i++) {
@@ -645,9 +675,22 @@ namespace LoveMyShelf {
             row.Children.Add(name);row.Children.Add(control);
             return row;
         }
-        void Toggle() { SetOpen(!IsOpen); }
+        // [Draw ▾] and [Erase ▾] open the same controls: Draw with the drawing tools, Erase with only what erasing needs.
+        // Pressing the open one again folds them.
+        void Toggle() {
+            if(IsOpen && !layer.IsErase){SetOpen(false);return;}
+            if(layer.IsErase)layer.SelectTool(lastDrawTool);
+            if(!IsOpen)SetOpen(true);else ShowOpener(true);
+        }
+        void ToggleErase() {
+            if(IsOpen && layer.IsErase){SetOpen(false);return;}
+            if(!layer.IsErase)layer.SelectTool('x');
+            if(!IsOpen)SetOpen(true);else ShowOpener(true);
+        }
         void ShowOpener(bool open) {
-            opener.Content=L.P("Draw","그림 그리기")+(open?"  ▴":"  ▾");
+            bool erase=layer.IsErase;
+            opener.Content=L.P("Draw","그림 그리기")+(open && !erase?"  ▴":"  ▾");
+            eraseOpener.Content=L.P("Erase","지우기")+(open && erase?"  ▴":"  ▾");
             body.Visibility=scroller.Visibility=open?Visibility.Visible:Visibility.Collapsed;
         }
         void Sync() {
@@ -661,12 +704,14 @@ namespace LoveMyShelf {
             showColor(layer.Color);showFill(layer.FillColor);showThickness(layer.Thickness);showOpacity(layer.ShapeOpacity);showBlock(layer.Block);
             none.FontWeight=layer.FillColor<0?FontWeights.Bold:FontWeights.Normal;
             bool erase=layer.IsErase;
+            if(!erase && MotionShape.Kinds.IndexOf(layer.Tool)>=0)lastDrawTool=layer.Tool;
+            toolRow.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
+            ShowOpener(IsOpen);
+            thicknessName.Text=erase?L.P("Brush","붓 크기"):L.P("Thickness","굵기");
             strokeField.Visibility=opacityField.Visibility=(layer.IsMosaic || erase || area)?Visibility.Collapsed:Visibility.Visible;
             thicknessField.Visibility=layer.IsMosaic || (area && layer.AreaKind!='q')?Visibility.Collapsed:Visibility.Visible;
             fillField.Visibility=layer.CanFill?Visibility.Visible:Visibility.Collapsed;
             blockField.Visibility=layer.IsMosaic?Visibility.Visible:Visibility.Collapsed;
-            foreach(var b in normalThicknessPresets)b.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
-            foreach(var b in eraseThicknessPresets)b.Visibility=erase?Visibility.Visible:Visibility.Collapsed;
             bool showAi=(erase || layer.HasEraseShapes) && layer.HasEraseShapes && !layer.IsMosaic && EraseEngine.Available;
             if(!erase)showAi=false;
             aiBusyPanel.Visibility=showAi && aiRunning?Visibility.Visible:Visibility.Collapsed;
@@ -678,13 +723,14 @@ namespace LoveMyShelf {
             aiNote.Visibility=showAi && filled?Visibility.Visible:Visibility.Collapsed;
             if(gifEraseField!=null) {
                 gifEraseField.Visibility=(erase || layer.HasEraseShapes)?Visibility.Visible:Visibility.Collapsed;
-                gifModeText.Text=layer.EraseMode==1?
-                    L.P("The background moves, so each scene is filled on its own.","배경이 움직여서 장면마다 따로 채워요."):
-                    L.P("The background stays still, so the fill made on one scene is used for every scene.","배경이 멈춰 있어서 한 장면에서 채운 모습을 모든 장면에 써요.");
+                fillOnce.IsChecked=layer.EraseMode!=1;fillEach.IsChecked=layer.EraseMode==1;
+                gifModeText.Text=layer.HasEraseShapes?(layer.EraseMode==1?L.P("(background moves)","(배경이 움직여요)"):L.P("(background still)","(배경이 멈춰 있어요)")):"";
                 gifPauseNote.Visibility=erase?Visibility.Visible:Visibility.Collapsed;
             }
+            foreach(var b in new[]{delete,front,back})b.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
             undo.IsEnabled=layer.CanUndo;redo.IsEnabled=layer.CanRedo;delete.IsEnabled=layer.HasSelection;
-            front.IsEnabled=layer.CanReorder(true);back.IsEnabled=layer.CanReorder(false);clear.IsEnabled=layer.HasShapes;
+            front.IsEnabled=layer.CanReorder(true);back.IsEnabled=layer.CanReorder(false);clear.IsEnabled=erase?layer.HasEraseShapes:layer.HasShapes;
+            clear.Content=erase?L.P("Clear erased spots","지운 곳 모두 없애기"):L.P("Clear all","모두 지우기");
             syncing=false;
         }
         internal bool HandleKey(KeyEventArgs e,bool allowX) {
@@ -721,6 +767,10 @@ namespace LoveMyShelf {
         }
         readonly List<Edit> undo=new List<Edit>(),redo=new List<Edit>();
         readonly List<Point> points=new List<Point>();
+        // A long erase drag: the pieces already full (MaxPoints each), kept whole; added with the last piece as one undo step.
+        readonly List<MotionShape> erasePieces=new List<MotionShape>();
+        internal event Action ShapeLimit;
+        bool limitTold;
         List<MotionShape> shapes=new List<MotionShape>();
         EraseAiPatch aiPatch;
         int eraseMode;
@@ -952,6 +1002,12 @@ namespace LoveMyShelf {
             if(!HasShapes)return;
             Remember();shapes.Clear();selected=-1;SaveChange();
         }
+        // [Clear] while erasing: only the erased spots; drawings, mosaics and parts stay (Codex).
+        internal void ClearErase() {
+            CancelDrag();
+            if(!HasEraseShapes)return;
+            Remember();shapes.RemoveAll(shape=>shape.IsErase);selected=-1;SaveChange();
+        }
         internal void DeleteSelected() {DeleteAt(selected);}
         void DeleteAt(int index) {
             CancelDrag();
@@ -1009,9 +1065,27 @@ namespace LoveMyShelf {
             return true;
         }
         void EndDrag() {
-            dragging=false;pending=null;points.Clear();
+            dragging=false;pending=null;points.Clear();erasePieces.Clear();limitTold=false;
             if(IsMouseCaptured)ReleaseMouseCapture();
         }
+        MotionShape Rounded(MotionShape shape) {
+            return shape.WithPoints(Array.ConvertAll(shape.Points,p=>new Point(Math.Round(MotionShape.Clamp(p.X),4),Math.Round(MotionShape.Clamp(p.Y),4))));
+        }
+        // The brush: a circle of its real size follows the mouse over the picture while erasing; changing the size
+        // shows it in the middle for a moment (2026-11-27 user: "I can't see the size until I click").
+        Point? hover;
+        DateTime brushUntil=DateTime.MinValue;
+        System.Windows.Threading.DispatcherTimer brushTimer;
+        internal void ShowBrush() {
+            if(!IsErase)return;
+            brushUntil=DateTime.UtcNow.AddMilliseconds(900);InvalidateVisual();
+            if(brushTimer==null) {
+                brushTimer=new System.Windows.Threading.DispatcherTimer {Interval=TimeSpan.FromMilliseconds(950)};
+                brushTimer.Tick+=delegate {brushTimer.Stop();InvalidateVisual();};
+            }
+            brushTimer.Stop();brushTimer.Start();
+        }
+        protected override void OnMouseLeave(MouseEventArgs e) {base.OnMouseLeave(e);if(hover!=null){hover=null;InvalidateVisual();}}
         Point ToPicture(Point p) {
             return new Point(MotionShape.Clamp(p.X/ActualWidth),MotionShape.Clamp(p.Y/ActualHeight));
         }
@@ -1085,11 +1159,20 @@ namespace LoveMyShelf {
                 dc.PushTransform(new ScaleTransform(Scale,Scale));
                 foreach(var shape in current)MotionDraw.Render(dc,shape,width,pixelHeight);
                 dc.Pop();
-                if(liveErase!=null) {
-                    double brushPx=Math.Max(2,MotionDraw.Pixels(liveErase,pixelHeight)*Scale);
-                    var liveGeom=MotionDraw.GeometryOf(liveErase,ActualWidth,ActualHeight,brushPx);
-                    dc.DrawGeometry(null,MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(145,255,90,90)),brushPx),liveGeom);
-                    dc.DrawGeometry(null,MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(190,255,255,255)),Math.Max(1.5,brushPx*0.24)),liveGeom);
+                // What gets filled, as one flat see-through color with no line in the middle (2026-11-27 user: "is only the
+                // white line erased, or the area around it?"). Drawn as one layer so overlapping strokes don't get darker.
+                var painted=new List<MotionShape>();
+                if(active && IsErase)painted.AddRange(current.Where(shape=>shape.IsErase));
+                painted.AddRange(erasePieces);
+                if(liveErase!=null)painted.Add(liveErase);
+                if(painted.Count>0) {
+                    dc.PushOpacity(liveErase!=null?0.55:0.22);
+                    var tint=new SolidColorBrush(System.Windows.Media.Color.FromRgb(255,80,80));
+                    foreach(var shape in painted) {
+                        double brushPx=Math.Max(2,MotionDraw.Pixels(shape,pixelHeight)*Scale);
+                        dc.DrawGeometry(null,MotionDraw.Stroke(tint,brushPx),MotionDraw.GeometryOf(shape,ActualWidth,ActualHeight,brushPx));
+                    }
+                    dc.Pop();
                 }
             }
             if(HasTracks) {
@@ -1100,6 +1183,15 @@ namespace LoveMyShelf {
                     if(i==selected && (pending!=null || active) || shape.Track==null)continue;
                     var key=shape.Track.At(sceneTime);
                     if(key.Lost)dc.DrawGeometry(null,lostPen,ScreenGeometry(shape.WithBox(key.Box)));
+                }
+            }
+            if(active && IsErase) {
+                double size=Math.Max(2,Math.Max(1.5,DefaultThickness*pixelHeight/1000.0)*Scale);
+                var ring=new Pen(Brushes.White,1.5);var edge=new Pen(new SolidColorBrush(System.Windows.Media.Color.FromArgb(160,0,0,0)),3.5);
+                Point? at=hover??(DateTime.UtcNow<brushUntil?new Point(ActualWidth/2,ActualHeight/2):(Point?)null);
+                if(at!=null) {
+                    dc.DrawEllipse(null,edge,at.Value,size/2,size/2);
+                    dc.DrawEllipse(null,ring,at.Value,size/2,size/2);
                 }
             }
             if(liveErase!=null)return;
@@ -1137,8 +1229,19 @@ namespace LoveMyShelf {
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
             if(!active)return;
             Focus();
+            BeginDrag(e.GetPosition(this));
+            e.Handled=true;
+        }
+        // A whole stroke given as points on the layer, as a mouse would draw it (the checks use this).
+        internal void StrokeForCheck(IList<Point> path) {
+            if(!active || path.Count==0)return;
+            BeginDrag(path[0],false);
+            for(int i=1;i<path.Count;i++)if(dragging)DragTo(path[i]);
+            FinishDrag(null);
+        }
+        void BeginDrag(Point at,bool capture=true) {
             if(BeforePointer!=null)BeforePointer();
-            start=e.GetPosition(this);anchor=ToPicture(start);handle=-1;
+            start=at;anchor=ToPicture(start);handle=-1;
             if(HasSelection) {
                 var handles=Handles(shapes[selected].At(sceneTime));
                 for(int i=0;i<handles.Length;i++)
@@ -1155,10 +1258,11 @@ namespace LoveMyShelf {
             if(PointerStarted!=null)PointerStarted();
             dragging=(!drawing || (shapes.Count<MotionShape.MaxShapes &&
                 (Tool!='m' || shapes.Count(shape=>shape.IsMosaic)<MotionShape.MaxMosaics) &&
-                (MotionShape.AreaKinds.IndexOf(Tool)<0 || shapes.Count(shape=>shape.IsArea)<MotionShape.MaxAreas))) && CaptureMouse();
-            Update();e.Handled=true;
+                (MotionShape.AreaKinds.IndexOf(Tool)<0 || shapes.Count(shape=>shape.IsArea)<MotionShape.MaxAreas))) && (!capture || CaptureMouse());
+            Update();
         }
         protected override void OnMouseMove(MouseEventArgs e) {
+            if(active && IsErase){hover=e.GetPosition(this);if(!dragging)InvalidateVisual();}
             if(!dragging || ActualWidth<=0 || ActualHeight<=0)return;
             DragTo(e.GetPosition(this));
         }
@@ -1175,10 +1279,22 @@ namespace LoveMyShelf {
                 if(MotionShape.IsPen(Tool)) {
                     if(points.Count==0)points.Add(anchor);
                     if((p-points[points.Count-1]).LengthSquared>=0.00000025)points.Add(p);
-                    if(points.Count>MotionShape.MaxPoints*2) {
+                    if(Tool=='x' && points.Count>=MotionShape.MaxPoints) {
+                        // Erasing is never thinned out: a full piece is kept as it is and the drag goes on in a new one
+                        // from the same point. At the limit of pieces the drag stops and says so.
+                        if(shapes.Count+erasePieces.Count+2>MotionShape.MaxShapes) {
+                            // Full: this piece stays at its size and the rest of the drag is not painted (said once per drag).
+                            points.RemoveAt(points.Count-1);
+                            if(!limitTold){limitTold=true;if(ShapeLimit!=null)ShapeLimit();}
+                        } else {
+                            erasePieces.Add(Rounded(NewEraseShape(points.ToArray())));
+                            var last=points[points.Count-1];points.Clear();points.Add(last);
+                        }
+                    } else if(points.Count>MotionShape.MaxPoints*2) {
                         var simplified=MotionShape.Simplify(points);points.Clear();points.AddRange(simplified);
                     }
-                    if(points.Count<2)return;
+                    if(points.Count<2 && erasePieces.Count==0)return;
+                    if(points.Count<2)points.Add(points[0]);
                 }
                 pending=Tool=='x'?NewEraseShape(points.ToArray()):
                     new MotionShape(Tool,Defaults.Color,DefaultThickness,MotionShape.CanFill(Tool)?Defaults.Fill:-1,DefaultOpacity,Defaults.Block,
@@ -1235,11 +1351,15 @@ namespace LoveMyShelf {
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) {
             if(!active)return;
             e.Handled=true;
+            FinishDrag(e.GetPosition(this));
+        }
+        void FinishDrag(Point? last) {
             if(!dragging)return;
-            if(ActualWidth>0 && ActualHeight>0)DragTo(e.GetPosition(this));
+            if(last!=null && ActualWidth>0 && ActualHeight>0)DragTo(last.Value);
             var final=pending;
-            if(final!=null && MotionShape.IsPen(final.Kind) && drawing)
+            if(final!=null && MotionShape.IsPen(final.Kind) && drawing && !final.IsErase)
                 final=final.WithPoints(MotionShape.Simplify(points));
+            var pieces=drawing?erasePieces.ToList():new List<MotionShape>();
             EndDrag();
             if(final==null && drawing && pickOnClick>=0){selected=pickOnClick;pickOnClick=-1;Update();return;}
             if(final==null && drawing && Tool=='x') {
@@ -1265,6 +1385,7 @@ namespace LoveMyShelf {
                         if(shapes[i].IsErase)shapes[i]=shapes[i].WithEraseMode(MotionShape.EraseStaticCSharp,sceneMs);
                 }
                 selected=final.IsErase?-1:shapes.Count;
+                foreach(var piece in pieces)shapes.Add(final.IsErase && eraseMode==0?piece.WithEraseMode(final.Block,final.EraseSceneMs):piece);
                 shapes.Add(final);
             } else shapes[selected]=final;
             SaveChange();

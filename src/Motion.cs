@@ -1921,7 +1921,8 @@ namespace LoveMyShelf {
             ShowPlayButton();
             bool making=preparing>=0;
             // While the preview plays nothing sits on it: the card (or the line in a narrow window) already says it is the preview.
-            string text=trackingStatus??(problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):held?(drawPanel.IsEditing?L.P("Paused · Space plays","멈춤 · Space로 재생"):L.T("Paused · click to play")):null);
+            string text=trackingStatus??(problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):
+                making && drawPanel.IsEditing && drawLayer.IsErase?L.PF("Filling every scene · {0}%","모든 장면 메우는 중 · {0}%",(int)Math.Floor(preparing*100)):held?(drawPanel.IsEditing?L.P("Paused · Space plays","멈춤 · Space로 재생"):L.T("Paused · click to play")):null);
             status.Text=text??"";
             statusPill.Visibility=text==null?Visibility.Collapsed:Visibility.Visible;
             UpdateGuide();
@@ -2103,7 +2104,8 @@ namespace LoveMyShelf {
                 timeline=drawLayer.HasTracks?EncodedTimeline(request,result,frames,own,madeRate,made.Count):
                     Timeline(request,frames.Images.Length);
                 preparedPlay=frames;preparedTimeline=timeline;
-                player.Start(frames);player.Hold=held;
+                // Paused (erasing): stay on the scene being looked at instead of jumping to the first one.
+                player.Start(frames,held && !Double.IsNaN(playAt) && timeline!=null && timeline.Length==frames.Images.Length?NearestScene(timeline,playAt):0);player.Hold=held;
                 preparedOwn=own;showingOwn=own;UpdatePreviewLook();
                 preparing=-1;SetStatus();UpdateSummary();PumpThumbs();
             } catch(OperationCanceledException) {MotionMaker.DeleteLater(file);}
