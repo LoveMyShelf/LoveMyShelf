@@ -98,7 +98,7 @@ namespace LoveMyShelf {
                     if(style[1]!="-" && (style[1].Length!=6 || !Int32.TryParse(style[1],NumberStyles.AllowHexSpecifier,Invariant,out fill)))continue;
                     if(style[1]=="-")fill=-1;
                     if(!Int32.TryParse(style[2],NumberStyles.Integer,Invariant,out opacity) || opacity<10 || opacity>100 ||
-                        !Int32.TryParse(style[3],NumberStyles.Integer,Invariant,out block) || block<1 || block>100)continue;
+                        !Int32.TryParse(style[3],NumberStyles.Integer,Invariant,out block) || block<1 || block>1000)continue;
                 }
                 if(kind=='m' && mosaics==MaxMosaics)continue;
                 if(AreaKinds.IndexOf(kind)>=0 && areas==MaxAreas)continue;
@@ -414,7 +414,7 @@ namespace LoveMyShelf {
                 result.Open=parts[0]=="1";result.Tool=parts[1][0];
                 if(MotionShape.AreaKinds.IndexOf(result.Tool)>=0)result.AreaKind=result.Tool;
                 result.Color=Limit(values[0],0,0xFFFFFF);result.Fill=Limit(values[1],-1,0xFFFFFF);
-                result.Thickness=Limit(values[2],1,MotionShape.MaxThickness);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,100);
+                result.Thickness=Limit(values[2],1,MotionShape.MaxThickness);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,1000);
                 result.MarkerThickness=Limit(values[5],1,MotionShape.MaxThickness);result.MarkerOpacity=Limit(values[6],10,100);
                 if(values.Length>=8)result.EraseThickness=Limit(values[7],1,MotionShape.MaxThickness);
             } catch(IOException ex) {ErrorLog.Quiet(ex);}
@@ -576,7 +576,7 @@ namespace LoveMyShelf {
             opacityField=Field(L.P("Opacity","투명도"),Number(layer.ShapeOpacity,10,100,"%",L.P("Opacity","투명도"),
                 v=>layer.SetStyle(opacity:v),new[]{40,70,100},out showOpacity));
             string block=L.P("Block size","칸 크기");
-            blockField=Field(block,Number(layer.Block,1,100,"px",block,v=>layer.SetStyle(block:v),new[]{12,24,48},out showBlock));
+            blockField=Field(block,Number(layer.Block,1,1000,"px",block,v=>layer.SetStyle(block:v),new[]{12,24,48},out showBlock));
             blockField.ToolTip=L.P("Pixels when the cover is 1000 px tall.","표지 높이가 1000px일 때의 칸 크기예요.");
             foreach(var field in new[]{strokeField,fillField,thicknessField,opacityField,blockField})body.Children.Add(field);
             body.Children.Insert(body.Children.IndexOf(thicknessField)+1,aiNote);

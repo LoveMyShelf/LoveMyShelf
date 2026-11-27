@@ -143,14 +143,16 @@ namespace LoveMyShelf {
         }
 
         // [−] [number] [+] unit: a number can be typed or stepped. Applied with Enter, on leaving the box, or a step.
-        internal static FrameworkElement Number(double value,double min,double max,double step,string unit,string name,Action<double> changed,out Func<double> read,out Action<double> write) {
+        // fine: the smallest typed step when it is finer than the [-][+] step (0.01 for the smooth loop).
+        internal static FrameworkElement Number(double value,double min,double max,double step,string unit,string name,Action<double> changed,out Func<double> read,out Action<double> write,double fine=0) {
             var row=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};
             var box=new TextBox {Width=54,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center,HorizontalContentAlignment=HorizontalAlignment.Center,Margin=new Thickness(3,0,3,0)};
             AutomationProperties.SetName(box,name);box.ToolTip=name;
             double current=value;
-            Action<double> show=v=>{box.Text=v.ToString(step<1?"0.0":"0",CultureInfo.CurrentCulture);};
+            double grain=fine>0?fine:step<1?0.1:1;
+            string pattern=grain<0.1?"0.0#":grain<1?"0.0":"0";
+            Action<double> show=v=>{box.Text=v.ToString(pattern,CultureInfo.CurrentCulture);};
             // A typed number stays as typed (to one decimal for a decimal box); only [−] [+] move by the step.
-            double grain=step<1?0.1:1;
             Action<double> set=v=>{
                 v=Math.Max(min,Math.Min(max,Math.Round(v/grain)*grain));
                 bool differs=Math.Abs(v-current)>1e-9;current=v;show(v);

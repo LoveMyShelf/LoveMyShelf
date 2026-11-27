@@ -37,7 +37,7 @@ namespace LoveMyShelf {
         // first ones, so the loop has no seam; the file gets Blend seconds shorter. Only for Loop, without a pause at the
         // end and without sound (the sound would be longer than the picture). Debate: DeepSeek, Gemini.
         public double Blend;
-        internal bool UsesBlend {get {return Blend>0.01 && Loop=="forward" && Hold<=0.01 && !WithSound;}}
+        internal bool UsesBlend {get {return Blend>=0.01 && Loop=="forward" && Hold<=0.01 && !WithSound;}}
         // How many start pictures fade in, for pictures frameMs apart: at most a third of them, none for fewer than 6.
         internal int BlendCount(int pictures,double frameMs) {
             if(!UsesBlend || pictures<6 || frameMs<=0)return 0;
@@ -92,7 +92,7 @@ namespace LoveMyShelf {
             if(FlipX)s.Append(";flipx=1");if(FlipY)s.Append(";flipy=1");
             if(Plays>0)s.Append(";plays=").Append(Plays.ToString(c));
             if(Hold>0.01)s.Append(";hold=").Append(Math.Round(Hold,2).ToString(c));
-            if(Blend>0.01)s.Append(";blend=").Append(Math.Round(Blend,2).ToString(c));
+            if(Blend>=0.01)s.Append(";blend=").Append(Math.Round(Blend,2).ToString(c));
             if(Q>0)s.Append(";q=").Append(Q.ToString(c));
             if(TargetMb>0)s.Append(";mb=").Append(Math.Round(TargetMb,2).ToString(c));
             if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c))
@@ -136,9 +136,9 @@ namespace LoveMyShelf {
                 string v;double d;int i;
                 r.FpsOriginal=values.TryGetValue("fpsOrig",out v) && v=="1";r.SizeOriginal=values.TryGetValue("sizeOrig",out v) && v=="1";
                 r.FlipX=values.TryGetValue("flipx",out v) && v=="1";r.FlipY=values.TryGetValue("flipy",out v) && v=="1";
-                if(values.TryGetValue("plays",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Plays=Math.Max(0,Math.Min(100,i));
+                if(values.TryGetValue("plays",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Plays=Math.Max(0,Math.Min(10000,i));
                 if(values.TryGetValue("hold",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=30)r.Hold=d;
-                if(values.TryGetValue("blend",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=2)r.Blend=d;
+                if(values.TryGetValue("blend",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=30)r.Blend=d;
                 if(values.TryGetValue("q",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Q=Math.Max(0,Math.Min(100,i));
                 if(values.TryGetValue("mb",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>0 && d<100000)r.TargetMb=d;
                 if(values.TryGetValue("text",out v))r.Text=MotionLook.FromBase64(v);
@@ -523,7 +523,8 @@ namespace LoveMyShelf {
             // Every choice is one row of its own (its name, then its control), so the same rows can stand beside the
             // preview in a wide window or under the strip in a narrow one (see Arrange), and all of them show at once.
             speedField=Field(L.T("Speed"),SpeedControl());
-            loopField=Field(L.T("Play style"),Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},loopPick,L.T("Play style"),Changed,out loopChoices));
+            loopField=new StackPanel();
+            ((Panel)loopField).Children.Add(Field(L.T("Play style"),Segment(new[]{L.T("Loop"),L.T("Back and forth"),L.T("Backward")},loopPick,L.T("Play style"),Changed,out loopChoices)));
             var fpsBox=new StackPanel();var heightBox=new StackPanel();var qualityBox=new StackPanel();var formatBox=new StackPanel();
             NumberField(fpsBox,fps,L.T("Smoothness"),true);
             // The size is the cover's long side: its height, or its width for a wide cover.
@@ -855,19 +856,20 @@ namespace LoveMyShelf {
             // How many times it plays (0 = forever) and a pause on the last picture.
             var playsPanel=new StackPanel();
             Func<double> readPlays,readHold;Action<double> writePlays,writeHold;
-            playsPanel.Children.Add(Field(L.P("Plays","재생 횟수"),MotionLook.Number(plays,0,100,1,L.P("times","번"),L.P("How many times it plays (0 = forever)","재생 횟수 (0이면 계속)"),
+            playsPanel.Children.Add(Field(L.P("Plays","재생 횟수"),MotionLook.Number(plays,0,10000,1,L.P("times","번"),L.P("How many times it plays (0 = forever)","재생 횟수 (0이면 계속)"),
                 v=>{plays=(int)v;Changed();},out readPlays,out writePlays)));
-            playsPanel.Children.Add(Field(L.P("Pause at the end","끝에서 멈춤"),MotionLook.Number(hold,0,10,0.5,L.P("s","초"),L.P("Seconds the last picture stays","끝에서 멈추는 시간 (초)"),
+            playsPanel.Children.Add(Field(L.P("Pause at the end","끝에서 멈춤"),MotionLook.Number(hold,0,30,0.5,L.P("s","초"),L.P("Seconds the last picture stays","끝에서 멈추는 시간 (초)"),
                 v=>{hold=v;Changed();},out readHold,out writeHold)));
             // Smooth loop: on/off and how many seconds the end fades into the start.
             var blendRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
-            var blendBox=new CheckBox {Content=L.P("On","켜기"),ToolTip=L.P("Fades the end into the start, so the loop has no jump.","끝과 처음을 부드럽게 이어서 반복할 때 튀지 않아요."),IsChecked=blend>0.01,
+            var blendBox=new CheckBox {Content=L.P("Join end and start","끝과 처음 잇기"),ToolTip=L.P("Fades the end into the start, so the loop has no jump.","끝과 처음을 부드럽게 이어서 반복할 때 튀지 않아요."),IsChecked=blend>=0.01,
                 Margin=new Thickness(0,2,10,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
             blendBox.SetResourceReference(Control.ForegroundProperty,"Text");
-            double blendSeconds=blend>0.01?blend:0.5;
+            double blendSeconds=blend>=0.01?blend:0.5;
             Func<double> readBlend;Action<double> writeBlend;
-            var blendNumber=MotionLook.Number(blendSeconds,0.1,2,0.1,L.P("s","초"),L.P("Seconds the end fades into the start","끝이 처음으로 섞이는 시간 (초)"),
-                v=>{blendSeconds=v;if(blendBox.IsChecked==true){blend=v;Changed();}},out readBlend,out writeBlend);
+            // 0.01 s up to 30 s (2026-11-28 user: "is 0.1 the lowest?"); at most a third of the part fades, however long.
+            var blendNumber=MotionLook.Number(blendSeconds,0.01,30,0.1,L.P("s","초"),L.P("Seconds the end fades into the start","끝이 처음으로 섞이는 시간 (초)"),
+                v=>{blendSeconds=v;if(blendBox.IsChecked==true){blend=v;Changed();}},out readBlend,out writeBlend,0.01);
             RoutedEventHandler blendSwitch=delegate {blend=blendBox.IsChecked==true?blendSeconds:0;Changed();};
             blendBox.Checked+=blendSwitch;blendBox.Unchecked+=blendSwitch;
             blendRow.Children.Add(blendBox);blendRow.Children.Add(blendNumber);
@@ -875,7 +877,8 @@ namespace LoveMyShelf {
                 "반복 재생에서만 돼요. 끝에서 멈춤·소리 넣기와는 같이 못 써요. 파일이 그만큼 짧아져요."),12,true);
             blendNote.TextWrapping=TextWrapping.Wrap;blendNote.Margin=new Thickness(0,0,0,4);
             var blendPanel=new StackPanel();blendPanel.Children.Add(blendRow);blendPanel.Children.Add(blendNote);
-            playsPanel.Children.Add(Field(L.P("Smooth loop","부드러운 반복"),blendPanel));
+            // Right under the play style it belongs to (2026-11-28 user: "where is smooth loop?").
+            ((Panel)loopField).Children.Add(Field(L.P("Smooth loop","부드러운 반복"),blendPanel));
             playsField=playsPanel;
             // Quality as a number (1..100) under the three buttons: the buttons fill it in, typing makes it your own.
             int[] presets={90,75,55};
@@ -891,7 +894,7 @@ namespace LoveMyShelf {
             var on=new CheckBox {Content=L.P("Fit under","이 크기 안으로"),IsChecked=targetOn,Margin=new Thickness(0,2,8,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
             on.SetResourceReference(Control.ForegroundProperty,"Text");
             Func<double> readMb;Action<double> writeMb;
-            var mbBox=MotionLook.Number(targetMb,0.5,500,0.5,"MB",L.P("Size to stay under (MB)","목표 용량 (MB)"),v=>{targetMb=v;if(!targetOn)on.IsChecked=true;else Changed();},out readMb,out writeMb);
+            var mbBox=MotionLook.Number(targetMb,0.1,4000,0.5,"MB",L.P("Size to stay under (MB)","목표 용량 (MB)"),v=>{targetMb=v;if(!targetOn)on.IsChecked=true;else Changed();},out readMb,out writeMb);
             RoutedEventHandler toggle=delegate {targetOn=on.IsChecked==true;Changed();};
             on.Checked+=toggle;on.Unchecked+=toggle;
             limit.Children.Add(on);limit.Children.Add(mbBox);
@@ -918,7 +921,7 @@ namespace LoveMyShelf {
                 textPlace=3;};
             textMark.Moved+=delegate {UpdatePreviewLook();Changed();};
             Func<double> readSize;Action<double> writeSize;
-            textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,3,30,1,"%",L.P("Text size (% of the picture's height)","글자 크기 (그림 높이의 %)"),
+            textPanel.Children.Add(Field(L.P("Text size","글자 크기"),MotionLook.Number(textSize,2,40,1,"%",L.P("Text size (% of the picture's height)","글자 크기 (그림 높이의 %)"),
                 v=>{textSize=v;UpdatePreviewLook();Changed();},out readSize,out writeSize)));
             textField=textPanel;
             AdjustValues initAdj=saved!=null && saved.HasOwnAdjust?saved.Adjust:source.EffectiveAdjust;

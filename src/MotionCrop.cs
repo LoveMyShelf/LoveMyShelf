@@ -16,7 +16,7 @@ namespace LoveMyShelf {
     // corners and edges, wheel, keep the shape, width : height numbers). [Use this] cuts the GIF there from then on.
     // The GIF keeps its own cut in its settings (MotionRequest.HasOwnCrop), so the JPG cover stays as it is.
     internal sealed partial class MotionWindow {
-        bool ownCrop;
+        bool ownCrop,heldBeforeCrop;
         Grid cropHost;
         FrameworkElement cropField;
 
@@ -31,6 +31,7 @@ namespace LoveMyShelf {
 
         async void EditCrop() {
             if(cropHost!=null)return;
+            heldBeforeCrop=held;
             held=true;player.Hold=true;SetStatus();
             // The scene now on screen, whole: no cut, no turn (the frame below turns it as the cover editor does).
             var whole=new MotionSource {Path=source.Path,Moment=source.Moment,Crop=new Rect(0,0,1,1),Rotation=0,
@@ -143,6 +144,9 @@ namespace LoveMyShelf {
             if(cropHost==null)return;
             middle.Children.Remove(cropHost);cropHost=null;
             make.IsDefault=true;if(cancelButton!=null)cancelButton.IsCancel=true;
+            // Back to the GIF window as it was: playing again if it was playing (2026-11-28 user: "after [Crop here] it
+            // doesn't go back to the editing screen" - it came back paused, with the strip still being read).
+            if(!heldBeforeCrop && held){held=false;player.Hold=false;SetStatus();}
         }
 
         void UseCrop(CropSurface surface) {
