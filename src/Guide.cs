@@ -216,6 +216,10 @@ namespace LoveMyShelf {
         ViewerKeys.Command clashFor,clashWith;    // a key that is already used: the row, and the job that has the key
         Key clashKey;
         string keyNote;                           // a short line under the row waiting for a key (a key that can't be used)
+        // [Reset] works both ways (2026-11-27 user): after [Put all keys back] or a row's [Reset], [Undo] brings back the
+        // keys from just before. Kept here, since the page is drawn again after every change. Choosing a key forgets them.
+        Dictionary<string,Key> keysBeforeReset;
+        Tuple<string,Key> keyBeforeReset;          // the action id and the key it had before its row's [Reset]
 
         void DrawAdvanced() {
             var prefs=Prefs;
@@ -245,8 +249,15 @@ namespace LoveMyShelf {
             rows.Children.Add(Heading(T("Large view keys","크게 보기 키")));
             foreach(var command in ViewerKeys.All)rows.Children.Add(KeyRow(command,changed));
             var bottom=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,16,0,0)};
-            var resetAll=UI.Btn(T("Put all keys back","모두 원래대로"),()=>{waitingFor=null;clashFor=null;keyNote=null;ChangeKeys(k=>k.Clear());});
-            resetAll.FontSize=13;resetAll.IsEnabled=changed.Count>0;bottom.Children.Add(resetAll);
+            bool canUndoAll=keysBeforeReset!=null && changed.Count==0;
+            var resetAll=UI.Btn(canUndoAll?T("Undo reset","되돌리기"):T("Put all keys back","모두 원래대로"),()=>{
+                waitingFor=null;clashFor=null;keyNote=null;keyBeforeReset=null;
+                if(canUndoAll){var back=keysBeforeReset;keysBeforeReset=null;ChangeKeys(k=>{foreach(var pair in back)k[pair.Key]=pair.Value;});return;}
+                keysBeforeReset=new Dictionary<string,Key>(changed,StringComparer.Ordinal);
+                ChangeKeys(k=>k.Clear());
+            });
+            if(canUndoAll)resetAll.ToolTip=T("Brings back the keys from just before [Put all keys back].","모두 원래대로 누르기 바로 전 키로 돌아가요.");
+            resetAll.FontSize=13;resetAll.IsEnabled=changed.Count>0 || canUndoAll;bottom.Children.Add(resetAll);
             var count=UI.Text(changed.Count>0?T(changed.Count+" changed",changed.Count+"개 바꿨어요"):T("All keys are the defaults now","지금은 모두 처음 키예요"),13,true);
             count.VerticalAlignment=VerticalAlignment.Center;count.Margin=new Thickness(12,0,0,0);bottom.Children.Add(count);
             rows.Children.Add(bottom);
@@ -264,10 +275,17 @@ namespace LoveMyShelf {
             bool isChanged=now!=command.Default,waiting=waitingFor==command;
             var right=new StackPanel {Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};
             if(isChanged && !waiting) {
-                var back=UI.Btn(T("Reset","원래대로"),()=>{waitingFor=null;keyNote=null;Give(command,command.Default);});
+                var back=UI.Btn(T("Reset","원래대로"),()=>{waitingFor=null;keyNote=null;keysBeforeReset=null;keyBeforeReset=Tuple.Create(command.Id,now);Give(command,command.Default);});
                 back.FontSize=12;back.Margin=new Thickness(0,0,8,0);
                 back.ToolTip=T("Back to the first key: "+ViewerKeys.Label(command.Default),"처음 키로 되돌려요: "+ViewerKeys.Label(command.Default));
                 right.Children.Add(back);
+            }
+            if(!isChanged && !waiting && keyBeforeReset!=null && keyBeforeReset.Item1==command.Id) {
+                var before=keyBeforeReset.Item2;
+                var undo=UI.Btn(T("Undo reset","되돌리기"),()=>{waitingFor=null;keyNote=null;keyBeforeReset=null;Give(command,before);});
+                undo.FontSize=12;undo.Margin=new Thickness(0,0,8,0);
+                undo.ToolTip=T("Back to the key from just before: "+ViewerKeys.Label(before),"바로 전 키로 돌아가요: "+ViewerKeys.Label(before));
+                right.Children.Add(undo);
             }
             // The key itself is the button: drawn like a keyboard key, with the accent border when it was changed.
             var chip=new Button {Template=ChoiceTemplate(),Cursor=Cursors.Hand,MinWidth=96,Padding=new Thickness(10,5,10,6),
@@ -282,7 +300,7 @@ namespace LoveMyShelf {
             chip.ToolTip=waiting?T("Press Esc to cancel","Esc를 누르면 취소돼요"):T("Click, then press the new key","누른 다음 새 키를 눌러 주세요");
             chip.Click+=delegate {
                 clashFor=null;keyNote=null;
-                waitingFor=waiting?null:command;
+                waitingFor=waiting?null:command;keysBeforeReset=null;keyBeforeReset=null;
                 Redraw();
             };
             right.Children.Add(chip);

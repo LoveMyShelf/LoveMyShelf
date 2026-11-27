@@ -1605,6 +1605,15 @@ namespace LoveMyShelf {
                 Grid.SetRow(bar,at);Grid.SetColumnSpan(bar,2);rows.Children.Add(bar);
             };
             string reset=L.T("Reset");
+            // [Reset] works both ways (ResetToggle, 2026-11-27 user): pressed again it brings back what was there just
+            // before. A held button repeats, so only the first press of a hold counts.
+            Func<string,Func<object>,Action<object>,Action,Button> undoable=(prefix,read,restore,putBack)=>{
+                ResetToggle toggle=null;
+                var button=key(prefix+reset,()=>{if(!holdRepeating && toggle!=null)toggle.Press();},true);
+                toggle=ResetToggle.For(button,read,restore,putBack);toggle.KeyPrefix=prefix;
+                live.Add(()=>toggle.Changed());
+                return button;
+            };
             if(motion) {
                 var pauseKey=key("",()=>SetPaused(!paused),true);
                 live.Add(()=>pauseKey.Content="Space  "+L.T(paused?"Play":"Pause"));
@@ -1643,12 +1652,15 @@ namespace LoveMyShelf {
                 var twice=key("",()=>{if(!holdRepeating)ToggleDoubleRate();},true);
                 live.Add(()=>twice.Content=(Math.Abs(rate-2)<0.001?"✓ ":"")+"V  "+L.T("2×"));
                 twice.ToolTip=L.T("2× speed. Press again for 1×");
-                row(L.T("Playback speed"),new[]{key("Z  "+reset,()=>speed(0),true),key("X  "+L.T("Slower"),()=>speed(-0.1),true),key("C  "+L.T("Faster"),()=>speed(0.1),true),twice});
+                row(L.T("Playback speed"),new[]{undoable("Z  ",()=>rate,v=>{SetRate((double)v);ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));},()=>speed(0)),key("X  "+L.T("Slower"),()=>speed(-0.1),true),key("C  "+L.T("Faster"),()=>speed(0.1),true),twice});
                 // Shows the style in use; a click switches to the other one, and the controls stay open.
                 var style=key("",()=>{if(!holdRepeating)SwitchBrightnessStyle();},true);
                 live.Add(()=>style.Content="R  "+Light.StyleName(playbackStyle));
                 style.ToolTip=L.T("Switch brightness style");
-                row(L.T("Brightness"),new[]{key("Q  "+reset,()=>ChangeBrightness(0),true),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
+                row(L.T("Brightness"),new[]{undoable("Q  ",()=>playbackBrightness,v=>{
+                        playbackBrightness=(int)v;brightnessChosen=true;ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
+                        ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0} · {1}",playbackBrightness,Light.StyleName(playbackStyle)));
+                    },()=>ChangeBrightness(0)),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
                     key("E  "+L.T("Brighter"),()=>ChangeBrightness(1),true),style});
                 if(mpv!=null) {
                     // [Adjust ▸] opens its own small panel at the top right of the video (ViewerAdjust.cs), so the
@@ -1659,8 +1671,14 @@ namespace LoveMyShelf {
                     row(L.P("Adjust","보정"),new[]{adjustOpen});
                 }
             }
-            row(L.T("Rotation"),new[]{key("I  "+reset,ResetTurn,true),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
-            row(L.T("Zoom (wheel)"),new[]{key(reset,()=>SetZoom(1),true),key("−  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("+  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
+            row(L.T("Rotation"),new[]{undoable("I  ",()=>Tuple.Create(turn,zoom,pan),v=>{
+                    var was=(Tuple<int,double,Vector>)v;LeaveAreaView();turn=was.Item1;zoom=was.Item2;pan=was.Item3;ShowTurn();
+                    ShowCornerNote(turn==0?L.T("Rotation: normal"):L.F("Rotation {0}°",turn>180?turn-360:turn));
+                },ResetTurn),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
+            row(L.T("Zoom (wheel)"),new[]{undoable("",()=>Tuple.Create(zoom,pan),v=>{
+                    var was=(Tuple<double,Vector>)v;LeaveAreaView();zoom=was.Item1;pan=was.Item2;ApplyZoom();
+                    ShowCornerNote(zoom==1?L.T("Zoom: normal"):L.F("Zoom {0:0.0}×",zoom));
+                },()=>SetZoom(1)),key("−  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("+  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
             if(motion && volume.IsEnabled) {
                 Action<int> louder=direction=>{
                     muted=false;
@@ -1686,7 +1704,10 @@ namespace LoveMyShelf {
             }
             if(motion && subtitlesReady && !forCrop)row(L.T("Subtitles"),new[]{key(L.T("Open the subtitle explorer"),OpenSubtitleExplorer,false)});
             if(motion && mpv!=null && (Subtitle!=null || HasOwnSubtitle))
-                row(L.T("Subtitle size"),new[]{key(reset,()=>ChangeSubtitleSize(0),true),key("−  "+L.T("Smaller"),()=>ChangeSubtitleSize(-1),true),key("+  "+L.T("Bigger"),()=>ChangeSubtitleSize(1),true)});
+                row(L.T("Subtitle size"),new[]{undoable("",()=>subtitleSize,v=>{
+                    subtitleSize=(int)v;if(mpv!=null)mpv.SubtitleScale=subtitleSize/100.0;if(home!=null)home.SaveSubtitleSize(subtitleSize);
+                    ShowCornerNote(L.F("Subtitle size {0}%",subtitleSize));
+                },()=>ChangeSubtitleSize(0)),key("−  "+L.T("Smaller"),()=>ChangeSubtitleSize(-1),true),key("+  "+L.T("Bigger"),()=>ChangeSubtitleSize(1),true)});
             if(!forCrop) {
                 var back=key("K  ◀ "+L.T("Previous"),()=>Navigate(-1),false);back.IsEnabled=index>0;
                 var forward=key("L  "+L.T("Next")+" ▶",()=>Navigate(1),false);forward.IsEnabled=index<items.Count-1;

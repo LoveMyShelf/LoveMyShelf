@@ -82,7 +82,10 @@ namespace LoveMyShelf {
             Grid.SetColumn(likeness,1);row.Children.Add(likeness);
             likenessText.MinWidth=44;likenessText.TextAlignment=TextAlignment.Center;likenessText.Margin=new Thickness(8,0,0,0);
             Grid.SetColumn(likenessText,2);row.Children.Add(likenessText);
-            var reset=UI.Btn(L.T("Reset"),()=>{likeness.Value=DefaultLikeness;});reset.Margin=new Thickness(8,0,0,0);
+            // [Reset] works both ways (ResetToggle): pressed again it brings back the likeness from just before.
+            var reset=UI.Btn(L.T("Reset"),()=>{});reset.Margin=new Thickness(8,0,0,0);
+            var resetToggle=ResetToggle.Attach(reset,()=>likeness.Value,v=>{likeness.Value=(double)v;},()=>{likeness.Value=DefaultLikeness;});
+            likeness.ValueChanged+=delegate {resetToggle.Changed();};
             Grid.SetColumn(reset,3);row.Children.Add(reset);top.Children.Add(row);
             var ends=new DockPanel {Margin=new Thickness(0,2,0,0)};
             var tight=UI.Text(L.T("Strict (splits more) →"),12,true);DockPanel.SetDock(tight,Dock.Right);ends.Children.Add(tight);
