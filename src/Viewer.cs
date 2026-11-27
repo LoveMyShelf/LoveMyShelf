@@ -1808,6 +1808,12 @@ namespace LoveMyShelf {
                 if(home!=null && index<items.Count && items[index].Linked) {
                     var place=key(L.P("Location","위치"),()=>home.ShowInExplorer(CurrentPhoto,false),false);place.ToolTip=L.T("Open file location");files.Add(place);
                 }
+                // The cover on screen: the GIF cover's file while the moving cover shows, else the JPG cover's.
+                if(home!=null && cachedCover && index<items.Count && items[index].HasCrop) {
+                    bool moving=showMotion && items[index].HasMotion;
+                    var coverPlace=key(moving?L.P("GIF cover","GIF 표지"):L.P("JPG cover","JPG 표지"),()=>home.ShowInExplorer(CurrentPhoto,true,moving),false);
+                    coverPlace.ToolTip=moving?L.P("Open GIF cover location","GIF 표지 위치 열기"):L.P("Open JPG cover location","JPG 표지 위치 열기");files.Add(coverPlace);
+                }
                 // Watching only the video: the folder window can go down from here, and it gives its memory back while it is down.
                 if(home!=null && home.IsVisible && home.WindowState!=WindowState.Minimized) {
                     var down=key(L.P("Folder window ▁","폴더 창 ▁"),GalleryWindow.MinimizeAll,false);down.ToolTip=L.T("Minimize the folder window");files.Add(down);

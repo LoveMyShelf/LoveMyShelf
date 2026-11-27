@@ -243,7 +243,15 @@ namespace LoveMyShelf {
                 var location=new MenuItem {Header=L.T("Open file location")};
                 location.Click+=delegate {row.Owner.ShowInExplorer(photo,false);};
                 menu.Items.Add(location);
-                if(photo.HasCrop) {
+                if(photo.HasCrop && photo.HasMotion) {
+                    // A cover with a moving cover too: one line for each file, so the GIF is found where it is.
+                    var gifLocation=new MenuItem {Header=L.P("Open GIF cover location","GIF 표지 위치 열기")};
+                    gifLocation.Click+=delegate {row.Owner.ShowInExplorer(photo,true,true);};
+                    menu.Items.Add(gifLocation);
+                    var jpgLocation=new MenuItem {Header=L.P("Open JPG cover location","JPG 표지 위치 열기")};
+                    jpgLocation.Click+=delegate {row.Owner.ShowInExplorer(photo,true,false);};
+                    menu.Items.Add(jpgLocation);
+                } else if(photo.HasCrop) {
                     var coverLocation=new MenuItem {Header=L.T("Open cover file location")};
                     coverLocation.Click+=delegate {row.Owner.ShowInExplorer(photo,true);};
                     menu.Items.Add(coverLocation);
@@ -4538,9 +4546,12 @@ namespace LoveMyShelf {
         }
         // The guide, opened on the section for where you are.
         internal void ShowGuide(string section,Window owner=null) {GuideWindow.Open(owner??this,section);}
-        internal void ShowInExplorer(Photo photo,bool cover) {
+        // moving: the GIF cover's file instead of the JPG cover's (2026-11-27 user: "gif jpg 구분을 해라").
+        // A GIF asked for but gone: its own path, so the person is told it is missing instead of being shown the JPG (DeepSeek).
+        internal static string LocationOf(Photo photo,bool cover,bool moving) {return !cover?photo.Original:moving && photo.MotionFile!=null?photo.MotionFile:photo.ActiveCoverFile;}
+        internal void ShowInExplorer(Photo photo,bool cover,bool moving=false) {
             try {
-                string path=cover?photo.ActiveCoverFile:photo.Original;
+                string path=LocationOf(photo,cover,moving);
                 if(!cover && photo.Linked && !File.Exists(path))path=OriginalLocator.Resolve(store,photo,lifetime.Token);
                 if(String.IsNullOrEmpty(path) || !File.Exists(path))throw new FileNotFoundException(L.T("The original file is unavailable."),path);
                 System.Diagnostics.Process.Start("explorer.exe","/select,\""+path+"\"");
