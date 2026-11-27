@@ -277,14 +277,14 @@ namespace LoveMyShelf {
             if(isChanged && !waiting) {
                 var back=UI.Btn(T("Reset","원래대로"),()=>{waitingFor=null;keyNote=null;keysBeforeReset=null;keyBeforeReset=Tuple.Create(command.Id,now);Give(command,command.Default);});
                 back.FontSize=12;back.Margin=new Thickness(0,0,8,0);
-                back.ToolTip=T("Back to the first key: "+ViewerKeys.Label(command.Default),"처음 키로 되돌려요: "+ViewerKeys.Label(command.Default));
+                back.ToolTip=T("Back to the first key: "+ViewerKeys.Label(command,command.Default),"처음 키로 되돌려요: "+ViewerKeys.Label(command,command.Default));
                 right.Children.Add(back);
             }
             if(!isChanged && !waiting && keyBeforeReset!=null && keyBeforeReset.Item1==command.Id) {
                 var before=keyBeforeReset.Item2;
                 var undo=UI.Btn(T("Undo reset","되돌리기"),()=>{waitingFor=null;keyNote=null;keyBeforeReset=null;Give(command,before);});
                 undo.FontSize=12;undo.Margin=new Thickness(0,0,8,0);
-                undo.ToolTip=T("Back to the key from just before: "+ViewerKeys.Label(before),"바로 전 키로 돌아가요: "+ViewerKeys.Label(before));
+                undo.ToolTip=T("Back to the key from just before: "+ViewerKeys.Label(command,before),"바로 전 키로 돌아가요: "+ViewerKeys.Label(command,before));
                 right.Children.Add(undo);
             }
             // The key itself is the button: drawn like a keyboard key, with the accent border when it was changed.
@@ -292,11 +292,11 @@ namespace LoveMyShelf {
                 BorderThickness=new Thickness(isChanged || waiting?2:1),HorizontalContentAlignment=HorizontalAlignment.Center};
             chip.SetResourceReference(Control.BackgroundProperty,waiting?"Raised":"Paper");
             chip.SetResourceReference(Control.BorderBrushProperty,isChanged || waiting?"Accent":"StrongLine");
-            var chipText=UI.Text(waiting?T("Press a key…","키를 눌러 주세요…"):ViewerKeys.Label(now),13);
+            var chipText=UI.Text(waiting?T("Press a key…","키를 눌러 주세요…"):ViewerKeys.Label(command,now),13);
             chipText.FontWeight=FontWeights.SemiBold;chipText.HorizontalAlignment=HorizontalAlignment.Center;
             if(waiting || isChanged)chipText.SetResourceReference(TextBlock.ForegroundProperty,"Accent");
             chip.Content=chipText;
-            System.Windows.Automation.AutomationProperties.SetName(chip,command.Name+": "+ViewerKeys.Label(now));
+            System.Windows.Automation.AutomationProperties.SetName(chip,command.Name+": "+ViewerKeys.Label(command,now));
             chip.ToolTip=waiting?T("Press Esc to cancel","Esc를 누르면 취소돼요"):T("Click, then press the new key","누른 다음 새 키를 눌러 주세요");
             chip.Click+=delegate {
                 clashFor=null;keyNote=null;
@@ -309,7 +309,7 @@ namespace LoveMyShelf {
             name.Margin=new Thickness(0,0,12,0);
             if(isChanged) {
                 var both=new StackPanel {VerticalAlignment=VerticalAlignment.Center};both.Children.Add(name);
-                var was=UI.Text(T("Default: ","처음 키: ")+ViewerKeys.Label(command.Default),12,true);was.Margin=new Thickness(0,1,12,0);
+                var was=UI.Text(T("Default: ","처음 키: ")+ViewerKeys.Label(command,command.Default),12,true);was.Margin=new Thickness(0,1,12,0);
                 both.Children.Add(was);row.Children.Add(both);
             } else row.Children.Add(name);
             holder.Children.Add(row);
@@ -330,10 +330,10 @@ namespace LoveMyShelf {
                 Key theirs=ViewerKeys.KeyOf(changed,other);
                 bool extra=theirs!=key;
                 var text=UI.Text(extra?
-                    T(ViewerKeys.Label(key)+" also works for “"+other.Name+"” now. Use it here instead? “"+other.Name+"” keeps "+ViewerKeys.Label(theirs)+".",
-                      ViewerKeys.Label(key)+" 키는 지금 ‘"+other.Name+"’에도 쓰고 있어요. 이쪽으로 가져올까요? ‘"+other.Name+"’은 "+ViewerKeys.Label(theirs)+" 키로 계속 쓸 수 있어요."):
-                    T(ViewerKeys.Label(key)+" is already used for “"+other.Name+"”. Swap them? Then “"+other.Name+"” moves to "+ViewerKeys.Label(mine)+".",
-                      ViewerKeys.Label(key)+" 키는 지금 ‘"+other.Name+"’에 쓰고 있어요. 서로 맞바꿀까요? 맞바꾸면 ‘"+other.Name+"’에는 "+ViewerKeys.Label(mine)+" 키가 들어가요."),13);
+                    T(ViewerKeys.Label(command,key)+" also works for “"+other.Name+"” now. Use it here instead? “"+other.Name+"” keeps "+ViewerKeys.Label(other,theirs)+".",
+                      ViewerKeys.Label(command,key)+" 키는 지금 ‘"+other.Name+"’에도 쓰고 있어요. 이쪽으로 가져올까요? ‘"+other.Name+"’은 "+ViewerKeys.Label(other,theirs)+" 키로 계속 쓸 수 있어요."):
+                    T(ViewerKeys.Label(command,key)+" is already used for “"+other.Name+"”. Swap them? Then “"+other.Name+"” moves to "+ViewerKeys.Label(other,mine)+".",
+                      ViewerKeys.Label(command,key)+" 키는 지금 ‘"+other.Name+"’에 쓰고 있어요. 서로 맞바꿀까요? 맞바꾸면 ‘"+other.Name+"’에는 "+ViewerKeys.Label(other,mine)+" 키가 들어가요."),13);
                 text.TextWrapping=TextWrapping.Wrap;stack.Children.Add(text);
                 var buttons=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0)};
                 var swap=UI.Btn(extra?T("Use it here","가져오기"):T("Swap them","맞바꾸기"),()=>{
@@ -1315,11 +1315,11 @@ namespace LoveMyShelf {
             ((Setting)video.Items.Last()).Lines=new[]{T("While watching a video or making a cover, E makes it brighter and W makes it darker. Each press of R moves to the next style. Soft (the usual one) brightens faces gently and brightly, and See in the dark lifts only the dark parts a lot, so things are easy to tell apart even in a very dark video. Milky brightens the whole screen as if laying a white veil over it. At +100 it turns all white. Q returns it to the original brightness, and moving to another file returns both to the start. Choose how much one press changes it.",
                 "영상을 보거나 표지를 만들 때 E를 누르면 밝아지고 W를 누르면 어두워져요. R을 누를 때마다 방식이 차례로 바뀌어요. 부드럽게(기본)는 얼굴을 은은하고 환하게 밝혀 주고, 어두운 곳 보기는 어두운 부분만 크게 들어 올려서 아주 어두운 영상에서도 물체가 잘 구분돼요. 뽀얗게는 화면 전체에 흰 막을 씌우듯 밝혀요. +100이면 하얗게 돼요. Q를 누르면 원래 밝기로 돌아오고, 다른 파일로 넘어가면 밝기와 방식이 모두 처음으로 돌아와요. 한 번 누를 때 얼마나 바뀔지 골라요.")};
             Typed((Setting)video.Items.Last(),"",1,20,1);
-            video.Items.Add(Numbers("rotationStep",T("How far should O and P turn the picture?","O, P 키로 얼마나 회전할까요?"),new[]{1,5,10,15,30,45},10,
+            video.Items.Add(Numbers("rotationStep",T("How far should ↺ and ↻ turn the picture?","↺, ↻ 버튼으로 얼마나 회전할까요?"),new[]{1,5,10,15,30,45},10,
                 p=>p.RotationStep,(p,v)=>p.RotationStep=v,v=>T(v+"°",v+"도"),
                 v=>v==1?T("Finest. But it can stutter","가장 세밀해요. 대신 버벅일 수 있어요"):v==10?T("Usual","보통"):v==45?T("Big","크게"):"",3));
-            ((Setting)video.Items.Last()).Lines=new[]{T("In the large view, P turns the picture to the right and O to the left. I puts it back. Choose how many degrees one press turns it. Hold the key and it keeps turning, and it rests a moment at every 90°, so it is easy to stand the picture straight.",
-                "크게 보기에서 P를 누르면 오른쪽으로, O를 누르면 왼쪽으로 회전해요. I를 누르면 원래대로 돌아와요. 한 번 누를 때 몇 도씩 회전할지 골라요. 누르고 있으면 계속 돌고, 90도마다 잠깐 멈춰서 똑바로 세우기 쉬워요."),
+            ((Setting)video.Items.Last()).Lines=new[]{T("In the large view's controls window (right-click), ↻ turns the picture to the right and ↺ to the left, and [[Reset]] puts it back. Choose how many degrees one press turns it. Hold the button and it keeps turning, and it rests a moment at every 90°, so it is easy to stand the picture straight. {{Alt}} + {{K}} turns it a quarter at a time, like PotPlayer.",
+                "크게 보기 조작 창(오른쪽 클릭)에서 ↻를 누르면 오른쪽으로, ↺를 누르면 왼쪽으로 회전하고, [[원래대로]]를 누르면 돌아와요. 한 번 누를 때 몇 도씩 회전할지 골라요. 누르고 있으면 계속 돌고, 90도마다 잠깐 멈춰서 똑바로 세우기 쉬워요. {{Alt}}+{{K}}를 누르면 팟플레이어처럼 90도씩 돌아요."),
                 T("It is for getting a rough feel of how the picture would look turned, before you make a cover. A video rests as a still picture while it turns, and plays on from the same scene once you stop.",
                 "표지를 만들기 전에 돌리면 어떻게 보일지 대략 감을 잡는 용도예요. 영상은 돌리는 동안 그림으로 멈춰 있다가, 손을 떼면 같은 장면부터 다시 재생돼요.")};
             Typed((Setting)video.Items.Last(),T("degrees","도"),1,45,1);
@@ -1352,10 +1352,10 @@ namespace LoveMyShelf {
                       "GIF 표지는 영상·GIF·WebP로 만든 JPG 표지를 바탕으로 만들어요. 표지 장면의 앞뒤 몇 초를 JPG 표지와 똑같은 테두리·회전·밝기로 움직이게 한 거예요."),
                     T("[[Make GIF cover]] is in the Make cover screen, the large view, and a tile's right-click menu.","[[GIF 표지 만들기]]는 표지 만들기 화면, 크게 보기 화면, 칸의 오른쪽 클릭 메뉴에 있어요."),
                     T("A tile shows the JPG cover first, and the GIF cover moves when you point at it (you can change this below).","칸에는 JPG 표지가 먼저 보이고, 마우스를 올리면 GIF 표지가 움직여요(아래에서 바꿀 수 있어요)."),
-                    T("You can also set the part while watching the video: press {{[}} where it starts and {{]}} where it ends. The playback bar shows the part as a pale band and only that part plays again and again. Then make a cover as usual from a scene inside the part, and Make GIF cover opens on that part. A part can be up to 60 seconds. {{\\}} clears it. With the mouse: right-click two places on the playback bar and the part between them repeats (in either order); a third right-click starts a new part, and Shift + right-click clears it.",
-                      "영상을 보면서 구간을 미리 정할 수도 있어요. 시작할 곳에서 {{[}}, 끝낼 곳에서 {{]}}를 눌러요. 재생바에 구간이 옅은 띠로 표시되고 그 구간만 되풀이해서 재생돼요. 그다음 평소처럼 구간 안의 장면으로 표지를 만들면 GIF 표지 만들기 창이 그 구간으로 열려요. 구간은 60초까지 정할 수 있어요. {{\\}}를 누르면 구간이 지워져요. 마우스로는 재생바의 두 곳을 오른쪽 클릭하면 그 사이가 반복돼요(순서는 상관없어요). 세 번째로 오른쪽 클릭하면 새 구간을 시작하고, Shift+오른쪽 클릭이면 지워져요."),
-                    T("To make it right away without opening any window, press {{G}} after marking the part. The GIF cover is made in the background exactly as the video looks now: turned, zoomed in and moved, the drawn box, brightness and colors all go in, with the choices you used last in Make GIF cover. Keep watching meanwhile; a notice at the bottom right says when it's ready. To change it in detail later, open it and click Edit GIF cover. The same button is in the controls window (right-click).",
-                      "창을 열지 않고 바로 만들려면 구간을 정한 뒤 {{G}}를 눌러요. 지금 영상이 보이는 그대로 GIF 표지를 뒤에서 만들어요. 돌리거나 확대·이동한 모양, 그려 둔 네모, 밝기와 색이 모두 들어가고, 설정은 GIF 표지 만들기 창에서 마지막으로 쓴 그대로예요. 그동안 영상을 계속 보면 되고, 다 되면 오른쪽 아래 알림으로 알려 줘요. 나중에 자세히 고치려면 그 표지를 열고 GIF 표지 수정하기를 눌러요. 같은 버튼이 조작 창(오른쪽 클릭)에도 있어요.")}});
+                    T("You can also set the part while watching the video: press {{[}} where it starts and {{]}} where it ends. The playback bar shows the part as a pale band and only that part plays again and again. Then make a cover as usual from a scene inside the part, and Make GIF cover opens on that part. A part can be up to 60 seconds. {{\\}} turns the repeat off and on, like PotPlayer, and {{Backspace}} clears the part. With the mouse: right-click two places on the playback bar and the part between them repeats (in either order); a third right-click starts a new part, and Shift + right-click clears it.",
+                      "영상을 보면서 구간을 미리 정할 수도 있어요. 시작할 곳에서 {{[}}, 끝낼 곳에서 {{]}}를 눌러요. 재생바에 구간이 옅은 띠로 표시되고 그 구간만 되풀이해서 재생돼요. 그다음 평소처럼 구간 안의 장면으로 표지를 만들면 GIF 표지 만들기 창이 그 구간으로 열려요. 구간은 60초까지 정할 수 있어요. {{\\}}를 누르면 팟플레이어처럼 반복이 꺼지고 켜지며, {{Backspace}}를 누르면 구간이 지워져요. 마우스로는 재생바의 두 곳을 오른쪽 클릭하면 그 사이가 반복돼요(순서는 상관없어요). 세 번째로 오른쪽 클릭하면 새 구간을 시작하고, Shift+오른쪽 클릭이면 지워져요."),
+                    T("To make it right away without opening any window, press {{Enter}} after marking the part. The GIF cover is made in the background exactly as the video looks now: turned, zoomed in and moved, the drawn box, brightness and colors all go in, with the choices you used last in Make GIF cover. Keep watching meanwhile; a notice at the bottom right says when it's ready. To change it in detail later, open it and click Edit GIF cover. The same button is in the controls window (right-click).",
+                      "창을 열지 않고 바로 만들려면 구간을 정한 뒤 {{Enter}}를 눌러요. 지금 영상이 보이는 그대로 GIF 표지를 뒤에서 만들어요. 돌리거나 확대·이동한 모양, 그려 둔 네모, 밝기와 색이 모두 들어가고, 설정은 GIF 표지 만들기 창에서 마지막으로 쓴 그대로예요. 그동안 영상을 계속 보면 되고, 다 되면 오른쪽 아래 알림으로 알려 줘요. 나중에 자세히 고치려면 그 표지를 열고 GIF 표지 수정하기를 눌러요. 같은 버튼이 조작 창(오른쪽 클릭)에도 있어요.")}});
             gif.Items.Add(new Card {Title=T("Set the part on the scene strip","장면 띠에서 구간을 정해요"),
                 Lines=new[]{T("At the bottom of the Make GIF cover window is a strip with the video's scenes laid out in a long row. Over the pictures runs a thin bar like a slider: its colored part is what goes into the GIF, and the two round handles at the ends of that part are the start and the end. The small card on that bar is the JPG cover's scene, and the round dot moving under them is where the preview is playing now.",
                     "GIF 표지 만들기 창 아래쪽에는 영상의 장면이 가로로 길게 늘어선 띠가 있어요. 그림 위쪽에 슬라이더처럼 생긴 얇은 줄이 있어요. 색이 칠해진 부분이 GIF에 들어갈 구간이고, 그 양 끝의 동그란 손잡이 두 개가 시작과 끝이에요. 그 줄 위의 작은 카드 표시는 JPG 표지 장면이고, 그림 아래쪽에서 움직이는 동그란 점은 미리보기가 지금 재생 중인 곳이에요.")},
@@ -1554,10 +1554,10 @@ namespace LoveMyShelf {
                       "화면을 오른쪽 클릭하면 나오는 조작 창에서 세기를 1~100 숫자로 정할 수 있어요(25쯤 약하게, 50 보통, 100 강하게). 세게 할수록 작은 목소리를 많이 키워 주지만 조용한 장면의 잡음도 함께 커질 수 있어요."),
                     T("In the same controls window, [[Contrast · saturation · color ▸]] closes it and opens a small panel at the top right of the video, so the picture stays in view while you change brightness, contrast, saturation, color temperature and sharpness. While a value is changing, the other lines fade. Drag the panel by its name to move it; it stays where you put it. [[← Menu]] brings the controls window back, and Esc closes the panel. The file stays as it is, and a cover made from that video starts with the same values.",
                       "같은 조작 창의 [[대비·채도·색 ▸]]을 누르면 조작 창이 닫히고 영상 오른쪽 위에 작은 패널이 열려요. 영상을 보면서 밝기·대비·채도·색 온도·선명하게를 바꿀 수 있고, 값을 바꾸는 동안에는 다른 줄이 흐려져요. 패널 이름 부분을 끌면 옮겨지고, 놓은 자리를 기억해요. [[← 메뉴]]를 누르면 조작 창으로 돌아가고, Esc를 누르면 닫혀요. 파일은 그대로이고, 그 영상에서 만드는 표지는 같은 값으로 시작해요."),
-                    T("Right-click the screen and the controls window opens. Every control is listed with its key, such as moving by scene (D, F), brightness (Q, W, E, R) and rotation (I, O, P), so you can look here when you can't remember a key. Clicking a button with the mouse does the same thing, and holding it down keeps it going.",
-                      "화면을 오른쪽 클릭하면 조작 창이 열려요. 장면 이동(D, F), 밝기(Q, W, E, R), 회전(I, O, P)처럼 모든 조작이 키와 함께 적혀 있어서, 키가 기억나지 않을 때 보면 돼요. 버튼을 마우스로 눌러도 똑같이 동작하고, 누르고 있으면 계속 이어져요."),
-                    T("{{P}} turns the picture to the right and {{O}} to the left, a little at a time, and {{I}} puts it back. When you start turning, a video stops on that scene and becomes a small picture that never touches the edges of the screen. A moment after you stop, it plays on from the same scene at that angle. Then roll the mouse wheel to zoom in (up to 8×) or out, and drag to move the part you see. Both stay only while you look at that file. Click Make cover like this, and the seek-bar thumbnail, the scene list and the cover all show it the same way.",
-                      "{{P}}를 누르면 오른쪽으로, {{O}}를 누르면 왼쪽으로 조금씩 회전하고, {{I}}를 누르면 원래대로 돌아와요. 회전을 시작하면 영상이 그 장면에서 멈추고, 돌려도 화면 끝에 닿지 않게 작은 그림이 돼요. 손을 떼고 잠시 뒤에는 그 각도로 같은 장면부터 다시 재생돼요. 그다음 마우스 휠로 확대하거나(최대 8배) 축소할 수 있고, 끌면 보이는 부분을 옮길 수 있어요. 둘 다 그 파일을 보는 동안만 유지돼요. 이 상태로 표지 만들기를 누르면 재생바 썸네일, 장면 고르기, 표지까지 똑같은 모습으로 이어져요."),
+                    T("Right-click the screen and the controls window opens. Every control is listed with its key, such as moving by scene (D, F), brightness (Q, W, E) and the GIF cover part ([, ], \\, Backspace, Enter), so you can look here when you can't remember a key. The keys follow PotPlayer wherever PotPlayer has the same thing. Clicking a button with the mouse does the same thing, and holding it down keeps it going.",
+                      "화면을 오른쪽 클릭하면 조작 창이 열려요. 장면 이동(D, F), 밝기(Q, W, E), GIF 표지 구간([, ], \\, Backspace, Enter)처럼 모든 조작이 키와 함께 적혀 있어서, 키가 기억나지 않을 때 보면 돼요. 팟플레이어에 같은 기능이 있으면 팟플레이어와 같은 키예요. 버튼을 마우스로 눌러도 똑같이 동작하고, 누르고 있으면 계속 이어져요."),
+                    T("In the controls window, ↻ turns the picture to the right and ↺ to the left, a little at a time, and [[Reset]] puts it back; {{Alt}} + {{K}} turns it a quarter. When you start turning, a video stops on that scene and becomes a small picture that never touches the edges of the screen. A moment after you stop, it plays on from the same scene at that angle. Then roll the mouse wheel (or press {{Num +}} / {{Num −}}) to zoom in (up to 8×) or out, and drag (or {{Ctrl}} + number pad) to move the part you see. Both stay only while you look at that file. Click Make cover like this, and the seek-bar thumbnail, the scene list and the cover all show it the same way.",
+                      "조작 창의 ↻를 누르면 오른쪽으로, ↺를 누르면 왼쪽으로 조금씩 회전하고, [[원래대로]]를 누르면 돌아와요. {{Alt}}+{{K}}는 90도씩 돌려요. 회전을 시작하면 영상이 그 장면에서 멈추고, 돌려도 화면 끝에 닿지 않게 작은 그림이 돼요. 손을 떼고 잠시 뒤에는 그 각도로 같은 장면부터 다시 재생돼요. 그다음 마우스 휠(또는 숫자패드 +, −)로 확대하거나(최대 8배) 축소할 수 있고, 끌거나 {{Ctrl}}+숫자패드로 보이는 부분을 옮길 수 있어요. 둘 다 그 파일을 보는 동안만 유지돼요. 이 상태로 표지 만들기를 누르면 재생바 썸네일, 장면 고르기, 표지까지 똑같은 모습으로 이어져요."),
                     T("Press {{Tab}} and the file information shows at the top left: the file name, which drive and folder it is in, its format and size, and for a video its picture size, fps and so on. Press it again to hide it.",
                       "{{Tab}}을 누르면 화면 왼쪽 위에 파일 정보가 나와요. 파일 이름, 어느 드라이브의 어느 폴더에 있는지, 형식과 용량, 영상이면 화면 크기와 fps 같은 것들이에요. 한 번 더 누르면 사라져요."),
                     T("Press {{Delete}} and the original file you are looking at goes to the Recycle Bin and the next file opens. There is no confirmation window, and you can restore it from the Windows Recycle Bin. A large view opened from ‘Cover collection’ doesn't delete originals.",
@@ -1565,13 +1565,17 @@ namespace LoveMyShelf {
                     T("In full screen too, the minimize and maximize buttons at the top right can be clicked right away. Minimize it and bring it back, and it returns in full screen as it was. Maximize leaves full screen and becomes a maximized window. This is the same in every LoveMyShelf window.",
                       "전체 화면에서도 오른쪽 위의 최소화·최대화 버튼을 바로 누를 수 있어요. 최소화했다가 다시 올리면 전체 화면 그대로 돌아와요. 최대화를 누르면 전체 화면이 끝나고 최대화된 창이 돼요. LoveMyShelf의 모든 창이 같아요.")},
                 Keys=new[]{K(T("Previous / next file","이전 파일 / 다음 파일"),"K","L"),K(T("Play or pause","재생 / 일시정지"),"Space"),
-                    K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
-                    K(T("Back to normal / darker / brighter","원래대로 / 어둡게 / 밝게"),"Q","W","E"),K(T("Brightness style: Soft / See in the dark / Milky","밝기 방식: 부드럽게 / 어두운 곳 보기 / 뽀얗게"),"R"),
+                    K(T("Skip back / forward","뒤로 / 앞으로 건너뛰기"),"←","→"),K(T("30 seconds back / forward","30초 뒤로 / 앞으로"),"Ctrl","←","→"),
+                    K(T("1 minute back / forward","1분 뒤로 / 앞으로"),"Shift","←","→"),K(T("5 minutes back / forward","5분 뒤로 / 앞으로"),"Ctrl","Alt","←","→"),K(T("One scene back / forward","한 장면 뒤로 / 앞으로"),"D","F"),
+                    K(T("All adjustments back to normal (again: undo) / darker / brighter","보정 모두 원래대로(한 번 더: 되돌리기) / 어둡게 / 밝게"),"Q","W","E"),
+                    K(T("Contrast down / up","대비 낮게 / 높게"),"R","T"),K(T("Saturation down / up","채도 낮게 / 높게"),"Y","U"),K(T("Color temperature cooler / warmer","색 온도 차갑게 / 따뜻하게"),"I","O"),K(T("Sharpen on / off","선명하게 켜기 / 끄기"),"Ctrl","R"),
                     K(T("Original speed / 0.1× slower / 0.1× faster / 2×","원래 속도 / 0.1배 느리게 / 0.1배 빠르게 / 2배"),"Z","X","C","V"),
-                    K(T("Rotation back to normal / turn left / turn right","회전 원래대로 / 왼쪽으로 회전 / 오른쪽으로 회전"),"I","O","P"),K(T("Zoom in / out","확대 / 축소"),T("Wheel","휠")),
-                    K(T("Capture this scene","지금 장면 캡처"),"/"),K(T("GIF cover part: start / end / clear","GIF 표지 구간: 시작 / 끝 / 지우기"),"[","]","\\"),K(T("Make a GIF cover from the part in the background","구간을 GIF 표지로 뒤에서 바로 만들기"),"G"),K(T("Show / hide the file information","파일 정보 보기 / 숨기기"),"Tab"),
+                    K(T("Turn a quarter","90도씩 돌리기"),"Alt","K"),K(T("Zoom in / out / normal","확대 / 축소 / 원래대로"),"Num +","Num −","Num 5"),K(T("Move the picture","화면 옮기기"),"Ctrl","Num 4","6","8","2"),
+                    K(T("Subtitles earlier / later / normal","자막 빠르게 / 느리게 / 원래대로"),",",".",";"),K(T("Sound earlier / later / normal","소리 빠르게 / 느리게 / 원래대로"),"Shift",",",".","/"),
+                    K(T("Capture this scene","지금 장면 캡처"),"/"),K(T("GIF cover part: start / end","GIF 표지 구간: 시작 / 끝"),"[","]"),K(T("Part repeat on / off","구간 반복 켜기 / 끄기"),"\\"),K(T("Clear the part","구간 지우기"),"Backspace"),
+                    K(T("Make a GIF cover from the part in the background","구간을 GIF 표지로 뒤에서 바로 만들기"),"Enter"),K(T("Show / hide the file information","파일 정보 보기 / 숨기기"),"Tab"),K(T("Always on top","항상 위"),"Ctrl","T"),
                     K(T("Move the original file to the Recycle Bin","원본 파일을 휴지통으로 보내기"),"Delete"),K(T("Open the controls window","조작 창 열기"),T("Right-click","오른쪽 클릭")),
-                    K(T("Full screen","전체 화면"),"F11"),K(T("Close","닫기"),"Esc")}});
+                    K(T("Full screen","전체 화면"),"F11"),K(T("Close","닫기"),"Esc","F4")}});
             large.Items.Add(new Card {Title=T("Subtitles and sync","자막과 싱크 맞추기"),
                 Lines=new[]{T("If there is a subtitle file (SMI, SRT, ASS, VTT) with the same name as the video, it shows automatically. If one file has both Korean and English, Korean shows first.",
                     "영상과 이름이 같은 자막 파일(SMI, SRT, ASS, VTT)이 있으면 자동으로 표시돼요. 한 파일에 한국어와 영어가 함께 들어 있으면 한국어가 먼저 표시돼요."),
@@ -1719,8 +1723,8 @@ namespace LoveMyShelf {
                 K(T("Move","이동"),"←","→","↑","↓"),K(T("Open big","크게 보기"),"Enter"),K(T("Rename","이름 바꾸기"),"F2"),K(T("Move to the Recycle Bin","휴지통으로 보내기"),"Delete"),
                 K(T("Select all","모두 선택"),"Ctrl+","A"),K(T("Copy / cut / paste files","파일 복사 / 잘라내기 / 붙여넣기"),"Ctrl+","C","X","V"),K(T("Clear selection","선택 해제"),"Esc"),K(T("Select a folder to add","추가할 폴더 선택"),"Ctrl+","O"),K(T("Search names","이름 검색"),"Ctrl+","F"),K(T("Back / forward","뒤로 / 앞으로"),"Alt+","←","→"),K(T("Up to the folder above","위 폴더로"),"Alt+","↑"),K(T("Type a path in the address bar","주소창에 경로 입력"),"Ctrl+","L"),K(T("Folder tree","폴더 트리"),"Ctrl+","T"),K(T("Refresh","새로 고침"),"F5")}});
             keys.Items.Add(new Card {Title=T("Large view","크게 보기"),Keys=new[]{
-                K(T("Previous / next file","이전 / 다음 파일"),"K","L"),K(T("Play / pause","재생 / 일시정지"),"Space"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
-                K(T("One scene at a time","한 장면씩"),"D","F"),K(T("Brightness","밝기"),"Q","W","E"),K(T("Brightness style","밝기 방식"),"R"),K(T("Playback speed","재생 속도"),"Z","X","C","V"),K(T("Rotation","회전"),"I","O","P"),K(T("Zoom in / out","확대 / 축소"),T("Wheel","휠")),K(T("Volume","볼륨"),"↑","↓"),K(T("Sound off / on","소리 끄기 / 켜기"),"M"),K(T("Clear voice on / off","목소리 또렷하게 켜기 / 끄기"),"N"),K(T("Capture this scene","지금 장면 캡처"),"/"),K(T("GIF cover part","GIF 표지 구간"),"[","]","\\"),K(T("GIF cover from the part, right away","구간으로 GIF 표지 바로"),"G"),K(T("File information","파일 정보"),"Tab"),K(T("Move the original to the Recycle Bin","원본을 휴지통으로 보내기"),"Delete"),K(T("Controls window","조작 창"),T("Right-click","오른쪽 클릭")),K(T("Close","닫기"),"Esc")}});
+                K(T("Previous / next file","이전 / 다음 파일"),"K","L"),K(T("Play / pause","재생 / 일시정지"),"Space"),K(T("Skip","건너뛰기"),"←","→"),K(T("30 s / 1 min / 5 min","30초 / 1분 / 5분"),"Ctrl","Shift","Ctrl+Alt"),
+                K(T("One scene at a time","한 장면씩"),"D","F"),K(T("Brightness (Q: all back)","밝기 (Q: 모두 원래대로)"),"Q","W","E"),K(T("Contrast","대비"),"R","T"),K(T("Saturation","채도"),"Y","U"),K(T("Color temperature","색 온도"),"I","O"),K(T("Sharpen","선명하게"),"Ctrl","R"),K(T("Playback speed","재생 속도"),"Z","X","C","V"),K(T("Turn a quarter","90도 돌리기"),"Alt","K"),K(T("Zoom in / out","확대 / 축소"),T("Wheel","휠"),"Num +","Num −"),K(T("Subtitle timing","자막 싱크"),",",".",";"),K(T("Sound timing","소리 싱크"),"Shift",",",".","/"),K(T("Volume","볼륨"),"↑","↓"),K(T("Sound off / on","소리 끄기 / 켜기"),"M"),K(T("Clear voice on / off","목소리 또렷하게 켜기 / 끄기"),"N"),K(T("Capture this scene","지금 장면 캡처"),"/"),K(T("GIF cover part","GIF 표지 구간"),"[","]"),K(T("Part repeat / clear","구간 반복 / 지우기"),"\\","Backspace"),K(T("GIF cover from the part, right away","구간으로 GIF 표지 바로"),"Enter"),K(T("Always on top","항상 위"),"Ctrl","T"),K(T("File information","파일 정보"),"Tab"),K(T("Move the original to the Recycle Bin","원본을 휴지통으로 보내기"),"Delete"),K(T("Controls window","조작 창"),T("Right-click","오른쪽 클릭")),K(T("Close","닫기"),"Esc")}});
             keys.Items.Add(new Card {Title=T("Making a cover","표지 만들기"),Keys=new[]{
                 K(T("Zoom in / out","확대 / 축소"),"+","−"),K(T("Previous / next scene","이전 / 다음 장면"),"D","F"),K(T("Skip","건너뛰기"),"←","→"),K(T("Skip one second","1초 건너뛰기"),"Shift","←","→"),
                 K(T("Brightness","밝기"),"Q","W","E"),K(T("Brightness style","밝기 방식"),"R"),K(T("Close without saving","저장하지 않고 닫기"),"Esc")}});

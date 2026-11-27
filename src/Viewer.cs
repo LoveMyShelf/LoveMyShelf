@@ -610,6 +610,8 @@ namespace LoveMyShelf {
                 if(key==Key.Escape && e.IsRepeat){e.Handled=true;return;}
                 if(HandleAreaKey(key,Keyboard.Modifiers,coverArea.Typing)){e.Handled=true;return;}
                 if(coverArea.Typing)return;
+                // Typing a number (the adjust lines, the strength): - , . Backspace and the letters are the box's.
+                if(Keyboard.FocusedElement is TextBox)return;
                 if(key==Key.F1){GuideWindow.Open(this,"large");e.Handled=true;return;}
                 string job=ViewerKeys.ActionFor(key);
                 // A key the person chose (Enter, Tab, …) is used up even when its job can't run right now, so it
@@ -617,21 +619,37 @@ namespace LoveMyShelf {
                 if(job!=null && Keyboard.Modifiers==ModifierKeys.None && !ViewerKeys.IsFirstKey(job,key))e.Handled=true;
                 switch(job) {
                     case "back":case "forward":
-                        // ← → skip by the chosen number of seconds; Shift + ← → skips one second.
-                        if(!motion || (Keyboard.Modifiers!=ModifierKeys.None && Keyboard.Modifiers!=ModifierKeys.Shift) || draggingVideo || resumeAfterDrag)return;
-                        Skip(job=="back"?-1:1,Keyboard.Modifiers==ModifierKeys.Shift?1:skipSeconds);break;
+                        // ← → skip by the chosen number of seconds. Like PotPlayer: Ctrl 30 s, Shift 1 minute, Ctrl+Alt 5 minutes
+                        // (one second is gone: D and F step one scene, 2026-11-27 user).
+                        if(!motion || draggingVideo || resumeAfterDrag)return;
+                        Skip(job=="back"?-1:1,skipSeconds);break;
+                    case "back30":case "forward30":case "back60":case "forward60":case "back300":case "forward300":
+                        if(!motion || draggingVideo || resumeAfterDrag)return;
+                        Skip(job.StartsWith("back")?-1:1,job.EndsWith("300")?300:job.EndsWith("60")?60:30);break;
                     case "previous":case "next":
                         if(forCrop || Keyboard.Modifiers!=ModifierKeys.None)return;
                         Navigate(job=="previous"?-1:1);break;
                     case "sceneBack":case "sceneForward":
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
                         StepFrame(job=="sceneBack"?-1:1);break;
-                    case "brightnessReset":case "brighter":case "darker":
-                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        ChangeBrightness(job=="brightnessReset"?0:job=="brighter"?1:-1);break;
-                    case "brightnessStyle":
-                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        SwitchBrightnessStyle();break;
+                    case "brighter":case "darker":
+                        if(!motion)return;
+                        ChangeBrightness(job=="brighter"?1:-1);break;
+                    case "brightnessReset": // Q, like PotPlayer: every adjustment back to normal; again, back as it was
+                        if(!motion || e.IsRepeat)return;
+                        ToggleResetLook();break;
+                    case "contrastDown":case "contrastUp":case "saturationDown":case "saturationUp":case "cooler":case "warmer":
+                        if(!motion)return;
+                        StepLook(job.StartsWith("contrast")?1:job.StartsWith("saturation")?2:3,job=="contrastUp" || job=="saturationUp" || job=="warmer"?1:-1,key,e.IsRepeat);break;
+                    case "sharpen":
+                        if(!motion || e.IsRepeat)return;
+                        ToggleSharpen();break;
+                    case "subEarlier":case "subLater":case "subReset":
+                        if(!motion || mpv==null)return;
+                        ShiftSubtitles(job=="subReset"?0:job=="subEarlier"?-0.5:0.5);break;
+                    case "audioEarlier":case "audioLater":case "audioReset":
+                        if(!motion || mpv==null)return;
+                        ShiftSound(job=="audioReset"?0:job=="audioEarlier"?-0.1:0.1);break;
                     case "play":
                         if(Keyboard.Modifiers!=ModifierKeys.None)return;
                         if(!e.IsRepeat){if(motion)SetPaused(!paused);else if(!WantsCrop)Primary();}break;
@@ -661,13 +679,22 @@ namespace LoveMyShelf {
                     case "clearVoice":
                         if(!motion || !clearVoiceReady || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ToggleClearVoice();break;
-                    case "turnLeft":case "turnRight":
-                        // O turns the picture left and P right, a little at a time; held down, it keeps turning.
-                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Turn(job=="turnRight"?1:-1,e.IsRepeat);break;
-                    case "turnReset":
-                        if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
-                        ResetTurn();break;
+                    case "turn90": // Alt+K, like PotPlayer (small turns are in the controls window)
+                        if(e.IsRepeat)return;
+                        TurnQuarter();break;
+                    case "zoomIn":case "zoomOut":
+                        SetZoom(job=="zoomIn"?zoom*1.2:zoom/1.2);break;
+                    case "zoomReset":
+                        if(e.IsRepeat)return;
+                        SetZoom(1);break;
+                    case "panLeft":case "panRight":case "panUp":case "panDown":case "panReset":
+                        PanBy(job=="panLeft"?-1:job=="panRight"?1:0,job=="panUp"?-1:job=="panDown"?1:0);break;
+                    case "onTop":
+                        if(e.IsRepeat)return;
+                        ToggleOnTop();break;
+                    case "close":
+                        if(e.IsRepeat)return;
+                        Close();break;
                     case "recycle":
                         if(Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         RecycleCurrent();break;
@@ -678,10 +705,13 @@ namespace LoveMyShelf {
                         // Like PotPlayer's A-B repeat: [ marks where the GIF cover's part starts, ] where it ends.
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         MarkPart(job=="partStart"?1:2);break;
-                    case "partClear": // \ (the won sign on a Korean keyboard)
-                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                    case "partRepeat": // \ (the won sign on a Korean keyboard), like PotPlayer: the part's repeat on and off
+                        if(!motion || e.IsRepeat)return;
+                        TogglePartRepeat();break;
+                    case "partClear": // Backspace (2026-11-27 user: "구간 지우기는 백스페이스")
+                        if(!motion || e.IsRepeat)return;
                         ClearPart();break;
-                    case "quickGif": // G: the part becomes a GIF cover in the background (QuickGif.cs)
+                    case "quickGif": // Enter: the part becomes a GIF cover in the background (QuickGif.cs)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         QuickGif();break;
                     case "capture": // / next to the arrow keys (and the one on the number pad)
@@ -813,7 +843,7 @@ namespace LoveMyShelf {
             ShowCornerNote(L.P("Making the GIF cover in the background. Keep watching.","GIF 표지를 뒤에서 만들고 있어요. 계속 보셔도 돼요."));
         }
         // The GIF cover was made from the part, so the next cover starts fresh.
-        internal void DropPart() {partStart=partEnd=null;partFile=null;partInside=false;partJump.Reset();ShowPart();}
+        internal void DropPart() {partStart=partEnd=null;partFile=null;partInside=false;partRepeat=true;partJump.Reset();ShowPart();}
         // A part is at least a twentieth of a second (less can't be made into a GIF) and at most a minute.
         const double PartNearMs=2000,PartLongestMs=60000;
         void MarkPart(int which) {
@@ -862,7 +892,7 @@ namespace LoveMyShelf {
             ShowPart();
             // It plays from the start of the part and keeps repeating it.
             // The player may report the old place for a moment after the jump; LoopPart waits for it (as when it loops).
-            partInside=true;partJump.Restart();SeekTo(from);
+            partRepeat=true;partInside=true;partJump.Restart();SeekTo(from);
         }
         void ClearPart() {
             bool had=PartIsHere && (partStart.HasValue || partEnd.HasValue);
@@ -882,6 +912,7 @@ namespace LoveMyShelf {
         bool LoopPart(double ms) {
             double from,to;
             if(!PartIsHere || !PartFor(partFile,out from,out to)){partInside=false;return false;}
+            if(!partRepeat){partInside=false;return false;} // \ turned the repeat off: the part stays marked
             bool within=InPart(ms,from,to);
             if(partJump.IsRunning) {
                 // On the way back to the start: the Windows player still reports the old place for a moment.
@@ -1621,14 +1652,18 @@ namespace LoveMyShelf {
                 row(L.T("Move by scene"),new[]{key("D  ◀",()=>StepFrame(-1),true),key("F  ▶",()=>StepFrame(1),true)});
                 var partFrom=key("[  "+L.T("Start"),()=>{if(!holdRepeating)MarkPart(1);},true);
                 var partTo=key("]  "+L.T("End"),()=>{if(!holdRepeating)MarkPart(2);},true);
-                var partOff=key("\\  "+L.T("Clear"),()=>{if(!holdRepeating)ClearPart();},true);
+                var partLoop=key("",()=>{if(!holdRepeating)TogglePartRepeat();},true);
+                live.Add(()=>{partLoop.Content="\\  "+(partRepeat?L.P("Repeat ✓","반복 ✓"):L.P("Repeat","반복"));partLoop.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue;});
+                partLoop.ToolTip=L.P("The part's repeat on and off. The part stays marked.","구간 반복을 켜고 꺼요. 구간 표시는 그대로예요.");
+                var partOff=key("Backspace  "+L.T("Clear"),()=>{if(!holdRepeating)ClearPart();},true);
                 partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
                 live.Add(()=>partOff.IsEnabled=PartIsHere && (partStart.HasValue || partEnd.HasValue));
-                var quick=key("G  "+L.P("Make now","바로 만들기"),()=>{if(!holdRepeating)QuickGif();},true);
+                var quick=key("Enter  "+L.P("Make now","바로 만들기"),()=>{if(!holdRepeating)QuickGif();},true);
                 quick.ToolTip=L.P("Makes a GIF cover from the part in the background, as the video looks now. Keep watching meanwhile.",
                     "구간을 지금 보이는 그대로 GIF 표지로 뒤에서 만들어요. 그동안 계속 보면 돼요.");
                 live.Add(()=>quick.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue);
-                row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff,quick});
+                row(L.T("GIF cover part"),new[]{partFrom,partTo,partLoop});
+                row("",new[]{partOff,quick});
                 var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();},false);
                 live.Add(()=>{
                     drawBox.IsEnabled=enlargedArea==null;
@@ -1645,6 +1680,10 @@ namespace LoveMyShelf {
                 live.Add(()=>clearBox.IsEnabled=CoverArea!=null);
                 row(L.P("Where to cut","자를 곳"),new[]{drawBox,zoomBox,clearBox});
                 row(L.T("Skip"),new[]{key("←  "+L.F("{0} s",skipSeconds),()=>Skip(-1,skipSeconds),true),key(L.F("{0} s",skipSeconds)+"  →",()=>Skip(1,skipSeconds),true)});
+                // Ctrl 30 s, Shift 1 minute, Ctrl+Alt 5 minutes (PotPlayer's keys, in the tooltips).
+                Func<string,string,int,int,Button> far=(text,keys,way,seconds)=>{var b=key(text,()=>Skip(way,seconds),true);b.ToolTip=keys;return b;};
+                row(L.P("Far","멀리"),new[]{far(L.P("◀5 min","◀5분"),"Ctrl+Alt+←",-1,300),far(L.P("◀1 min","◀1분"),"Shift+←",-1,60),far(L.P("◀30 s","◀30초"),"Ctrl+←",-1,30),
+                    far(L.P("30 s▶","30초▶"),"Ctrl+→",1,30),far(L.P("1 min▶","1분▶"),"Shift+→",1,60),far(L.P("5 min▶","5분▶"),"Ctrl+Alt+→",1,300)});
                 Action<double> speed=change=>{
                     SetRate(change==0?1:Math.Max(0.2,Math.Min(4,Math.Round(rate+change,1))));
                     ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));
@@ -1655,30 +1694,31 @@ namespace LoveMyShelf {
                 row(L.T("Playback speed"),new[]{undoable("Z  ",()=>rate,v=>{SetRate((double)v);ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));},()=>speed(0)),key("X  "+L.T("Slower"),()=>speed(-0.1),true),key("C  "+L.T("Faster"),()=>speed(0.1),true),twice});
                 // Shows the style in use; a click switches to the other one, and the controls stay open.
                 var style=key("",()=>{if(!holdRepeating)SwitchBrightnessStyle();},true);
-                live.Add(()=>style.Content="R  "+Light.StyleName(playbackStyle));
+                live.Add(()=>style.Content=Light.StyleName(playbackStyle));
                 style.ToolTip=L.T("Switch brightness style");
-                row(L.T("Brightness"),new[]{undoable("Q  ",()=>playbackBrightness,v=>{
-                        playbackBrightness=(int)v;brightnessChosen=true;ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;
-                        ShowCornerNote(playbackBrightness==0?L.T("Brightness: normal"):L.F("Brightness {0:+0;-0} · {1}",playbackBrightness,Light.StyleName(playbackStyle)));
-                    },()=>ChangeBrightness(0)),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
+                // Q: every adjustment back to normal, and again back as it was (the same as the key).
+                var allBack=key("",()=>{if(!holdRepeating)ToggleResetLook();},true);
+                live.Add(()=>allBack.Content="Q  "+(CanUndoResetLook?L.P("Undo","되돌리기"):L.P("All normal","모두 원래대로")));
+                allBack.ToolTip=L.P("Brightness, contrast, saturation, color and sharpness back to normal. Press again to go back.","밝기·대비·채도·색·선명하게를 모두 원래대로. 한 번 더 누르면 되돌려요.");
+                row(L.T("Brightness"),new[]{allBack,key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
                     key("E  "+L.T("Brighter"),()=>ChangeBrightness(1),true),style});
                 if(mpv!=null) {
                     // [Adjust ▸] opens its own small panel at the top right of the video (ViewerAdjust.cs), so the
                     // picture shows while the lines change; this window closes.
                     var adjustOpen=key(L.P("Contrast · saturation · color  ▸","대비·채도·색  ▸"),OpenAdjustPanel,false);
-                    adjustOpen.ToolTip=L.P("Opens a small panel at the top right of the video: brightness, contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them.",
-                        "영상 오른쪽 위에 작은 패널을 열어요. 보는 동안 밝기·대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요.");
+                    adjustOpen.ToolTip=L.P("Opens a small panel at the top right of the video: brightness, contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them. Keys: R T contrast, Y U saturation, I O color temperature, Ctrl+R sharpen.",
+                        "영상 오른쪽 위에 작은 패널을 열어요. 보는 동안 밝기·대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요. 키: R T 대비, Y U 채도, I O 색 온도, Ctrl+R 선명하게.");
                     row(L.P("Adjust","보정"),new[]{adjustOpen});
                 }
             }
-            row(L.T("Rotation"),new[]{undoable("I  ",()=>Tuple.Create(turn,zoom,pan),v=>{
+            row(L.T("Rotation"),new[]{undoable("",()=>Tuple.Create(turn,zoom,pan),v=>{
                     var was=(Tuple<int,double,Vector>)v;LeaveAreaView();turn=was.Item1;zoom=was.Item2;pan=was.Item3;ShowTurn();
                     ShowCornerNote(turn==0?L.T("Rotation: normal"):L.F("Rotation {0}°",turn>180?turn-360:turn));
-                },ResetTurn),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
-            row(L.T("Zoom (wheel)"),new[]{undoable("",()=>Tuple.Create(zoom,pan),v=>{
+                },ResetTurn),key("↺",()=>Turn(-1,holdRepeating),true),key("↻",()=>Turn(1,holdRepeating),true),key("Alt+K  90°",()=>{if(!holdRepeating)TurnQuarter();},true)});
+            row(L.T("Zoom (wheel)"),new[]{undoable("Num 5  ",()=>Tuple.Create(zoom,pan),v=>{
                     var was=(Tuple<double,Vector>)v;LeaveAreaView();zoom=was.Item1;pan=was.Item2;ApplyZoom();
                     ShowCornerNote(zoom==1?L.T("Zoom: normal"):L.F("Zoom {0:0.0}×",zoom));
-                },()=>SetZoom(1)),key("−  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("+  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
+                },()=>SetZoom(1)),key("Num −  "+L.T("Smaller"),()=>SetZoom(zoom/1.2),true),key("Num +  "+L.T("Bigger"),()=>SetZoom(zoom*1.2),true)});
             if(motion && volume.IsEnabled) {
                 Action<int> louder=direction=>{
                     muted=false;
@@ -1708,6 +1748,12 @@ namespace LoveMyShelf {
                     subtitleSize=(int)v;if(mpv!=null)mpv.SubtitleScale=subtitleSize/100.0;if(home!=null)home.SaveSubtitleSize(subtitleSize);
                     ShowCornerNote(L.F("Subtitle size {0}%",subtitleSize));
                 },()=>ChangeSubtitleSize(0)),key("−  "+L.T("Smaller"),()=>ChangeSubtitleSize(-1),true),key("+  "+L.T("Bigger"),()=>ChangeSubtitleSize(1),true)});
+            if(motion && mpv!=null && (Subtitle!=null || HasOwnSubtitle))
+                row(L.P("Subtitle timing","자막 싱크"),new[]{key(",  "+L.P("Earlier","빠르게"),()=>ShiftSubtitles(-0.5),true),key(".  "+L.P("Later","느리게"),()=>ShiftSubtitles(0.5),true),
+                    key(";  "+reset,()=>{if(!holdRepeating)ShiftSubtitles(0);},true)});
+            if(motion && mpv!=null)
+                row(L.P("Sound timing","소리 싱크"),new[]{key("Shift+,  "+L.P("Earlier","빠르게"),()=>ShiftSound(-0.1),true),key("Shift+.  "+L.P("Later","느리게"),()=>ShiftSound(0.1),true),
+                    key("Shift+/  "+reset,()=>{if(!holdRepeating)ShiftSound(0);},true)});
             if(!forCrop) {
                 var back=key("K  ◀ "+L.T("Previous"),()=>Navigate(-1),false);back.IsEnabled=index>0;
                 var forward=key("L  "+L.T("Next")+" ▶",()=>Navigate(1),false);forward.IsEnabled=index<items.Count-1;
@@ -1721,6 +1767,9 @@ namespace LoveMyShelf {
                 if(home!=null && home.IsVisible && home.WindowState!=WindowState.Minimized) {
                     var down=key(L.P("Folder window ▁","폴더 창 ▁"),GalleryWindow.MinimizeAll,false);down.ToolTip=L.T("Minimize the folder window");files.Add(down);
                 }
+                var onTop=key("",()=>{if(!holdRepeating)ToggleOnTop();},true);
+                live.Add(()=>onTop.Content=(Topmost?"✓ ":"")+"Ctrl+T  "+L.P("On top","항상 위"));
+                onTop.ToolTip=L.P("Always on top on / off","항상 위 켜기 / 끄기");files.Add(onTop);
                 row(L.T("File"),files.ToArray());
                 if(CanRecycle) {
                     rule();
@@ -2286,7 +2335,7 @@ namespace LoveMyShelf {
             // ...and at its own brightness. Going back and forth between the cover and the video keeps it.
             if(items[index].Original!=brightnessFile) {
                 brightnessFile=items[index].Original;playbackBrightness=0;playbackStyle=Light.Soft;brightnessChosen=false;seekPreview.Brightness=0;
-                playbackAdjust=AdjustValues.None;adjustChosen=false;
+                playbackAdjust=AdjustValues.None;adjustChosen=false;lookBeforeQ=lookAfterQ=null;ResetTimings();
             }
             if(partFile!=null && !PartIsHere)DropPart(); // a part belongs to the file it was marked in
             var current=new CancellationTokenSource();loading=current;var token=current.Token;

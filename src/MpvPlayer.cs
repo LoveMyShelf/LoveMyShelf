@@ -317,6 +317,9 @@ namespace LoveMyShelf {
             subtitleScale=Math.Max(0.4,Math.Min(4,value));
             Property("sub-scale",subtitleScale.ToString("0.###",Inv));
         }}
+        // Subtitle and sound timing in seconds (, . ; and Shift + , . / in the large view, like PotPlayer).
+        internal double SubtitleDelay {set {Property("sub-delay",value.ToString("0.###",Inv));}}
+        internal double AudioDelay {set {Property("audio-delay",value.ToString("0.###",Inv));}}
         // A subtitle track inside the video file itself.
         internal bool HasOwnSubtitle {get {
             int count;
