@@ -142,8 +142,8 @@ namespace LoveMyShelf {
         // The words, again whenever the language changes (GalleryWindow's localize).
         internal void Localize() {
             words.Text=NoticeLook.KeepWords(L.P(
-                "Write whatever you'd like to say to the AI that made this: features you want, errors, anything. In the next update we'll show you how it was discussed.",
-                "원하는 기능, 오류 등 이걸 만든 AI한테 하고 싶은 말을 적어주세요. 다음 업데이트 때 이에 대한 토론 과정을 보여드리겠습니다."));
+                "Tell us the features you want, and we'll add them.",
+                "원하는 기능을 적어주시면 반영하겠습니다."));
             send.Content=L.P("Send","보내기");
             if(result.Inlines.Count>0)SetResult(!failed,failed);
         }
