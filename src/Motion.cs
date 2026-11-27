@@ -2659,7 +2659,8 @@ namespace LoveMyShelf {
 
         // Writes the motion cover next to the still one and returns it. The time window is clipped
         // to the start and end of the original. A file the window already made with the same choices is reused.
-        internal static MotionResult Make(Photo photo,string original,MotionRequest request,string directory,bool beside,CancellationToken token) {
+        // progress: 0..1 while the file is made (the large view's small "Making GIF 40%" line), may be null.
+        internal static MotionResult Make(Photo photo,string original,MotionRequest request,string directory,bool beside,CancellationToken token,Action<double> progress=null) {
             var source=new MotionSource {Path=original,Moment=MomentOf(photo,original),Crop=photo.Crop,Rotation=photo.Rotation,
                 Brightness=photo.Brightness,Adjust=photo.Adjust,RecordFolder=photo.Folder,Aspect=photo.Aspect};
             if(request.HasOwnCrop){source.Crop=request.Crop;source.Rotation=request.Rotation;source.Aspect=request.Aspect;}
@@ -2671,7 +2672,7 @@ namespace LoveMyShelf {
                 if(request.Prepared!=null && request.PreparedKey==Key(source,request) && File.Exists(request.Prepared)) {
                     File.Copy(request.Prepared,part,true);
                     result=new MotionResult {Before=request.PreparedBefore,After=request.PreparedAfter};
-                } else result=Encode(source,request,part,token);
+                } else result=Encode(source,request,part,token,progress);
                 if(!File.Exists(part) || new FileInfo(part).Length==0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
                 result.File=SharedCoverFiles.Publish(part,directory,SharedCoverFiles.Stem(photo.Name,photo.Folder,
                     Path.GetFileName(photo.Thumb)+request.Format,beside),token,request.Extension);

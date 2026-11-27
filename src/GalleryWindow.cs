@@ -2886,11 +2886,18 @@ namespace LoveMyShelf {
             } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
         }
         // Makes the GIF (or WebP/MP4) in the background and links it to the cover when done.
-        internal async void MakeMotion(Photo photo,MotionRequest request) {
+        // watcher: the large view it was asked from (Enter): while it shows, only a small line on the video says how far
+        // it is and a short note when done, instead of the notice cards (2026-11-27 user: the card was far too big).
+        internal async void MakeMotion(Photo photo,MotionRequest request,Viewer watcher=null) {
             // An edited GIF cover replaces the old file: it goes to the Recycle Bin and the new one takes its name.
             string old=photo.HasMotion?photo.MotionFile:null;
-            var working=Notify(L.T("Making the GIF cover"),photo.Name+Environment.NewLine+
-                L.T("It is made by itself in the background, so you can keep using LoveMyShelf meanwhile. We’ll let you know here when it’s done."),null,NoticeKind.Busy);
+            var job=new object();
+            bool quiet=watcher!=null && watcher.CanShowGifWork;
+            // Just the title and the file: the line about working in the background made the card three lines taller.
+            var working=quiet?null:Notify(L.T("Making the GIF cover"),photo.Name,null,NoticeKind.Busy);
+            if(quiet)watcher.GifWorkStarted(job,photo.Name);
+            Action<double> progress=null;
+            if(quiet){var last=DateTime.MinValue;progress=share=>{var now=DateTime.UtcNow;if((now-last).TotalMilliseconds<250 && share<1)return;last=now;Dispatcher.BeginInvoke(new Action(()=>watcher.GifWorkProgress(job,share)));};}
             try {
                 var place=settings.CoverPlace;string coverDirectory=settings.CoverDirectory;
                 var result=await Task.Run(()=>{
@@ -2904,17 +2911,17 @@ namespace LoveMyShelf {
                     string target=SharedCoverFiles.TargetFolder(place,coverDirectory,original,photo.Linked);
                     MotionResult made;
                     try {
-                        made=MotionMaker.Make(photo,original,request,target,target!=coverDirectory && place==CoverPlace.BesideOriginal,lifetime.Token);
+                        made=MotionMaker.Make(photo,original,request,target,target!=coverDirectory && place==CoverPlace.BesideOriginal,lifetime.Token,progress);
                     } catch(Exception ex) {
                         if(target==coverDirectory || lifetime.IsCancellationRequested || !(ex is IOException || ex is UnauthorizedAccessException) ||
                             ex is FileNotFoundException)throw;
-                        made=MotionMaker.Make(photo,original,request,coverDirectory,false,lifetime.Token);
+                        made=MotionMaker.Make(photo,original,request,coverDirectory,false,lifetime.Token,progress);
                     }
                     var linked=GalleryStore.AttachMotion(photo,made.File,request);
                     return Tuple.Create(made,linked);
                 },lifetime.Token);
                 if(lifetime.IsCancellationRequested)return;
-                working.Dismiss();
+                if(working!=null)working.Dismiss();
                 var ready=result.Item2;
                 if(ready!=null && old!=null)ready=ReplaceOldMotion(ready,old,result.Item1.File,request)??ready;
                 if(ready!=null)ReplaceShown(ready);
@@ -2922,16 +2929,22 @@ namespace LoveMyShelf {
                 string shorter="";
                 if(result.Item1.Before<request.Before-0.05)shorter+=L.F("The original had only {0:0.#} s before the cover, so only that much went in.",result.Item1.Before)+" ";
                 if(result.Item1.After<request.After-0.05)shorter+=L.F("The original had only {0:0.#} s after the cover, so only that much went in.",result.Item1.After)+" ";
-                Notify(L.T("The GIF cover is ready"),photo.Name+(shorter.Length>0?Environment.NewLine+shorter.Trim():""),
-                    ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,8,L.P("Open","열기"));
-            } catch(OperationCanceledException) {}
+                // Still watching: a short note on the video that fades by itself. Otherwise the usual card.
+                if(quiet && watcher.CanShowGifWork && shorter.Length==0)watcher.GifWorkEnded(job,true);
+                else {
+                    if(quiet)watcher.GifWorkEnded(job,false);
+                    Notify(L.T("The GIF cover is ready"),photo.Name+(shorter.Length>0?Environment.NewLine+shorter.Trim():""),
+                        ready==null?(Action)null:()=>OpenReadyCover(ready),NoticeKind.Done,false,8,L.P("Open","열기"));
+                }
+            } catch(OperationCanceledException) {if(quiet)watcher.GifWorkEnded(job,false);}
             catch(Exception ex) {
-                working.Dismiss();
+                if(working!=null)working.Dismiss();
+                if(quiet)watcher.GifWorkEnded(job,false);
                 if(!lifetime.IsCancellationRequested)
                     Notify(L.T("Couldn’t make the GIF cover"),photo.Name+Environment.NewLine+ex.Message,null,NoticeKind.Warning);
             }
             // The Make GIF window's ready-made file has been copied (or wasn't usable); either way it's done.
-            finally {working.Dismiss();MotionMaker.DeleteLater(request.Prepared);}
+            finally {if(working!=null)working.Dismiss();MotionMaker.DeleteLater(request.Prepared);}
         }
         // Where Make another cover saves: a new record for originals that already have one.
         Photo AddTarget(Photo photo,string resolved=null) {
@@ -4654,6 +4667,11 @@ namespace LoveMyShelf {
                 if(busy!=null){busy.Activate();Notify(L.T("Close this window first"),L.P("Finish the work in the open window or close it, then press the button on the notice again.","열린 창의 작업을 끝내거나 창을 닫은 뒤, 알림의 버튼을 다시 눌러 주세요."),null,NoticeKind.Info);return;}
                 clicked();
             }),kind,keepOpen,seconds,button);
+            // Watching in a large view: no card over the video, just the title as its corner text (the notice is not shown;
+            // Dismiss still works on it).
+            var showing=Application.Current.Windows.OfType<Viewer>().Where(v=>v.IsVisible && v.WindowState!=WindowState.Minimized).ToList();
+            var watching=showing.FirstOrDefault(v=>v.IsActive)??showing.FirstOrDefault();
+            if(watching!=null){watching.Say(title);return toast;}
             toast.Show();
             return toast;
         }

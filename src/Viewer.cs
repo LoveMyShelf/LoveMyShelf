@@ -36,6 +36,10 @@ namespace LoveMyShelf {
             IsHitTestVisible=false,Visibility=Visibility.Collapsed,
             Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=5,ShadowDepth=1,Direction=315,Opacity=0.95}};
         readonly DispatcherTimer cornerNoteTimer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(1.6)};
+        // Loading and errors while there is no picture yet: the same see-through line, staying until it isn't needed.
+        readonly TextBlock cornerStatus=new TextBlock {FontSize=14,Foreground=Brushes.White,Opacity=0.7,TextWrapping=TextWrapping.NoWrap,
+            Margin=new Thickness(16,4,16,12),IsHitTestVisible=false,Visibility=Visibility.Collapsed,
+            Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=5,ShadowDepth=1,Direction=315,Opacity=0.95}};
         internal string CornerNote {get{return cornerNote.Visibility==Visibility.Visible?cornerNote.Text:null;}}
         readonly StackPanel controls=new StackPanel {Orientation=Orientation.Horizontal};
         readonly StackPanel panel=new StackPanel();
@@ -426,7 +430,13 @@ namespace LoveMyShelf {
             TextOptions.SetTextFormattingMode(infoText,TextFormattingMode.Ideal);
             // The file information (Tab) sits at the top left with the short notes under it, so a note never moves it.
             var corner=new StackPanel {HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top,IsHitTestVisible=false};
-            corner.Children.Add(infoText);corner.Children.Add(cornerNote);
+            corner.Children.Add(infoText);corner.Children.Add(cornerNote);corner.Children.Add(cornerStatus);
+            // The notices that used to be cards (box cleared, upscaling started, loading, errors) are corner text too.
+            status.Redirect=(text,stays)=>{
+                if(text==null){cornerStatus.Visibility=Visibility.Collapsed;return;}
+                if(stays){cornerStatus.Text=text;cornerStatus.Visibility=Visibility.Visible;}
+                else {cornerStatus.Visibility=Visibility.Collapsed;ShowCornerNote(text);}
+            };
             ui.Children.Add(corner);
             infoTimer.Tick+=delegate {RefreshInfo();};
             holdTimer.Tick+=delegate {
@@ -842,8 +852,7 @@ namespace LoveMyShelf {
                 ShowCornerNote(L.P("Mark the part with [ and ] first, then press G.","먼저 [ 와 ]로 구간을 정한 뒤 G를 눌러요."));return;
             }
             if(home==null || forCrop)return;
-            home.MakeQuickGif(CurrentPhoto,partStart.Value,partEnd.Value,CoverArea==null?CurrentFraming:null,CoverArea,PlaybackAdjust);
-            ShowCornerNote(L.P("Making the GIF cover in the background. Keep watching.","GIF 표지를 뒤에서 만들고 있어요. 계속 보셔도 돼요."));
+            home.MakeQuickGif(CurrentPhoto,partStart.Value,partEnd.Value,CoverArea==null?CurrentFraming:null,CoverArea,PlaybackAdjust,this);
         }
         // The GIF cover was made from the part, so the next cover starts fresh.
         internal void DropPart() {partStart=partEnd=null;partFile=null;partInside=false;partRepeat=true;partJump.Reset();ShowPart();}
@@ -1828,8 +1837,12 @@ namespace LoveMyShelf {
             return card;
         }
 
+        // Notes from the folder window while this window is in front (instead of a notice card over the video).
+        internal void Say(string text) {if(!String.IsNullOrEmpty(text))ShowCornerNote(text);}
+        // See-through, one line, a short moment (2026-11-27 user: "모서리에 투명하게만 적어").
+        const double CornerOpacity=0.78;
         void ShowCornerNote(string text) {
-            cornerNote.Text=text;cornerNote.BeginAnimation(OpacityProperty,null);cornerNote.Opacity=1;
+            cornerNote.Text=text;cornerNote.BeginAnimation(OpacityProperty,null);cornerNote.Opacity=CornerOpacity;
             cornerNote.Visibility=Visibility.Visible;cornerNoteTimer.Stop();cornerNoteTimer.Start();
         }
         static void LabelControl(Control control,string label) {

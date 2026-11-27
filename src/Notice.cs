@@ -99,6 +99,10 @@ namespace LoveMyShelf {
         readonly DispatcherTimer hideTimer=new DispatcherTimer();
         string text="";
 
+        // Set by the large view: a notice is said as one line of see-through text in a corner instead of this card
+        // (2026-11-27 user: "다시는 동영상 가리지마라", "모서리에 투명하게만 적어"). stays: loading and errors, shown
+        // while nothing else is on screen; everything else fades by itself. null: the line goes.
+        internal Action<string,bool> Redirect;
         internal NoticeCard() {
             var card=NoticeLook.Card(out title,out body,out icon);
             Child=card;MaxWidth=460;Margin=new Thickness(20,28,20,28);
@@ -117,6 +121,11 @@ namespace LoveMyShelf {
         internal void Warn(string heading,string detail=null) { Show(heading,detail,NoticeKind.Warning); }
 
         internal void Show(string heading,string detail,NoticeKind kind,double seconds=0) {
+            if(Redirect!=null) {
+                text=heading+"\n"+detail;
+                Redirect(heading,seconds<=0 && (kind==NoticeKind.Warning || kind==NoticeKind.Busy));
+                return;
+            }
             hideTimer.Stop();
             bool already=Visibility==Visibility.Visible && text==heading+"\n"+detail;
             text=heading+"\n"+detail;
@@ -130,6 +139,7 @@ namespace LoveMyShelf {
         }
 
         void Hide() {
+            if(Redirect!=null){Redirect(null,false);return;}
             hideTimer.Stop();
             if(Visibility!=Visibility.Visible)return;
             var fade=new DoubleAnimation(Opacity,0,TimeSpan.FromMilliseconds(160));

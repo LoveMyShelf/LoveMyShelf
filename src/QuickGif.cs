@@ -25,7 +25,7 @@ namespace LoveMyShelf {
     public partial class GalleryWindow {
         // from/to: the part in milliseconds. framing/area: how the view shows the picture (null = upright, whole).
         // look: the brightness and colors on screen.
-        internal async void MakeQuickGif(Photo photo,double fromMs,double toMs,ViewFraming framing,DrawnArea area,AdjustValues look) {
+        internal async void MakeQuickGif(Photo photo,double fromMs,double toMs,ViewFraming framing,DrawnArea area,AdjustValues look,Viewer watcher=null) {
             if(photo==null || photo.IsOutside || toMs<=fromMs)return;
             var token=lifetime.Token;
             try {
@@ -59,7 +59,7 @@ namespace LoveMyShelf {
                 int index=photos.FindIndex(p=>p!=null && p.Folder==target.Folder);
                 if(index>=0)UpdatePhoto(index,updated);
                 else if(!RefreshHiddenCover(updated) && target.Folder!=photo.Folder)InsertCover(updated);
-                MakeMotion(updated,request);
+                MakeMotion(updated,request,watcher);
             } catch(OperationCanceledException) {}
             catch(Exception ex) {
                 ErrorLog.Quiet(ex);

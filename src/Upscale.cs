@@ -530,13 +530,15 @@ namespace LoveMyShelf {
                 var words=detail.Parent as Panel;
                 if(words!=null)words.Children.Add(act);
             }
-            // A "working on it" notice stays until the work ends and the caller dismisses it.
-            bool stays=kind==NoticeKind.Busy || keepOpen;
-            timer.Tick+=delegate {Close();};
+            // Every notice goes by itself (2026-11-27 user: "걍 잠깐 뜨고 바로 사라져", no notice that waits for ✕): 2 s,
+            // or a little longer when it has a button to press. Pointing at it holds it. A "working on it" notice only
+            // hides: it stays open out of sight until the work ends, so closing LoveMyShelf still waits for that work.
+            timer.Interval=TimeSpan.FromSeconds(clicked==null?2:Math.Max(2,Math.Min(seconds,6)));
+            timer.Tick+=delegate {timer.Stop();if(kind==NoticeKind.Busy)Hide();else Close();};
             MouseEnter+=delegate {timer.Stop();};
-            MouseLeave+=delegate {if(!stays)timer.Start();};
+            MouseLeave+=delegate {timer.Start();};
             Closed+=delegate {closed=true;timer.Stop();};
-            Loaded+=delegate {Place(anchor);if(!stays)timer.Start();};
+            Loaded+=delegate {Place(anchor);timer.Start();};
         }
         bool closed;
         [DllImport("user32.dll")] static extern bool EnableWindow(IntPtr window,bool enable);
