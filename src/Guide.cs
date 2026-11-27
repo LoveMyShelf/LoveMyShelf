@@ -930,7 +930,7 @@ namespace LoveMyShelf {
                       "아래쪽 가운데의 [[표지 O 모음]]은 모든 폴더의 표지를 한곳에 모아 보여 줘요. 그 옆의 [[표지 X 모음]]은 아직 표지가 없는 파일만 모아 보여 줘요. 추가한 폴더에서만 찾을지, 컴퓨터 전체에서 찾을지 고를 수 있어요."),
                     T("When the window gets narrow, as when two windows are side by side, the names of the buttons at the bottom get shorter, like [[O set]] or [[O]], or turn into icons. [[New window]] and [[Guide & Options]] at the top turn into icons (⧉ ?) too. Point the mouse at one to see its full name.",
                       "창 두 개를 나란히 띄울 때처럼 창이 좁아지면 아래쪽 버튼 이름이 [[O 모음]], [[O]]처럼 짧아지거나 아이콘으로 바뀌어요. 위쪽의 [[새 창]]과 [[설명서 겸 옵션]]도 아이콘(⧉ ?)으로 바뀌어요. 마우스를 올리면 원래 이름이 나와요."),
-                    T("Each time you click [[Cover size]] at the bottom right, the tile size changes through 4 steps.","오른쪽 아래의 [[표지 크기]]를 누를 때마다 칸 크기가 4단계로 바뀌어요.")}});
+                    T("Click [[Cover size]] at the bottom right and the sizes open: small, medium, large and extra large, with a check on the one in use. You can also type any size from 60 to 480 px in the box below them.","오른쪽 아래의 [[표지 크기]]를 누르면 고를 수 있는 크기가 펼쳐져요. 작은 칸·보통 칸·큰 칸·아주 큰 칸 중 지금 크기에 ✓가 있고, 아래 칸에 60~480px 사이 숫자를 직접 넣어도 돼요.")}});
             browse.Items.Add(new Card {Title=T("Move around with the keyboard, like File Explorer","파일 탐색기처럼 키보드로 움직여요"),
                 Lines=new[]{T("Click a tile once to select it, and double-click to open it large. It is the same as File Explorer. (To open with a single click, change it in [[Large view]] under Options.) The arrow keys move between tiles without opening anything.",
                     "칸을 한 번 클릭하면 선택되고, 더블클릭하면 크게 열려요. 파일 탐색기와 같아요. (한 번만 클릭해도 열리게 하려면 옵션의 [[크게 보기]]에서 바꿀 수 있어요.) 방향키를 누르면 아무것도 열지 않고 칸 사이를 이동해요.")},

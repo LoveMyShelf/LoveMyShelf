@@ -961,7 +961,7 @@ namespace LoveMyShelf {
                 catch(IOException) { } catch(UnauthorizedAccessException) { }
             });
             root.Children.Insert(0,titleBar);
-            var sizing=UI.Btn("",()=>{density=density==120?88:(density==88?220:(density==220?164:120)); LayoutRows();});
+            Button sizing=null;sizing=UI.Btn("",()=>ToggleSizeList(sizing)); // opens the sizes to choose from (GalleryTileSize.cs)
             // Sort works like File Explorer: one button, the choices open upward, Shuffle is the last one.
             sortButton=UI.Btn("",OpenSortMenu);
             var openCoverFolder=UI.Btn("",OpenCoverFolder);
