@@ -661,6 +661,10 @@ namespace LoveMyShelf {
         string ShownTag {get {var tags=ShownTags;return tags.Count==1?tags[0]:null;}}
         List<string> ShownTags {get {return ShowingTag?SplitTags(active.Folder.Substring(TagKey.Length)):new List<string>();}}
         static Album TagAlbum(string tag) {return TagAlbum(SplitTags(tag));}
+        const string ScopeKey="@scope:";
+        bool ShowingScope {get {return active!=null && active.Source==null && active.Folder.StartsWith(ScopeKey,StringComparison.Ordinal);}}
+        string ScopeFolder {get {return ShowingScope?active.Folder.Substring(ScopeKey.Length):null;}}
+        static Album ScopeAlbum(string path) {return new Album(ScopeKey+path,FolderName(path));}
         Button tagsButton;
         internal Preferences Settings { get { return settings; } }
         // The large view's volume and Clear voice, kept for the next video (like PotPlayer). Every window learns
@@ -765,7 +769,7 @@ namespace LoveMyShelf {
         internal Album AllCropsAlbum {get {return allCrops;}}
         internal Album UnfinishedAlbum {get {return unfinished;}}
         int folderFilter;
-        bool ShowingPending { get { return ShowingUnfinished || (active!=null && active.Source!=null && folderFilter==1); } }
+        bool ShowingPending { get { return ShowingUnfinished || (active!=null && (active.Source!=null || ShowingScope) && folderFilter==1); } }
         int refreshVersion, skippedCount;
         readonly StackPanel tabs=new StackPanel { Orientation=Orientation.Horizontal };
         readonly StackPanel empty=new StackPanel { HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center };
@@ -1223,13 +1227,16 @@ namespace LoveMyShelf {
             };
             var albums=store.VisibleAlbums(); string lastFile=Path.Combine(store.Root,"last.txt");
             string last=File.Exists(lastFile)?File.ReadAllText(lastFile):"";
-            var initial=last==CollectionKey?allCrops:last==UnfinishedKey?unfinished:last.StartsWith(TagKey,StringComparison.Ordinal) && last.Length>TagKey.Length?TagAlbum(last.Substring(TagKey.Length)):(albums.FirstOrDefault(a=>Path.GetFileName(a.Folder)==last)??albums.FirstOrDefault()??
+            var initial=last==CollectionKey?allCrops:last==UnfinishedKey?unfinished:
+                last.StartsWith(ScopeKey,StringComparison.Ordinal) && CanGatherFolder(last.Substring(ScopeKey.Length))?ScopeAlbum(last.Substring(ScopeKey.Length)):
+                last.StartsWith(TagKey,StringComparison.Ordinal) && last.Length>TagKey.Length?TagAlbum(last.Substring(TagKey.Length)):(albums.FirstOrDefault(a=>Path.GetFileName(a.Folder)==last)??albums.FirstOrDefault()??
                 allCrops);
             // On cold start the constructor runs before WPF installs its UI synchronization context.
             Loaded+=delegate {
                 if(active!=null)return;
                 // A window opened with "Open in new window" starts on that folder.
                 Album start=startFolder==null?null:startFolder==CollectionKey?allCrops:startFolder==UnfinishedKey?unfinished:
+                    startFolder.StartsWith(ScopeKey,StringComparison.Ordinal) && CanGatherFolder(startFolder.Substring(ScopeKey.Length))?ScopeAlbum(startFolder.Substring(ScopeKey.Length)):
                     startFolder.StartsWith(TagKey,StringComparison.Ordinal) && startFolder.Length>TagKey.Length?TagAlbum(startFolder.Substring(TagKey.Length)):
                     store.Albums().FirstOrDefault(a=>a.Source!=null && String.Equals(a.Folder,startFolder,StringComparison.OrdinalIgnoreCase));
                 Select(start??initial);
@@ -1375,9 +1382,9 @@ namespace LoveMyShelf {
             Application.Current.Shutdown();
         }
         void ChangeFolderFilter(int choice) {
-            if(active==null || active.Source==null || folderFilter==choice)return;
+            if(active==null || (active.Source==null && !ShowingScope) || folderFilter==choice)return;
             folderFilters[active.Folder]=folderFilter=choice;
-            shuffledOrder=null;Refresh();
+            shuffledOrder=null;Refresh(ShowingScope);
         }
         // The width a row of buttons needs right now. Each child is measured on its own: a panel keeps its old
         // size until the next layout pass, even after a button's label changed.
@@ -1511,7 +1518,7 @@ namespace LoveMyShelf {
             UI.Use(unfinishedButton,Control.BorderBrushProperty,ShowingUnfinished?"Accent":"Line");
             UI.Use(tagsButton,Control.ForegroundProperty,ShowingTag?"Accent":"Text");
             UI.Use(tagsButton,Control.BorderBrushProperty,ShowingTag?"Accent":"Line");
-            filter.Visibility=active.Source==null?Visibility.Collapsed:Visibility.Visible;
+            filter.Visibility=active.Source!=null || ShowingScope?Visibility.Visible:Visibility.Collapsed;
             ShowSimilarBar();
             if(updateFooter!=null)updateFooter();
             int view;
@@ -1548,6 +1555,7 @@ namespace LoveMyShelf {
             historyMove=true;historyFormats=formats;
             try {
                 if(key.StartsWith("@"+TagKey,StringComparison.Ordinal))Select(TagAlbum(key.Substring(1+TagKey.Length)));
+                else if(key.StartsWith("@"+ScopeKey,StringComparison.Ordinal))Select(ScopeAlbum(key.Substring(1+ScopeKey.Length)));
                 else if(key=="@"+SimilarKey)Select(SimilarAlbum);
                 else if(key.StartsWith("@"))Select(key.Substring(1)==UnfinishedKey?unfinished:allCrops);
                 else if(Directory.Exists(key))NavigateTo(key);
@@ -1630,7 +1638,7 @@ namespace LoveMyShelf {
             try {store.OpenFolder(path);} catch(Exception ex) {UI.Error(this,ex);return;}
             BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();tree.UnfoldShelfFolder(path);TreeSyncSoon();}
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
-            if(ShowingUnfinished)Refresh();
+            if(ShowingUnfinished || ShowingScope)Refresh();
             else if(photos.Count==0 && active!=null && active.Source==null)ShowPhotos();
         }
         internal void RemoveFromShelf(string path) {
@@ -1639,7 +1647,7 @@ namespace LoveMyShelf {
             if(trail.Count>0 && trail[0].Folder==album.Folder)Select(allCrops);else BuildTabs();
             if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
-            if(ShowingUnfinished)Refresh();
+            if(ShowingUnfinished || ShowingScope)Refresh();
         }
         void ReorderShelf(string path,Album place) {
             var albums=store.VisibleAlbums();
@@ -1650,7 +1658,11 @@ namespace LoveMyShelf {
             foreach(var other in Application.Current.Windows.OfType<GalleryWindow>().Where(w=>w!=this))other.FoldersChanged();
         }
         internal bool OnShelf(string path) {return store.VisibleAlbums().Any(a=>ShellPlaces.Same(a.Source,path));}
-        void FoldersChanged() {BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}if(ShowingUnfinished)Refresh();}
+        internal bool CanGatherFolder(string path) {return !String.IsNullOrEmpty(path) && store.VisibleAlbums().Any(a=>Renamer.IsAt(path,a.Source));}
+        internal void GatherFolder(string path) {
+            if(CanGatherFolder(path))Select(ScopeAlbum(path));
+        }
+        void FoldersChanged() {BuildTabs();if(tree!=null && treePanel.Visibility==Visibility.Visible){tree.Build();TreeSyncSoon();}if(ShowingUnfinished || ShowingScope)Refresh();}
         FolderPane folderPane;
         DockPanel folderArea;
         internal void PlaceFolderPane() {
@@ -1675,7 +1687,11 @@ namespace LoveMyShelf {
         }
         internal void TreeSyncSoon() {
             if(tree==null || treePanel.Visibility!=Visibility.Visible)return;
-            Dispatcher.BeginInvoke(new Action(()=>tree.ShowCurrent(active,trail,trailFromPc)),DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(new Action(()=>{
+                if(!ShowingScope){tree.ShowCurrent(active,trail,trailFromPc);return;}
+                bool fromPc;var path=FolderPathTrail(ScopeFolder,out fromPc);
+                tree.ShowCurrent(path[path.Count-1],path,fromPc);
+            }),DispatcherPriority.Background);
         }
         internal void OpenFromTree(TreeEntry entry) {
             if(entry.Album!=null && (entry.Album.Source==null || entry.Kind=="tab")) {Select(entry.Album);return;}
@@ -1687,20 +1703,21 @@ namespace LoveMyShelf {
             try {full=Path.GetFullPath(path);} catch(Exception ex) {UI.Error(this,ex);return;}
             if(full.Length>Path.GetPathRoot(full).Length)full=full.TrimEnd(Path.DirectorySeparatorChar);
             if(!Directory.Exists(full)){UI.Error(this,new DirectoryNotFoundException(L.T("The source folder could not be found.")));return;}
+            bool fromPc;var pathTrail=FolderPathTrail(full,out fromPc);
+            trail.Clear();trail.AddRange(pathTrail);trailFromPc=fromPc;
+            Select(trail[trail.Count-1]);
+        }
+        List<Album> FolderPathTrail(string full,out bool fromPc) {
             Album tab=null;
             foreach(var album in store.VisibleAlbums())
-                if(album.Source!=null && (ShellPlaces.Same(full,album.Source) || full.StartsWith(album.Source.TrimEnd('\\')+"\\",StringComparison.OrdinalIgnoreCase))
-                    && (tab==null || album.Source.Length>tab.Source.Length))tab=album;
+                if(Renamer.IsAt(full,album.Source) && (tab==null || album.Source.Length>tab.Source.Length))tab=album;
             var chain=new List<string>();
             for(string at=full;at!=null;at=Path.GetDirectoryName(at)) {
                 chain.Insert(0,at);
                 if(tab!=null && ShellPlaces.Same(at,tab.Source))break;
             }
-            trail.Clear();
-            foreach(string at in chain)
-                trail.Add(tab!=null && ShellPlaces.Same(at,tab.Source)?tab:new Album(store.AlbumFolderOf(at),FolderName(at),at));
-            trailFromPc=tab==null;
-            Select(trail[trail.Count-1]);
+            fromPc=tab==null;
+            return chain.Select(at=>tab!=null && ShellPlaces.Same(at,tab.Source)?tab:new Album(store.AlbumFolderOf(at),FolderName(at),at)).ToList();
         }
         static string FolderName(string path) {
             string name=Path.GetFileName(path.TrimEnd('\\'));
@@ -1726,7 +1743,10 @@ namespace LoveMyShelf {
         void BuildPath() {
             // The way is shown in the address bar now, like File Explorer; the old path row stays hidden.
             pathParts.Clear();pathRow.Visibility=Visibility.Collapsed;
-            if(address!=null)address.Show(active);
+            if(address!=null) {
+                address.Show(ShowingScope?new Album(active.Folder,active.Name+" · "+L.T("Including subfolders")):active);
+                address.ToolTip=ScopeFolder;
+            }
             UpdateNavButtons();
             return;
             bool show=trail.Count>1 || trailFromPc;
@@ -1808,7 +1828,7 @@ namespace LoveMyShelf {
                             else {
                                 tabs.Children.Remove(button);
                                 // The folders inside it may leave too, unless another added folder still holds them.
-                                if(ShowingUnfinished)Refresh();
+                                if(ShowingUnfinished || ShowingScope)Refresh();
                             }
                         }
                         catch(Exception ex){UI.Error(this,ex);}
@@ -1955,10 +1975,13 @@ namespace LoveMyShelf {
         }
         // The folder whose tiles are on screen (see Refresh).
         string shownAlbum;
-        CancellationTokenSource unfinishedScan;
-        async void Refresh() {
+        CancellationTokenSource collectionScan;
+        List<Photo> scopePhotos;
+        async void Refresh(bool reuseScope=false) {
+            if(reuseScope && ShowingScope && scopePhotos==null && collectionScan!=null)return;
             int version=++refreshVersion;
-            if(unfinishedScan!=null){unfinishedScan.Cancel();unfinishedScan=null;}
+            if(collectionScan!=null){collectionScan.Cancel();collectionScan=null;}
+            if(!reuseScope || !ShowingScope)scopePhotos=null;
             int skipped=0; folderUnavailable=false;
             var folders=new List<Tuple<string,int>>();
             try {
@@ -1969,35 +1992,47 @@ namespace LoveMyShelf {
                     if(version!=refreshVersion) return;
                     similarShown=built;
                     photos=PadSimilar(Math.Max(2,columns));
-                } else if(ShowingAllCrops || ShowingUnfinished || ShowingTag) {
+                } else if(ShowingScope && scopePhotos!=null) {
+                    skipped=skippedCount;photos=FilterScopePhotos();
+                } else if(ShowingAllCrops || ShowingUnfinished || ShowingTag || ShowingScope) {
                     bool pending=ShowingUnfinished;
+                    string scope=ScopeFolder;
                     var tag=ShowingTag?ShownTags:null;
                     photos=new List<Photo>(); subfolders=new List<Tuple<string,int>>();LayoutRows();
                     canShuffle=false;
-                    emptyTitle.Text=L.T(tag!=null?"Loading…":"Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
+                    emptyTitle.Text=L.T(tag!=null || scope!=null?"Loading…":"Loading covers…");emptyHelp.Text="";empty.Visibility=Visibility.Visible;
                     emptyAction.Visibility=Visibility.Collapsed;
                     count.Text="";count.ToolTip=null;
                     var sort=settings.Sort;
                     bool descending=settings.Descending;
                     // Reading every folder inside can take a while: the count keeps moving, and leaving stops it.
-                    var scan=pending?CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token):null;
-                    if(scan!=null)unfinishedScan=scan;
+                    var scan=pending || scope!=null?CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token):null;
+                    if(scan!=null)collectionScan=scan;
                     var scanToken=scan==null?CancellationToken.None:scan.Token;
                     Action<int> foundSoFar=n=>Dispatcher.BeginInvoke(new Action(()=>{
-                        if(version==refreshVersion)emptyHelp.Text=L.F("{0:N0} files without a cover found. Still looking.",n);
+                        if(version==refreshVersion && collectionScan==scan)
+                            emptyHelp.Text=L.F(scope!=null?"{0:N0} files found. Still looking.":"{0:N0} files without a cover found. Still looking.",n);
                     }));
                     List<Photo> saved;
                     try {
-                        saved=await Task.Run(()=>tag!=null?store.Tagged(tag,out skipped,sort,descending):pending?GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped,scanToken,foundSoFar),sort,descending):
-                            store.AllCrops(out skipped,sort,descending));
+                        saved=await Task.Run(()=>{
+                            if(scope!=null) {
+                                var gathered=store.FolderTreePhotos(scope,out skipped,scanToken,foundSoFar);
+                                scanToken.ThrowIfCancellationRequested();
+                                return GalleryStore.SortCoverFamilies(gathered,sort,descending);
+                            }
+                            if(pending)return GalleryStore.SortPhotos(store.UnfinishedCovers(out skipped,scanToken,foundSoFar),sort,descending);
+                            return tag!=null?store.Tagged(tag,out skipped,sort,descending):store.AllCrops(out skipped,sort,descending);
+                        },scanToken);
                     } finally {
                         if(scan!=null) {
-                            if(unfinishedScan==scan)unfinishedScan=null;
+                            if(collectionScan==scan)collectionScan=null;
                             scan.Dispose();
                         }
                     }
                     if(version!=refreshVersion) return;
-                    photos=WithoutPending(saved);
+                    if(scope!=null){scopePhotos=saved;photos=FilterScopePhotos();}
+                    else photos=WithoutPending(saved);
                 } else {
                     // A folder with thousands of files is read off the UI thread so the window never freezes.
                     var album=active;var sort=settings.Sort;bool descending=settings.Descending;int filterNow=folderFilter;
@@ -2024,6 +2059,7 @@ namespace LoveMyShelf {
                 }
                 shownAlbum=active.Folder;
             }
+            catch(OperationCanceledException) {return;}
             catch(IOException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             catch(UnauthorizedAccessException) { if(version!=refreshVersion)return; folderUnavailable=true; photos=new List<Photo>(); }
             string query=search.Text.Trim();
@@ -2044,6 +2080,10 @@ namespace LoveMyShelf {
             ShowPhotos(reflow);
             ShowHiddenFormatNotice();
         }
+        List<Photo> FilterScopePhotos() {
+            var list=WithoutPending(scopePhotos);
+            return folderFilter==0?list.ToList():list.Where(p=>p.HasCrop==(folderFilter==2)).ToList();
+        }
         void ShowPhotos(Reflow reflow=null) {
             UpdateCoverMarks();
             SetCount(skippedCount);
@@ -2060,19 +2100,21 @@ namespace LoveMyShelf {
             if(ShowingSimilar){SimilarEmptyNote();return;}
             if(FormatEmpty){ShowFormatEmpty();empty.Visibility=Visibility.Visible;return;}
             bool pending=ShowingPending,searching=search.Text.Trim().Length>0,foldedAway=FoldersFoldedAway;
-            bool coversOnly=ShowingAllCrops || (active.Source!=null && folderFilter==2);
-            bool driveAway=folderUnavailable && active!=null && active.Source!=null && DriveLinks.DriveAway(active.Source);
+            bool coversOnly=ShowingAllCrops || ((active.Source!=null || ShowingScope) && folderFilter==2);
+            string source=active.Source??ScopeFolder;
+            bool driveAway=folderUnavailable && source!=null && DriveLinks.DriveAway(source);
             emptyTitle.Text=driveAway?L.T("This folder's drive isn't connected"):folderUnavailable?L.T("This folder could not be opened"):
-                L.T(searching?"No search results":ShowingTag?"No files with this tag can be shown":pending?"Every file has a cover":coversOnly?"No covers yet":"No photos or videos in this folder");
-            emptyHelp.Text=driveAway?L.T("Connect the drive again and this folder comes back by itself, together with its covers. It's fine even if the drive letter changes."):
+                L.T(searching?"No search results":ShowingScope && scopePhotos!=null && scopePhotos.Count==0?"No photos or videos in this folder or its subfolders.":ShowingTag?"No files with this tag can be shown":pending?"Every file has a cover":coversOnly?"No covers yet":"No photos or videos in this folder");
+            emptyHelp.Text=driveAway && !ShowingScope?L.T("Connect the drive again and this folder comes back by itself, together with its covers. It's fine even if the drive letter changes."):
                 folderUnavailable?L.T("Check that the folder is still in its place, then press F5. If you unplugged a phone or a USB drive, connect it again."):
                 L.T(searching?"Search with another name, or clear the search box.":
                     ShowingTag?"Files on a drive that isn't connected come back when the drive is connected again. To put this tag on a file, right-click the file and click [Tags…].":
                     ShowingUnfinished?"Photos and videos that have no cover yet, from the folders you added to LoveMyShelf and their subfolders, gather here.":
+                    ShowingScope?(folderFilter!=0 && scopePhotos!=null && scopePhotos.Count>0?"Click [All] at the bottom left to see everything.":""):
                     pending?"Click [All] at the bottom left to see everything.":
                     coversOnly?"Open a folder and make a cover, and it gathers here.":"Choose another folder, or put photos or videos in this folder and press F5.");
             // Nothing added yet: point to the folder tree, where folders are added (and open it).
-            bool noFolders=store.VisibleAlbums().Count==0;
+            bool noFolders=!ShowingScope && store.VisibleAlbums().Count==0;
             if(foldedAway) {
                 emptyHelp.Text=L.F("There are {0:N0} folders inside, but they are folded right now.",subfolders.Count);
                 emptyAction.Content=L.F("Show folders ({0:N0})",subfolders.Count);
@@ -2558,6 +2600,7 @@ namespace LoveMyShelf {
             } catch(Exception ex){Notify(L.T("Couldn’t change the cover order"),ex.Message,null,NoticeKind.Warning);}
         }
         void ApplyCoverOrder(Photo moved) {
+            if(ShowingScope && Renamer.IsAt(moved.Original,ScopeFolder)){ReloadKeepingPlace();return;}
             if(RefreshHiddenCover(moved))return;
             if(rows==null || active==null || photos.Count==0)return;
             string family=GalleryStore.CoverFamily(moved);
@@ -2687,7 +2730,8 @@ namespace LoveMyShelf {
                     L.T("This cover couldn't be saved where the original is, so it was saved in the cover folder. This can happen with phones and some cloud folders."),
                     null,NoticeKind.Warning);
             int index=photos.FindIndex(p=>p!=null && p.Folder==photo.Folder);
-            if(index>=0)UpdatePhoto(index,updated);
+            if(ShowingScope && Renamer.IsAt(updated.Original,ScopeFolder) && (added || folderFilter!=0 || index<0))ReloadKeepingPlace();
+            else if(index>=0)UpdatePhoto(index,updated);
             else if(!RefreshHiddenCover(updated) && added)InsertCover(updated);
             return updated;
         }
@@ -2774,7 +2818,7 @@ namespace LoveMyShelf {
             if(chosen.Count==0)return;
             var pending=new PendingCovers {Covers=chosen};
             pendingDeletes.Add(pending);
-            ShowWithoutPending();
+            if(ShowingScope)Refresh(true);else ShowWithoutPending();
             var toast=new UpscaleToast(ActiveAppWindow(),
                 chosen.Count==1?L.T("Moved the cover to the Recycle Bin"):L.F("Moved {0:N0} covers to the Recycle Bin",chosen.Count),
                 L.P("[Undo] within 3 seconds puts it back. The original is still there.","3초 안에 [되돌리기]를 누르면 돌아와요. 원본은 그대로 있어요."),
@@ -2816,7 +2860,10 @@ namespace LoveMyShelf {
                         reload=true;
                 } catch(Exception) {}
             }
-            if(open && reload)ReloadKeepingPlace();
+            if(open && ShowingScope) {
+                var album=active;
+                Dispatcher.BeginInvoke(new Action(()=>{if(active==album)ReloadKeepingPlace();}),DispatcherPriority.Background);
+            } else if(open && reload)ReloadKeepingPlace();
         }
         // Before anything else touches the records (renaming, moving, a new cover, closing), waiting covers finish first.
         void FinishPendingCovers() {
@@ -2905,7 +2952,7 @@ namespace LoveMyShelf {
                     // Operate only on the entry in the displayed folder, even if the viewer
                     // has previously located a same-named original somewhere else.
                     string source=active.Source;
-                    if(ShowingUnfinished || ShowingTag) {
+                    if(ShowingUnfinished || ShowingTag || ShowingScope) {
                         // The tile may come from a folder inside an added one: its own record says where it lives.
                         source=GalleryStore.SourceOfRecords(Path.GetDirectoryName(photo.Folder));
                         if(source==null)continue;
@@ -2967,7 +3014,7 @@ namespace LoveMyShelf {
             LayoutRows(reflow,first);
         }
         // A file was added next to the shown ones (a smaller copy of a moving picture): show it, keeping the place.
-        internal void ReloadAfterChange() {if(active!=null && active.Source!=null)ReloadKeepingPlace();}
+        internal void ReloadAfterChange() {if(active!=null && (active.Source!=null || ShowingScope))ReloadKeepingPlace();}
         void ReloadKeepingPlace() {
             if(lifetime.IsCancellationRequested)return;
             pendingReflow=CaptureReflow();Refresh();
@@ -2975,6 +3022,7 @@ namespace LoveMyShelf {
         // Takes tiles out of the list right away; the ones behind them slide forward.
         // promoted: tiles that stay but now stand for another record (old folder → new photo), such as a cover moved up.
         void RemoveTiles(Func<Photo,bool> remove,IDictionary<string,Photo> promoted=null) {
+            if(scopePhotos!=null)scopePhotos.RemoveAll(p=>remove(p));
             RemoveFromFormatSource(remove,promoted);
             if(photos.Count==0 || rows==null)return;
             var reflow=CaptureReflow();
@@ -3013,7 +3061,7 @@ namespace LoveMyShelf {
                     String.Equals(GalleryStore.RecordBase(p),recordBase,StringComparison.OrdinalIgnoreCase)){last=i;family.Add(p);}
             }
             if(last<0)return; // that original isn't shown here; the cover appears when the view is loaded again
-            if(active.Source!=null || ShowingUnfinished || ShowingTag)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
+            if(active.Source!=null || ShowingUnfinished || ShowingTag || ShowingScope)cover.LeadFolder=photos[last].LeadFolder??photos[last].Folder;
             var order=GalleryStore.InCoverOrder(family.Concat(new[]{cover}));
             int at=order.IndexOf(cover);
             int place=at+1<order.Count?photos.IndexOf(order[at+1]):last+1;
@@ -3057,6 +3105,10 @@ namespace LoveMyShelf {
             // A replaced tile (a new picture, a GIF) stays an extra tile of the same original.
             if(photo!=null && photo.LeadFolder==null && photos[index]!=null && photos[index].LeadFolder!=null && photo.Folder==photos[index].Folder)
                 photo.LeadFolder=photos[index].LeadFolder;
+            if(scopePhotos!=null && photo!=null) {
+                int at=scopePhotos.FindIndex(p=>String.Equals(p.Folder,photos[index].Folder,StringComparison.OrdinalIgnoreCase));
+                if(at>=0)scopePhotos[at]=photo;
+            }
             double shape=Covers.Shape(settings.TileShape);
             // Compared with the slot as it is laid out (the same Photo may already have changed, such as a cover hidden).
             bool relayout=wideSlots.Contains(index)!=TakesTwoCells(photo,shape);
@@ -3727,9 +3779,17 @@ namespace LoveMyShelf {
         // Shared by all windows: cutting in one and pasting in another clears the faded look everywhere, like File Explorer.
         static readonly HashSet<string> cutFolders=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static void ShowCutLookEverywhere() {foreach(var w in Application.Current.Windows.OfType<GalleryWindow>())w.ShowCutLook();}
+        internal string OriginalForTransfer(Photo photo) {
+            if(!ShowingScope)return photo.Original;
+            // The viewer may have resolved another path. Transfers use the entry in the gathered folder.
+            try {
+                string source=GalleryStore.SourceOfRecords(Path.GetDirectoryName(photo.Folder));
+                return Renamer.IsAt(source,ScopeFolder)?Path.Combine(source,Path.GetFileName(photo.Name)):null;
+            } catch(IOException) {return null;} catch(UnauthorizedAccessException) {return null;}
+        }
         // The files of these tiles: originals in a folder, the cover files in Cover collection.
         List<string> ClipboardFiles(IList<Photo> targets) {
-            var files=ShowingAllCrops?targets.Select(p=>p.ActiveCoverFile):targets.Where(p=>p.Linked).Select(p=>p.Original);
+            var files=ShowingAllCrops?targets.Select(p=>p.ActiveCoverFile):targets.Where(p=>p.Linked).Select(OriginalForTransfer);
             return files.Where(f=>f!=null && File.Exists(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
         internal void CopyToClipboard(bool cut,IList<Photo> targets=null) {
@@ -3970,6 +4030,12 @@ namespace LoveMyShelf {
             if(cutFolders.Contains(photo.Folder))tile.Opacity=0.45;
             tile.MouseEnter+=delegate {
                 if(photo.SimilarFile!=null && photo.Similar!=null)ShowNameSoon(tile,SimilarInfo.Card(photo.Similar,photo.SimilarFile,photo.SimilarCovers),true);
+                else if(ShowingScope) {
+                    string top=ScopeFolder.TrimEnd('\\'),folder=Path.GetDirectoryName(photo.Original);
+                    string relative=ShellPlaces.Same(folder,top)?L.T("In the top folder"):
+                        Renamer.IsAt(folder,top)?folder.Substring(top.Length+1):folder;
+                    ShowNameSoon(tile,photo.Name+Environment.NewLine+relative,true);
+                }
                 else if(!(settings.TileNames==3 && wholeNamesFit))ShowNameSoon(tile,photo.Name); // already written in full under the tile
                 CoverSibling mark;LightCoverFamily(coverMarks.TryGetValue(photo.Folder,out mark)?mark.Family:null);
             };
@@ -4331,7 +4397,8 @@ namespace LoveMyShelf {
             try {
                 string newPath=await Task.Run(()=>Renamer.Rename(store,photo,newName));
                 if(lifetime.IsCancellationRequested)return;
-                for(int i=0;i<photos.Count;i++) {
+                if(ShowingScope && Renamer.IsAt(newPath,ScopeFolder))ReloadKeepingPlace();
+                else for(int i=0;i<photos.Count;i++) {
                     var p=photos[i];
                     if(p==null || !String.Equals(Path.GetDirectoryName(p.Folder),albumFolder,StringComparison.OrdinalIgnoreCase) ||
                         !String.Equals(GalleryStore.RecordBase(p),oldBase,StringComparison.OrdinalIgnoreCase))continue;
@@ -4387,12 +4454,18 @@ namespace LoveMyShelf {
         void FolderRenamed(string from,string to) {
             if(Renamer.IsAt(settings.CoverDirectory,from))settings.CoverDirectory=Renamer.Moved(settings.CoverDirectory,from,to);
             foreach(var stack in new[]{backStack,forwardStack})
-                for(int i=0;i<stack.Count;i++)if(!stack[i].StartsWith("@") && Renamer.IsAt(stack[i],from))stack[i]=Renamer.Moved(stack[i],from,to);
-            bool inside=active!=null && active.Source!=null && Renamer.IsAt(active.Source,from);
+                for(int i=0;i<stack.Count;i++) {
+                    string key=stack[i];
+                    if(key.StartsWith("@"+ScopeKey,StringComparison.Ordinal) && Renamer.IsAt(key.Substring(1+ScopeKey.Length),from))
+                        stack[i]="@"+ScopeKey+Renamer.Moved(key.Substring(1+ScopeKey.Length),from,to);
+                    else if(!key.StartsWith("@") && Renamer.IsAt(key,from))stack[i]=Renamer.Moved(key,from,to);
+                }
+            bool inside=active!=null && Renamer.IsAt(active.Source??ScopeFolder,from);
             if(inside || ShowingAllCrops)ClearSelection();
             if(inside) {
                 string name=Path.GetFileName(to);
                 Func<Album,Album> follow=a=>{
+                    if(ShowingScope && a.Folder==active.Folder)return ScopeAlbum(Renamer.Moved(ScopeFolder,from,to));
                     if(a.Source==null || !Renamer.IsAt(a.Source,from))return a;
                     string source=Renamer.Moved(a.Source,from,to);
                     return new Album(store.AlbumFolderOf(source),ShellPlaces.Same(a.Source,from)?name:a.Name,source);
@@ -4401,6 +4474,10 @@ namespace LoveMyShelf {
                 for(int i=0;i<trail.Count;i++)trail[i]=follow(trail[i]);
                 var now=follow(active);
                 if(hadView)folderFilters[now.Folder]=view;
+                if(ShowingScope)try {
+                    string lastFile=Path.Combine(store.Root,"last.txt");
+                    if(File.Exists(lastFile) && File.ReadAllText(lastFile)==active.Folder)File.WriteAllText(lastFile,now.Folder);
+                } catch(IOException) {}
                 active=now;Title=now.Name;
                 BuildPath();
             }
@@ -4441,6 +4518,7 @@ namespace LoveMyShelf {
         void ReplaceShown(Photo updated) {
             int index=photos.FindIndex(p=>p!=null && String.Equals(p.Folder,updated.Folder,StringComparison.OrdinalIgnoreCase));
             if(index>=0 && rows!=null)UpdatePhoto(index,updated);
+            else if(ShowingScope && Renamer.IsAt(updated.Original,ScopeFolder))ReloadKeepingPlace();
             else RefreshHiddenCover(updated);
             if(CoverReplaced!=null)CoverReplaced(updated);
         }
@@ -4560,8 +4638,9 @@ namespace LoveMyShelf {
         internal void FilesRecycled(IList<string> paths) {
             var folders=paths.Select(p=>Path.GetDirectoryName(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             foreach(var window in Application.Current.Windows.OfType<GalleryWindow>().ToList()) {
-                if(window.active==null || window.active.Source==null)continue;
-                if(folders.Any(f=>ShellPlaces.Same(f,window.active.Source)))window.ReloadKeepingPlace();
+                if(window.active==null)continue;
+                string scope=window.ScopeFolder;
+                if(folders.Any(f=>scope!=null?Renamer.IsAt(f,scope):ShellPlaces.Same(f,window.active.Source)))window.ReloadKeepingPlace();
             }
         }
         internal async void OpenInDefaultPlayer(Photo photo) {

@@ -107,7 +107,7 @@ namespace LoveMyShelf {
                 // LoveMyShelf itself (the folder tree, folder tiles, another window) also gets the originals, to move them
                 // into a folder. Its "move" is the Link effect, which File Explorer and chat apps don't pick on their own
                 // (they still copy), so it is always offered when there are originals.
-                var originals=targets.Where(t=>t.Linked && File.Exists(t.Original)).Select(t=>t.Original).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var originals=targets.Where(t=>t.Linked).Select(owner.OriginalForTransfer).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var allowed=DragDropEffects.Copy;
                 if(originals.Count>0) {
                     data.SetData(GalleryWindow.MoveFormat,String.Join("\n",originals));

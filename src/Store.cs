@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -490,31 +491,55 @@ namespace LoveMyShelf {
             return SortCoverFamilies(all,sort,descending);
         }
         // Everything without a cover in the LoveMyShelf folders and all the folders inside them.
-        // A folder inside two added folders counts once. Stopping early returns what was found so far.
-        internal List<Photo> UnfinishedCovers(out int skipped,System.Threading.CancellationToken token=default(System.Threading.CancellationToken),Action<int> found=null) {
+        // A folder inside two added folders counts once.
+        internal List<Photo> UnfinishedCovers(out int skipped,CancellationToken token=default(CancellationToken),Action<int> found=null) {
+            return ScanFolderTrees(VisibleAlbums().Select(a=>a.Source),true,out skipped,token,found);
+        }
+        internal List<Photo> FolderTreePhotos(string top,out int skipped,CancellationToken token,Action<int> found) {
+            token.ThrowIfCancellationRequested();
+            skipped=0;
+            var dir=new DirectoryInfo(top);
+            if(!dir.Exists)throw new DirectoryNotFoundException(top);
+            if(!ShownFolder(dir) || IsFolderLink(dir))return new List<Photo>();
+            return ScanFolderTrees(new[]{top},false,out skipped,token,found);
+        }
+        List<Photo> ScanFolderTrees(IEnumerable<string> roots,bool unfinished,out int skipped,CancellationToken token,Action<int> found) {
             skipped=0;
             var items=new List<Photo>();
             var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             string coverFolder=Preferences.Load(Root).CoverDirectory;
             coverFolder=String.IsNullOrWhiteSpace(coverFolder)?null:PlainPath(coverFolder);
-            var clock=System.Diagnostics.Stopwatch.StartNew();
-            foreach(var album in VisibleAlbums()) {
-                string top=PlainPath(album.Source);
+            var clock=System.Diagnostics.Stopwatch.StartNew();int originals=0;
+            foreach(string root in roots) {
+                string top=PlainPath(root);
+                if(!unfinished && String.Equals(top,coverFolder,StringComparison.OrdinalIgnoreCase))continue;
                 var waiting=new Stack<string>();waiting.Push(top);
                 while(waiting.Count>0) {
-                    if(token.IsCancellationRequested)return items;
+                    token.ThrowIfCancellationRequested();
                     string path=waiting.Pop();
                     if(!seen.Add(path))continue;
-                    try {foreach(string inner in FoldersToScan(path,coverFolder))waiting.Push(inner);}
+                    try {foreach(string inner in FoldersToScan(path,coverFolder,token))waiting.Push(inner);}
                     catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);} catch(System.Security.SecurityException quiet) {ErrorLog.Quiet(quiet);}
                     try {
-                        if(!HasPictures(path))continue;
-                        int unreadable;
-                        items.AddRange(FolderPhotos(RecordsFor(path),out unreadable).Where(p=>!p.HasCrop && !p.RecordDamaged && !SharedCoverFiles.IsCoverFile(p.Original)));
-                        skipped+=unreadable;
-                    } catch(IOException) {if(path==top)skipped++;}
-                    catch(UnauthorizedAccessException) {if(path==top)skipped++;}
-                    if(found!=null && clock.ElapsedMilliseconds>=250){clock.Restart();found(items.Count);}
+                        if(HasPictures(path,token)) {
+                            int unreadable;
+                            Action<Photo> progress=null;
+                            if(!unfinished && found!=null) {
+                                int inFolder=0;
+                                progress=photo=>{
+                                    if(!photo.RecordDamaged && !SharedCoverFiles.IsCoverFile(photo.Original))inFolder++;
+                                    if(clock.ElapsedMilliseconds>=250){clock.Restart();found(originals+inFolder);}
+                                };
+                            }
+                            foreach(var p in FolderPhotos(RecordsFor(path),out unreadable,token,progress)) {
+                                if((unfinished && p.HasCrop) || p.RecordDamaged || SharedCoverFiles.IsCoverFile(p.Original))continue;
+                                items.Add(p);if(!p.IsExtra)originals++;
+                            }
+                            skipped+=unreadable;
+                        }
+                    } catch(IOException) {if(!unfinished || path==top)skipped++;}
+                    catch(UnauthorizedAccessException) {if(!unfinished || path==top)skipped++;}
+                    if(found!=null && clock.ElapsedMilliseconds>=250){clock.Restart();found(originals);}
                 }
             }
             return items;
@@ -527,11 +552,12 @@ namespace LoveMyShelf {
         static readonly HashSet<string> DriveSystemFolders=new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
             "Windows","Program Files","Program Files (x86)","ProgramData","PerfLogs"
         };
-        static List<string> FoldersToScan(string path,string coverFolder) {
+        static List<string> FoldersToScan(string path,string coverFolder,CancellationToken token) {
             var dir=new DirectoryInfo(path);
             bool driveTop=dir.Parent==null;
             var list=new List<string>();
             foreach(var inner in dir.EnumerateDirectories()) {
+                token.ThrowIfCancellationRequested();
                 try {
                     if(!ShownFolder(inner) || IsFolderLink(inner))continue;
                     if(driveTop && DriveSystemFolders.Contains(inner.Name))continue;
@@ -562,8 +588,11 @@ namespace LoveMyShelf {
             FindClose(handle);
             return data.ReparseTag==0xA0000003 || data.ReparseTag==0xA000000C;
         }
-        static bool HasPictures(string path) {
-            return Directory.EnumerateFiles(path).Any(f=>(ImageExtensions.Contains(Path.GetExtension(f)) || VideoFrames.Supports(f)) && !SharedCoverFiles.IsBesideCover(f));
+        static bool HasPictures(string path,CancellationToken token=default(CancellationToken)) {
+            return Directory.EnumerateFiles(path).Any(f=>{
+                token.ThrowIfCancellationRequested();
+                return (ImageExtensions.Contains(Path.GetExtension(f)) || VideoFrames.Supports(f)) && !SharedCoverFiles.IsBesideCover(f);
+            });
         }
         // The hidden record of a folder inside an added one. Covers saved there need it to appear in the cover collection.
         // It is complete before it appears, so it never shows as a LoveMyShelf folder for a moment.
@@ -852,7 +881,7 @@ namespace LoveMyShelf {
         static readonly HashSet<string> ImageExtensions=new HashSet<string>(PictureTypes.Extensions,StringComparer.OrdinalIgnoreCase);
         [DllImport("shlwapi.dll",CharSet=CharSet.Unicode,ExactSpelling=true)]
         static extern int StrCmpLogicalW(string a,string b);
-        static List<Photo> FolderPhotos(Album album,out int skipped) {
+        static List<Photo> FolderPhotos(Album album,out int skipped,CancellationToken token=default(CancellationToken),Action<Photo> found=null) {
             skipped=0;
             var edits=new HashSet<string>(Directory.GetDirectories(album.Folder,"p-*"),StringComparer.OrdinalIgnoreCase);
             var photos=new List<Photo>();
@@ -860,6 +889,7 @@ namespace LoveMyShelf {
             var extraFolders=edits.Select(f=>Path.GetFileName(f)).Where(n=>n.Length>35 && n[34]=='-')
                 .ToLookup(n=>n.Substring(0,34),n=>Path.Combine(album.Folder,n),StringComparer.OrdinalIgnoreCase);
             foreach(string path in Directory.EnumerateFiles(album.Source)) {
+                token.ThrowIfCancellationRequested();
                 if(!ImageExtensions.Contains(Path.GetExtension(path)) && !VideoFrames.Supports(path)) continue;
                 if(SharedCoverFiles.IsBesideCover(path)) continue;
                 string name=Path.GetFileName(path), folder=Path.Combine(album.Folder,"p-"+Key(name));
@@ -875,6 +905,7 @@ namespace LoveMyShelf {
                     } catch(Exception quiet) {ErrorLog.Quiet(quiet);}
                 }
                 if(!added)photos.Add(new Photo {Folder=folder,Name=name,Original=path,Linked=true,RecordDamaged=damaged});
+                if(found!=null)found(photos[photos.Count-1]);
                 foreach(string extra in extraFolders["p-"+Key(name)]) {
                     try {
                         if(!File.Exists(Path.Combine(extra,"photo.xml")))continue;

@@ -302,10 +302,13 @@ namespace LoveMyShelf {
             var shelf=new MenuItem();shelf.Click+=delegate {
                 if(owner.OnShelf(entry.Path))owner.RemoveFromShelf(entry.Path);else owner.AddToShelf(entry.Path);
             };
+            var gather=new MenuItem();gather.Click+=delegate {owner.GatherFolder(entry.Path);};
             var similar=new MenuItem();similar.Click+=delegate {owner.FindSimilar(entry.Path);};
-            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(similar);menu.Items.Add(new Separator());menu.Items.Add(explorer);
+            menu.Items.Add(open);menu.Items.Add(openNew);menu.Items.Add(new Separator());menu.Items.Add(shelf);menu.Items.Add(gather);menu.Items.Add(similar);menu.Items.Add(new Separator());menu.Items.Add(explorer);
             menu.Opened+=delegate {
                 open.Header=L.T("Open");openNew.Header=L.T("Open in new window");explorer.Header=L.T("Open in File Explorer");
+                gather.Header=L.T("Gather this folder only");
+                gather.Visibility=owner.CanGatherFolder(entry.Path)?Visibility.Visible:Visibility.Collapsed;
                 similar.Header=L.P("Find similar photos…","비슷한 사진 찾기…");
                 shelf.Header=L.T(owner.OnShelf(entry.Path)?"Remove from LoveMyShelf":"Add to LoveMyShelf");
             };
