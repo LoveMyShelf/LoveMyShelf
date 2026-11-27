@@ -256,7 +256,8 @@ namespace LoveMyShelf {
         // Strip pictures are read at twice their height (in steps of 100 px, so dragging doesn't read them again and again).
         int CellPixels {get {return PictureHeight<=FullPictureHeight?(int)(FullPictureHeight*2):(int)(Math.Ceiling(PictureHeight*2/100)*100);}}
         // The strip's picture height the person chose by dragging the line over it (Guide & Options too), 56..320.
-        internal static int StripPictureHeight=(int)FullPictureHeight;
+        internal static int StripPictureHeight=StripUsual;
+        const int StripUsual=72; // 2026-11-27: smaller by default so the preview is bigger; drag the line for more
         const int StripLow=56,StripHigh=320;
         // Room at each end of the strip for a handle and a little empty gap,
         // so a handle at the clip's very start or end stays whole and the empty strip beyond shows the clip ends there.
@@ -322,6 +323,7 @@ namespace LoveMyShelf {
         WrapPanel actions;
         Grid middle;
         ScrollViewer leftScroll,rightScroll;
+        FrameworkElement guideCardHost;
         WrapPanel narrowRow;
         StackPanel[] moreColumns;
         Expander more;
@@ -350,6 +352,13 @@ namespace LoveMyShelf {
         Func<double> qualityNumber;Action<double> showQuality;
         Button explain,realButton,realCompact;
         bool wide,arranged,lastAuto;
+        // Wide layout with only one column, on the right (the info card on top of it): for a wide video, when two
+        // columns don't fit beside the preview but one does (2026-11-27, "pictures and videos must show big").
+        bool oneSide;
+        const double OneSideColumn=316; // the file type's longest choice fits
+        // The settings column folded away (◂), so the preview takes the width; ▸ brings it back. Kept while LoveMyShelf runs.
+        static bool columnFolded;
+        Button unfoldColumn;
         string makeLabel;
         // The card on the left: what the preview is right now, in plain words.
         readonly TextBlock guideTitle=UI.Text("",16),guideBody=UI.Text("",13,true),guideProgress=UI.Text("",13),guideFoot=UI.Text("",12.5,true),compactText=UI.Text("",12.5);
@@ -585,7 +594,19 @@ namespace LoveMyShelf {
                 HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,SideGap,0),Focusable=false};
             middle.Children.Add(leftScroll);
             sidePanel=new StackPanel();
-            rightScroll=new ScrollViewer {Content=sidePanel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
+            // ◂ at the top of the settings column folds it away; ▸ at the window's right brings it back.
+            var foldColumn=UI.Btn("◂",()=>{columnFolded=true;Fit();});
+            foldColumn.Focusable=false;foldColumn.MinWidth=26;foldColumn.Padding=new Thickness(6,0,6,0);foldColumn.Margin=new Thickness(0,0,4,6);foldColumn.HorizontalAlignment=HorizontalAlignment.Right;
+            foldColumn.ToolTip=L.P("Fold the settings away so the preview gets the whole width. ▸ brings them back.","설정 칸을 접어서 미리보기를 가로로 크게 봐요. ▸를 누르면 다시 펴져요.");
+            AutomationProperties.SetName(foldColumn,L.P("Fold the settings","설정 칸 접기"));
+            var columnBox=new DockPanel();DockPanel.SetDock(foldColumn,Dock.Top);columnBox.Children.Add(foldColumn);columnBox.Children.Add(sidePanel);
+            unfoldColumn=UI.Btn("▸",()=>{columnFolded=false;Fit();});
+            unfoldColumn.Focusable=false;unfoldColumn.MinWidth=24;unfoldColumn.Padding=new Thickness(4,0,4,0);unfoldColumn.HorizontalAlignment=HorizontalAlignment.Right;unfoldColumn.VerticalAlignment=VerticalAlignment.Top;
+            unfoldColumn.ToolTip=L.P("Show the settings again","설정 칸을 다시 펴요");
+            AutomationProperties.SetName(unfoldColumn,L.P("Show the settings","설정 칸 펴기"));
+            unfoldColumn.Visibility=Visibility.Collapsed;
+            Grid.SetColumn(unfoldColumn,2);middle.Children.Add(unfoldColumn);
+            rightScroll=new ScrollViewer {Content=columnBox,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
                 HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(SideGap,0,0,0),Focusable=false};
             Grid.SetColumn(rightScroll,2);middle.Children.Add(rightScroll);
             page.Children.Add(middle);
@@ -1125,9 +1146,18 @@ namespace LoveMyShelf {
             if(parent!=null)parent.Children.Remove(item);
         }
         // Puts the choices beside the preview (wide) or under the strip (narrow).
-        void Arrange(bool wideNow) {
-            if(arranged && wideNow==wide)return;
-            arranged=true;wide=wideNow;
+        void Arrange(bool wideNow,bool oneSideNow=false) {
+            oneSideNow=wideNow && oneSideNow;
+            if(arranged && wideNow==wide && oneSideNow==oneSide)return;
+            arranged=true;wide=wideNow;oneSide=oneSideNow;
+            // One column: the info card goes to the top of the right column and the left column takes no room.
+            var card=(FrameworkElement)(leftScroll.Content??guideCardHost);
+            guideCardHost=card;
+            if(card.Parent==sidePanel)sidePanel.Children.Remove(card);
+            if(leftScroll.Content==card)leftScroll.Content=null;
+            if(oneSide){card.Margin=new Thickness(0,0,0,12);sidePanel.Children.Insert(0,card);}
+            else {card.Margin=new Thickness(0);leftScroll.Content=card;}
+            middle.ColumnDefinitions[0].Width=oneSide?new GridLength(0):new GridLength(1,GridUnitType.Star);
             foreach(var item in new FrameworkElement[]{back,summary,actions,speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField,styleField,targetField,explain,narrowRow,more})Detach(item);
             var fields=new[]{speedField,loopField,targetField,fpsField,heightField,qualityField,formatField,flipField,playsField,textField,styleField};
             if(wide) {
@@ -1156,7 +1186,8 @@ namespace LoveMyShelf {
                 // button over the strip, where there is room.
                 back.Margin=new Thickness(8,0,0,0);DockPanel.SetDock(back,Dock.Right);compactGuide.Children.Insert(0,back);
             }
-            leftScroll.Visibility=rightScroll.Visibility=wide?Visibility.Visible:Visibility.Collapsed;
+            leftScroll.Visibility=wide && !oneSide?Visibility.Visible:Visibility.Collapsed;
+            rightScroll.Visibility=wide?Visibility.Visible:Visibility.Collapsed;
             compactGuide.Visibility=wide?Visibility.Collapsed:Visibility.Visible;
             hintsPlaced=false;PlaceDrawOptions();
         }
@@ -1188,7 +1219,12 @@ namespace LoveMyShelf {
         void PlaceHints() {
             var open=new Size(Double.PositiveInfinity,Double.PositiveInfinity);
             double[] w=new double[hintRow.Children.Count];
-            for(int i=0;i<w.Length;i++){var hint=hintRow.Children[i];hint.Measure(open);w[i]=hint.Visibility==Visibility.Visible?hint.DesiredSize.Width:0;}
+            for(int i=0;i<w.Length;i++) {
+                var hint=hintRow.Children[i];
+                if(hint.Visibility!=Visibility.Visible){w[i]=0;continue;}
+                hintCaps[i].Measure(open);hintWords[i].Measure(open);
+                w[i]=hintCaps[i].DesiredSize.Width+6+hintWords[i].DesiredSize.Width+18; // as one line, so the choice can't flip
+            }
             double need=Math.Max(w[0]+w[1],w[2]);
             chips.Measure(open);actions.Measure(open);
             double room=page.ActualWidth-chips.DesiredSize.Width-actions.DesiredSize.Width-actions.Margin.Left-24;
@@ -1196,8 +1232,21 @@ namespace LoveMyShelf {
             if(hintsPlaced && below==hintsBelow)return;
             hintsPlaced=true;hintsBelow=below;
             Detach(hintBar);
+            // In the side column a hint is its name over its words, wrapped; elsewhere one line each.
+            bool inColumn=!below && wide;
+            for(int i=0;i<hintWords.Length;i++) {
+                var line=(StackPanel)hintWords[i].Parent;
+                line.Orientation=inColumn?Orientation.Vertical:Orientation.Horizontal;
+                hintWords[i].TextWrapping=inColumn?TextWrapping.Wrap:TextWrapping.NoWrap;
+                hintWords[i].Margin=inColumn?new Thickness(0,1,0,4):new Thickness(6,0,0,0);
+                line.Margin=inColumn?new Thickness(0,1,0,1):new Thickness(0,1,18,1);
+            }
             if(below) {
                 hintBar.Margin=new Thickness(18,0,6,0);hintBar.HorizontalAlignment=HorizontalAlignment.Center;lastRow.Children.Add(hintBar);
+            } else if(wide) {
+                // No row of its own over the strip (that would take the preview's height): it goes to the side column,
+                // each hint on its own wrapped lines.
+                hintBar.Margin=new Thickness(0,12,0,0);hintBar.HorizontalAlignment=HorizontalAlignment.Left;sidePanel.Children.Add(hintBar);
             } else {
                 hintBar.Margin=new Thickness(0,8,0,0);hintBar.HorizontalAlignment=HorizontalAlignment.Left;
                 bottom.Children.Insert(bottom.Children.IndexOf(stripFrame),hintBar);
@@ -1209,7 +1258,17 @@ namespace LoveMyShelf {
             if(pageWidth<=0 || pageHeight<=0)return;
             // Decided from the window's size alone (not from the room left after arranging), so it can't flip back and forth.
             double roomIfWide=pageHeight-WideBottom;
-            Arrange(roomIfWide>=330 && (pageWidth-Math.Min(pageWidth,roomIfWide*source.Aspect))/2-SideGap>=SideMin);
+            bool twoSides=roomIfWide>=330 && (pageWidth-Math.Min(pageWidth,roomIfWide*source.Aspect))/2-SideGap>=SideMin;
+            // Otherwise one column on the right when that shows a bigger preview than the settings under the strip
+            // (those take about 150 more of the height: the guide line, speed and play style, More choices; measured).
+            bool oneSideNow=false;
+            if(!twoSides && roomIfWide>=260) {
+                double a=source.Aspect;
+                double oneW=Math.Min(roomIfWide*a,pageWidth-OneSideColumn-SideGap),oneH=oneW/a;
+                double belowH=Math.Max(0,roomIfWide-150),belowW=Math.Min(belowH*a,pageWidth);belowH=belowW/a;
+                oneSideNow=oneW>0 && oneW*oneH>belowW*belowH*1.05;
+            }
+            Arrange(twoSides || oneSideNow,oneSideNow);
             PlaceHints();PlaceDrawOptions();
             bool drawing=(drawPanel.IsOpen || (adjustPanel!=null && adjustPanel.IsOpen)) && (wide || more.IsExpanded);
             hintBar.Visibility=drawing || (!wide && pageWidth<700 && more.IsExpanded)?Visibility.Collapsed:Visibility.Visible;
@@ -1230,6 +1289,25 @@ namespace LoveMyShelf {
             } else moreScroll.MaxHeight=Math.Max(100,Math.Floor(pageHeight*0.23));
             double room=middle.ActualHeight,across=middle.ActualWidth;
             if(room<=0 || across<=0)return;
+            bool folded=wide && columnFolded;
+            unfoldColumn.Visibility=folded?Visibility.Visible:Visibility.Collapsed;
+            if(folded) {
+                leftScroll.Visibility=rightScroll.Visibility=Visibility.Collapsed;
+                middle.ColumnDefinitions[0].Width=new GridLength(0);
+                double foldedWidth=Math.Floor(Math.Min(room*source.Aspect,across-unfoldColumn.ActualWidth-12));
+                previewFrame.Width=Math.Max(0,foldedWidth);previewFrame.Height=Math.Floor(previewFrame.Width/source.Aspect);
+                return;
+            }
+            if(wide) {
+                rightScroll.Visibility=Visibility.Visible;leftScroll.Visibility=oneSide?Visibility.Collapsed:Visibility.Visible;
+                middle.ColumnDefinitions[0].Width=oneSide?new GridLength(0):new GridLength(1,GridUnitType.Star);
+            }
+            if(oneSide) {
+                rightScroll.Width=OneSideColumn;
+                double oneWidth=Math.Floor(Math.Min(room*source.Aspect,across-OneSideColumn-SideGap));
+                previewFrame.Width=Math.Max(0,oneWidth);previewFrame.Height=Math.Floor(previewFrame.Width/source.Aspect);
+                return;
+            }
             double width=Math.Floor(Math.Min(room*source.Aspect,across));
             previewFrame.Width=width;previewFrame.Height=Math.Floor(width/source.Aspect);
             if(wide)leftScroll.Width=rightScroll.Width=Math.Max(0,Math.Min(SideMax,Math.Floor((across-width)/2-SideGap)));
@@ -1253,7 +1331,7 @@ namespace LoveMyShelf {
                 StripPictureHeight=(int)h;Fit();
             };
             grip.MouseLeftButtonDown+=(s,e)=>{
-                if(e.ClickCount==2){show(FullPictureHeight);GalleryWindow.RememberGifStripHeight(StripPictureHeight);e.Handled=true;return;}
+                if(e.ClickCount==2){show(StripUsual);GalleryWindow.RememberGifStripHeight(StripPictureHeight);e.Handled=true;return;}
                 held=grip.CaptureMouse();fromY=e.GetPosition(this).Y;fromHeight=PictureHeight;e.Handled=true;
             };
             grip.MouseMove+=(s,e)=>{if(held)show(fromHeight+(fromY-e.GetPosition(this).Y));};

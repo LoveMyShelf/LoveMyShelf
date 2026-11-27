@@ -373,7 +373,7 @@
                 </ControlTemplate>
               </ToggleButton.Template>
             </ToggleButton>
-            <ContentPresenter Margin="8,0,20,0" VerticalAlignment="Center" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}"/>
+            <ContentPresenter Margin="8,0,20,0" VerticalAlignment="Center" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
             <Border x:Name="Focus" BorderBrush="Transparent" BorderThickness="1" CornerRadius="7" IsHitTestVisible="False"/>
             <Popup x:Name="PART_Popup" Placement="Top" IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False">
               <Border Background="{DynamicResource Paper}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="7" Padding="0,3" MinWidth="{TemplateBinding ActualWidth}">

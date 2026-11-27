@@ -489,7 +489,15 @@ namespace LoveMyShelf {
         // How much one press of E or W changes the brightness (the slider still moves one at a time).
         internal int BrightnessStep=3;
         // From this window width the [Adjust]/[Draw] controls stand in a column of this width beside the picture.
-        const double SideToolsWidth=900,SideColumn=320;
+        const double SideToolsWidth=900,SideColumn=300,FoldedColumn=30;
+        // The column folded to a thin strip with one button, so a wide picture can take almost the whole width.
+        // Kept while LoveMyShelf runs (2026-11-27, "pictures and videos must show big").
+        static bool columnFolded;
+        Action placeTools;
+        StackPanel sideStack;
+        // −90° 0° +90°: beside the slider under the picture, on a line of their own in the narrow column.
+        FrameworkElement rotationShortcuts;
+        FrameworkElement sceneBar;
         // Runs after the cover is saved and before the editor closes (the large view opens here, so no gap shows).
         internal Func<Task> AfterCommit;
         readonly Button save,motionButton,saveNewButton;
@@ -552,9 +560,25 @@ namespace LoveMyShelf {
             var peekPanel=PeekPanel();
             var side=new DockPanel {LastChildFill=true};
             ((FrameworkElement)peekPanel).HorizontalAlignment=HorizontalAlignment.Left;
-            DockPanel.SetDock(peekPanel,Dock.Top);side.Children.Add(peekPanel);
+            var fold=UI.Btn("◂",()=>{columnFolded=true;if(placeTools!=null)placeTools();});
+            fold.Focusable=false;fold.MinWidth=26;fold.Padding=new Thickness(6,0,6,0);fold.Margin=new Thickness(0,8,8,0);
+            fold.HorizontalAlignment=HorizontalAlignment.Right;fold.VerticalAlignment=VerticalAlignment.Top;
+            fold.ToolTip=L.P("Fold this column so the picture gets the whole width. ▸ brings it back.","이 칸을 접어서 사진을 가로로 크게 봐요. ▸를 누르면 다시 펴져요.");
+            AutomationProperties.SetName(fold,L.P("Fold the column","옆 칸 접기"));
+            var unfold=UI.Btn("▸",()=>{columnFolded=false;if(placeTools!=null)placeTools();});
+            unfold.Focusable=false;unfold.MinWidth=24;unfold.Padding=new Thickness(4,0,4,0);unfold.Margin=new Thickness(2,8,2,0);unfold.VerticalAlignment=VerticalAlignment.Top;
+            unfold.ToolTip=L.P("Show the column again: grid preview, shape, rotation, Adjust, Draw.","옆 칸을 다시 펴요: 바둑판 미리보기, 모양, 회전, 보정, 그림 그리기.");
+            AutomationProperties.SetName(unfold,L.P("Show the column","옆 칸 펴기"));
+            var peekRow=new Grid();peekRow.Children.Add(peekPanel);peekRow.Children.Add(fold);
+            DockPanel.SetDock(peekRow,Dock.Top);side.Children.Add(peekRow);
+            DockPanel.SetDock(unfold,Dock.Top);side.Children.Add(unfold);
             DockPanel.SetDock(side,Dock.Right);root.Children.Add(side);
-            Action showShape=()=>{var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);};
+            string baseTitle=Title;
+            Action showShape=()=>{
+                var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);
+                // With the column, the file's name and the shape ride in the title bar instead of a row of their own.
+                Title=head.Visibility==Visibility.Visible?baseTitle:baseTitle+"  ·  "+name+"  ·  "+seq.Text;
+            };
             Surface.ShapeChanged+=showShape;showShape();
             drawing.Load(drawings,initialEraseAi);
             cropPicture=new CropDrawingPicture(Surface,drawing);
@@ -580,10 +604,11 @@ namespace LoveMyShelf {
             var drawDock=new StackPanel {Margin=new Thickness(6,2,6,2)};
             DockPanel.SetDock(drawDock,Dock.Bottom);
             root.Children.Insert(root.Children.IndexOf(side),drawDock);
-            // Wide window: in the column, the buttons stay put and only the open controls scroll.
-            DockPanel.SetDock(toolHeads,Dock.Top);
+            // Wide window: the column under the grid preview holds the scene buttons, shape, rotation, [Adjust] [Draw]
+            // and the open one, and scrolls; only the Save row stays under the picture.
+            sideStack=new StackPanel();
             var sideScroll=new ScrollViewer {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false,Content=sideStack};
             // The panels' own scroll boxes have no height limit here, so the wheel scrolls the column itself.
             sideScroll.PreviewMouseWheel+=(s,e)=>{
                 if(sideScroll.ScrollableHeight<=0 || AdjustRow.TakesWheel(e.OriginalSource))return;
@@ -592,24 +617,42 @@ namespace LoveMyShelf {
             var peekExtras=new List<UIElement>();
             var peekItems=((Panel)peekPanel).Children;
             for(int i=2;i<peekItems.Count;i++)peekExtras.Add(peekItems[i]);
-            bool inSide=false,placed=false;
+            bool inSide=false,placed=false,folded=false;
+            side.Children.Add(sideScroll);
             Action place=()=>{
                 bool wideNow=ActualWidth>=SideToolsWidth;
                 side.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;
-                if(!placed || wideNow!=inSide) {
-                    placed=true;inSide=wideNow;
-                    foreach(var item in new FrameworkElement[]{toolHeads,toolBodies}){var p=item.Parent as Panel;if(p!=null)p.Children.Remove(item);}
-                    sideScroll.Content=null;
-                    if(side.Children.Contains(sideScroll))side.Children.Remove(sideScroll);
+                bool foldNow=wideNow && columnFolded;
+                if(!placed || wideNow!=inSide || foldNow!=folded || (sceneBar!=null && sceneBar.Parent==null)) {
+                    placed=true;inSide=wideNow;folded=foldNow;
+                    var moving=new List<FrameworkElement>();
+                    if(sceneBar!=null)moving.Add(sceneBar);
+                    moving.Add(shapeBar);moving.Add(rotationBar);moving.Add(toolHeads);moving.Add(toolBodies);
+                    foreach(var item in moving){var p=item.Parent as Panel;if(p!=null)p.Children.Remove(item);}
+                    var turnBar=(Panel)rotationBar;
+                    if(rotationShortcuts.Parent!=null)((Panel)rotationShortcuts.Parent).Children.Remove(rotationShortcuts);
                     if(inSide) {
-                        side.Width=SideColumn;
-                        toolHeads.Margin=new Thickness(4,2,10,2);sideScroll.Margin=new Thickness(4,0,10,6);
-                        side.Children.Add(toolHeads);sideScroll.Content=toolBodies;side.Children.Add(sideScroll);
+                        side.Width=folded?FoldedColumn:SideColumn;
+                        foreach(var item in moving){item.Margin=new Thickness(0,2,0,4);sideStack.Children.Add(item);}
+                        rotationShortcuts.Margin=new Thickness(0,0,0,6);rotationShortcuts.HorizontalAlignment=HorizontalAlignment.Left;
+                        sideStack.Children.Insert(sideStack.Children.IndexOf(rotationBar)+1,rotationShortcuts);
+                        sideScroll.Margin=new Thickness(4,0,10,6);
                     } else {
                         side.Width=Double.NaN;
-                        toolHeads.Margin=new Thickness(0);
+                        // Back under the picture, in their old order: Save row, rotation, shape, then the tools.
+                        shapeBar.Margin=new Thickness(6,3,6,3);rotationBar.Margin=new Thickness(6,2,6,2);toolHeads.Margin=new Thickness(0);
+                        rotationShortcuts.Margin=new Thickness(8,0,0,0);rotationShortcuts.HorizontalAlignment=HorizontalAlignment.Stretch;
+                        DockPanel.SetDock(rotationShortcuts,Dock.Right);turnBar.Children.Insert(Math.Max(0,turnBar.Children.Count-1),rotationShortcuts);
+                        root.Children.Insert(root.Children.IndexOf(drawDock),rotationBar);
+                        root.Children.Insert(root.Children.IndexOf(drawDock),shapeBar);
+                        if(sceneBar!=null){sceneBar.Margin=new Thickness(6,2,6,2);root.Children.Insert(root.Children.IndexOf(cropPicture)<0?root.Children.Count:root.Children.IndexOf(cropPicture),sceneBar);}
                         drawDock.Children.Add(toolHeads);drawDock.Children.Add(toolBodies);
                     }
+                    peekRow.Visibility=sideScroll.Visibility=inSide && folded?Visibility.Collapsed:Visibility.Visible;
+                    unfold.Visibility=inSide && folded?Visibility.Visible:Visibility.Collapsed;
+                    fold.Visibility=inSide?Visibility.Visible:Visibility.Collapsed;
+                    head.Visibility=inSide?Visibility.Collapsed:Visibility.Visible;
+                    showShape();
                     drawDock.Visibility=inSide?Visibility.Collapsed:Visibility.Visible;
                 }
                 double room=inSide?Double.PositiveInfinity:Math.Max(72,ActualHeight*0.26);
@@ -619,10 +662,14 @@ namespace LoveMyShelf {
                 bool tight=inSide && (adjustPanel.IsOpen || drawPanel.IsOpen);
                 foreach(var extra in peekExtras)extra.Visibility=tight?Visibility.Collapsed:Visibility.Visible;
             };
+            placeTools=place;
             SizeChanged+=delegate {place();};
             adjustPanel.OpenChanged+=place;drawPanel.OpenChanged+=place;
-            place();
+            // An opened panel sits low in the column: bring it into view.
+            adjustPanel.OpenChanged+=delegate {if(adjustPanel.IsOpen)Dispatcher.BeginInvoke(new Action(()=>adjustPanel.BringIntoView()),System.Windows.Threading.DispatcherPriority.Loaded);};
+            drawPanel.OpenChanged+=delegate {if(drawPanel.IsOpen)Dispatcher.BeginInvoke(new Action(()=>drawPanel.BringIntoView()),System.Windows.Threading.DispatcherPriority.Loaded);};
             root.Children.Add(cropPicture);Content=root;
+            place();
 
             bool syncingAdjust=false;
             adjustPanel.Changed+=delegate {
@@ -995,6 +1042,7 @@ namespace LoveMyShelf {
                 RotationShortcut("+90°","Rotate clockwise by 90°",()=>Surface.SetRotation(Surface.Rotation+90))
             })shortcuts.Children.Add(button);
             UI.Right(bar,shortcuts);
+            rotationShortcuts=shortcuts;
             var slider=new DragSlider {Minimum=-CropSurface.HalfTurn,Maximum=CropSurface.HalfTurn,
                 TickFrequency=CropSurface.RotationStep,IsSnapToTickEnabled=true,SmallChange=CropSurface.RotationStep,LargeChange=1,
                 IsMoveToPointEnabled=true,Margin=new Thickness(8,0,0,0),VerticalAlignment=VerticalAlignment.Center};
@@ -1029,7 +1077,9 @@ namespace LoveMyShelf {
             bar.Children.Add(frameNumber);
             nextFrame=UI.Btn(L.T("Next scene (F)"),()=>MoveFrame(1));bar.Children.Add(nextFrame);
             DockPanel.SetDock(bar,Dock.Bottom);
-            var root=(DockPanel)Content;root.Children.Insert(root.Children.IndexOf(cropPicture),bar);
+            sceneBar=bar;
+            if(placeTools!=null)placeTools();
+            else {var root=(DockPanel)Content;root.Children.Insert(root.Children.IndexOf(cropPicture),bar);}
             UpdateFrameControls(true);
         }
         void UpdateFrameControls(bool ready) {

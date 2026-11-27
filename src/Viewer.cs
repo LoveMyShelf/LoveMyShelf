@@ -74,6 +74,10 @@ namespace LoveMyShelf {
         bool WantsCrop {get{return forCrop || !CurrentPhoto.HasCrop;}}
         string CropLabel {get{return CurrentPhoto.HasCrop?L.T("Make one more cover"):L.T("Make cover");}}
         int index,shown=-1;
+        // The bar floats over the picture in a window too (2026-11-27 user: "pictures and videos must show big";
+        // DeepSeek, Gemini, Codex agreed): the picture takes the whole window, and the bar shows near the bottom,
+        // while paused, or while the pointer is on it. Full screen worked this way already.
+        bool Floating {get {return true;}}
         bool fullscreen,original,hidden,motion,paused,sync,resumeAfterDrag,selectedMovie,largeVideo,draggingVideo,cachedCover;
         int playbackBrightness;
         int playbackStyle=Light.Soft; // R: Soft, See in the dark or Milky (see Light)
@@ -445,7 +449,7 @@ namespace LoveMyShelf {
                 if(panel.Visibility==Visibility.Visible && panel.ActualHeight>0)lastPanelHeight=panel.ActualHeight;
                 FitPictureAbovePanel();PlaceAreaNotice();
             };
-            panel.SetResourceReference(Panel.BackgroundProperty,"Paper");
+            panel.SetResourceReference(Panel.BackgroundProperty,Floating?"ViewerBar":"Paper"); // floats over the picture
             var footer=new Grid {Margin=new Thickness(5,0,5,4)};
             footer.ColumnDefinitions.Add(new ColumnDefinition());
             footer.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
@@ -1903,14 +1907,14 @@ namespace LoveMyShelf {
             stripAwake=true;stripSleep.Stop();
             // Windowed (like PotPlayer): the bar sits below the picture on the window color.
             // Full screen: it floats over the picture with nothing behind it.
-            panel.SetResourceReference(Panel.BackgroundProperty,full?"ViewerBar":"Paper");
+            panel.SetResourceReference(Panel.BackgroundProperty,Floating?"ViewerBar":"Paper");
             Grid.SetRow(root,full?0:1);
             Grid.SetRowSpan(root,full?2:1);
             PlaceTitleBar();
             if(full)RefreshFullscreenControls();
             else {
                 titleBar.Visibility=Visibility.Visible;
-                SetPanelVisible(!hidden);
+                if(Floating)RefreshFullscreenControls();else SetPanelVisible(!hidden);
             }
             FitPictureAbovePanel();RepositionAreaPopup();
         }
@@ -1937,7 +1941,7 @@ namespace LoveMyShelf {
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr hwnd);
         [System.Runtime.InteropServices.DllImport("user32.dll")] [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] static extern bool IsChild(IntPtr parent,IntPtr child);
         void RefreshFullscreenControls() {
-            if(!fullscreen)return;
+            if(!Floating)return;
             bool active=IsActive || (overlay!=null && overlay.IsActive);
             Point pointer=new Point(-1,-1);
             if(active) {
@@ -1983,15 +1987,17 @@ namespace LoveMyShelf {
                 ?Math.Max(12,panel.Visibility==Visibility.Visible?lastPanelHeight:0)
                 :Math.Max(bottomDistance,panel.ActualHeight);
             bool nearPanel=inside && ActualHeight-pointer.Y<=bottomZone;
-            titleBar.Visibility=nearTitle || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
-            SetPanelVisible(!coverArea.Dragging && (areaPopup.IsOpen || coverArea.Typing || nearPanel || panel.IsMouseCaptureWithin));
+            if(fullscreen)titleBar.Visibility=nearTitle || titleBar.IsMouseCaptureWithin?Visibility.Visible:Visibility.Collapsed;
+            // In a window the bar also stays while a video is paused (there is nothing to watch move under it).
+            bool pausedHere=!fullscreen && motion && paused;
+            SetPanelVisible(!coverArea.Dragging && (areaPopup.IsOpen || coverArea.Typing || nearPanel || pausedHere || panel.IsMouseCaptureWithin));
         }
         void SetHidden(bool hide) {
             hidden=hide;
             SetPanelVisible(!hide);
         }
         void SetPanelVisible(bool visible) {
-            if(!fullscreen)visible=true; // windowed: always shown
+            if(!Floating)visible=true; // a bar below the picture is always shown
             var visibility=visible?Visibility.Visible:Visibility.Collapsed;
             if(panel.Visibility==visibility)return;
             panel.Visibility=visibility;PlaceAreaNotice();
@@ -2006,7 +2012,7 @@ namespace LoveMyShelf {
             if(mpv==null)return;
             const double gap=8,plainBottom=0.948,plainStep=0.00954,assStep=0.0097;
             double position=100;
-            if(fullscreen && panel.Visibility==Visibility.Visible && panel.ActualHeight>0 && root.ActualHeight>0 && mpv.Aspect>0) {
+            if(Floating && panel.Visibility==Visibility.Visible && panel.ActualHeight>0 && root.ActualHeight>0 && mpv.Aspect>0) {
                 double limit=root.ActualHeight-panel.ActualHeight-gap;
                 // Zoomed in, mpv's window is the whole view, so the subtitles count from its bottom.
                 var frame=mpv.Fill?new Rect(0,0,root.ActualWidth,root.ActualHeight):MediaViewport.Fit(mpv.Aspect,new Size(root.ActualWidth,root.ActualHeight));
@@ -2018,7 +2024,7 @@ namespace LoveMyShelf {
         }
         // Windowed, the picture uses only the space above the bar so the two never overlap.
         void FitPictureAbovePanel() {
-            double reserve=!fullscreen && panel.Visibility==Visibility.Visible?panel.ActualHeight:0;
+            double reserve=!Floating && panel.Visibility==Visibility.Visible?panel.ActualHeight:0;
             var margin=new Thickness(0,0,0,reserve);
             if(viewport.Margin!=margin){viewport.Margin=margin;ApplyZoom();}
             PlaceCoverStrip();
@@ -2134,12 +2140,12 @@ namespace LoveMyShelf {
                 if(mpv!=null)mpv.Paused=true;
                 double ms=Position();
                 if(requests!=null && shown>=0)ms=times.Start(shown);
-                paused=true;pause.Content=L.T("Play");
+                paused=true;pause.Content=L.T("Play");RefreshFullscreenControls();
                 if(Native){startMs=ms;UpdateBar(ms);}
                 else SeekTo(ms);
                 clock.Stop();
             } else {
-                paused=false;pause.Content=L.T("Pause");clock.Restart();
+                paused=false;pause.Content=L.T("Pause");RefreshFullscreenControls();clock.Restart();
                 if(media!=null){
                     if(largeVideo)media.ScrubbingEnabled=false;
                     if(startMs>=duration)media.Position=TimeSpan.Zero;

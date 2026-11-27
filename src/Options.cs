@@ -82,7 +82,7 @@ namespace LoveMyShelf {
         // Discord's free upload limit went from 10 MB to 20 MB in August 2026.
         public int ShareLimitMB=20;
         public int GifStripSeconds=4;
-        public int GifStripHeight=156; // Make GIF cover: height of the scene strip's pictures (dragged at the line over it), 56..320
+        public int GifStripHeight=72; // Make GIF cover: height of the scene strip's pictures (dragged at the line over it), 56..320
         // Starting choices in Make GIF cover (the window remembers changes until LoveMyShelf closes).
         // The defaults changed on 2026-11-24 (see MoveToNewGifDefaults): WebP, high, 30 a second, 1280 px,
         // 1 s before and after, a 4 s strip, the real file only when asked, the preview every 0.05 s.
@@ -198,7 +198,7 @@ namespace LoveMyShelf {
                     ShareCovers=shareCovers=="moving"?ShareCoverKind.MovingOnly:shareCovers=="still"?ShareCoverKind.StillOnly:ShareCoverKind.Both,
                     ShareLimitMB=ReadNumber(xml,"shareLimitMB",1,2000,20),
                     GifStripSeconds=ReadNumber(xml,"gifStrip",2,120,4),
-                    GifStripHeight=ReadNumber(xml,"gifStripHeight",56,320,156),
+                    GifStripHeight=StripHeight(xml),
                     GifFormat=IndexOr(new[]{"gif","webp","mp4"},(string)xml.Attribute("gifFormat"),1),
                     GifQuality=IndexOr(new[]{"high","normal","small"},(string)xml.Attribute("gifQuality"),0),
                     GifFps=ReadNumber(xml,"gifFps",1,60,30),
@@ -274,6 +274,12 @@ namespace LoveMyShelf {
         }
         // 0.2 s was the first default. It moved to 0.1 s once; files saved since carry the mark, so a later choice of 0.2 s stays.
         // (0.1 s then moved to 0.05 s with the other GIF defaults: MoveToNewGifDefaults.)
+        // The strip's old default (156, and 100 for a few hours on 2026-11-27) moves once to the new 72. A value saved
+        // with gifStripVer=2 is the person's own and stays as it is.
+        static int StripHeight(XElement xml) {
+            int value=ReadNumber(xml,"gifStripHeight",56,320,72);
+            return xml.Attribute("gifStripVer")==null && (value==156 || value==100)?72:value;
+        }
         static int ReadPreviewStep(XElement xml) {
             int value=ReadNumber(xml,"gifPreviewStep",1,2000,50);
             return value==200 && xml.Attribute("gifPreviewDefault")==null?100:value;
@@ -346,7 +352,7 @@ namespace LoveMyShelf {
                     new XAttribute("gridGif",GridGif==GifPlayback.Never?"never":GridGif==GifPlayback.Always?"always":"hover"),
                     new XAttribute("share",Share==ShareContent.CoverOnly?"cover":Share==ShareContent.OriginalOnly?"original":"both"),
                     new XAttribute("shareCovers",ShareCovers==ShareCoverKind.MovingOnly?"moving":ShareCovers==ShareCoverKind.StillOnly?"still":"both"),
-                    new XAttribute("shareLimitMB",ShareLimitMB),new XAttribute("gifStrip",GifStripSeconds),new XAttribute("gifStripHeight",GifStripHeight),
+                    new XAttribute("shareLimitMB",ShareLimitMB),new XAttribute("gifStrip",GifStripSeconds),new XAttribute("gifStripHeight",GifStripHeight),new XAttribute("gifStripVer",2),
                     new XAttribute("gifFormat",new[]{"gif","webp","mp4"}[Math.Max(0,Math.Min(2,GifFormat))]),
                     new XAttribute("gifQuality",new[]{"high","normal","small"}[Math.Max(0,Math.Min(2,GifQuality))]),
                     new XAttribute("gifFps",GifFps),new XAttribute("gifHeight",GifHeight),new XAttribute("gifSide",GifSideTenths),new XAttribute("sceneStep",SceneStepMs),new XAttribute("gifPreviewStep",GifPreviewStepMs),new XAttribute("gifPreviewDefault",100),new XAttribute("gifDefaults",2),

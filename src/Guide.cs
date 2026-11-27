@@ -1490,9 +1490,9 @@ namespace LoveMyShelf {
                 T("You can type as small as 0.001 s. The smaller it is, the longer the preview can take to make.",
                 "0.001초까지 적을 수 있어요. 간격이 작을수록 미리보기를 만드는 데 오래 걸릴 수 있어요.")};
             Typed(previewSetting,T("seconds","초"),0.001,2,0.01,1000);
-            gif.Items.Add(Numbers("gifStripHeight",T("How tall should the scene strip's pictures be?","장면 띠 그림 높이는 얼마로 할까요?"),new[]{56,100,156,240},156,
+            gif.Items.Add(Numbers("gifStripHeight",T("How tall should the scene strip's pictures be?","장면 띠 그림 높이는 얼마로 할까요?"),new[]{56,72,156,240},72,
                 p=>p.GifStripHeight,(p,v)=>p.GifStripHeight=v,v=>v.ToString(System.Globalization.CultureInfo.InvariantCulture)+" px",
-                v=>v==56?T("Smallest · the biggest preview","가장 작게 · 미리보기가 가장 커요"):v==156?T("Usual","보통"):v==240?T("Big · easier to pick the part","크게 · 구간 고르기가 쉬워요"):"",4));
+                v=>v==56?T("Smallest · the biggest preview","가장 작게 · 미리보기가 가장 커요"):v==72?T("Usual","보통"):v==240?T("Big · easier to pick the part","크게 · 구간 고르기가 쉬워요"):"",4));
             var stripSetting=(Setting)gif.Items.Last();
             stripSetting.Lines=new[]{T("In the Make GIF cover window you can also drag the line between the preview and the scene strip up or down. Double-click the line for the usual size. If the window is short, the preview keeps at least about half of it.",
                 "GIF 표지 만들기 창에서 미리보기와 장면 띠 사이의 선을 위아래로 끌어도 바뀌어요. 선을 두 번 누르면 보통 크기로 돌아가요. 창이 낮으면 미리보기가 절반쯤은 늘 남아요.")};
