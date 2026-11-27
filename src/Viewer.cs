@@ -644,6 +644,9 @@ namespace LoveMyShelf {
                     case "sharpen":
                         if(!motion || e.IsRepeat)return;
                         ToggleSharpen();break;
+                    case "autoAdjust": // =: auto adjust from the scene on screen; again, back as it was
+                        if(!motion || mpv==null || e.IsRepeat)return;
+                        ToggleAutoLook();break;
                     case "subEarlier":case "subLater":case "subReset":
                         if(!motion || mpv==null)return;
                         ShiftSubtitles(job=="subReset"?0:job=="subEarlier"?-0.5:0.5);break;
@@ -705,9 +708,9 @@ namespace LoveMyShelf {
                         // Like PotPlayer's A-B repeat: [ marks where the GIF cover's part starts, ] where it ends.
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         MarkPart(job=="partStart"?1:2);break;
-                    case "partRepeat": // \ (the won sign on a Korean keyboard), like PotPlayer: the part's repeat on and off
+                    case "partCycle": // \ (₩ on a Korean keyboard): start here, then the end (it repeats), then clear
                         if(!motion || e.IsRepeat)return;
-                        TogglePartRepeat();break;
+                        CyclePart();break;
                     case "partClear": // Backspace (2026-11-27 user: "구간 지우기는 백스페이스")
                         if(!motion || e.IsRepeat)return;
                         ClearPart();break;
@@ -892,6 +895,33 @@ namespace LoveMyShelf {
             ShowPart();
             // It plays from the start of the part and keeps repeating it.
             // The player may report the old place for a moment after the jump; LoopPart waits for it (as when it loops).
+            partRepeat=true;partInside=true;partJump.Restart();SeekTo(from);
+        }
+        // \ (2026-11-27 user: "이 키로 하고 싶은데"): the first press starts the part where the video is, the second
+        // ends it there and it repeats at once (either order, like right-clicks on the bar), the third clears it.
+        // [ and ] still set one end exactly; Backspace clears; Enter makes the GIF cover. at: for the checks.
+        internal void CyclePart(double? at=null) {
+            if(!motion || duration<=1)return;
+            double now=at??Position();
+            if(!at.HasValue && mpv!=null && !mpv.SeekPending){double exact=mpv.Position;if(!Double.IsNaN(exact))now=exact;}
+            now=Math.Max(0,Math.Min(duration,now));
+            if(PartIsHere && partStart.HasValue && partEnd.HasValue) {
+                DropPart();
+                ShowCornerNote(L.P("Part cleared","구간 지웠어요"));return;
+            }
+            if(!PartIsHere || (!partStart.HasValue && !partEnd.HasValue)) {
+                partStart=now;partEnd=null;partFile=CurrentPhoto.Original;partJump.Reset();partInside=false;
+                ShowCornerNote(L.P("Part starts at "+Stamp(now)+" · \\ again where it ends","구간 시작 "+Stamp(now)+" · 끝낼 곳에서 \\ 한 번 더"));
+                ShowPart();return;
+            }
+            double first=partStart??partEnd.Value;
+            double from=Math.Min(first,now),to=Math.Max(first,now);
+            double gap=Math.Max(50,Scenes.StepMs);
+            if(to-from<gap){ShowCornerNote(L.P("Too close to the start · press \\ a little later","시작과 너무 가까워요 · 조금 뒤에서 \\ 를 눌러 주세요"));return;}
+            if(to-from>PartLongestMs){ShowCornerNote(L.F("A GIF cover part can be up to {0} s",(int)(PartLongestMs/1000)));return;}
+            partStart=from;partEnd=to;partFile=CurrentPhoto.Original;
+            ShowCornerNote(L.P(Stamp(from)+"–"+Stamp(to)+" repeats",Stamp(from)+"~"+Stamp(to)+" 반복"));
+            ShowPart();
             partRepeat=true;partInside=true;partJump.Restart();SeekTo(from);
         }
         void ClearPart() {
@@ -1652,8 +1682,11 @@ namespace LoveMyShelf {
                 row(L.T("Move by scene"),new[]{key("D  ◀",()=>StepFrame(-1),true),key("F  ▶",()=>StepFrame(1),true)});
                 var partFrom=key("[  "+L.T("Start"),()=>{if(!holdRepeating)MarkPart(1);},true);
                 var partTo=key("]  "+L.T("End"),()=>{if(!holdRepeating)MarkPart(2);},true);
+                var partNext=key("",()=>{if(!holdRepeating)CyclePart();},true);
+                live.Add(()=>partNext.Content="\\  "+(PartIsHere && partStart.HasValue && partEnd.HasValue?L.P("Clear","지우기"):PartIsHere && (partStart.HasValue || partEnd.HasValue)?L.P("End","끝"):L.P("Start","시작")));
+                partNext.ToolTip=L.P("One key for the part: start here, then the end (it repeats), then clear.","구간을 키 하나로: 여기서 시작, 다음은 끝(바로 반복), 그다음은 지우기.");
                 var partLoop=key("",()=>{if(!holdRepeating)TogglePartRepeat();},true);
-                live.Add(()=>{partLoop.Content="\\  "+(partRepeat?L.P("Repeat ✓","반복 ✓"):L.P("Repeat","반복"));partLoop.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue;});
+                live.Add(()=>{partLoop.Content=partRepeat?L.P("Repeat ✓","반복 ✓"):L.P("Repeat","반복");partLoop.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue;});
                 partLoop.ToolTip=L.P("The part's repeat on and off. The part stays marked.","구간 반복을 켜고 꺼요. 구간 표시는 그대로예요.");
                 var partOff=key("Backspace  "+L.T("Clear"),()=>{if(!holdRepeating)ClearPart();},true);
                 partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
@@ -1662,8 +1695,8 @@ namespace LoveMyShelf {
                 quick.ToolTip=L.P("Makes a GIF cover from the part in the background, as the video looks now. Keep watching meanwhile.",
                     "구간을 지금 보이는 그대로 GIF 표지로 뒤에서 만들어요. 그동안 계속 보면 돼요.");
                 live.Add(()=>quick.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue);
-                row(L.T("GIF cover part"),new[]{partFrom,partTo,partLoop});
-                row("",new[]{partOff,quick});
+                row(L.T("GIF cover part"),new[]{partNext,partFrom,partTo});
+                row("",new[]{partLoop,partOff,quick});
                 var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();},false);
                 live.Add(()=>{
                     drawBox.IsEnabled=enlargedArea==null;
@@ -1708,7 +1741,10 @@ namespace LoveMyShelf {
                     var adjustOpen=key(L.P("Contrast · saturation · color  ▸","대비·채도·색  ▸"),OpenAdjustPanel,false);
                     adjustOpen.ToolTip=L.P("Opens a small panel at the top right of the video: brightness, contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them. Keys: R T contrast, Y U saturation, I O color temperature, Ctrl+R sharpen.",
                         "영상 오른쪽 위에 작은 패널을 열어요. 보는 동안 밝기·대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요. 키: R T 대비, Y U 채도, I O 색 온도, Ctrl+R 선명하게.");
-                    row(L.P("Adjust","보정"),new[]{adjustOpen});
+                    var autoKey=key("",()=>{if(!holdRepeating)ToggleAutoLook();},true);
+                    live.Add(()=>autoKey.Content="=  "+(CanUndoAuto?L.P("Undo","되돌리기"):L.P("Auto","자동")));
+                    autoKey.ToolTip=L.P("Auto adjust from the scene on screen, for the whole video. Press again to go back.","지금 장면을 기준으로 영상 전체를 자동 보정해요. 한 번 더 누르면 되돌려요.");
+                    row(L.P("Adjust","보정"),new[]{adjustOpen,autoKey});
                 }
             }
             row(L.T("Rotation"),new[]{undoable("",()=>Tuple.Create(turn,zoom,pan),v=>{
@@ -2335,7 +2371,7 @@ namespace LoveMyShelf {
             // ...and at its own brightness. Going back and forth between the cover and the video keeps it.
             if(items[index].Original!=brightnessFile) {
                 brightnessFile=items[index].Original;playbackBrightness=0;playbackStyle=Light.Soft;brightnessChosen=false;seekPreview.Brightness=0;
-                playbackAdjust=AdjustValues.None;adjustChosen=false;lookBeforeQ=lookAfterQ=null;ResetTimings();
+                playbackAdjust=AdjustValues.None;adjustChosen=false;lookBeforeQ=lookAfterQ=null;lookBeforeAuto=lookAfterAuto=null;ResetTimings();
             }
             if(partFile!=null && !PartIsHere)DropPart(); // a part belongs to the file it was marked in
             var current=new CancellationTokenSource();loading=current;var token=current.Token;

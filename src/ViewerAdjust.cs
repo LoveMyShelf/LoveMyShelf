@@ -29,7 +29,8 @@ namespace LoveMyShelf {
         // later): holding an arrow then bounced -1 / +1 (2026-11-27 user report).
         AdjustValues adjustKnown;
         // [Reset] and [Auto] both turn into [Undo] until something else changes (ResetToggle, the adjust session's).
-        ResetToggle adjustReset,adjustAuto;
+        ResetToggle adjustReset;
+        Button adjustAutoButton;
         // The panel's distance from the video's top-right corner (DIPs), kept between runs.
         static Vector adjustOffset=new Vector(12,12);
         static bool adjustOffsetRead;
@@ -65,17 +66,9 @@ namespace LoveMyShelf {
                 playbackBrightness=0;playbackStyle=Light.Soft;playbackAdjust=AdjustValues.None;brightnessChosen=adjustChosen=true;
                 ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;ShowAdjustValues();
             });
-            string autoTip=L.P("Looks at the scene on screen now and sets brightness and colors for the whole video, as the cover editor's Auto does. Press again to go back.",
-                "지금 화면의 장면을 보고 밝기와 색을 정해서 영상 전체에 적용해요. 표지 창의 자동 보정과 같은 계산이에요. 한 번 더 누르면 되돌려요.");
-            var auto=small(L.P("Auto","자동"),autoTip,null);DockPanel.SetDock(auto,Dock.Right);
-            adjustAuto=ResetToggle.For(auto,ReadLook,SetLook,AutoAdjust);
-            auto.Click+=delegate {
-                adjustAuto.Press();
-                // Its own words: what [Undo] brings back is the look from just before Auto.
-                if(adjustAuto.CanUndo)auto.ToolTip=L.P("Brings back the brightness and colors from just before Auto.","자동 보정 바로 전 밝기와 색으로 돌아가요.");
-                adjustReset.Changed();
-            };
-            reset.Click+=delegate {adjustAuto.Changed();};
+            // [Auto] and the = key share one state (ToggleAutoLook): pressed again, the look from just before comes back.
+            var auto=small(L.P("Auto","자동"),"",ToggleAutoLook);DockPanel.SetDock(auto,Dock.Right);
+            adjustAutoButton=auto;ShowAutoButton();
             var grip=new TextBlock {Text="⠿  "+L.P("Adjust","보정"),FontSize=13.5,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center,
                 Cursor=Cursors.SizeAll,Background=Brushes.Transparent,Padding=new Thickness(2,2,8,2),
                 ToolTip=L.P("Drag here to move the panel. It stays where you put it.","여기를 끌어 패널을 옮겨요. 놓은 자리를 기억해요.")};
@@ -171,7 +164,32 @@ namespace LoveMyShelf {
             playbackBrightness=look.Item1;playbackStyle=look.Item2;playbackAdjust=look.Item3;brightnessChosen=adjustChosen=true;
             ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;ShowAdjustValues();
         }
-        void LookChanged() {if(adjustReset!=null)adjustReset.Changed();if(adjustAuto!=null)adjustAuto.Changed();}
+        void LookChanged() {if(adjustReset!=null)adjustReset.Changed();ShowAutoButton();}
+        // = (2026-11-27 user: "자동보정 기능 좋아. 단축키 넣자"; = is free in the large view and in PotPlayer): auto adjust
+        // from the scene on screen, and = again brings back the look from just before.
+        object lookBeforeAuto,lookAfterAuto;
+        bool CanUndoAuto {get {return lookBeforeAuto!=null && Equals(ReadLook(),lookAfterAuto);}}
+        void ToggleAutoLook() {
+            if(CanUndoAuto) {
+                var back=lookBeforeAuto;lookBeforeAuto=lookAfterAuto=null;SetLook(back);
+                ShowCornerNote(L.P("Back as it was before auto adjust","자동 보정 전으로 되돌렸어요"));
+            } else {
+                var before=ReadLook();
+                AutoAdjust();
+                var after=ReadLook();
+                if(Equals(before,after))lookBeforeAuto=lookAfterAuto=null;else{lookBeforeAuto=before;lookAfterAuto=after;}
+            }
+            if(adjustReset!=null)adjustReset.Changed();
+            ShowAutoButton();
+        }
+        void ShowAutoButton() {
+            if(adjustAutoButton==null)return;
+            bool undo=CanUndoAuto;
+            adjustAutoButton.Content=undo?L.P("Undo","되돌리기"):L.P("Auto","자동");
+            adjustAutoButton.ToolTip=undo?L.P("Brings back the brightness and colors from just before Auto (=).","자동 보정 바로 전 밝기와 색으로 돌아가요 (=).")
+                :L.P("Looks at the scene on screen now and sets brightness and colors for the whole video, as the cover editor's Auto does. Press again to go back. Key: =",
+                    "지금 화면의 장면을 보고 밝기와 색을 정해서 영상 전체에 적용해요. 표지 창의 자동 보정과 같은 계산이에요. 한 번 더 누르면 되돌려요. 키: =");
+        }
         AdjustValues AdjustNow {get {var now=playbackAdjust;now.Brightness=PlaybackValue;return now;}}
         void ShowAdjustValues() {
             if(adjustLines==null)return;

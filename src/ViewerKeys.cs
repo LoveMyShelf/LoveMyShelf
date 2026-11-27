@@ -47,6 +47,7 @@ namespace LoveMyShelf {
             A("cooler","Cooler color","색 온도 차갑게",Key.I),
             A("warmer","Warmer color","색 온도 따뜻하게",Key.O),
             M("sharpen","Sharpen on / off","선명하게 켜기 / 끄기",ModifierKeys.Control,Key.R),
+            A("autoAdjust","Auto adjust from this scene (again: undo)","이 장면 기준 자동 보정 (한 번 더: 되돌리기)",Key.OemPlus),
             A("speedReset","Normal speed","원래 속도",Key.Z),
             A("slower","Slower","느리게",Key.X),
             A("faster","Faster","빠르게",Key.C),
@@ -73,7 +74,7 @@ namespace LoveMyShelf {
             A("capture","Capture this scene","지금 장면 캡처",Key.OemQuestion,Key.Divide),
             A("partStart","Start of the GIF cover part","GIF 표지 구간 시작",Key.OemOpenBrackets),
             A("partEnd","End of the GIF cover part","GIF 표지 구간 끝",Key.OemCloseBrackets),
-            A("partRepeat","Repeat the part on / off","구간 반복 켜기 / 끄기",Key.Oem5,Key.OemBackslash),
+            A("partCycle","Part: start → end (repeats) → clear","구간: 시작 → 끝(바로 반복) → 지우기",Key.Oem5,Key.OemBackslash),
             A("partClear","Clear the GIF cover part","GIF 표지 구간 지우기",Key.Back),
             A("quickGif","Make a GIF cover from the part in the background","구간을 GIF 표지로 뒤에서 바로 만들기",Key.Return),
             A("info","File information","파일 정보",Key.Tab),
@@ -130,7 +131,7 @@ namespace LoveMyShelf {
         // Jobs that happen once per press. A key passed on from another window loses "held down", so those
         // windows drop the repeats of these themselves.
         static readonly HashSet<string> once=new HashSet<string>{"play","mute","double","clearVoice","recycle","info","partStart","partEnd","partClear","capture",
-            "brightnessReset","sharpen","turn90","zoomReset","panReset","subReset","audioReset","partRepeat","quickGif","onTop","close"};
+            "brightnessReset","sharpen","autoAdjust","turn90","zoomReset","panReset","subReset","audioReset","partCycle","quickGif","onTop","close"};
         internal static bool OncePerPress(string id) {return id!=null && once.Contains(id);}
         // True when this is one of the job's first keys (what the large view has always used).
         internal static bool IsFirstKey(string id,Key key) {
