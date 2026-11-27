@@ -22,16 +22,21 @@ namespace LoveMyShelf {
         internal readonly int Color,Thickness,FillColor,Opacity,Block;
         internal bool Fill {get {return FillColor>=0;}}
         internal readonly Point[] Points;
+        internal readonly MotionTrackPath Track;
 
-        internal MotionShape(char kind,int color,int thickness,int fillColor,int opacity,int block,Point[] points) {
+        internal MotionShape(char kind,int color,int thickness,int fillColor,int opacity,int block,Point[] points,MotionTrackPath track=null) {
             Kind=kind;Color=color;Thickness=thickness;FillColor=CanFill(kind) || kind=='l'?fillColor:-1;
-            Opacity=opacity;Block=block;Points=points;
+            Opacity=opacity;Block=block;Points=points;Track=HasCorners?track:null;
         }
         internal bool HasCorners {get {return Kind=='r' || Kind=='b' || Kind=='e' || Kind=='m';}}
         internal bool IsMosaic {get {return Kind=='m';}}
         internal static bool IsPen(char kind) {return kind=='p' || kind=='h';}
         internal static bool CanFill(char kind) {return kind=='r' || kind=='b' || kind=='e' || kind=='a';}
-        internal MotionShape WithPoints(Point[] points) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,points);}
+        internal MotionShape WithPoints(Point[] points) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,points,Track);}
+        internal MotionShape WithTrack(MotionTrackPath track) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,Points,track);}
+        internal MotionShape At(double time) {return Track==null?this:WithBox(Track.At(time).Box);}
+        internal Rect Box {get {return new Rect(Points[0],Points[1]);}}
+        internal MotionShape WithBox(Rect box) {return WithPoints(new[]{box.TopLeft,box.BottomRight});}
         internal static double Clamp(double value) {return Math.Max(0,Math.Min(1,value));}
         internal static string Normalize(string value) {return Save(Read(value));}
         internal static List<MotionShape> Read(string value) {
@@ -42,6 +47,11 @@ namespace LoveMyShelf {
             int mosaics=0;
             for(int i=1;i<entries.Length && shapes.Count<MaxShapes;i++) {
                 var fields=entries[i].Split(',');
+                MotionTrackPath track=null;
+                if(fields.Length==9 && fields[8].StartsWith("@",StringComparison.Ordinal)) {
+                    track=MotionTrackPath.Read(fields[8].Substring(1));
+                    Array.Resize(ref fields,8);
+                }
                 if(fields.Length<8 || fields.Length%2!=0 || fields[0].Length!=1)continue;
                 char kind=fields[0][0];
                 if(Kinds.IndexOf(kind)<0 || (!IsPen(kind) && fields.Length!=8))continue;
@@ -66,12 +76,12 @@ namespace LoveMyShelf {
                     points.Add(new Point(Clamp(x),Clamp(y)));
                 }
                 if(points.Count!=count)continue;
-                shapes.Add(new MotionShape(kind,color,thickness,fill,opacity,block,count>MaxPoints?Simplify(points):points.ToArray()));
+                shapes.Add(new MotionShape(kind,color,thickness,fill,opacity,block,count>MaxPoints?Simplify(points):points.ToArray(),track));
                 if(kind=='m')mosaics++;
             }
             return shapes;
         }
-        static bool Number(string text,out double value) {
+        internal static bool Number(string text,out double value) {
             return Double.TryParse(text,NumberStyles.Float,Invariant,out value) && !Double.IsNaN(value) && !Double.IsInfinity(value);
         }
         internal static string Save(List<MotionShape> shapes) {
@@ -86,6 +96,7 @@ namespace LoveMyShelf {
                 foreach(var point in shape.Points)
                     text.Append(',').Append(Clamp(point.X).ToString("0.####",Invariant))
                         .Append(',').Append(Clamp(point.Y).ToString("0.####",Invariant));
+                if(shape.Track!=null)shape.Track.Write(text);
             }
             return text.ToString();
         }
@@ -176,8 +187,10 @@ namespace LoveMyShelf {
         }
 
         internal static string AppendMosaics(StringBuilder graph,string current,string value,int width,int height,bool keepAlpha) {
-            int number=0;
-            foreach(var shape in MotionShape.Read(value).Where(shape=>shape.IsMosaic)) {
+            return AppendMosaics(graph,current,MotionShape.Read(value),width,height,keepAlpha,0);
+        }
+        internal static string AppendMosaics(StringBuilder graph,string current,IEnumerable<MotionShape> shapes,int width,int height,bool keepAlpha,int number) {
+            foreach(var shape in shapes.Where(shape=>shape.IsMosaic)) {
                 var box=MosaicBounds(shape,width,height);
                 if(box.IsEmpty)continue;
                 string id=(++number).ToString(CultureInfo.InvariantCulture);
@@ -191,7 +204,9 @@ namespace LoveMyShelf {
         }
 
         internal static BitmapSource Apply(BitmapSource picture,string value) {
-            var shapes=MotionShape.Read(value);
+            return Apply(picture,MotionShape.Read(value));
+        }
+        internal static BitmapSource Apply(BitmapSource picture,IList<MotionShape> shapes) {
             if(shapes.Count==0)return picture;
             picture=ApplyMosaics(picture,shapes);
             int w=picture.PixelWidth,h=picture.PixelHeight;
@@ -261,30 +276,36 @@ namespace LoveMyShelf {
         internal static string WritePng(string value,int width,int height,string folder) {
             var shapes=MotionShape.Read(value).Where(shape=>!shape.IsMosaic).ToList();
             if(shapes.Count==0)return null;
-            string path=Path.Combine(folder,"shapes.png");
+            return WritePng(shapes,width,height,folder,"shapes.png",width,height);
+        }
+
+        internal static string WritePng(IEnumerable<MotionShape> shapes,int width,int height,string folder,string name,
+            int bitmapWidth,int bitmapHeight) {
+            string path=Path.Combine(folder,name);
             Action write=()=>{
                 Directory.CreateDirectory(folder);
                 var visual=new DrawingVisual();
                 using(var dc=visual.RenderOpen())
                     foreach(var shape in shapes)Render(dc,shape,width,height);
-                var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+                var bitmap=new RenderTargetBitmap(bitmapWidth,bitmapHeight,96,96,PixelFormats.Pbgra32);
                 bitmap.Render(visual);
                 var straight=new FormatConvertedBitmap(bitmap,PixelFormats.Bgra32,null,0);
                 var png=new PngBitmapEncoder();
                 png.Frames.Add(BitmapFrame.Create(straight));
                 using(var stream=File.Create(path))png.Save(stream);
             };
-            if(Thread.CurrentThread.GetApartmentState()==ApartmentState.STA)write();
-            else {
-                ExceptionDispatchInfo failure=null;
-                var thread=new Thread(()=>{
-                    try {write();} catch(Exception ex) {failure=ExceptionDispatchInfo.Capture(ex);}
-                }) {IsBackground=true};
-                thread.SetApartmentState(ApartmentState.STA);
-                thread.Start();thread.Join();
-                if(failure!=null)failure.Throw();
-            }
+            RunSta(write);
             return path;
+        }
+        internal static void RunSta(Action work) {
+            if(Thread.CurrentThread.GetApartmentState()==ApartmentState.STA){work();return;}
+            ExceptionDispatchInfo failure=null;
+            var thread=new Thread(()=>{
+                try {work();} catch(Exception ex) {failure=ExceptionDispatchInfo.Capture(ex);}
+            }) {IsBackground=true};
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();thread.Join();
+            if(failure!=null)failure.Throw();
         }
     }
 
@@ -363,7 +384,7 @@ namespace LoveMyShelf {
         internal double ControlsHeight {set {scroller.MaxHeight=Math.Max(0,value);}}
         readonly ScrollViewer scroller;
 
-        internal MotionDrawPanel(MotionDrawLayer layer) {
+        internal MotionDrawPanel(MotionDrawLayer layer,FrameworkElement tracking=null) {
             this.layer=layer;
             opener=UI.Btn("",Toggle);
             opener.HorizontalAlignment=HorizontalAlignment.Left;opener.Margin=new Thickness(0,2,0,2);
@@ -410,6 +431,7 @@ namespace LoveMyShelf {
                 button.Margin=new Thickness(0,0,5,4);actions.Children.Add(button);
             }
             body.Children.Add(actions);
+            if(tracking!=null)body.Children.Add(tracking);
             body.IsVisibleChanged+=delegate {layer.SetActive(IsEditing);if(VisibilityChanged!=null)VisibilityChanged();};
             layer.Updated+=Sync;
             ShowOpener(DrawPreferences.Last.Open);Sync();
@@ -489,7 +511,34 @@ namespace LoveMyShelf {
         bool active,onlySelection,dragging,drawing;
         double pixelHeight=1000;
         Point start,anchor;
-        MotionShape pending;
+        MotionShape pending,dragShape;
+        double sceneTime;
+        int trackCount;
+        internal Func<double> FixedSceneTime;
+        internal event Action BeforePointer,PointerStarted,TrackLimit;
+        internal MotionShape SelectedShape {get {return HasSelection?shapes[selected]:null;}}
+        internal bool HasTracks {get {return trackCount!=0;}}
+        internal IEnumerable<MotionTrackPath> Tracks {get {return shapes.Where(shape=>shape.Track!=null).Select(shape=>shape.Track);}}
+
+        internal void SetSceneTime(double time) {
+            if(sceneTime==time)return;
+            sceneTime=time;
+            if(HasTracks)InvalidateVisual();
+        }
+        internal bool ReplaceShape(MotionShape old,MotionShape replacement) {
+            int index=shapes.IndexOf(old);
+            if(index<0)return false;
+            CancelDrag();Remember();shapes[index]=replacement;SaveChange();
+            return true;
+        }
+        internal void TransformTracks(Func<MotionTrackPath,MotionTrackPath> transform) {
+            TransformTracks(shapes,transform);
+            foreach(var edit in undo.Concat(redo))TransformTracks(edit.Shapes,transform);
+            SaveValue();Update();
+        }
+        static void TransformTracks(List<MotionShape> list,Func<MotionTrackPath,MotionTrackPath> transform) {
+            for(int i=0;i<list.Count;i++)if(list[i].Track!=null)list[i]=list[i].WithTrack(transform(list[i].Track));
+        }
         internal char Tool {get;private set;}
         internal Func<BitmapSource> MosaicPicture;
         char Kind {get {return HasSelection?shapes[selected].Kind:Tool;}}
@@ -518,7 +567,7 @@ namespace LoveMyShelf {
         }
         internal void Load(string value) {
             CancelDrag();selected=-1;undo.Clear();redo.Clear();
-            shapes=MotionShape.Read(value);Value=MotionShape.Save(shapes);Update();
+            shapes=MotionShape.Read(value);SaveValue();Update();
         }
         internal void SelectTool(char kind) {
             CancelDrag();selected=-1;Tool=Defaults.Tool=kind;Defaults.Save();Update();
@@ -537,8 +586,12 @@ namespace LoveMyShelf {
             InvalidateVisual();
             if(Updated!=null)Updated();
         }
-        void SaveChange() {
+        void SaveValue() {
             Value=MotionShape.Save(shapes);
+            trackCount=shapes.Count(shape=>shape.Track!=null);
+        }
+        void SaveChange() {
+            SaveValue();
             Update();
             if(Changed!=null)Changed();
         }
@@ -595,7 +648,7 @@ namespace LoveMyShelf {
             if(HasSelection) {
                 var shape=shapes[selected];
                 var next=new MotionShape(shape.Kind,rgb??shape.Color,width??shape.Thickness,fill??shape.FillColor,
-                    opacity??shape.Opacity,block??shape.Block,shape.Points);
+                    opacity??shape.Opacity,block??shape.Block,shape.Points,shape.Track);
                 if(next.Color!=shape.Color || next.Thickness!=shape.Thickness || next.FillColor!=shape.FillColor ||
                     next.Opacity!=shape.Opacity || next.Block!=shape.Block) {
                     CancelDrag();Remember();shapes[selected]=next;SaveChange();return;
@@ -634,7 +687,7 @@ namespace LoveMyShelf {
             // Give the layer hit-test bounds even before the first shape exists.
             if(active)dc.DrawRectangle(Brushes.Transparent,null,new Rect(0,0,ActualWidth,ActualHeight));
             if(!onlySelection) {
-                var current=new List<MotionShape>(shapes);
+                var current=shapes.ConvertAll(shape=>shape.At(sceneTime));
                 if(pending!=null) {
                     if(drawing)current.Add(pending);
                     else current[selected]=pending;
@@ -650,12 +703,27 @@ namespace LoveMyShelf {
                 foreach(var shape in current)MotionDraw.Render(dc,shape,width,pixelHeight);
                 dc.Pop();
             }
-            var outlined=pending??(HasSelection?shapes[selected]:null);
+            if(HasTracks) {
+                var lostPen=MotionDraw.Stroke(Brushes.Red,2);
+                lostPen.DashStyle=DashStyles.Dash;
+                for(int i=0;i<shapes.Count;i++) {
+                    var shape=shapes[i];
+                    if(i==selected && (pending!=null || active) || shape.Track==null)continue;
+                    var key=shape.Track.At(sceneTime);
+                    if(key.Lost)dc.DrawGeometry(null,lostPen,ScreenGeometry(shape.WithBox(key.Box)));
+                }
+            }
+            var outlined=pending??(HasSelection?shapes[selected].At(sceneTime):null);
             if(!active || outlined==null)return;
             var geometry=ScreenGeometry(outlined);
             dc.DrawGeometry(null,MotionDraw.Stroke(Brushes.Black,2.5),geometry);
             var dash=MotionDraw.Stroke(Brushes.White,1);dash.DashStyle=DashStyles.Dash;
-            dc.DrawGeometry(null,dash,geometry);
+            if(!HasSelection || pending!=null || shapes[selected].Track==null || !shapes[selected].Track.At(sceneTime).Lost)
+                dc.DrawGeometry(null,dash,geometry);
+            else {
+                var red=MotionDraw.Stroke(Brushes.Red,2);red.DashStyle=DashStyles.Dash;
+                dc.DrawGeometry(null,red,geometry);
+            }
             if(drawing && pending!=null)return;
             foreach(var point in Handles(outlined)) {
                 Point at=ToScreen(point);
@@ -668,25 +736,28 @@ namespace LoveMyShelf {
         }
         int ShapeAt(Point p) {
             for(int i=shapes.Count-1;i>=0;i--) {
-                var shape=shapes[i];var geometry=ScreenGeometry(shape);
+                var shape=shapes[i].At(sceneTime);var geometry=ScreenGeometry(shape);
                 var hit=MotionDraw.Stroke(Brushes.Transparent,MotionDraw.Pixels(shape,pixelHeight)*Scale+12);
                 if(!shape.IsMosaic && ((shape.Fill && geometry.FillContains(p)) || geometry.StrokeContains(hit,p)))return i;
             }
             for(int i=shapes.Count-1;i>=0;i--)
-                if(shapes[i].IsMosaic && ScreenGeometry(shapes[i]).FillContains(p))return i;
+                if(shapes[i].IsMosaic && ScreenGeometry(shapes[i].At(sceneTime)).FillContains(p))return i;
             return -1;
         }
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
             if(!active)return;
             Focus();
+            if(BeforePointer!=null)BeforePointer();
             start=e.GetPosition(this);anchor=ToPicture(start);handle=-1;
             if(HasSelection) {
-                var handles=Handles(shapes[selected]);
+                var handles=Handles(shapes[selected].At(sceneTime));
                 for(int i=0;i<handles.Length;i++)
                     if((ToScreen(handles[i])-start).Length<=HandleRadius+3){handle=i;break;}
             }
             if(handle<0)selected=ShapeAt(start);
             drawing=!HasSelection;
+            dragShape=drawing?null:shapes[selected].At(sceneTime);
+            if(PointerStarted!=null)PointerStarted();
             dragging=(!drawing || (shapes.Count<MotionShape.MaxShapes &&
                 (Tool!='m' || shapes.Count(shape=>shape.IsMosaic)<MotionShape.MaxMosaics))) && CaptureMouse();
             Update();e.Handled=true;
@@ -711,7 +782,7 @@ namespace LoveMyShelf {
                 pending=new MotionShape(Tool,Defaults.Color,DefaultThickness,MotionShape.CanFill(Tool)?Defaults.Fill:-1,DefaultOpacity,Defaults.Block,
                     MotionShape.IsPen(Tool)?points.ToArray():new[]{anchor,Constrain(Tool,anchor,p)});
             } else {
-                var original=shapes[selected];
+                var original=dragShape;
                 Point[] moved=handle>=0?Resize(original,p):Move(original,mouse-start);
                 pending=original.WithPoints(moved);
             }
@@ -771,7 +842,13 @@ namespace LoveMyShelf {
             if(final==null){InvalidateVisual();return;}
             var rounded=Array.ConvertAll(final.Points,p=>new Point(Math.Round(MotionShape.Clamp(p.X),4),Math.Round(MotionShape.Clamp(p.Y),4)));
             final=final.WithPoints(rounded);
-            if(!drawing && final.Points.SequenceEqual(shapes[selected].Points)){InvalidateVisual();return;}
+            if(!drawing && final.Points.SequenceEqual(dragShape.Points)){InvalidateVisual();return;}
+            if(!drawing && final.Track!=null && FixedSceneTime!=null) {
+                if(final.Box.Width<=0 || final.Box.Height<=0){InvalidateVisual();return;}
+                var corrected=final.Track.Correct(FixedSceneTime(),final.Box);
+                if(corrected==null){if(TrackLimit!=null)TrackLimit();InvalidateVisual();return;}
+                final=shapes[selected].WithTrack(corrected);
+            }
             Remember();
             if(drawing){selected=shapes.Count;shapes.Add(final);}
             else shapes[selected]=final;

@@ -129,8 +129,9 @@ namespace LoveMyShelf {
             throw new FileNotFoundException(name+L.T(".exe was not found. The LoveMyShelf folder needs its tools folder. Unzip the downloaded ZIP file again from the start."));
         }
         internal static string Quote(string path) {return "\""+path+"\"";}
-        internal static Process Run(string name,string arguments) {
-            var setup=new ProcessStartInfo(Tool(name),arguments) {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
+        internal static Process Run(string name,string arguments,bool writeInput=false) {
+            var setup=new ProcessStartInfo(Tool(name),arguments) {UseShellExecute=false,CreateNoWindow=true,
+                RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=writeInput};
             var p=Process.Start(setup);p.BeginErrorReadLine();return p;
         }
         // Pictures FFmpeg writes as BMPs to its output, for thumbnails and previews.

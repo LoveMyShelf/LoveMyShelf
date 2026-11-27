@@ -156,7 +156,7 @@ namespace LoveMyShelf {
     // Make GIF: a strip of scenes around the cover to drag a start and an end on, start and end times that can be
     // nudged, speed and play style, and a preview that is the real file: it is made in the background with every
     // choice, so the preview, the size shown and the saved file are the same (and Make just moves it into place).
-    internal sealed class MotionWindow : Window {
+    internal sealed partial class MotionWindow : Window {
         internal MotionRequest Value {get;private set;}
         // Set from Guide & Options → GIF covers: how many seconds the strip shows at first.
         internal static int StripSeconds=4;
@@ -769,10 +769,13 @@ namespace LoveMyShelf {
             textStyle.Changed+=delegate {UpdatePreviewLook();Changed();};
             textStyle.Margin=new Thickness(0,0,0,6);
             drawLayer.Load(saved!=null?saved.Shapes:null);
-            drawLayer.Changed+=Changed;
+            drawLayer.Changed+=DrawingsChanged;
             drawLayer.Editing+=delegate {if(showingOwn)ShowDraft();};
-            drawPanel=new MotionDrawPanel(drawLayer);
-            drawPanel.VisibilityChanged+=delegate {textMark.IsHitTestVisible=!drawPanel.IsEditing;};
+            drawPanel=new MotionDrawPanel(drawLayer,TrackingControls());
+            drawPanel.VisibilityChanged+=delegate {
+                textMark.IsHitTestVisible=!drawPanel.IsEditing;
+                DrawingPanelOpenedOrClosed();
+            };
             drawPanel.OpenChanged+=delegate {PlaceDrawOptions();Fit();};
             var styles=new StackPanel();
             styles.Children.Add(textStyle);styles.Children.Add(drawPanel);styleField=styles;
@@ -1041,6 +1044,7 @@ namespace LoveMyShelf {
         // Where the preview is in the original, as a dot under the chosen part.
         void ShowPlayMark(int index) {
             playAt=timeline!=null && index>=0 && index<timeline.Length?timeline[index]:Double.NaN;
+            ShowTrackedScene();
             PlacePlayMark();
         }
         void PlacePlayMark() {
@@ -1217,6 +1221,7 @@ namespace LoveMyShelf {
         // scene the start, after it the end (a cover scene outside the part: the nearer end).
         internal bool DoubleClickStrip(double x) {
             int which=x<X(start)?1:x>X(end)?2:0;
+            if(which==0 && drawPanel.IsEditing && drawLayer.HasTracks && SeekDrawingScene(Ms(x)))return true;
             if(which==0) {
                 double at=Ms(x),moment=source.Moment;
                 if(moment>start && moment<end)which=at<moment?1:2;
@@ -1297,7 +1302,9 @@ namespace LoveMyShelf {
         void PlaceHandle(int which,double ms) {
             double gap=Math.Max(30,Scenes.StepMs);
             double at=Clamp(Scenes.Snap(ms,source.Moment));
+            double old=which==1?start:end;
             if(which==1)start=Math.Max(0,Math.Min(at,end-gap));else end=Clamp(Math.Max(at,start+gap));
+            if(old!=(which==1?start:end) && trackWork!=null){CancelTracking();UpdateLostStatus();SetStatus();}
         }
 
         // "Start ‹ 0:58.20 ›": clicking the chip picks which handle the arrow keys move.
@@ -1395,6 +1402,7 @@ namespace LoveMyShelf {
             return preparedFile!=null && preparedKey==MotionMaker.Key(source,request) && File.Exists(preparedFile);
         }
         void Finish() {
+            if(trackWork!=null)return;
             ApplyNumber(fps,true);ApplyNumber(height,false);
             var request=Read(false);var output=Read();
             if(request.FpsOriginal)request.Fps=output.Fps;
@@ -1485,7 +1493,7 @@ namespace LoveMyShelf {
         void SetStatus() {
             bool making=preparing>=0;
             // While the preview plays nothing sits on it: the card (or the line in a narrow window) already says it is the preview.
-            string text=problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):held?L.T("Paused · click to play"):null;
+            string text=trackingStatus??(problem!=null?problem:making && !draftOn?L.F("Making the real file · {0}%",(int)Math.Floor(preparing*100)):held?L.T("Paused · click to play"):null);
             status.Text=text??"";
             statusPill.Visibility=text==null?Visibility.Collapsed:Visibility.Visible;
             UpdateGuide();
@@ -1547,7 +1555,7 @@ namespace LoveMyShelf {
         }
         internal string GuideText {get {return guideTitle.Text+"|"+guideProgress.Text;}}
         // [See how the real file looks]: makes the real file now, for someone who has it made only when asked.
-        void RealNow() {prepareSoon.Stop();Prepare();}
+        void RealNow() {if(trackWork==null){prepareSoon.Stop();Prepare(true);}}
         internal void TogglePause() {
             held=!held;player.Hold=held;SetStatus();
         }
@@ -1555,6 +1563,7 @@ namespace LoveMyShelf {
         internal string PreparedFile {get {return preparedFile;}}
         internal int PreviewFrames {get {return timeline!=null?timeline.Length:0;}}
         void SchedulePrepare() {
+            UpdateTrackingPart();
             prepareSoon.Stop();
             // A real file being made for the old choices is out of date now.
             if(prepareWork!=null)prepareWork.Cancel();
@@ -1581,15 +1590,16 @@ namespace LoveMyShelf {
                 if(play) {
                     await Task.Run(()=>scenes.Fill(from,to,work.Token,true),work.Token);
                     if(work.IsCancellationRequested)return;
-                    var list=scenes.Scenes(from,to);
+                    double[] sourceTimes;
+                    var list=scenes.Scenes(from,to,out sourceTimes);
                     double rowsTop,rowsBottom;
                     if(CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out rowsTop,out rowsBottom))
                         list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom,source.Aspect));
                     if(list.Count>0) {
                         var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.PartStep(from,to)/request.Speed)),request);
-                        timeline=Timeline(request,frames.Images.Length);
-                        player.Start(frames);player.Hold=held;
-                        draftOn=true;showingOwn=false;UpdatePreviewLook();SetStatus();
+                        drawingFrames=frames;drawingTimeline=OrderTimes(request,sourceTimes);
+                        StartDraft(frames,drawingTimeline,held && drawLayer.HasTracks?playAt:Double.NaN);
+                        SetStatus();
                     }
                     draftOwed=false;
                     Layout();
@@ -1608,9 +1618,10 @@ namespace LoveMyShelf {
         }
         // Makes the real file in the background. Until it's done the last preview keeps playing (or, the first
         // time, the frames show as they're made); then the file's own frames play and its exact size is shown.
-        async void Prepare() {
+        async void Prepare(bool showReal=false) {
             prepareSoon.Stop();
-            if(lifetime.IsCancellationRequested || !IsLoaded)return;
+            if(lifetime.IsCancellationRequested || !IsLoaded || trackWork!=null)return;
+            if(drawLayer.HasTracks && drawPanel.IsEditing && !showReal)return;
             var request=Read();
             string key=MotionMaker.Key(source,request);
             if(key==preparedKey && preparedFile!=null && File.Exists(preparedFile)) {
@@ -1649,7 +1660,8 @@ namespace LoveMyShelf {
                 preparedFrames=own?frames.Images.Length:-1;
                 preparedSeconds=0;foreach(int delay in frames.Delays)preparedSeconds+=delay/1000.0;
                 if(old!=null && old!=file){MotionMaker.DeleteLater(old);previewFiles.Remove(old);}
-                timeline=Timeline(request,frames.Images.Length);
+                timeline=drawLayer.HasTracks?EncodedTimeline(request,result,frames,own,madeRate,made.Count):
+                    Timeline(request,frames.Images.Length);
                 preparedPlay=frames;preparedTimeline=timeline;
                 player.Start(frames);player.Hold=held;
                 preparedOwn=own;showingOwn=own;UpdatePreviewLook();
@@ -1739,6 +1751,7 @@ namespace LoveMyShelf {
     internal sealed class MotionFrames {
         public BitmapSource[] Images;
         public int[] Delays;
+        internal double[] Timestamps;
         long Bytes;
         sealed class Entry {public string Key;public MotionFrames Frames;}
         static readonly LinkedList<Entry> cache=new LinkedList<Entry>();
@@ -1784,12 +1797,13 @@ namespace LoveMyShelf {
             var frames=new MotionFrames();
             using(var file=new AnimationFrames(path,token)) {
                 int count=Math.Min(MaxFrames,file.Count);
-                frames.Images=new BitmapSource[count];frames.Delays=new int[count];
+                frames.Images=new BitmapSource[count];frames.Delays=new int[count];frames.Timestamps=new double[count];
                 for(int i=0;i<count;i++) {
                     token.ThrowIfCancellationRequested();
                     frames.Images[i]=file.Read(i,maxSide);
                     double end=i+1<file.Times.Count?file.Times.Start(i+1):file.Times.Duration;
-                    frames.Delays[i]=Math.Max(20,(int)Math.Round(end-file.Times.Start(i)));
+                    frames.Timestamps[i]=file.Times.Start(i);
+                    frames.Delays[i]=Math.Max(20,(int)Math.Round(end-frames.Timestamps[i]));
                     frames.Bytes+=(long)frames.Images[i].PixelWidth*frames.Images[i].PixelHeight*4;
                 }
             }
@@ -1899,10 +1913,11 @@ namespace LoveMyShelf {
             if(Shown!=null)Shown(index);
         }
         internal bool Playing {get {return frames!=null;}}
-        internal void Start(MotionFrames value) {
+        internal void Seek(int index) {if(frames!=null && index>=0 && index<frames.Images.Length)Show(index);}
+        internal void Start(MotionFrames value,int index=0) {
             if(value==null || value.Images.Length==0)return;
             if(frames==null)still=target.Source;
-            frames=value;Show(0);timer.Start();
+            frames=value;Show(index);timer.Start();
         }
         internal void Stop() {
             timer.Stop();
@@ -2017,10 +2032,15 @@ namespace LoveMyShelf {
             lock(gate)return scenes.TryGetValue(slot,out scene)?scene:null;
         }
         // The scenes of the part, in time order.
-        internal List<BitmapSource> Scenes(double from,double to) {
+        internal List<BitmapSource> Scenes(double from,double to,out double[] times) {
             long first=First(from),last=Math.Max(first,Last(to)),stride=Stride(first,last);
             var list=new List<BitmapSource>();
-            lock(gate)for(long slot=Align(first,stride);slot<=last;slot+=stride){BitmapSource scene;if(scenes.TryGetValue(slot,out scene))list.Add(scene);}
+            var shown=new List<double>();
+            lock(gate)for(long slot=Align(first,stride);slot<=last;slot+=stride) {
+                BitmapSource scene;
+                if(scenes.TryGetValue(slot,out scene)){list.Add(scene);shown.Add(slot*(double)Step);}
+            }
+            times=shown.ToArray();
             return list;
         }
     }
@@ -2030,11 +2050,12 @@ namespace LoveMyShelf {
         public string File;
         public double Before,After;
         public int Width,Height;
+        internal int Fps,Forward;
         // Made smaller to stay under the size asked for (and whether it still didn't fit).
         public bool Shrunk,Over;
     }
 
-    internal static class MotionMaker {
+    internal static partial class MotionMaker {
         // Videos go straight to FFmpeg. GIF and WebP frames are read by Windows (FFmpeg can't read
         // animated WebP) and handed to FFmpeg through a temporary file.
         internal static bool Supports(string path) {return AnimationFrames.Supports(path);}
@@ -2213,7 +2234,7 @@ namespace LoveMyShelf {
         internal static MotionResult Encode(MotionSource source,MotionRequest request,string part,CancellationToken token,
             Action<double> progress=null,Action<BitmapSource,int> copies=null,int copyHeight=0) {
             request=ResolveOutput(source,request,token);
-            var result=new MotionResult();
+            var result=new MotionResult {Fps=request.Fps};
             if(VideoFrames.Supports(source.Path))FromVideo(source,request,part,result,token,progress,copies,copyHeight);
             else FromAnimation(source,request,part,result,token,progress,copies,copyHeight);
             if(!File.Exists(part) || new FileInfo(part).Length==0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
@@ -2232,7 +2253,7 @@ namespace LoveMyShelf {
                         else if(smaller.Fps>5)smaller.Fps=Math.Max(5,(int)Math.Floor(smaller.Fps*ratio*ratio));
                         else break;
                     }
-                    var again=new MotionResult();
+                    var again=new MotionResult {Fps=smaller.Fps};
                     if(progress!=null)progress(0);
                     if(VideoFrames.Supports(source.Path))FromVideo(source,smaller,part,again,token,progress,null,0);
                     else FromAnimation(source,smaller,part,again,token,progress,null,0);
@@ -2292,11 +2313,11 @@ namespace LoveMyShelf {
             int outW,outH;
             string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,true,out outW,out outH);
             result.Width=outW;result.Height=outH;
-            int forward=Math.Max(1,(int)Math.Round((end-start)/1000/Math.Max(0.1,request.Speed)*request.Fps,MidpointRounding.AwayFromZero));
+            int forward=result.Forward=Math.Max(1,(int)Math.Round((end-start)/1000/Math.Max(0.1,request.Speed)*request.Fps,MidpointRounding.AwayFromZero));
             // -t before -i makes FFmpeg stop reading at the end of the part. Given after -i, the GIF palette step
             // waited for the end of the whole video (a 3-second GIF from a long 4K video took minutes).
-            string input=(start>0?"-ss "+VideoFrames.Seconds(start)+" ":"")+"-t "+N((end-start)/1000)+" -i "+VideoFrames.Quote(original)+" ";
-            Run(input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight,request.WithSound);
+            string input=VideoPartInput(original,start,end);
+            result.Forward=Run(input,chain,request,forward,outW,outH,part,token,progress,0,1,copies,copyHeight,request.WithSound);
         }
 
         // Samples the GIF/WebP at the chosen frame rate (and speed) into a temporary raw file for FFmpeg.
@@ -2305,71 +2326,96 @@ namespace LoveMyShelf {
             Action<double> progress,Action<BitmapSource,int> copies,int copyHeight) {
             string raw=part+".raw";
             try {
-                int width,height,written=0;
-                using(var file=new AnimationFrames(source.Path,token)) {
-                    double duration=file.Times.Duration;
-                    double each=1000.0*Math.Max(0.1,request.Speed)/request.Fps;
-                    double start=Math.Max(0,source.Moment-request.Before*1000);
-                    double end=Math.Min(duration,source.Moment+request.After*1000);
-                    if(end-start<1)end=Math.Min(duration,start+each);
-                    result.Before=(source.Moment-start)/1000;result.After=Math.Max(0,end-source.Moment)/1000;
-                    var first=Bgra(file.Read(0,0));
-                    width=first.PixelWidth;height=first.PixelHeight;
-                    int stride=width*4;
-                    var pixels=new byte[stride*height];
-                    int shown=-1,total=Math.Max(1,(int)Math.Ceiling((end-start-0.001)/each));
-                    using(var output=File.Create(raw)) {
-                        for(double t=start;t<end-0.001;t+=each) {
-                            token.ThrowIfCancellationRequested();
-                            int index=Math.Min(file.Count-1,file.Times.At(t));
-                            if(index!=shown) {
-                                var frame=Bgra(file.Read(index,0));
-                                if(frame.PixelWidth!=width || frame.PixelHeight!=height)throw new InvalidDataException(L.T("The video scene is in a format that can't be read."));
-                                frame.CopyPixels(pixels,stride,0);shown=index;
-                            }
-                            output.Write(pixels,0,pixels.Length);
-                            written++;
-                            if(progress!=null)progress(0.4*Math.Min(1,written/(double)total));
-                        }
-                    }
-                }
+                int width,height;
+                int written=WriteAnimationPart(source,request,raw,result,token,progress,out width,out height);
                 int outW,outH;
                 string chain=Filters(source.Crop,source.Rotation,source.Brightness,width,height,request,false,out outW,out outH);
                 result.Width=outW;result.Height=outH;
-                string input="-f rawvideo -pix_fmt bgra -s "+width+"x"+height+" -framerate "+request.Fps+" -i "+VideoFrames.Quote(raw)+" ";
-                Run(input,chain,request,Math.Max(1,written),outW,outH,part,token,progress,0.4,0.6,copies,copyHeight);
+                string input=AnimationPartInput(raw,request.Fps,width,height);
+                result.Forward=Math.Max(1,written);
+                result.Forward=Run(input,chain,request,result.Forward,outW,outH,part,token,progress,0.4,0.6,copies,copyHeight);
             } finally {File.Delete(raw);}
         }
 
-        // One FFmpeg run: the cover's look, then the play style, then the file type's own steps.
+        static int WriteAnimationPart(MotionSource source,MotionRequest request,string raw,MotionResult result,
+            CancellationToken token,Action<double> progress,out int width,out int height) {
+            int written=0;
+            using(var file=new AnimationFrames(source.Path,token)) {
+                double duration=file.Times.Duration;
+                double each=1000.0*Math.Max(0.1,request.Speed)/request.Fps;
+                double start=Math.Max(0,source.Moment-request.Before*1000);
+                double end=Math.Min(duration,source.Moment+request.After*1000);
+                if(end-start<1)end=Math.Min(duration,start+each);
+                result.Before=(source.Moment-start)/1000;result.After=Math.Max(0,end-source.Moment)/1000;
+                var first=Bgra(file.Read(0,0));
+                width=first.PixelWidth;height=first.PixelHeight;
+                int stride=width*4;
+                var pixels=new byte[stride*height];
+                int shown=-1,total=Math.Max(1,(int)Math.Ceiling((end-start-0.001)/each));
+                using(var output=File.Create(raw)) {
+                    for(double t=start;t<end-0.001;t+=each) {
+                        token.ThrowIfCancellationRequested();
+                        int index=Math.Min(file.Count-1,file.Times.At(t));
+                        if(index!=shown) {
+                            var frame=Bgra(file.Read(index,0));
+                            if(frame.PixelWidth!=width || frame.PixelHeight!=height)throw new InvalidDataException(L.T("The video scene is in a format that can't be read."));
+                            frame.CopyPixels(pixels,stride,0);shown=index;
+                        }
+                        output.Write(pixels,0,pixels.Length);
+                        written++;
+                        if(progress!=null)progress(0.4*Math.Min(1,written/(double)total));
+                    }
+                }
+            }
+            return written;
+        }
+
+        // Compose the cover's look, then the play style, then the file type's own steps.
         // GIF: a palette made from all frames, applied with the chosen dithering (sierra for High is smoothest;
         // bayer is lighter; Smaller uses 128 colors). Very long GIFs make the palette in a first pass instead of
         // holding every frame in memory.
-        static void Run(string input,string chain,MotionRequest request,int forward,int outW,int outH,string part,CancellationToken token,
+        static int Run(string input,string chain,MotionRequest request,int forward,int outW,int outH,string part,CancellationToken token,
             Action<double> progress,double progressFrom,double progressSpan,Action<BitmapSource,int> copies,int copyHeight,bool sound=false) {
-            bool bounce=request.Loop=="bounce" && forward>=3,reverse=request.Loop=="reverse";
             bool gif=request.Format=="gif";
-            long held=(long)outW*outH*3*forward*(bounce?2:1);
             string palette=null,work=MotionLook.WorkFolder(part);
             try {
                 string flips=MotionLook.Flips(request);
                 string dress=MotionLook.Dress(request,outH,work);
                 token.ThrowIfCancellationRequested();
-                string shapes=MotionDraw.WritePng(request.Shapes,outW,outH,work);
+                var drawings=MotionShape.Read(request.Shapes);
+                bool variable=drawings.Exists(shape=>shape.Track!=null && MotionTrackExport.Variable(shape.Track));
+                var tracked=!variable && drawings.Exists(shape=>shape.Track!=null)?new MotionTrackExport(drawings,request,outW,outH,work,token):null;
+                string shapes=tracked==null && !variable?MotionDraw.WritePng(request.Shapes,outW,outH,work):null;
+                if(tracked!=null)chain+=",setpts=N"; // fps or raw input already established a 1/fps time base.
                 token.ThrowIfCancellationRequested();
-                // The primary input stays at 0. The optional PNG is next, and the palette is appended only for pass two.
-                int nextInput=1,shapesInput=-1;
+                // The original stays at input 0 (also the audio source). The palette is always the last input.
+                int pictureInput=0,nextInput=1,shapesInput=-1;
+                if(variable) {
+                    Directory.CreateDirectory(work);
+                    string rendered=Path.Combine(work,"tracked.mkv");
+                    double shareForDrawing=progressSpan*0.45,at=progressFrom;
+                    forward=RenderVariableTracks(input,chain,flips,drawings,request,outW,outH,rendered,forward,token,
+                        progress==null?(Action<double>)null:p=>progress(at+p*shareForDrawing),copies,copyHeight);
+                    progressFrom+=shareForDrawing;progressSpan-=shareForDrawing;
+                    input+="-i "+VideoFrames.Quote(rendered)+" ";
+                    pictureInput=1;nextInput=2;flips=null;copies=null;
+                    chain="settb=1/"+request.Fps+",setpts=N";
+                }
+                bool bounce=request.Loop=="bounce" && forward>=3,reverse=request.Loop=="reverse";
+                long held=(long)outW*outH*3*forward*(bounce?2:1);
+                string picture="["+pictureInput+":v:0]";
                 if(shapes!=null) {
                     shapesInput=nextInput++;
                     input+="-i "+VideoFrames.Quote(shapes)+" ";
                 }
+                if(tracked!=null){input+=tracked.Inputs;nextInput=tracked.NextInput;}
                 int paletteInput=nextInput;
                 if(gif && held>700L*1024*1024) {
                     palette=part+".palette.png";
-                    var firstGraph=new StringBuilder("[0:v:0]").Append(chain).Append("[made]");
-                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,shapesInput,request,outW,outH);
+                    var firstGraph=new StringBuilder(picture).Append(chain).Append("[made]");
+                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,shapesInput,request,outW,outH,tracked,variable,token);
                     firstGraph.Append(';').Append(firstPicture).Append(PaletteGen(request)).Append("[p]");
-                    string first="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote(firstGraph.ToString())+
+                    string first="-v error -nostdin -y "+input+"-an -sn -dn "+GraphOption(firstGraph,tracked,work,"palette")+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
                     Execute(first,null,0,0,0,forward,request.Fps,token,null,0,0);
                     if(progress!=null)progress(progressFrom+progressSpan*0.4);
@@ -2381,7 +2427,7 @@ namespace LoveMyShelf {
                     copyH=Math.Max(2,Math.Min(outH,copyHeight));copyW=Math.Max(2,(int)Math.Round(outW*(double)copyH/outH));
                     if(forward>PreviewCopyLimit)copyRate=Math.Max(1,(int)Math.Floor(request.Fps*(double)PreviewCopyLimit/forward));
                 }
-                var g=new StringBuilder("[0:v:0]").Append(chain).Append("[made]");
+                var g=new StringBuilder(picture).Append(chain).Append("[made]");
                 string current="[made]";
                 if(copies!=null) {
                     g.Append(";[made]split[main][look];[look]");
@@ -2389,7 +2435,7 @@ namespace LoveMyShelf {
                     g.Append("scale=").Append(copyW).Append(':').Append(copyH).Append(":flags=bicubic,format=bgra[copy]");
                     current="[main]";
                 }
-                current=AppendDress(g,current,flips,dress,shapesInput,request,outW,outH);
+                current=AppendDress(g,current,flips,dress,shapesInput,request,outW,outH,tracked,variable,token);
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -2416,23 +2462,33 @@ namespace LoveMyShelf {
                 }
                 // Sound: the video's first sound track for the same part, at the same speed. "?" lets a video without sound through.
                 string audio=sound && !gif && request.Format=="mp4"?"-map 0:a:0? "+Tempo(request.Speed)+"-c:a aac -b:a 160k -ac 2 ":"";
-                string args="-v error -nostdin -y "+input+(audio.Length>0?"":"-an ")+"-sn -dn -filter_complex "+VideoFrames.Quote(g.ToString())+" -map [out] "+audio+codec+" "+VideoFrames.Quote(part);
+                string args="-v error -nostdin -y "+input+(audio.Length>0?"":"-an ")+"-sn -dn "+GraphOption(g,tracked,work,"output")+" -map [out] "+audio+codec+" "+VideoFrames.Quote(part);
                 if(copies!=null)args+=" -map [copy] -c:v rawvideo -pix_fmt bgra -f rawvideo pipe:1";
                 // GIF frames come out only after the palette is made, so reading the frames is most of the work.
                 double share=gif && palette==null?0.85:0.97;
                 Execute(args,copies,copyW,copyH,copyRate,forward,request.Fps,token,progress,progressFrom,progressSpan*share);
                 if(progress!=null)progress(progressFrom+progressSpan);
+                return forward;
             } finally {
                 if(palette!=null)File.Delete(palette);
                 try {if(Directory.Exists(work))Directory.Delete(work,true);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
         }
-        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int shapesInput,MotionRequest request,int width,int height) {
+        static string GraphOption(StringBuilder graph,MotionTrackExport tracked,string work,string name) {
+            if(tracked==null)return "-filter_complex "+VideoFrames.Quote(graph.ToString());
+            // Long paths of keyframes can exceed the Windows command line limit.
+            string file=Path.Combine(work,name+".ffgraph");
+            File.WriteAllText(file,graph.ToString(),new UTF8Encoding(false));
+            return "-filter_complex_script "+VideoFrames.Quote(file);
+        }
+        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int shapesInput,MotionRequest request,int width,int height,
+            MotionTrackExport tracked,bool variable,CancellationToken token) {
             if(flips!=null) {
                 graph.Append(';').Append(current).Append(flips).Append("[flipped]");
                 current="[flipped]";
             }
-            current=MotionDraw.AppendMosaics(graph,current,request.Shapes,width,height,request.KeepAlpha);
+            if(tracked!=null)current=tracked.Append(graph,current,token);
+            else if(!variable)current=MotionDraw.AppendMosaics(graph,current,request.Shapes,width,height,request.KeepAlpha);
             if(shapesInput>=0) {
                 graph.Append(';').Append(current).Append('[').Append(shapesInput).Append(":v]overlay=0:0:eof_action=repeat:format=rgb[drawn]");
                 current="[drawn]";
@@ -2441,7 +2497,7 @@ namespace LoveMyShelf {
                 graph.Append(';').Append(current).Append(dress).Append("[dressed]");
                 current="[dressed]";
             }
-            if(shapesInput>=0 && request.KeepAlpha) {
+            if((shapesInput>=0 || variable || tracked!=null) && request.KeepAlpha) {
                 graph.Append(';').Append(current).Append("format=rgba[alpha]");
                 current="[alpha]";
             }
@@ -2481,7 +2537,7 @@ namespace LoveMyShelf {
                 if(p.ExitCode!=0)throw new InvalidDataException(L.T("FFmpeg could not make the file."));
             }
         }
-        static bool Fill(Stream stream,byte[] data) {
+        internal static bool Fill(Stream stream,byte[] data) {
             int got=0;
             while(got<data.Length) {
                 int read=stream.Read(data,got,data.Length-got);

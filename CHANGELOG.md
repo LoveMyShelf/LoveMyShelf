@@ -11,12 +11,12 @@ When a new version comes out, a notice appears inside the program. Click it to u
 
 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화해도 아래가 잘려 보이지 않아요.
 
-- **표지와 GIF 위에 그림 그리기:** JPG 표지 창과 GIF 표지 만들기 창의 [그림 그리기]에서 네모·동그라미·직선·화살표·펜·형광펜·모자이크를 그려요. 원본 파일은 그대로이고, [표지 수정]에서 다시 고칠 수 있어요.
+- **표지와 GIF 위에 그림 그리기:** JPG 표지 창과 GIF 표지 만들기 창의 [그림 그리기]에서 네모·동그라미·직선·화살표·펜·형광펜·모자이크를 그려요. 원본 파일은 그대로이고, [표지 수정]에서 다시 고칠 수 있어요. GIF 표지에서는 [움직임 따라가기]를 켜면 네모·동그라미·모자이크가 영상 속 얼굴이나 글씨를 따라가요.
 - **최대화해도 아래가 잘려 보이지 않아요:** 폴더 창을 전체 화면으로 둔 채 다른 창을 최대화하면 아래가 잘려 보이던 것을 고쳤어요.
 
 Maximizing a window while the folder window is in full screen no longer looks cut off at the bottom.
 
-- **Draw on covers and GIFs:** In [Draw] in the JPG cover window and the Make GIF cover window, draw boxes, circles, lines, arrows, pen and highlighter lines and mosaic boxes. The original file stays as it is, and you can change the drawing later in [Edit cover].
+- **Draw on covers and GIFs:** In [Draw] in the JPG cover window and the Make GIF cover window, draw boxes, circles, lines, arrows, pen and highlighter lines and mosaic boxes. The original file stays as it is, and you can change the drawing later in [Edit cover]. On GIF covers, [Follow motion] makes a box, circle or mosaic follow a face or a sign in the video.
 - **Nothing is cut off at the bottom when you maximize:** With the folder window in full screen, maximizing another window showed its bottom cut off. That is fixed.
 
 ---
