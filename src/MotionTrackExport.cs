@@ -26,7 +26,7 @@ namespace LoveMyShelf {
             this.shapes=shapes;this.request=request;this.width=width;this.height=height;this.folder=folder;
             Directory.CreateDirectory(folder);
             var pending=new List<MotionShape>();
-            foreach(var shape in shapes.Where(s=>!s.IsMosaic)) {
+            foreach(var shape in shapes.Where(s=>!s.IsMosaic && !s.IsArea)) {
                 if(shape.Track==null){pending.Add(shape);continue;}
                 FlushStatic(pending);
                 token.ThrowIfCancellationRequested();
@@ -34,7 +34,10 @@ namespace LoveMyShelf {
             }
             FlushStatic(pending);
         }
-        internal int NextInput {get {return overlays.Count+1;}}
+        // Where this export's pictures start among FFmpeg's inputs (others, like the erased-spot picture, may come first).
+        internal int FirstInput=1;
+        internal int InputCount {get {return overlays.Count;}}
+        int NextInput {get {return overlays.Count+1;}}
         internal string Inputs {get {return inputs;}}
 
         void Add(string path,Overlay overlay) {
@@ -69,7 +72,7 @@ namespace LoveMyShelf {
             }
             foreach(var item in overlays) {
                 token.ThrowIfCancellationRequested();
-                string id=item.Input.ToString(Invariant),input="["+id+":v]",output="[trackdraw"+id+"]";
+                string id=(item.Input-1+FirstInput).ToString(Invariant),input="["+id+":v]",output="[trackdraw"+id+"]";
                 if(item.Shape==null) {
                     graph.Append(';').Append(current).Append(input).Append("overlay=0:0:eof_action=repeat:format=rgb").Append(output);
                 } else {

@@ -2426,6 +2426,7 @@ namespace LoveMyShelf {
         // The cover editor's [Keep this shape], kept for next time (nothing in the grid changes).
         internal static void RememberCropLock(bool on) {RememberEditor(p=>p.CropLock=on);}
         internal static void RememberCropZoom(bool on) {RememberEditor(p=>p.CropZoom=on);}
+        internal static void RememberGifStripHeight(int height) {RememberEditor(p=>p.GifStripHeight=height);}
         internal static void RememberCropShape(double shape) {
             if(shape>=Covers.Narrowest && shape<=Covers.Widest && !Double.IsNaN(shape))RememberEditor(p=>p.CropShape=shape);
         }

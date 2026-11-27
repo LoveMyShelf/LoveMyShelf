@@ -584,7 +584,7 @@ namespace LoveMyShelf {
                 HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
             // The panels' own scroll boxes have no height limit here, so the wheel scrolls the column itself.
             sideScroll.PreviewMouseWheel+=(s,e)=>{
-                if(sideScroll.ScrollableHeight<=0)return;
+                if(sideScroll.ScrollableHeight<=0 || AdjustRow.TakesWheel(e.OriginalSource))return;
                 sideScroll.ScrollToVerticalOffset(sideScroll.VerticalOffset-e.Delta/3.0);e.Handled=true;
             };
             var peekExtras=new List<UIElement>();
@@ -632,6 +632,7 @@ namespace LoveMyShelf {
             Surface.AdjustChanged+=delegate {
                 if(!syncingAdjust)adjustPanel.Load(Surface.Adjust,Surface.LightStyle);
             };
+            adjustPanel.AreaRequested+=delegate {drawing.SelectTool(DrawPreferences.Last.AreaKind);drawPanel.SetOpen(true);};
             bool syncingFold=false;
             adjustPanel.OpenChanged+=delegate {
                 if(syncingFold)return;
@@ -686,6 +687,7 @@ namespace LoveMyShelf {
             Closing+=(s,e)=>{if(saving)e.Cancel=true;};
             PreviewKeyDown+=(s,e)=>{
                 if(saving){e.Handled=true;return;}
+                if(AdjustRow.OwnsKey(e))return;
                 if(drawPanel.HandleKey(e,true)){e.Handled=true;return;}
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 // Typing a width or height: the arrows, letters and numbers stay in the box.

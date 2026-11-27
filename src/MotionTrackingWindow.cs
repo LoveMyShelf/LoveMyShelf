@@ -70,7 +70,7 @@ namespace LoveMyShelf {
         }
 
         BitmapSource TrackedMosaicPreview() {
-            if(!drawLayer.HasTracks)return null;
+            if(!drawLayer.HasTracks && !drawLayer.HasLiveAreas)return null;
             var frame=preview.Source as BitmapSource;
             if(frame==null || (!flipX && !flipY))return frame;
             return new TransformedBitmap(frame,new ScaleTransform(flipX?-1:1,flipY?-1:1));
@@ -78,7 +78,7 @@ namespace LoveMyShelf {
 
         void SyncTrackingControls() {
             var selected=drawLayer.SelectedShape;
-            bool eligible=selected!=null && selected.HasCorners,busy=trackWork!=null;
+            bool eligible=selected!=null && selected.CanTrack,busy=trackWork!=null;
             trackingControls.Visibility=eligible?Visibility.Visible:Visibility.Collapsed;
             bool selectionChanged=lastTrackingSelection!=selected;
             lastTrackingSelection=selected;
@@ -164,7 +164,7 @@ namespace LoveMyShelf {
         async void BeginTracking(bool size,bool forwardOnly) {
             if(trackWork!=null || Double.IsNaN(playAt))return;
             var selected=drawLayer.SelectedShape;
-            if(selected==null || !selected.HasCorners)return;
+            if(selected==null || !selected.CanTrack)return;
             double at=DrawingTime();
             var box=selected.At(at).Box;
             if(box.Width<=0 || box.Height<=0)return;

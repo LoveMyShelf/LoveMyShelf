@@ -204,6 +204,7 @@ namespace LoveMyShelf {
         internal static int MakeDelayMs=700;
         internal static void UseDefaults(Preferences settings) {
             StripSeconds=settings.GifStripSeconds;PreviewStepMs=settings.GifPreviewStepMs;Scenes.StepMs=settings.SceneStepMs;
+            StripPictureHeight=Math.Max(StripLow,Math.Min(StripHigh,settings.GifStripHeight));
             lastFps=settings.GifFps;lastHeight=settings.GifHeight;lastFpsOriginal=lastSizeOriginal=false;
             highFps=settings.GifHighFps;largeSize=settings.GifLargeSize;settings.ApplyEditorPreviewSide();
             lastQuality=Math.Max(0,Math.Min(2,settings.GifQuality));lastFormat=Math.Max(0,Math.Min(2,settings.GifFormat));
@@ -239,7 +240,11 @@ namespace LoveMyShelf {
         // Strip pictures show the cover's own part of each scene, in the cover's shape, so a wider window shows
         // more of them (like a video editor's timeline) instead of stretching each one.
         double CellWidth {get {return PictureHeight*source.Aspect;}}
-        const int CellPixels=(int)(FullPictureHeight*2);
+        // Strip pictures are read at twice their height (in steps of 100 px, so dragging doesn't read them again and again).
+        int CellPixels {get {return PictureHeight<=FullPictureHeight?(int)(FullPictureHeight*2):(int)(Math.Ceiling(PictureHeight*2/100)*100);}}
+        // The strip's picture height the person chose by dragging the line over it (Guide & Options too), 56..320.
+        internal static int StripPictureHeight=(int)FullPictureHeight;
+        const int StripLow=56,StripHigh=320;
         // Room at each end of the strip for a handle and a little empty gap,
         // so a handle at the clip's very start or end stays whole and the empty strip beyond shows the clip ends there.
         // In the middle of a clip this room shows the neighbouring pictures, so the strip still looks full.
@@ -413,6 +418,7 @@ namespace LoveMyShelf {
 
             // Bottom: the strip, then start and end with the buttons.
             bottom=new StackPanel();DockPanel.SetDock(bottom,Dock.Bottom);page.Children.Add(bottom);
+            bottom.Children.Add(StripGrip());
             // Narrow windows have no room for the card on the left, so one line here says the same.
             compactGuide=new DockPanel {Margin=new Thickness(0,8,0,0)};
             realCompact=UI.Btn(L.T("See how the real file looks"),RealNow);
@@ -611,6 +617,7 @@ namespace LoveMyShelf {
             };
             PreviewKeyDown+=(s,e)=>{
                 if(e.Key==Key.F1){GuideWindow.Open(this,"gif");e.Handled=true;return;}
+                if(AdjustRow.OwnsKey(e))return;
                 if(drawPanel.HandleKey(e,false)){e.Handled=true;return;}
                 // Typing text or a number: Space and the letters stay in the box.
                 if(Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)return;
@@ -848,6 +855,7 @@ namespace LoveMyShelf {
                 RefreshStripFromDraft();
                 Changed();
             };
+            adjustPanel.AreaRequested+=delegate {drawLayer.SelectTool(DrawPreferences.Last.AreaKind);drawPanel.SetOpen(true);};
             adjustPanel.OpenChanged+=delegate {
                 if(!syncingFold && adjustPanel.IsOpen && drawPanel.IsOpen){syncingFold=true;drawPanel.SetOpen(false);syncingFold=false;}
                 PlaceDrawOptions();Fit();
@@ -1164,7 +1172,9 @@ namespace LoveMyShelf {
             PlaceHints();PlaceDrawOptions();
             bool drawing=(drawPanel.IsOpen || (adjustPanel!=null && adjustPanel.IsOpen)) && (wide || more.IsExpanded);
             hintBar.Visibility=drawing || (!wide && pageWidth<700 && more.IsExpanded)?Visibility.Collapsed:Visibility.Visible;
-            double pictureHeight=drawing?56:FullPictureHeight;
+            // The height the person chose, kept as long as the preview still gets about half the page. Only a narrow
+            // window with Adjust or Draw open below the strip shrinks it for the time being.
+            double pictureHeight=drawing && !wide?StripLow:Math.Max(StripLow,Math.Min(StripPictureHeight,Math.Floor(pageHeight*0.45-TopRail-PartLook.BottomRail)));
             if(PictureHeight!=pictureHeight) {
                 PictureHeight=pictureHeight;strip.Height=PictureHeight+TopRail+PartLook.BottomRail;
                 cellsKey=null;Layout();
@@ -1182,6 +1192,37 @@ namespace LoveMyShelf {
             double width=Math.Floor(Math.Min(room*source.Aspect,across));
             previewFrame.Width=width;previewFrame.Height=Math.Floor(width/source.Aspect);
             if(wide)leftScroll.Width=rightScroll.Width=Math.Max(0,Math.Min(SideMax,Math.Floor((across-width)/2-SideGap)));
+        }
+        // The line between the preview and the strip: drag it up for bigger strip pictures (easier to pick the part),
+        // down for a bigger preview. Remembered. Double-click goes back to the usual height.
+        FrameworkElement StripGrip() {
+            var grip=new Border {Height=12,Background=Brushes.Transparent,Cursor=Cursors.SizeNS,Margin=new Thickness(0,2,0,0),
+                ToolTip=L.P("Drag up or down to change the size of the scene strip and the preview. Double-click for the usual size.",
+                    "위아래로 끌면 장면 띠와 미리보기 크기가 바뀌어요. 두 번 누르면 원래 크기로 돌아가요.")};
+            AutomationProperties.SetName(grip,L.P("Scene strip size","장면 띠 크기"));
+            var line=new Border {Height=1,VerticalAlignment=VerticalAlignment.Center};
+            line.SetResourceReference(Border.BackgroundProperty,"Line");
+            var knob=new Border {Width=44,Height=5,CornerRadius=new CornerRadius(2.5),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+            knob.SetResourceReference(Border.BackgroundProperty,"StrongLine");
+            var both=new Grid();both.Children.Add(line);both.Children.Add(knob);grip.Child=both;
+            double fromY=0,fromHeight=0;bool held=false;
+            Action<double> show=h=>{
+                h=Math.Max(StripLow,Math.Min(StripHigh,Math.Round(h)));
+                if((int)h==StripPictureHeight)return;
+                StripPictureHeight=(int)h;Fit();
+            };
+            grip.MouseLeftButtonDown+=(s,e)=>{
+                if(e.ClickCount==2){show(FullPictureHeight);GalleryWindow.RememberGifStripHeight(StripPictureHeight);e.Handled=true;return;}
+                held=grip.CaptureMouse();fromY=e.GetPosition(this).Y;fromHeight=PictureHeight;e.Handled=true;
+            };
+            grip.MouseMove+=(s,e)=>{if(held)show(fromHeight+(fromY-e.GetPosition(this).Y));};
+            grip.MouseLeftButtonUp+=(s,e)=>{
+                if(!held)return;
+                held=false;grip.ReleaseMouseCapture();
+                GalleryWindow.RememberGifStripHeight(StripPictureHeight);e.Handled=true;
+            };
+            grip.LostMouseCapture+=delegate {held=false;};
+            return grip;
         }
         double Clamp(double ms) {return Math.Max(0,Double.IsNaN(duration) || duration<=0?ms:Math.Min(duration,ms));}
         double ClampView(double view) {
@@ -1808,7 +1849,15 @@ namespace LoveMyShelf {
                     if(CoverImages.VisibleRows(source.Crop,source.Rotation,source.Aspect,out rowsTop,out rowsBottom))
                         list=list.ConvertAll(scene=>CoverImages.WithoutBars(scene,rowsTop,rowsBottom,source.Aspect));
                     if(list.Count>0) {
-                        var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(scenes.PartStep(from,to)/request.Speed)),request);
+                        // Each preview picture shows at least 20 ms; with a smaller scene gap, every k-th scene keeps the real speed.
+                        double each=scenes.PartStep(from,to)/request.Speed;
+                        if(each<20 && list.Count>1) {
+                            int k=(int)Math.Ceiling(20/Math.Max(0.001,each));
+                            list=list.Where((scene,i)=>i%k==0).ToList();
+                            if(sourceTimes!=null)sourceTimes=sourceTimes.Where((time,i)=>i%k==0).ToArray();
+                            each*=k;
+                        }
+                        var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(each)),request);
                         drawingFrames=frames;drawingTimeline=OrderTimes(request,sourceTimes);
                         StartDraft(frames,drawingTimeline,held && drawLayer.HasTracks?playAt:Double.NaN);
                         SetStatus();
@@ -2154,7 +2203,7 @@ namespace LoveMyShelf {
 
         internal DraftScenes(MotionSource source,long stepMs,Dispatcher dispatcher,int previewSide) {
             this.source=source;this.dispatcher=dispatcher;this.previewSide=previewSide;
-            Step=Math.Max(30,Math.Min(2000,stepMs));
+            Step=Math.Max(1,Math.Min(2000,stepMs)); // 2026-11-27: no 0.03 s floor; a video still never goes below its own frames
         }
         bool Has(long slot) {lock(gate)return scenes.ContainsKey(slot);}
         long First(double from) {return (long)Math.Ceiling(Math.Max(0,from)/Step-0.001);}
@@ -2747,12 +2796,19 @@ namespace LoveMyShelf {
                     shapesInput=nextInput++;
                     input+="-i "+VideoFrames.Quote(shapes)+" ";
                 }
-                if(tracked!=null){input+=tracked.Inputs;nextInput=tracked.NextInput;}
+                if(tracked!=null){tracked.FirstInput=nextInput;input+=tracked.Inputs;nextInput+=tracked.InputCount;}
+                // Parts adjusted on their own (AdjustAreas.cs): one mask picture each. The tracked path draws them per frame.
+                var areaParts=!variable?AdjustAreas.WriteMasks(drawings,outW,outH,work):null;
+                int areaInput=-1;
+                if(areaParts!=null && areaParts.Count>0) {
+                    areaInput=nextInput;nextInput+=areaParts.Count;
+                    foreach(var areaPart in areaParts)input+="-i "+VideoFrames.Quote(areaPart.Item1)+" ";
+                }
                 int paletteInput=nextInput;
                 if(gif && held>700L*1024*1024) {
                     palette=part+".palette.png";
                     var firstGraph=new StringBuilder(picture).Append(chain).Append("[made]");
-                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,eraseInput,shapesInput,request,outW,outH,tracked,variable,token);
+                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,eraseInput,shapesInput,areaParts,areaInput,request,outW,outH,tracked,variable,token);
                     firstGraph.Append(';').Append(firstPicture).Append(PaletteGen(request)).Append("[p]");
                     string first="-v error -nostdin -y "+input+"-an -sn -dn "+GraphOption(firstGraph,tracked,work,"palette")+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
@@ -2774,7 +2830,7 @@ namespace LoveMyShelf {
                     g.Append("scale=").Append(copyW).Append(':').Append(copyH).Append(":flags=bicubic,format=bgra[copy]");
                     current="[main]";
                 }
-                current=AppendDress(g,current,flips,dress,eraseInput,shapesInput,request,outW,outH,tracked,variable,token);
+                current=AppendDress(g,current,flips,dress,eraseInput,shapesInput,areaParts,areaInput,request,outW,outH,tracked,variable,token);
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -2820,7 +2876,8 @@ namespace LoveMyShelf {
             File.WriteAllText(file,graph.ToString(),new UTF8Encoding(false));
             return "-filter_complex_script "+VideoFrames.Quote(file);
         }
-        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int eraseInput,int shapesInput,MotionRequest request,int width,int height,
+        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int eraseInput,int shapesInput,
+            List<Tuple<string,Int32Rect,MotionShape>> areaParts,int areaInput,MotionRequest request,int width,int height,
             MotionTrackExport tracked,bool variable,CancellationToken token) {
             if(flips!=null) {
                 graph.Append(';').Append(current).Append(flips).Append("[flipped]");
@@ -2830,6 +2887,7 @@ namespace LoveMyShelf {
                 graph.Append(';').Append(current).Append('[').Append(eraseInput).Append(":v]overlay=0:0:eof_action=repeat:format=rgb[erased]");
                 current="[erased]";
             }
+            if(areaParts!=null && areaParts.Count>0 && !variable)current=AdjustAreas.AppendFfmpeg(graph,current,areaParts,areaInput,width,height);
             if(tracked!=null)current=tracked.Append(graph,current,token);
             else if(!variable)current=MotionDraw.AppendMosaics(graph,current,request.Shapes,width,height,request.KeepAlpha);
             if(shapesInput>=0) {

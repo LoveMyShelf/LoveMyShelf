@@ -1419,8 +1419,17 @@ namespace LoveMyShelf {
             previewSetting.Lines=new[]{T("This value is used only for the preview in the Make GIF cover window. When you change the part, scenes read this far apart are shown right away, and when the real file is made it changes to that file. It has no effect on the finished GIF cover and has nothing to do with the scene step under ‘Scenes from videos’.",
                 "GIF 표지 만들기 창의 미리보기에만 쓰는 값이에요. 구간을 바꾸면 이 간격으로 읽은 장면을 바로 보여 주고, 실제 파일이 만들어지면 그 파일로 바뀌어요. 완성된 GIF 표지에는 영향이 없고, ‘영상에서 장면 고르기’의 장면 간격과도 관계없어요."),
                 T("For a video, a wider spacing does not make the preview appear sooner: the video's scenes all have to be read either way. It can't read more finely than the frames the video has. If the part you chose is long and would need more than 400 scenes, only the preview widens the spacing a little so that the computer doesn't slow down.",
-                "영상은 간격을 넓혀도 미리보기가 더 빨리 나오지는 않아요. 어느 쪽이든 그 구간의 장면을 전부 읽어야 하기 때문이에요. 영상이 원래 가진 프레임보다 더 잘게 읽을 수는 없어요. 고른 구간이 길어서 장면이 400장을 넘으면, 컴퓨터가 느려지지 않도록 미리보기만 간격을 조금 넓혀요.")};
-            Typed(previewSetting,T("seconds","초"),0.03,2,0.01,1000);
+                "영상은 간격을 넓혀도 미리보기가 더 빨리 나오지는 않아요. 어느 쪽이든 그 구간의 장면을 전부 읽어야 하기 때문이에요. 영상이 원래 가진 프레임보다 더 잘게 읽을 수는 없어요. 고른 구간이 길어서 장면이 400장을 넘으면, 컴퓨터가 느려지지 않도록 미리보기만 간격을 조금 넓혀요."),
+                T("You can type as small as 0.001 s. The smaller it is, the longer the preview can take to make.",
+                "0.001초까지 적을 수 있어요. 간격이 작을수록 미리보기를 만드는 데 오래 걸릴 수 있어요.")};
+            Typed(previewSetting,T("seconds","초"),0.001,2,0.01,1000);
+            gif.Items.Add(Numbers("gifStripHeight",T("How tall should the scene strip's pictures be?","장면 띠 그림 높이는 얼마로 할까요?"),new[]{56,100,156,240},156,
+                p=>p.GifStripHeight,(p,v)=>p.GifStripHeight=v,v=>v.ToString(System.Globalization.CultureInfo.InvariantCulture)+" px",
+                v=>v==56?T("Smallest · the biggest preview","가장 작게 · 미리보기가 가장 커요"):v==156?T("Usual","보통"):v==240?T("Big · easier to pick the part","크게 · 구간 고르기가 쉬워요"):"",4));
+            var stripSetting=(Setting)gif.Items.Last();
+            stripSetting.Lines=new[]{T("In the Make GIF cover window you can also drag the line between the preview and the scene strip up or down. Double-click the line for the usual size. If the window is short, the preview keeps at least about half of it.",
+                "GIF 표지 만들기 창에서 미리보기와 장면 띠 사이의 선을 위아래로 끌어도 바뀌어요. 선을 두 번 누르면 보통 크기로 돌아가요. 창이 낮으면 미리보기가 절반쯤은 늘 남아요.")};
+            Typed(stripSetting,"px",56,320,4);
             gif.Items.Add(new Setting {Id="webpEffort",SectionId="gif",Title=T("How carefully should WebP be compressed?","WebP는 얼마나 꼼꼼하게 압축할까요?"),
                 Lines=new[]{T("WebP has a small size but takes the longest of the three formats to make. Compressing it less carefully makes it sooner, and the size gets a little bigger. The picture quality setting stays the same. It has no effect on GIF and MP4.",
                     "WebP는 용량이 작은 대신 세 형식 중 만드는 데 시간이 가장 오래 걸려요. 덜 꼼꼼하게 압축하면 더 빨리 만들어지고 용량이 조금 커져요. 화질 설정은 그대로예요. GIF와 MP4에는 영향이 없어요."),

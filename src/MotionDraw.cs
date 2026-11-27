@@ -16,31 +16,42 @@ using System.Windows.Media.Imaging;
 
 namespace LoveMyShelf {
     internal sealed class MotionShape {
-        internal const int MaxShapes=50,MaxPoints=400,MaxMosaics=20;
+        internal const int MaxShapes=50,MaxPoints=400,MaxMosaics=20,MaxAreas=8;
         internal const int EraseStaticCSharp=24,EraseStaticAi=25,ErasePerFrame=26;
         internal const string Kinds="rbelaphmx";
+        // Parts adjusted on their own (AdjustAreas.cs): box, ellipse, painted. One tool [0] with a shape choice.
+        internal const string AreaKinds="goq",AllKinds=Kinds+AreaKinds;
         static readonly CultureInfo Invariant=CultureInfo.InvariantCulture;
         internal readonly char Kind;
         internal readonly int Color,Thickness,FillColor,Opacity,Block;
         internal bool Fill {get {return FillColor>=0;}}
         internal readonly Point[] Points;
         internal readonly MotionTrackPath Track;
+        // A part's own adjustment (brightness kept as Light's encoded value, soft style) and its soft edge 0..100.
+        internal readonly AdjustValues Area;
+        internal readonly int Feather;
 
-        internal MotionShape(char kind,int color,int thickness,int fillColor,int opacity,int block,Point[] points,MotionTrackPath track=null) {
+        internal MotionShape(char kind,int color,int thickness,int fillColor,int opacity,int block,Point[] points,MotionTrackPath track=null,
+            AdjustValues area=default(AdjustValues),int feather=0) {
             Kind=kind;Color=color;Thickness=thickness;FillColor=CanFill(kind) || kind=='l'?fillColor:-1;
-            Opacity=opacity;Block=block;Points=points;Track=HasCorners?track:null;
+            Opacity=opacity;Block=block;Points=points;Track=CanTrack?track:null;
+            Area=IsArea?area.Clamped():default(AdjustValues);Feather=IsArea?Math.Max(0,Math.Min(100,feather)):0;
         }
-        internal bool HasCorners {get {return Kind=='r' || Kind=='b' || Kind=='e' || Kind=='m';}}
+        internal bool HasCorners {get {return Kind=='r' || Kind=='b' || Kind=='e' || Kind=='m' || Kind=='g' || Kind=='o';}}
+        internal bool CanTrack {get {return Kind=='r' || Kind=='b' || Kind=='e' || Kind=='m';}}
+        internal bool IsArea {get {return AreaKinds.IndexOf(Kind)>=0;}}
         internal bool IsMosaic {get {return Kind=='m';}}
         internal bool IsErase {get {return Kind=='x';}}
         internal bool IsPerFrameErase {get {return Kind=='x' && Block==ErasePerFrame;}}
         internal bool IsAiErase {get {return Kind=='x' && Block==EraseStaticAi;}}
         internal int EraseSceneMs {get {return Kind=='x'?Color:0;}}
-        internal static bool IsPen(char kind) {return kind=='p' || kind=='h' || kind=='x';}
+        internal static bool IsPen(char kind) {return kind=='p' || kind=='h' || kind=='x' || kind=='q';}
         internal static bool CanFill(char kind) {return kind=='r' || kind=='b' || kind=='e' || kind=='a';}
-        internal MotionShape WithPoints(Point[] points) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,points,Track);}
-        internal MotionShape WithTrack(MotionTrackPath track) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,Points,track);}
-        internal MotionShape WithEraseMode(int block,int? sceneMs=null) {return new MotionShape(Kind,sceneMs??Color,Thickness,FillColor,Opacity,block,Points,Track);}
+        internal MotionShape WithPoints(Point[] points) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,points,Track,Area,Feather);}
+        internal MotionShape WithTrack(MotionTrackPath track) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,Points,track,Area,Feather);}
+        internal MotionShape WithEraseMode(int block,int? sceneMs=null) {return new MotionShape(Kind,sceneMs??Color,Thickness,FillColor,Opacity,block,Points,Track,Area,Feather);}
+        internal MotionShape WithArea(AdjustValues area,int feather) {return new MotionShape(Kind,Color,Thickness,FillColor,Opacity,Block,Points,Track,area,feather);}
+        internal MotionShape WithKind(char kind) {return new MotionShape(kind,Color,Thickness,FillColor,Opacity,Block,Points,Track,Area,Feather);}
         internal static string WithoutAiFlag(string value) {
             var list=Read(value);
             bool changed=false;
@@ -58,17 +69,23 @@ namespace LoveMyShelf {
             if(String.IsNullOrEmpty(value))return shapes;
             var entries=value.Split('|');
             if(entries[0]!="v1")return shapes;
-            int mosaics=0;
+            int mosaics=0,areas=0;
             for(int i=1;i<entries.Length && shapes.Count<MaxShapes;i++) {
                 var fields=entries[i].Split(',');
                 MotionTrackPath track=null;
+                // A part's adjustment rides at the end: ~brightness:contrast:saturation:temperature:sharpness:soft edge.
+                AdjustValues area=default(AdjustValues);int feather=0;
+                if(fields.Length>1 && fields[fields.Length-1].StartsWith("~",StringComparison.Ordinal)) {
+                    if(!ReadArea(fields[fields.Length-1].Substring(1),out area,out feather))continue;
+                    Array.Resize(ref fields,fields.Length-1);
+                }
                 if(fields.Length==9 && fields[8].StartsWith("@",StringComparison.Ordinal)) {
                     track=MotionTrackPath.Read(fields[8].Substring(1));
                     Array.Resize(ref fields,8);
                 }
                 if(fields.Length<8 || fields.Length%2!=0 || fields[0].Length!=1)continue;
                 char kind=fields[0][0];
-                if(Kinds.IndexOf(kind)<0 || (!IsPen(kind) && fields.Length!=8))continue;
+                if(AllKinds.IndexOf(kind)<0 || (!IsPen(kind) && fields.Length!=8))continue;
                 int color,thickness;
                 if(fields[1].Length!=6 || !Int32.TryParse(fields[1],NumberStyles.AllowHexSpecifier,Invariant,out color) ||
                     !Int32.TryParse(fields[2],NumberStyles.Integer,Invariant,out thickness) || thickness<1 || thickness>50)continue;
@@ -82,6 +99,7 @@ namespace LoveMyShelf {
                         !Int32.TryParse(style[3],NumberStyles.Integer,Invariant,out block) || block<1 || block>100)continue;
                 }
                 if(kind=='m' && mosaics==MaxMosaics)continue;
+                if(AreaKinds.IndexOf(kind)>=0 && areas==MaxAreas)continue;
                 int count=(fields.Length-4)/2;
                 var points=new List<Point>(count);
                 for(int j=4;j<fields.Length;j+=2) {
@@ -90,10 +108,21 @@ namespace LoveMyShelf {
                     points.Add(new Point(Clamp(x),Clamp(y)));
                 }
                 if(points.Count!=count)continue;
-                shapes.Add(new MotionShape(kind,color,thickness,fill,opacity,block,count>MaxPoints?Simplify(points):points.ToArray(),track));
+                shapes.Add(new MotionShape(kind,color,thickness,fill,opacity,block,count>MaxPoints?Simplify(points):points.ToArray(),track,area,feather));
                 if(kind=='m')mosaics++;
+                if(AreaKinds.IndexOf(kind)>=0)areas++;
             }
             return shapes;
+        }
+        static bool ReadArea(string text,out AdjustValues area,out int feather) {
+            area=default(AdjustValues);feather=0;
+            var parts=text.Split(':');
+            if(parts.Length!=6)return false;
+            var n=new int[6];
+            for(int i=0;i<6;i++)if(!Int32.TryParse(parts[i],NumberStyles.Integer,Invariant,out n[i]))return false;
+            area=new AdjustValues {Brightness=Light.Encode(Math.Max(-100,Math.Min(100,n[0])),Light.Soft),Contrast=n[1],Saturation=n[2],Temperature=n[3],Sharpness=n[4]}.Clamped();
+            feather=Math.Max(0,Math.Min(100,n[5]));
+            return true;
         }
         internal static bool Number(string text,out double value) {
             return Double.TryParse(text,NumberStyles.Float,Invariant,out value) && !Double.IsNaN(value) && !Double.IsInfinity(value);
@@ -110,6 +139,10 @@ namespace LoveMyShelf {
                 foreach(var point in shape.Points)
                     text.Append(',').Append(Clamp(point.X).ToString("0.####",Invariant))
                         .Append(',').Append(Clamp(point.Y).ToString("0.####",Invariant));
+                if(shape.IsArea)
+                    text.Append(",~").Append(Light.Level(shape.Area.Brightness).ToString(Invariant)).Append(':').Append(shape.Area.Contrast.ToString(Invariant))
+                        .Append(':').Append(shape.Area.Saturation.ToString(Invariant)).Append(':').Append(shape.Area.Temperature.ToString(Invariant))
+                        .Append(':').Append(shape.Area.Sharpness.ToString(Invariant)).Append(':').Append(shape.Feather.ToString(Invariant));
                 if(shape.Track!=null)shape.Track.Write(text);
             }
             return text.ToString();
@@ -143,18 +176,19 @@ namespace LoveMyShelf {
 
     internal static class MotionDraw {
         internal static Point At(Point p,double width,double height) {return new Point(p.X*width,p.Y*height);}
-        internal static double Pixels(MotionShape shape,double height) {return Math.Max(1.5,shape.Thickness*height/1000);}
+        // A painted part uses a wider brush (up to a fifth of the height) than lines do.
+        internal static double Pixels(MotionShape shape,double height) {return Math.Max(1.5,shape.Thickness*height/(shape.Kind=='q'?250.0:1000.0));}
         internal static Pen Stroke(Brush brush,double thickness) {
             return new Pen(brush,thickness) {StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round,LineJoin=PenLineJoin.Round};
         }
         internal static Geometry GeometryOf(MotionShape shape,double width,double height,double px) {
             Point a=At(shape.Points[0],width,height),b=At(shape.Points[1],width,height);
-            if(shape.Kind=='r' || shape.Kind=='b' || shape.IsMosaic) {
+            if(shape.Kind=='r' || shape.Kind=='b' || shape.Kind=='g' || shape.IsMosaic) {
                 var bounds=new Rect(a,b);
                 double corner=shape.Kind=='b'?Math.Min(bounds.Width,bounds.Height)*0.18:0;
                 return new RectangleGeometry(bounds,corner,corner);
             }
-            if(shape.Kind=='e')return new EllipseGeometry(new Rect(a,b));
+            if(shape.Kind=='e' || shape.Kind=='o')return new EllipseGeometry(new Rect(a,b));
             if(shape.Kind=='l')return new LineGeometry(a,b);
             var geometry=new StreamGeometry();
             using(var path=geometry.Open()) {
@@ -180,7 +214,7 @@ namespace LoveMyShelf {
         }
         // Both callers draw in output pixels. The preview scales the drawing context to the picture on screen.
         internal static void Render(DrawingContext dc,MotionShape shape,double width,double height) {
-            if(shape.IsMosaic || shape.IsErase)return;
+            if(shape.IsMosaic || shape.IsErase || shape.IsArea)return;
             double px=Pixels(shape,height);
             var brush=new SolidColorBrush(TextLook.ColorOf(shape.Color));
             dc.PushOpacity(shape.Opacity/100.0);
@@ -226,8 +260,9 @@ namespace LoveMyShelf {
             if(picture==null || shapes==null || shapes.Count==0)return picture;
             if(shapes.Any(shape=>shape.IsErase))
                 picture=aiErasePatch!=null?EraseStore.Composite(picture,aiErasePatch):CoverInpaint.ApplyHybrid(picture,shapes);
+            picture=AdjustAreas.Apply(picture,shapes);
             picture=ApplyMosaics(picture,shapes);
-            if(!shapes.Any(shape=>!shape.IsMosaic && !shape.IsErase))return picture;
+            if(!shapes.Any(shape=>!shape.IsMosaic && !shape.IsErase && !shape.IsArea))return picture;
             int w=picture.PixelWidth,h=picture.PixelHeight;
             var visual=new DrawingVisual();
             using(var dc=visual.RenderOpen()) {
@@ -293,7 +328,7 @@ namespace LoveMyShelf {
         }
 
         internal static string WritePng(string value,int width,int height,string folder) {
-            var shapes=MotionShape.Read(value).Where(shape=>!shape.IsMosaic && !shape.IsErase).ToList();
+            var shapes=MotionShape.Read(value).Where(shape=>!shape.IsMosaic && !shape.IsErase && !shape.IsArea).ToList();
             if(shapes.Count==0)return null;
             return WritePng(shapes,width,height,folder,"shapes.png",width,height);
         }
@@ -360,16 +395,22 @@ namespace LoveMyShelf {
         internal bool Open;
         internal char Tool='r';
         internal int Color=0xFFFFFF,Fill=-1,Thickness=6,Opacity=100,Block=24,MarkerThickness=20,MarkerOpacity=40,EraseThickness=24;
+        // Parts (kept for this run only): the shape last picked, the next part's values (a little brighter, so it shows
+        // at once), its soft edge and the painting brush.
+        internal char AreaKind='g';
+        internal AdjustValues AreaValues=new AdjustValues {Brightness=Light.Encode(20,Light.Soft)};
+        internal int AreaFeather=30,AreaThickness=24;
         static DrawPreferences Load() {
             var result=new DrawPreferences();
             try {
                 if(!File.Exists(PathName))return result;
                 var parts=File.ReadAllText(PathName).Split('|');
-                if((parts.Length!=9 && parts.Length!=10) || parts[1].Length!=1 || MotionShape.Kinds.IndexOf(parts[1][0])<0)return result;
+                if((parts.Length!=9 && parts.Length!=10) || parts[1].Length!=1 || MotionShape.AllKinds.IndexOf(parts[1][0])<0)return result;
                 int[] values=new int[parts.Length-2];
                 for(int i=0;i<values.Length;i++)
                     if(!Int32.TryParse(parts[i+2],NumberStyles.Integer,CultureInfo.InvariantCulture,out values[i]))return result;
                 result.Open=parts[0]=="1";result.Tool=parts[1][0];
+                if(MotionShape.AreaKinds.IndexOf(result.Tool)>=0)result.AreaKind=result.Tool;
                 result.Color=Limit(values[0],0,0xFFFFFF);result.Fill=Limit(values[1],-1,0xFFFFFF);
                 result.Thickness=Limit(values[2],1,50);result.Opacity=Limit(values[3],10,100);result.Block=Limit(values[4],1,100);
                 result.MarkerThickness=Limit(values[5],1,50);result.MarkerOpacity=Limit(values[6],10,100);
@@ -397,6 +438,11 @@ namespace LoveMyShelf {
         readonly Button[] normalThicknessPresets,eraseThicknessPresets;
         readonly RadioButton[] tools=new RadioButton[MotionShape.Kinds.Length];
         readonly FrameworkElement strokeField,fillField,thicknessField,opacityField,blockField,gifEraseField;
+        readonly RadioButton areaTool;
+        readonly RadioButton[] areaShapes=new RadioButton[3];
+        readonly StackPanel areaBox;
+        readonly AdjustRows areaRows;
+        readonly AdjustRow featherRow;
         readonly RadioButton gifStaticChoice,gifPerFrameChoice;
         readonly TextBlock gifPerFrameNote;
         readonly Action<int> showColor,showFill;
@@ -436,7 +482,41 @@ namespace LoveMyShelf {
                 tool.Click+=delegate {layer.SelectTool(kind);};
                 tools[i]=tool;toolRow.Children.Add(tool);
             }
+            areaTool=new RadioButton {Content="0  "+L.P("Adjust part","부분 보정"),GroupName=group,Style=(Style)Application.Current.FindResource("SegmentChoice"),
+                ToolTip=L.P("0  Adjust part: drag over a part of the picture and change only its brightness, contrast, saturation, color temperature and sharpness",
+                    "0  부분 보정: 사진에서 한 부분을 끌어서 고르고 그곳만 밝기·대비·채도·색 온도·선명하게를 바꿔요")};
+            areaTool.Click+=delegate {layer.SelectTool(DrawPreferences.Last.AreaKind);};
+            toolRow.Children.Add(areaTool);
             body.Children.Add(toolRow);
+            // Shown only for [0 Adjust part]: the shape, then that part's own five values and its soft edge.
+            areaBox=new StackPanel {Margin=new Thickness(0,4,0,0)};
+            var shapeRow=new WrapPanel();
+            string shapeGroup="area-"+Guid.NewGuid().ToString("N");
+            string[] shapeNames={L.P("Box","네모"),L.P("Ellipse","동그라미"),L.P("Paint","칠하기")};
+            for(int i=0;i<3;i++) {
+                char kind=MotionShape.AreaKinds[i];
+                var choice=new RadioButton {Content=shapeNames[i],GroupName=shapeGroup,Style=(Style)Application.Current.FindResource("SegmentChoice")};
+                choice.Click+=delegate {layer.SelectAreaKind(kind);};
+                areaShapes[i]=choice;shapeRow.Children.Add(choice);
+            }
+            areaBox.Children.Add(shapeRow);
+            var areaNote=UI.Text(L.P("Drag over the picture to pick a part. Only that part changes with the numbers below; click a part to change it again.",
+                "사진에서 끌어서 고칠 곳을 골라요. 고른 곳만 아래 숫자대로 바뀌고, 다시 고치려면 그곳을 눌러요."),12,true);
+            areaNote.TextWrapping=TextWrapping.Wrap;areaNote.Margin=new Thickness(2,4,0,2);
+            areaBox.Children.Add(areaNote);
+            areaRows=new AdjustRows((field,v)=>{
+                var next=layer.AreaValues;
+                if(field==0)next.Brightness=Light.Encode(v,Light.Soft);
+                else if(field==1)next.Contrast=v;
+                else if(field==2)next.Saturation=v;
+                else if(field==3)next.Temperature=v;
+                else next.Sharpness=v;
+                layer.SetArea(next,layer.AreaFeather);
+            });
+            featherRow=new AdjustRow(L.P("Soft edge","가장자리 부드럽게"),0,100,v=>layer.SetArea(layer.AreaValues,v));
+            areaRows.Children.Insert(areaRows.Children.Count-1,featherRow);
+            areaBox.Children.Add(areaRows);
+            body.Children.Add(areaBox);
             string stroke=L.P("Stroke color","선 색"),fill=L.P("Fill color","채우기 색");
             strokeField=Field(stroke,TextStylePanel.Colors(stroke,()=>layer.Color,v=>layer.SetStyle(rgb:v),out showColor));
             var fills=(Panel)TextStylePanel.Colors(fill,()=>layer.FillColor,v=>layer.SetStyle(fill:v),out showFill);
@@ -551,11 +631,16 @@ namespace LoveMyShelf {
         void Sync() {
             syncing=true;
             for(int i=0;i<tools.Length;i++)tools[i].IsChecked=MotionShape.Kinds[i]==layer.Tool;
+            bool area=layer.IsArea;
+            areaTool.IsChecked=MotionShape.AreaKinds.IndexOf(layer.Tool)>=0;
+            for(int i=0;i<3;i++)areaShapes[i].IsChecked=MotionShape.AreaKinds[i]==layer.AreaKind;
+            areaBox.Visibility=area?Visibility.Visible:Visibility.Collapsed;
+            if(area){areaRows.Show(layer.AreaValues);featherRow.Show(layer.AreaFeather);}
             showColor(layer.Color);showFill(layer.FillColor);showThickness(layer.Thickness);showOpacity(layer.ShapeOpacity);showBlock(layer.Block);
             none.FontWeight=layer.FillColor<0?FontWeights.Bold:FontWeights.Normal;
             bool erase=layer.IsErase;
-            strokeField.Visibility=opacityField.Visibility=(layer.IsMosaic || erase)?Visibility.Collapsed:Visibility.Visible;
-            thicknessField.Visibility=layer.IsMosaic?Visibility.Collapsed:Visibility.Visible;
+            strokeField.Visibility=opacityField.Visibility=(layer.IsMosaic || erase || area)?Visibility.Collapsed:Visibility.Visible;
+            thicknessField.Visibility=layer.IsMosaic || (area && layer.AreaKind!='q')?Visibility.Collapsed:Visibility.Visible;
             fillField.Visibility=layer.CanFill?Visibility.Visible:Visibility.Collapsed;
             blockField.Visibility=layer.IsMosaic?Visibility.Visible:Visibility.Collapsed;
             foreach(var b in normalThicknessPresets)b.Visibility=erase?Visibility.Collapsed:Visibility.Visible;
@@ -584,6 +669,7 @@ namespace LoveMyShelf {
                 if(key==Key.Y){layer.Redo();return true;}
             }
             if(Keyboard.Modifiers!=ModifierKeys.None)return false;
+            if(key==Key.D0 || key==Key.NumPad0){if(!e.IsRepeat)layer.SelectTool(DrawPreferences.Last.AreaKind);return true;}
             int index=key>=Key.D1 && key<=Key.D9?key-Key.D1:key>=Key.NumPad1 && key<=Key.NumPad9?key-Key.NumPad1:-1;
             if(index>=0){if(!e.IsRepeat)layer.SelectTool(MotionShape.Kinds[index]);return true;}
             if((key==Key.Delete || (allowX && key==Key.X)) && layer.HasSelection) {
@@ -617,7 +703,7 @@ namespace LoveMyShelf {
         Point start,anchor;
         MotionShape pending,dragShape;
         double sceneTime;
-        int trackCount;
+        int trackCount,pickOnClick=-1;
         internal Func<double> FixedSceneTime;
         internal Func<BitmapSource> ErasePicture;
         internal Func<IList<MotionShape>,BitmapSource> StaticErasePatch;
@@ -629,12 +715,14 @@ namespace LoveMyShelf {
         internal IList<MotionShape> Shapes {get {return shapes;}}
         internal bool HasEraseShapes {get {return shapes.Any(shape=>shape.IsErase);}}
         internal bool HasTracks {get {return trackCount!=0;}}
+        // Parts that change the picture: the preview under them has to be redrawn with each scene.
+        internal bool HasLiveAreas {get {return shapes.Any(AdjustAreas.Active);}}
         internal IEnumerable<MotionTrackPath> Tracks {get {return shapes.Where(shape=>shape.Track!=null).Select(shape=>shape.Track);}}
 
         internal void SetSceneTime(double time) {
             if(sceneTime==time)return;
             sceneTime=time;
-            if(HasTracks)InvalidateVisual();
+            if(HasTracks || HasLiveAreas)InvalidateVisual();
         }
         internal bool ReplaceShape(MotionShape old,MotionShape replacement) {
             int index=shapes.IndexOf(old);
@@ -654,7 +742,7 @@ namespace LoveMyShelf {
         internal Func<BitmapSource> MosaicPicture;
         char Kind {get {return HasSelection?shapes[selected].Kind:Tool;}}
         DrawPreferences Defaults {get {return DrawPreferences.Last;}}
-        int DefaultThickness {get {return Tool=='h'?Defaults.MarkerThickness:Tool=='x'?Defaults.EraseThickness:Defaults.Thickness;}}
+        int DefaultThickness {get {return Tool=='h'?Defaults.MarkerThickness:Tool=='x'?Defaults.EraseThickness:Tool=='q'?Defaults.AreaThickness:Defaults.Thickness;}}
         int DefaultOpacity {get {return Tool=='h'?Defaults.MarkerOpacity:Defaults.Opacity;}}
         internal string Value {get;private set;}
         internal bool IsDragging {get {return dragging;}}
@@ -670,6 +758,11 @@ namespace LoveMyShelf {
         internal bool CanFill {get {return MotionShape.CanFill(Kind);}}
         internal bool IsMosaic {get {return Kind=='m';}}
         internal bool IsErase {get {return Kind=='x';}}
+        internal bool IsArea {get {return MotionShape.AreaKinds.IndexOf(Kind)>=0;}}
+        internal char AreaKind {get {return IsArea?Kind:Defaults.AreaKind;}}
+        bool AreaSelected {get {return HasSelection && shapes[selected].IsArea;}}
+        internal AdjustValues AreaValues {get {return AreaSelected?shapes[selected].Area:Defaults.AreaValues;}}
+        internal int AreaFeather {get {return AreaSelected?shapes[selected].Feather:Defaults.AreaFeather;}}
         internal event Action Updated,Changed,Editing;
 
         internal MotionDrawLayer() {
@@ -735,6 +828,33 @@ namespace LoveMyShelf {
         internal void SelectTool(char kind) {
             CancelDrag();selected=-1;Tool=Defaults.Tool=kind;Defaults.Save();Update();
         }
+        // [0] Adjust part: box, ellipse or painted. A chosen box or ellipse changes into the other; otherwise the next part.
+        internal void SelectAreaKind(char kind) {
+            Defaults.AreaKind=kind;
+            if(AreaSelected && kind!='q' && shapes[selected].Kind!='q') {
+                if(shapes[selected].Kind==kind)return;
+                CancelDrag();Remember();shapes[selected]=shapes[selected].WithKind(kind);
+                Tool=Defaults.Tool=kind;Defaults.Save();SaveChange();return;
+            }
+            SelectTool(kind);
+        }
+        // A part's values. Holding a key changes them many times a second, so changes to the same part within a
+        // second share one undo step.
+        DateTime lastAreaEdit;int lastAreaIndex=-1;
+        internal void SetArea(AdjustValues values,int feather) {
+            values=values.Clamped();feather=Math.Max(0,Math.Min(100,feather));
+            Defaults.AreaValues=values;Defaults.AreaFeather=feather;
+            if(AreaSelected) {
+                var shape=shapes[selected];
+                if(shape.Area==values && shape.Feather==feather)return;
+                CancelDrag();
+                var now=DateTime.UtcNow;
+                if(lastAreaIndex!=selected || (now-lastAreaEdit).TotalMilliseconds>1000 || undo.Count==0)Remember();else redo.Clear();
+                lastAreaEdit=now;lastAreaIndex=selected;
+                shapes[selected]=shape.WithArea(values,feather);SaveChange();return;
+            }
+            Update();
+        }
         internal void SetActive(bool value) {
             active=value;IsHitTestVisible=value;
             if(!active)CancelDrag();
@@ -778,7 +898,7 @@ namespace LoveMyShelf {
             CancelDrag();
             if(from.Count==0)return;
             Snapshot(to);
-            var edit=from[from.Count-1];from.RemoveAt(from.Count-1);
+            var edit=from[from.Count-1];from.RemoveAt(from.Count-1);lastAreaIndex=-1;
             shapes=edit.Shapes;selected=edit.Selected;aiPatch=edit.AiPatch;eraseMode=edit.EraseMode;
             SaveChange(true);
         }
@@ -815,6 +935,8 @@ namespace LoveMyShelf {
                 if(opacity.HasValue)Defaults.MarkerOpacity=opacity.Value;
             } else if(Kind=='x') {
                 if(width.HasValue)Defaults.EraseThickness=width.Value;
+            } else if(Kind=='q') {
+                if(width.HasValue)Defaults.AreaThickness=width.Value;
             } else {
                 if(width.HasValue)Defaults.Thickness=width.Value;
                 if(opacity.HasValue)Defaults.Opacity=opacity.Value;
@@ -827,7 +949,7 @@ namespace LoveMyShelf {
                 int nextOpacity=shape.IsErase?100:(opacity??shape.Opacity);
                 int nextBlock=shape.IsErase?shape.Block:(block??shape.Block);
                 var next=new MotionShape(shape.Kind,nextColor,width??shape.Thickness,nextFill,
-                    nextOpacity,nextBlock,shape.Points,shape.Track);
+                    nextOpacity,nextBlock,shape.Points,shape.Track,shape.Area,shape.Feather);
                 if(next.Color!=shape.Color || next.Thickness!=shape.Thickness || next.FillColor!=shape.FillColor ||
                     next.Opacity!=shape.Opacity || next.Block!=shape.Block) {
                     CancelDrag();Remember();shapes[selected]=next;SaveChange();return;
@@ -877,24 +999,42 @@ namespace LoveMyShelf {
                 BitmapSource workingPic=null;
                 bool anyErase=current.Any(shape=>shape.IsErase);
                 bool anyMosaic=current.Any(shape=>shape.IsMosaic);
+                bool anyArea=current.Any(AdjustAreas.Active);
                 if(anyErase) {
                     if(StaticErasePatch!=null && eraseMode==0) {
                         var patch=aiPatch!=null && aiPatch.Patch!=null && pending==null?aiPatch.Patch:StaticErasePatch(current);
                         if(patch!=null)dc.DrawImage(patch,new Rect(0,0,ActualWidth,ActualHeight));
+                        // Parts and mosaics need the erased picture under them.
+                        if(patch!=null && (anyMosaic || anyArea) && MosaicPicture!=null) {
+                            var under=MosaicPicture();
+                            if(under!=null)workingPic=EraseStore.Composite(under,patch);
+                        }
                     } else {
                         var basePic=ErasePicture!=null?ErasePicture():(MosaicPicture!=null?MosaicPicture():null);
                         if(basePic!=null) {
                             workingPic=aiPatch!=null && aiPatch.Patch!=null && pending==null?
                                 EraseStore.Composite(basePic,aiPatch.Patch):CoverInpaint.ApplyHybrid(basePic,current);
-                            if(!anyMosaic)dc.DrawImage(workingPic,new Rect(0,0,ActualWidth,ActualHeight));
+                            if(!anyMosaic && !anyArea)dc.DrawImage(workingPic,new Rect(0,0,ActualWidth,ActualHeight));
                         }
                     }
                 }
-                if(anyMosaic) {
+                if(anyMosaic || anyArea) {
                     var picture=workingPic??(MosaicPicture==null?null:MosaicPicture());
-                    if(picture!=null)dc.DrawImage(MotionDraw.ApplyMosaics(picture,current),new Rect(0,0,ActualWidth,ActualHeight));
+                    if(picture!=null)dc.DrawImage(MotionDraw.ApplyMosaics(AdjustAreas.Apply(picture,current),current),new Rect(0,0,ActualWidth,ActualHeight));
                     else foreach(var shape in current.Where(shape=>shape.IsMosaic))
                         MotionDraw.MosaicPlaceholder(dc,new Rect(ToScreen(shape.Points[0]),ToScreen(shape.Points[1])));
+                }
+                // Parts have no line of their own; while drawing is open a thin dashed line shows where each one is.
+                if(active) {
+                    var partLine=MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(170,255,255,255)),1);
+                    partLine.DashStyle=DashStyles.Dot;
+                    foreach(var shape in current.Where(shape=>shape.IsArea)) {
+                        if(shape.Kind=='q') {
+                            double brush=MotionDraw.Pixels(shape,pixelHeight)*Scale;
+                            dc.DrawGeometry(null,MotionDraw.Stroke(new SolidColorBrush(System.Windows.Media.Color.FromArgb(40,255,255,255)),brush),
+                                MotionDraw.GeometryOf(shape,ActualWidth,ActualHeight,brush));
+                        } else dc.DrawGeometry(null,partLine,ScreenGeometry(shape));
+                    }
                 }
                 double width=ActualWidth/Scale;
                 dc.PushTransform(new ScaleTransform(Scale,Scale));
@@ -943,10 +1083,10 @@ namespace LoveMyShelf {
             for(int i=shapes.Count-1;i>=0;i--) {
                 var shape=shapes[i].At(sceneTime);var geometry=ScreenGeometry(shape);
                 var hit=MotionDraw.Stroke(Brushes.Transparent,MotionDraw.Pixels(shape,pixelHeight)*Scale+12);
-                if(!shape.IsMosaic && ((shape.Fill && geometry.FillContains(p)) || geometry.StrokeContains(hit,p)))return i;
+                if(!shape.IsMosaic && !(shape.IsArea && shape.Kind!='q') && ((shape.Fill && geometry.FillContains(p)) || geometry.StrokeContains(hit,p)))return i;
             }
             for(int i=shapes.Count-1;i>=0;i--)
-                if(shapes[i].IsMosaic && ScreenGeometry(shapes[i].At(sceneTime)).FillContains(p))return i;
+                if((shapes[i].IsMosaic || shapes[i].Kind=='g' || shapes[i].Kind=='o') && ScreenGeometry(shapes[i].At(sceneTime)).FillContains(p))return i;
             return -1;
         }
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
@@ -959,12 +1099,18 @@ namespace LoveMyShelf {
                 for(int i=0;i<handles.Length;i++)
                     if((ToScreen(handles[i])-start).Length<=HandleRadius+3){handle=i;break;}
             }
-            if(handle<0)selected=Tool=='x'?-1:ShapeAt(start);
+            pickOnClick=-1;
+            if(handle<0) {
+                int hit=Tool=='x'?-1:ShapeAt(start);
+                if(MotionShape.AreaKinds.IndexOf(Tool)>=0 && hit>=0 && hit!=selected && shapes[hit].IsArea){pickOnClick=hit;hit=-1;}
+                selected=hit;
+            }
             drawing=!HasSelection;
             dragShape=drawing?null:shapes[selected].At(sceneTime);
             if(PointerStarted!=null)PointerStarted();
             dragging=(!drawing || (shapes.Count<MotionShape.MaxShapes &&
-                (Tool!='m' || shapes.Count(shape=>shape.IsMosaic)<MotionShape.MaxMosaics))) && CaptureMouse();
+                (Tool!='m' || shapes.Count(shape=>shape.IsMosaic)<MotionShape.MaxMosaics) &&
+                (MotionShape.AreaKinds.IndexOf(Tool)<0 || shapes.Count(shape=>shape.IsArea)<MotionShape.MaxAreas))) && CaptureMouse();
             Update();e.Handled=true;
         }
         protected override void OnMouseMove(MouseEventArgs e) {
@@ -991,7 +1137,7 @@ namespace LoveMyShelf {
                 }
                 pending=Tool=='x'?NewEraseShape(points.ToArray()):
                     new MotionShape(Tool,Defaults.Color,DefaultThickness,MotionShape.CanFill(Tool)?Defaults.Fill:-1,DefaultOpacity,Defaults.Block,
-                        MotionShape.IsPen(Tool)?points.ToArray():new[]{anchor,Constrain(Tool,anchor,p)});
+                        MotionShape.IsPen(Tool)?points.ToArray():new[]{anchor,Constrain(Tool,anchor,p)},null,Defaults.AreaValues,Defaults.AreaFeather);
             } else {
                 var original=dragShape;
                 Point[] moved=handle>=0?Resize(original,p):Move(original,mouse-start);
@@ -1050,6 +1196,7 @@ namespace LoveMyShelf {
             if(final!=null && MotionShape.IsPen(final.Kind) && drawing)
                 final=final.WithPoints(MotionShape.Simplify(points));
             EndDrag();
+            if(final==null && drawing && pickOnClick>=0){selected=pickOnClick;pickOnClick=-1;Update();return;}
             if(final==null && drawing && Tool=='x') {
                 int hit=ShapeAt(start);
                 if(hit>=0){selected=hit;Update();return;}
