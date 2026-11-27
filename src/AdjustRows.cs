@@ -90,8 +90,14 @@ namespace LoveMyShelf {
 
         // Shows a value set from elsewhere (a key like Q/W/E, auto adjust, reset). It wins over anything still waiting.
         internal void Show(int value) {
+            value = Clamp(value);
+            // While the person is changing this line (a key held, the slider dragged, or a value still waiting to be
+            // applied), an outside Show that only repeats the value last applied is an echo, not a new value: keep going.
+            // (2026-11-27: a panel that refreshed every 50 ms made a held key jump back and forth.)
+            bool changing = heldKey != Key.None || slider.IsMouseCaptureWithin || apply.IsEnabled;
+            if (changing && value == applied) return;
             apply.Stop();
-            current = applied = Clamp(value);
+            current = applied = value;
             if (!box.IsKeyboardFocusWithin || !edited) ShowNumber();
             Sync();
         }
