@@ -41,11 +41,11 @@ namespace LoveMyShelf {
             menu.Items.Add(copy);menu.Items.Add(share);
         }
         internal static MenuItem CoverKindsMenu(ContextMenu menu,GalleryWindow owner) {
-            var kinds=new MenuItem {Header=L.P("Cover types","보낼 표지")};
+            var kinds=new MenuItem {Header=L.P("JPG or GIF","JPG·GIF 고르기")};
             foreach(var choice in new[]{ShareCoverKind.Both,ShareCoverKind.MovingOnly,ShareCoverKind.StillOnly}) {
                 var kind=choice;
-                var item=new MenuItem {IsCheckable=true,Header=kind==ShareCoverKind.MovingOnly?L.P("Moving cover only","움직이는 표지만"):
-                    kind==ShareCoverKind.StillOnly?L.P("Still cover only","멈춘 표지만"):L.P("Both","둘 다")};
+                var item=new MenuItem {IsCheckable=true,Header=kind==ShareCoverKind.MovingOnly?L.P("GIF cover only","GIF 표지만"):
+                    kind==ShareCoverKind.StillOnly?L.P("JPG cover only","JPG 표지만"):L.P("Both","둘 다")};
                 menu.Opened+=delegate {item.IsChecked=owner.Settings.ShareCovers==kind;};
                 item.Click+=delegate {owner.RememberShareCovers(kind);};
                 kinds.Items.Add(item);

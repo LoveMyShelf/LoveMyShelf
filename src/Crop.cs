@@ -179,7 +179,7 @@ namespace LoveMyShelf {
             if(BrightnessChanged!=null)BrightnessChanged();
             if(AdjustChanged!=null)AdjustChanged();
         }
-        // R: Soft, See in the dark and Milky take turns. The level stays.
+        // 4 (or the style button): Soft, See in the dark and Milky take turns. The level stays.
         internal void SwitchStyle() {
             style=Light.NextStyle(style);adjust.Brightness=Light.Encode(Level,style);InvalidateVisual();
             if(BrightnessChanged!=null)BrightnessChanged();
@@ -433,15 +433,8 @@ namespace LoveMyShelf {
                 return prefs==null || prefs.PinTopOnWheel;
             }
         }
-        protected override void OnKeyDown(KeyEventArgs e) {
-            if(Drawing)return;
-            switch(e.Key) {
-                case Key.Add: case Key.OemPlus: SetZoom(zoom*1.14);break;
-                case Key.Subtract: case Key.OemMinus: SetZoom(zoom/1.14);break;
-                default: base.OnKeyDown(e);return;
-            }
-            e.Handled=true;
-        }
+        // Number pad + / − (and 9 / 1), like the large view; = is auto adjust there and here (2026-11-28 user).
+        internal void ZoomBy(int direction) {if(!Drawing)SetZoom(direction>0?zoom*1.14:zoom/1.14);}
     }
 
     // Keep the drawing layer aligned with the frame, including when the frame extends outside the view.
@@ -695,7 +688,8 @@ namespace LoveMyShelf {
             Surface.AdjustChanged+=delegate {
                 if(!syncingAdjust)adjustPanel.Load(Surface.Adjust,Surface.LightStyle);
             };
-            adjustPanel.AreaRequested+=delegate {drawing.SelectTool(DrawPreferences.Last.AreaKind);drawPanel.SetOpen(true);};
+            drawPanel.HostAreaIn(adjustPanel.AreaHost);
+            adjustPanel.AreaModeChanged+=delegate {drawPanel.SetAreaMode(adjustPanel.AreaMode);};
             bool syncingFold=false;
             adjustPanel.OpenChanged+=delegate {
                 if(syncingFold)return;
@@ -703,14 +697,23 @@ namespace LoveMyShelf {
             };
             Action showDrawing=()=>{
                 if(!syncingFold && drawPanel.IsOpen && adjustPanel.IsOpen){syncingFold=true;adjustPanel.SetOpen(false);syncingFold=false;}
-                Surface.Drawing=drawPanel.IsOpen;
+                Surface.Drawing=drawPanel.IsEditing;
                 if(Surface.Drawing && Surface.IsMouseCaptured)Surface.ReleaseMouseCapture();
                 Surface.InvalidateVisual();
+                pauseNote.Text=drawPanel.IsOpen?L.P("Dragging on the picture draws now. Click a shape, rotation or Reset button and drawing folds so you can crop again.",
+                    "지금은 사진 위에서 끌면 그려져요. 모양·회전·원래대로 버튼을 누르면 그리기가 접히고 바로 자르기로 돌아가요."):
+                    L.P("Dragging on the picture picks a part now. Click a shape, rotation or Reset button to crop again.",
+                    "지금은 사진 위에서 끌면 보정할 부분을 골라요. 모양·회전·원래대로 버튼을 누르면 바로 자르기로 돌아가요.");
                 pauseNote.Visibility=Surface.Drawing?Visibility.Visible:Visibility.Collapsed;
-                foreach(var barToPause in new FrameworkElement[]{shapeBar,rotationBar,reset})
-                    barToPause.IsEnabled=!Surface.Drawing;
             };
-            drawPanel.OpenChanged+=showDrawing;showDrawing();
+            drawPanel.OpenChanged+=showDrawing;drawPanel.VisibilityChanged+=showDrawing;showDrawing();
+            // The crop buttons never grey out while drawing (2026-11-28 user: "이거 진짜 너무 헷갈려"): pressing one folds
+            // [Draw] / [Erase] or [Only a part] first, then does its job.
+            foreach(var cropBar in new FrameworkElement[]{shapeBar,rotationBar,reset})
+                cropBar.PreviewMouseDown+=delegate {
+                    if(!Surface.Drawing)return;
+                    drawPanel.SetOpen(false);adjustPanel.SetAreaMode(false);
+                };
             Rect previousCrop=Surface.Fraction;
             double previousRotation=Surface.Rotation;
             AdjustValues previousAdjust=Surface.Adjust;
@@ -763,26 +766,25 @@ namespace LoveMyShelf {
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 // Typing a width or height: the arrows, letters and numbers stay in the box.
                 if(Keyboard.FocusedElement is TextBox && key!=Key.Escape && key!=Key.F1)return;
-                switch(key) {
-                    case Key.F1: GuideWindow.Open(this,previousFrame!=null?"video":"editor");break;
-                    case Key.Escape: DialogResult=false;break;
-                    // The same keys as the video's large view: D / F one scene, arrows skip, E / W / Q brightness.
-                    case Key.D: case Key.F:
-                        if(previousFrame==null || Keyboard.Modifiers!=ModifierKeys.None)return;
-                        MoveFrame(key==Key.D?-1:1);break;
-                    case Key.Left: case Key.Right:
-                        // Shift + arrow skips one second; an arrow alone the seconds chosen in the options. Only for a video.
-                        if(nearby!=null && previousFrame!=null && (Keyboard.Modifiers==ModifierKeys.None || Keyboard.Modifiers==ModifierKeys.Shift))
-                            SkipBy((key==Key.Left?-1:1)*(Keyboard.Modifiers==ModifierKeys.Shift?1:SkipSeconds));
+                if(key==Key.F1){GuideWindow.Open(this,previousFrame!=null?"video":"editor");e.Handled=true;return;}
+                if(key==Key.Escape){DialogResult=false;e.Handled=true;return;}
+                // The same keys as the video's large view (and as changed in Guide & Options → Advanced), 2026-11-28 user.
+                if(adjustPanel.HandleKey(e,BrightnessStep)){e.Handled=true;return;}
+                switch(ViewerKeys.ActionFor(key)) {
+                    case "sceneBack": case "sceneForward":
+                        if(previousFrame==null)return;
+                        MoveFrame(ViewerKeys.ActionFor(key)=="sceneBack"?-1:1);break;
+                    case "back": case "forward": case "back30": case "forward30": case "back60": case "forward60": case "back300": case "forward300": {
+                        string job=ViewerKeys.ActionFor(key);
+                        if(nearby!=null && previousFrame!=null)
+                            SkipBy((job.StartsWith("back")?-1:1)*(job.EndsWith("300")?300:job.EndsWith("60")?60:job.EndsWith("30")?30:SkipSeconds));
                         break;
-                    case Key.Up: case Key.Down: break;
-                    case Key.E: case Key.W: case Key.Q:
-                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Surface.SetBrightness(key==Key.Q?0:Math.Max(-100,Math.Min(100,Surface.Level+(key==Key.E?BrightnessStep:-BrightnessStep))));break;
-                    case Key.R:
-                        if(Keyboard.Modifiers!=ModifierKeys.None)return;
-                        Surface.SwitchStyle();break;
-                    default:return;
+                    }
+                    case "zoomIn": Surface.ZoomBy(1);break;
+                    case "zoomOut": Surface.ZoomBy(-1);break;
+                    default:
+                        if(key==Key.Up || key==Key.Down)break;
+                        return;
                 }
                 e.Handled=true;
             };

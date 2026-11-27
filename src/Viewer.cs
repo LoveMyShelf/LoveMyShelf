@@ -654,6 +654,9 @@ namespace LoveMyShelf {
                     case "sharpen":
                         if(!motion || e.IsRepeat)return;
                         ToggleSharpen();break;
+                    case "brightnessStyle": // 4: Soft → See in the dark → Milky
+                        if(!motion || e.IsRepeat)return;
+                        SwitchBrightnessStyle();break;
                     case "autoAdjust": // =: auto adjust from the scene on screen; again, back as it was
                         if(!motion || mpv==null || e.IsRepeat)return;
                         ToggleAutoLook();break;
@@ -1736,8 +1739,8 @@ namespace LoveMyShelf {
                 row(L.T("Playback speed"),new[]{undoable("Z  ",()=>rate,v=>{SetRate((double)v);ShowCornerNote(L.F("Playback speed {0:0.0}×",rate));},()=>speed(0)),key("X  "+L.T("Slower"),()=>speed(-0.1),true),key("C  "+L.T("Faster"),()=>speed(0.1),true),twice});
                 // Shows the style in use; a click switches to the other one, and the controls stay open.
                 var style=key("",()=>{if(!holdRepeating)SwitchBrightnessStyle();},true);
-                live.Add(()=>style.Content=Light.StyleName(playbackStyle));
-                style.ToolTip=L.T("Switch brightness style");
+                live.Add(()=>style.Content="4  "+Light.StyleName(playbackStyle));
+                style.ToolTip=L.T("Switch brightness style")+" (4)";
                 // Q: every adjustment back to normal, and again back as it was (the same as the key).
                 var allBack=key("",()=>{if(!holdRepeating)ToggleResetLook();},true);
                 live.Add(()=>allBack.Content="Q  "+(CanUndoResetLook?L.P("Undo","되돌리기"):L.P("All normal","모두 원래대로")));

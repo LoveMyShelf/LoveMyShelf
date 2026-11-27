@@ -22,7 +22,8 @@ namespace LoveMyShelf {
         // 2026-11-27 user: "단축키는 팟플레이어랑 그냥 똑같이 하고 겹치는 거 기존 거는 그냥 다른 버튼이나 오른쪽 클릭했을 때 뜨는
         // 그 설정으로 빼". Keys PotPlayer has are PotPlayer's (Shift, Ctrl and Alt allowed); keys only LoveMyShelf has are one
         // key, with Shift at most ("우리가 새로 만드는 거 Alt 컨트롤 절대 붙이지 마라"). Capture stays /, the GIF part is
-        // \ repeat on/off, Backspace clear and Enter make; brightness style and small turns are in the controls window.
+        // \ repeat on/off, Backspace clear and Enter make; small turns are in the controls window.
+        // Brightness style is 4 (2026-11-28 user: "단축키 숫자 4에 이거 밝기 방식 바꾸는 거 넣어줘").
         internal static readonly Command[] All={
             A("previous","Previous file","이전 파일",Key.K),
             A("next","Next file","다음 파일",Key.L),
@@ -48,6 +49,7 @@ namespace LoveMyShelf {
             A("warmer","Warmer color","색 온도 따뜻하게",Key.O),
             M("sharpen","Sharpen on / off","선명하게 켜기 / 끄기",ModifierKeys.Control,Key.R),
             A("autoAdjust","Auto adjust from this scene (again: undo)","이 장면 기준 자동 보정 (한 번 더: 되돌리기)",Key.OemPlus),
+            A("brightnessStyle","Brightness style: Soft → See in the dark → Milky","밝기 방식 바꾸기: 부드럽게 → 어두운 곳 보기 → 뽀얗게",Key.D4,Key.NumPad4),
             A("speedReset","Normal speed","원래 속도",Key.Z),
             A("slower","Slower","느리게",Key.X),
             A("faster","Faster","빠르게",Key.C),
@@ -131,7 +133,7 @@ namespace LoveMyShelf {
         // Jobs that happen once per press. A key passed on from another window loses "held down", so those
         // windows drop the repeats of these themselves.
         static readonly HashSet<string> once=new HashSet<string>{"play","mute","double","clearVoice","recycle","info","partStart","partEnd","partClear","capture",
-            "brightnessReset","sharpen","autoAdjust","turn90","zoomReset","panReset","subReset","audioReset","partCycle","quickGif","onTop","close"};
+            "brightnessReset","brightnessStyle","sharpen","autoAdjust","turn90","zoomReset","panReset","subReset","audioReset","partCycle","quickGif","onTop","close"};
         internal static bool OncePerPress(string id) {return id!=null && once.Contains(id);}
         // True when this is one of the job's first keys (what the large view has always used).
         internal static bool IsFirstKey(string id,Key key) {

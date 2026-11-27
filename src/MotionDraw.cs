@@ -466,7 +466,25 @@ namespace LoveMyShelf {
         internal Action OnCancelAiErase;
         internal event Action OpenChanged,VisibilityChanged;
         internal bool IsOpen {get {return body.Visibility==Visibility.Visible;}}
-        internal bool IsEditing {get {return body.IsVisible;}}
+        internal bool IsEditing {get {return body.IsVisible || (areaHosted && areaMode && areaBox.IsVisible);}}
+        // [Only a part] lives in the [Adjust] panel (2026-11-28 user): its controls move there, and the part tool
+        // leaves the drawing tools.
+        bool areaHosted,areaMode;
+        internal void HostAreaIn(Panel host) {
+            body.Children.Remove(areaBox);host.Children.Add(areaBox);
+            areaHosted=true;areaTool.Visibility=Visibility.Collapsed;
+            if(layer.IsArea)layer.SelectTool(lastDrawTool); // a part tool left from before: drawing opens with a drawing tool
+            areaBox.IsVisibleChanged+=delegate {layer.SetActive(IsEditing);if(VisibilityChanged!=null)VisibilityChanged();};
+            Sync();
+        }
+        internal void SetAreaMode(bool on) {
+            if(areaMode==on)return;
+            areaMode=on;
+            if(on)layer.SelectTool(DrawPreferences.Last.AreaKind);
+            else if(layer.IsArea)layer.SelectTool(lastDrawTool);
+            Sync();
+            layer.SetActive(IsEditing);if(VisibilityChanged!=null)VisibilityChanged();
+        }
         internal double ControlsHeight {set {scroller.MaxHeight=Math.Max(0,value);}}
         // The [Draw ▾] button, which a window may take out and put beside the [Adjust ▾] button.
         internal Button Opener {get {return opener;}}
@@ -686,7 +704,7 @@ namespace LoveMyShelf {
         // Pressing the open one again folds them.
         void Toggle() {
             if(IsOpen && !layer.IsErase){SetOpen(false);return;}
-            if(layer.IsErase)layer.SelectTool(lastDrawTool);
+            if(layer.IsErase || (areaHosted && layer.IsArea))layer.SelectTool(lastDrawTool);
             if(!IsOpen)SetOpen(true);else ShowOpener(true);
         }
         void ToggleErase() {
@@ -706,7 +724,7 @@ namespace LoveMyShelf {
             bool area=layer.IsArea;
             areaTool.IsChecked=MotionShape.AreaKinds.IndexOf(layer.Tool)>=0;
             for(int i=0;i<3;i++)areaShapes[i].IsChecked=MotionShape.AreaKinds[i]==layer.AreaKind;
-            areaBox.Visibility=area?Visibility.Visible:Visibility.Collapsed;
+            areaBox.Visibility=area && (!areaHosted || areaMode)?Visibility.Visible:Visibility.Collapsed;
             if(area){areaRows.Show(layer.AreaValues);featherRow.Show(layer.AreaFeather);}
             showColor(layer.Color);showFill(layer.FillColor);showThickness(layer.Thickness);showOpacity(layer.ShapeOpacity);showBlock(layer.Block);
             none.FontWeight=layer.FillColor<0?FontWeights.Bold:FontWeights.Normal;
@@ -754,8 +772,10 @@ namespace LoveMyShelf {
                 if(key==Key.Y){layer.Redo();return true;}
             }
             if(Keyboard.Modifiers!=ModifierKeys.None)return false;
-            if(key==Key.D0 || key==Key.NumPad0){if(!e.IsRepeat)layer.SelectTool(DrawPreferences.Last.AreaKind);return true;}
-            int index=key>=Key.D1 && key<=Key.D9?key-Key.D1:key>=Key.NumPad1 && key<=Key.NumPad9?key-Key.NumPad1:-1;
+            // Adjusting a part from the [Adjust] panel: the number keys don't switch to drawing tools.
+            bool tools=body.IsVisible;
+            if(tools && !areaHosted && (key==Key.D0 || key==Key.NumPad0)){if(!e.IsRepeat)layer.SelectTool(DrawPreferences.Last.AreaKind);return true;}
+            int index=!tools?-1:key>=Key.D1 && key<=Key.D9?key-Key.D1:key>=Key.NumPad1 && key<=Key.NumPad9?key-Key.NumPad1:-1;
             if(index>=0){if(!e.IsRepeat)layer.SelectTool(MotionShape.Kinds[index]);return true;}
             if((key==Key.Delete || (allowX && key==Key.X)) && layer.HasSelection) {
                 if(!e.IsRepeat)layer.DeleteSelected();

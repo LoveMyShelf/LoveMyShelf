@@ -712,17 +712,8 @@ namespace LoveMyShelf {
                     if(!e.IsRepeat)ToggleDoubleSpeed();
                     e.Handled=true;return;
                 }
-                // E / W / Q / R: brightness and style, matching the JPG cover editor and large view.
-                if(Keyboard.Modifiers==ModifierKeys.None && adjustPanel!=null &&
-                    (letter==Key.E || letter==Key.W || letter==Key.Q || letter==Key.R)) {
-                    if(letter==Key.R)adjustPanel.SwitchStyle();
-                    else {
-                        int stepBy=CropSurface.Prefs!=null?CropSurface.Prefs.BrightnessStep:3;
-                        int cur=Light.Level(adjustPanel.Values.Brightness);
-                        adjustPanel.SetBrightnessLevel(letter==Key.Q?0:Math.Max(-100,Math.Min(100,cur+(letter==Key.E?stepBy:-stepBy))));
-                    }
-                    e.Handled=true;return;
-                }
+                // The large view's adjust keys (= auto, Q all back, E / W, R / T, Y / U, I / O, Ctrl+R), like the JPG cover window.
+                if(adjustPanel!=null && adjustPanel.HandleKey(e,CropSurface.Prefs!=null?CropSurface.Prefs.BrightnessStep:3)){e.Handled=true;return;}
                 if(e.Key!=Key.Left && e.Key!=Key.Right)return;
                 // ← → move the handle one scene (the scene step); Shift + ← → about a whole second.
                 Nudge(activeHandle,(e.Key==Key.Left?-1:1)*(Keyboard.Modifiers==ModifierKeys.Shift?1000:Scenes.StepMs));e.Handled=true;
@@ -959,7 +950,8 @@ namespace LoveMyShelf {
                 RefreshStripFromDraft();
                 Changed();
             };
-            adjustPanel.AreaRequested+=delegate {drawLayer.SelectTool(DrawPreferences.Last.AreaKind);drawPanel.SetOpen(true);};
+            drawPanel.HostAreaIn(adjustPanel.AreaHost);
+            adjustPanel.AreaModeChanged+=delegate {drawPanel.SetAreaMode(adjustPanel.AreaMode);};
             adjustPanel.OpenChanged+=delegate {
                 if(!syncingFold && adjustPanel.IsOpen && drawPanel.IsOpen){syncingFold=true;drawPanel.SetOpen(false);syncingFold=false;}
                 PlaceDrawOptions();Fit();

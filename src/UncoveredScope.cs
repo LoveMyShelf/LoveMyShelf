@@ -203,13 +203,28 @@ namespace LoveMyShelf {
         [DllImport("kernel32.dll")] static extern bool FindClose(IntPtr handle);
         const uint Directory=0x10,Hidden=0x2,SystemFlag=0x4,Reparse=0x400;
 
+        // Deep folders: the long-path form reads past 260 characters.
+        static string LongForm(string pattern) {
+            if(pattern.Length>=250 && !pattern.StartsWith("\\\\?\\"))
+                pattern=pattern.StartsWith("\\\\")?"\\\\?\\UNC\\"+pattern.Substring(2):"\\\\?\\"+pattern;
+            return pattern;
+        }
+        // Junctions and folder links can point back up and never end; OneDrive folders are real (other tags).
+        internal static bool IsLink(uint attributes,uint tag) {return (attributes&Reparse)!=0 && (tag==0xA0000003 || tag==0xA000000C);}
+        // One folder's own attributes and link tag (not a drive's root). false = it could not be read.
+        internal static bool Info(string folder,out uint attributes,out uint tag) {
+            FindData data;
+            IntPtr handle=FindFirstFileExW(LongForm(folder.TrimEnd('\\')),1,out data,0,IntPtr.Zero,0);
+            attributes=0;tag=0;
+            if(handle==new IntPtr(-1))return false;
+            FindClose(handle);
+            attributes=data.Attributes;tag=data.ReparseTag;
+            return true;
+        }
         // Every entry of one folder (FindExInfoBasic, large fetch). null = the folder could not be read.
         internal static List<FindData> Entries(string folder) {
             FindData data;
-            string pattern=(folder.EndsWith("\\")?folder:folder+"\\")+"*";
-            // Deep folders: the long-path form reads past 260 characters.
-            if(pattern.Length>=250 && !pattern.StartsWith("\\\\?\\"))
-                pattern=pattern.StartsWith("\\\\")?"\\\\?\\UNC\\"+pattern.Substring(2):"\\\\?\\"+pattern;
+            string pattern=LongForm((folder.EndsWith("\\")?folder:folder+"\\")+"*");
             IntPtr handle=FindFirstFileExW(pattern,1,out data,0,IntPtr.Zero,2);
             if(handle==new IntPtr(-1))return null;
             var list=new List<FindData>();
@@ -231,17 +246,21 @@ namespace LoveMyShelf {
             var inner=new List<string>();
             foreach(var e in entries) {
                 if((e.Attributes&Directory)!=0) {
-                    // Junctions and links can point back up and never end; OneDrive folders are real (other tags).
-                    if((e.Attributes&Reparse)!=0 && (e.ReparseTag==0xA0000003 || e.ReparseTag==0xA000000C))continue;
-                    if(!request.Hidden && (e.Attributes&Hidden)!=0)continue;
-                    if(request.SkipSystem && ((e.Attributes&SystemFlag)!=0 || AnywhereSystem.Contains(e.Name) || (top && TopSystem.Contains(e.Name))))continue;
-                    if(String.Equals(e.Name,Preferences.SubfolderName,StringComparison.OrdinalIgnoreCase))continue;
+                    if(IsLink(e.Attributes,e.ReparseTag))continue;
                     string full=prefix+e.Name;
-                    if(request.Excluded(full))continue;
+                    if(Skip(e.Name,e.Attributes,top,full,request))continue;
                     inner.Add(full);
                 } else if(!pictures && UncoveredFolders.IsPicture(e.Name)) pictures=true;
             }
             return inner;
+        }
+        // Whether a folder is left out (hidden, system, LoveMyShelf's own, or excluded). Also used by EverythingSource,
+        // so both ways of reading leave out the same folders. top: the folder sits right on a drive.
+        internal static bool Skip(string name,uint attributes,bool top,string full,FileListRequest request) {
+            if(!request.Hidden && (attributes&Hidden)!=0)return true;
+            if(request.SkipSystem && ((attributes&SystemFlag)!=0 || AnywhereSystem.Contains(name) || (top && TopSystem.Contains(name))))return true;
+            if(String.Equals(name,Preferences.SubfolderName,StringComparison.OrdinalIgnoreCase))return true;
+            return request.Excluded(full);
         }
     }
 
@@ -250,7 +269,8 @@ namespace LoveMyShelf {
     // tree is read again on [Check again], after the chosen minutes, or when what is looked through changes.
     // The reading runs in the background: leaving the collection doesn't stop it, [Stop] does.
     internal static class UncoveredFolders {
-        internal static IFileListSource Source=new CrawlSource();
+        // Everything (voidtools) when it is running, else the plain crawl.
+        internal static IFileListSource Source=new EverythingSource(new CrawlSource());
         static readonly object gate=new object();
         static List<string> folders;
         static DateTime readAt;

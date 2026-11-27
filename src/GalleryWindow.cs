@@ -251,10 +251,20 @@ namespace LoveMyShelf {
                     var jpgLocation=new MenuItem {Header=L.P("Open JPG cover location","JPG 표지 위치 열기")};
                     jpgLocation.Click+=delegate {row.Owner.ShowInExplorer(photo,true,false);};
                     menu.Items.Add(jpgLocation);
+                    // For sites that don't take a dragged file: paste into the site's file window, then Enter.
+                    var gifUpload=new MenuItem {Header=L.P("Copy GIF cover for upload","GIF 표지 올리기용 복사")};
+                    gifUpload.Click+=delegate {row.Owner.CopyForUpload(photo,true);};
+                    menu.Items.Add(gifUpload);
+                    var jpgUpload=new MenuItem {Header=L.P("Copy JPG cover for upload","JPG 표지 올리기용 복사")};
+                    jpgUpload.Click+=delegate {row.Owner.CopyForUpload(photo,false);};
+                    menu.Items.Add(jpgUpload);
                 } else if(photo.HasCrop) {
                     var coverLocation=new MenuItem {Header=L.T("Open cover file location")};
                     coverLocation.Click+=delegate {row.Owner.ShowInExplorer(photo,true);};
                     menu.Items.Add(coverLocation);
+                    var coverUpload=new MenuItem {Header=L.P("Copy cover for upload","표지 올리기용 복사")};
+                    coverUpload.Click+=delegate {row.Owner.CopyForUpload(photo,false);};
+                    menu.Items.Add(coverUpload);
                 }
                 var info=new MenuItem {Header=L.T("Details")};
                 info.Click+=delegate {row.Owner.ShowDetails(photo);};
@@ -4606,6 +4616,21 @@ namespace LoveMyShelf {
                 if(!cover && photo.Linked && !File.Exists(path))path=OriginalLocator.Resolve(store,photo,lifetime.Token);
                 if(String.IsNullOrEmpty(path) || !File.Exists(path))throw new FileNotFoundException(L.T("The original file is unavailable."),path);
                 System.Diagnostics.Process.Start("explorer.exe","/select,\""+path+"\"");
+            } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
+        }
+        // Puts the cover on the clipboard both as a file and as its full name in quotes. A site's file window
+        // takes the name with Ctrl+V and opens it with Enter, so nobody has to look for the folder.
+        internal void CopyForUpload(Photo photo,bool moving) {
+            try {
+                string path=LocationOf(photo,true,moving);
+                if(String.IsNullOrEmpty(path) || !File.Exists(path))throw new FileNotFoundException(L.P("The cover file is missing.","표지 파일이 없어요."),path);
+                var data=new System.Windows.DataObject();
+                var list=new System.Collections.Specialized.StringCollection();list.Add(path);
+                data.SetFileDropList(list);
+                data.SetText("\""+path+"\"");
+                System.Windows.Clipboard.SetDataObject(data,true);
+                Notify(L.T("Copied"),L.P("On the site, press its upload button, then Ctrl+V and Enter in the window that opens.",
+                    "사이트에서 [파일 올리기]를 누르고, 뜨는 창에서 Ctrl+V와 Enter를 누르세요."),null,NoticeKind.Done);
             } catch(Exception ex){Notify(L.T("Something went wrong"),ex.Message,null,NoticeKind.Warning);}
         }
         internal void ShowDetails(Photo photo) {

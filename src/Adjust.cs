@@ -606,7 +606,13 @@ namespace LoveMyShelf {
         AdjustValues current;
         int lightStyle = Light.Soft;
 
-        internal event Action Changed, OpenChanged, AreaRequested;
+        internal event Action Changed, OpenChanged, AreaModeChanged;
+        // [Only a part]: the draw panel's part controls sit here instead of the whole-picture rows (2026-11-28 user:
+        // "일부만 보정이 지금 그림 그리기 안에 있거든? 그냥 그 보정이랑 같이 있으면 될 것 같은데").
+        readonly StackPanel areaHost = new StackPanel();
+        readonly Button areaBtn;
+        internal Panel AreaHost { get { return areaHost; } }
+        internal bool AreaMode { get; private set; }
         internal bool IsOpen { get { return body.Visibility == Visibility.Visible; } }
         // The [Adjust ▾] button, which a window may take out and put beside the [Draw ▾] button.
         internal Button Opener { get { return opener; } }
@@ -652,8 +658,8 @@ namespace LoveMyShelf {
             // The brightness style sits with the buttons for the whole picture, so every row below has the same shape.
             styleBtn = UI.Btn("", SwitchStyle);
             styleBtn.Margin = new Thickness(0, 0, 6, 2);
-            styleBtn.ToolTip = L.P("Switch brightness style (R): Soft, See in the dark, Milky",
-                "밝기 방식을 바꿔요 (R): 부드럽게, 어두운 곳 보기, 뽀얗게");
+            styleBtn.ToolTip = L.P("Switch brightness style: Soft, See in the dark, Milky (4)",
+                "밝기 방식을 바꿔요: 부드럽게, 어두운 곳 보기, 뽀얗게 (4)");
             statusNote = UI.Text("", 12, true);
             statusNote.Margin = new Thickness(2, 0, 0, 2);
             statusNote.TextWrapping = TextWrapping.Wrap;
@@ -661,13 +667,14 @@ namespace LoveMyShelf {
             topRow.Children.Add(autoBtn);
             topRow.Children.Add(resetBtn);
             topRow.Children.Add(styleBtn);
-            // Only a part of the picture: [Draw] opens with [0 Adjust part] chosen.
-            var areaBtn = UI.Btn(L.P("Only a part", "일부만 보정"), () => { if (AreaRequested != null) AreaRequested(); });
+            // Only a part of the picture: the part's controls open right here, in place of the whole-picture rows.
+            areaBtn = UI.Btn(L.P("Only a part", "일부만 보정"), () => SetAreaMode(!AreaMode));
             areaBtn.Margin = new Thickness(0, 0, 6, 2);
             areaBtn.ToolTip = L.P("Drag over a part of the picture and adjust only that part.", "사진에서 한 부분을 끌어서 고르고 그곳만 보정해요.");
             topRow.Children.Add(areaBtn);
             body.Children.Add(topRow);
             body.Children.Add(statusNote);
+            body.Children.Add(areaHost);
 
             rows = new AdjustRows((field, v) => {
                 if (field == 0) SetField(brightnessLevel: v);
@@ -682,8 +689,54 @@ namespace LoveMyShelf {
             Load(initial);
         }
 
+        internal void SetAreaMode(bool on) {
+            if (AreaMode == on) return;
+            AreaMode = on;
+            areaBtn.Content = on ? L.P("Whole picture", "사진 전체 보정") : L.P("Only a part", "일부만 보정");
+            areaBtn.ToolTip = on ? L.P("Back to adjusting the whole picture. The parts you adjusted stay.", "사진 전체 보정으로 돌아가요. 고친 부분은 그대로 남아요.")
+                : L.P("Drag over a part of the picture and adjust only that part.", "사진에서 한 부분을 끌어서 고르고 그곳만 보정해요.");
+            foreach (var whole in new UIElement[] { autoBtn, resetBtn, styleBtn, rows })
+                whole.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+            if (on) statusNote.Visibility = Visibility.Collapsed;
+            if (AreaModeChanged != null) AreaModeChanged();
+        }
+
+        // The large view's keys (ViewerKeys, as changed in Guide & Options → Advanced) work the same here
+        // (2026-11-28 user: "동영상 볼 때 단축키랑 사진 볼 때 단축키 좀 같게"). = auto adjust, Q all back, E / W brightness,
+        // 4 brightness style, R / T contrast, Y / U saturation, I / O color temperature, Ctrl+R sharpen. Returns true when the key was used.
+        Key stepKey; DateTime stepSince;
+        internal bool HandleKey(KeyEventArgs e, int brightnessStep) {
+            if (AreaMode || Keyboard.FocusedElement is TextBox) return false;
+            var key = e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key == Key.System ? e.SystemKey : e.Key;
+            string job = ViewerKeys.ActionFor(key);
+            if (job == null) return false;
+            if (ViewerKeys.OncePerPress(job) && e.IsRepeat) return true;
+            var now = DateTime.UtcNow;
+            if (!e.IsRepeat || key != stepKey) { stepKey = key; stepSince = now; }
+            double held = (now - stepSince).TotalMilliseconds;
+            int step = Math.Max(1, brightnessStep) * (held < 600 ? 1 : held < 1500 ? 2 : 4);
+            switch (job) {
+                case "brighter": case "darker":
+                    SetBrightnessLevel(Light.Level(current.Brightness) + (job == "brighter" ? step : -step)); break;
+                case "brightnessReset": resetToggle.Press(); break;
+                case "contrastDown": case "contrastUp": SetField(contrast: current.Contrast + (job == "contrastUp" ? step : -step)); break;
+                case "saturationDown": case "saturationUp": SetField(saturation: current.Saturation + (job == "saturationUp" ? step : -step)); break;
+                case "cooler": case "warmer": SetField(temperature: current.Temperature + (job == "warmer" ? step : -step)); break;
+                case "sharpen":
+                    if (current.Sharpness > 0) { lastSharpness = current.Sharpness; SetField(sharpness: 0); }
+                    else SetField(sharpness: lastSharpness);
+                    break;
+                case "brightnessStyle": SwitchStyle(); break;
+                case "autoAdjust": RunAuto(); break;
+                default: return false;
+            }
+            return true;
+        }
+        int lastSharpness = 40;
+
         internal void SetOpen(bool open) {
             if (IsOpen == open) return;
+            if (!open) SetAreaMode(false);
             body.Visibility = scroller.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
             ShowHeader();
             if (OpenChanged != null) OpenChanged();
@@ -729,10 +782,22 @@ namespace LoveMyShelf {
             if (Changed != null) Changed();
         }
 
+        // A second press right after brings back what was there before (= in the large view does the same).
+        AdjustValues? beforeAuto, afterAuto; int styleBeforeAuto;
         void RunAuto() {
+            if (beforeAuto.HasValue && afterAuto.HasValue && afterAuto.Value == current) {
+                var back = beforeAuto.Value; lightStyle = styleBeforeAuto; beforeAuto = afterAuto = null;
+                bool differs = back != current; current = back;
+                statusNote.Text = L.P("Back as it was before auto adjust.", "자동 보정 전으로 되돌렸어요.");
+                statusNote.Visibility = Visibility.Visible;
+                SyncControls();
+                if (differs && Changed != null) Changed();
+                return;
+            }
             BitmapSource sample = samplePicture != null ? samplePicture() : null;
             if (sample == null) return;
             AdjustValues estimated = ColorAdjust.EstimateAuto(sample);
+            beforeAuto = current; styleBeforeAuto = lightStyle; afterAuto = estimated.Clamped();
             lightStyle = Light.Soft;
             bool wasSame = estimated == current;
             current = estimated;
@@ -757,7 +822,9 @@ namespace LoveMyShelf {
 
         void SyncControls() {
             rows.Show(current);
-            styleBtn.Content = "R  " + Light.StyleName(lightStyle);
+            styleBtn.Content = Light.StyleName(lightStyle);
+            autoBtn.Content = beforeAuto.HasValue && afterAuto.HasValue && afterAuto.Value == current
+                ? L.P("Undo auto  =", "자동 보정 되돌리기  =") : L.P("Auto adjust  =", "자동 보정  =");
             if (resetToggle != null) resetToggle.Changed();
             resetBtn.IsEnabled = !current.IsIdentity || lightStyle != Light.Soft || (resetToggle != null && resetToggle.CanUndo);
             ShowHeader();

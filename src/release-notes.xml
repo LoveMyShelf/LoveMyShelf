@@ -49,6 +49,11 @@
       titleEn="Set how strongly the frame sticks"
       textKo="표지 만들기에서 사진 가장자리가 테두리에 자석처럼 붙는 세기를 설명서 겸 옵션에서 px로 정할 수 있어요. 기본은 전보다 세게 했고, 0이면 붙지 않아요."
       textEn="In Make cover, you can set in Guide &amp; Options how strongly the picture's edges stick to the frame like a magnet, in px. It is stronger than before by default, and 0 turns it off."/>
+    <item group="new" icon="folder"
+      titleKo="Everything이 켜져 있으면 컴퓨터 전체를 바로 찾아요"
+      titleEn="With Everything running, the whole computer is found at once"
+      textKo="[표지 X] 모음을 컴퓨터 전체로 볼 때, Everything(voidtools)이 켜져 있으면 드라이브를 하나하나 훑지 않고 Everything에게 물어서 바로 찾아요. 따로 설정할 건 없어요. Everything이 읽지 않는 드라이브(네트워크 드라이브, 대부분의 USB)와 Everything에서 빼 둔 폴더는 전처럼 직접 훑어요. Everything이 없으면 전과 같아요."
+      textEn="When the Unfinished cover collection looks through the whole computer and Everything (voidtools) is running, LoveMyShelf asks Everything instead of reading every drive, so the list comes at once. There is nothing to set. Drives Everything doesn't read (network drives, most USB sticks) and folders left out in Everything are read the usual way. Without Everything, it works as before."/>
     <item group="fixed" icon="check"
       titleKo="최대화해도 아래가 잘려 보이지 않아요"
       titleEn="Nothing is cut off at the bottom when you maximize"
