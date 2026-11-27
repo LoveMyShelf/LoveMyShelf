@@ -677,6 +677,9 @@ namespace LoveMyShelf {
                     case "partClear": // \ (the won sign on a Korean keyboard)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         ClearPart();break;
+                    case "quickGif": // G: the part becomes a GIF cover in the background (QuickGif.cs)
+                        if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
+                        QuickGif();break;
                     case "capture": // / next to the arrow keys (and the one on the number pad)
                         if(!motion || Keyboard.Modifiers!=ModifierKeys.None || e.IsRepeat)return;
                         CaptureFrame();break;
@@ -795,6 +798,15 @@ namespace LoveMyShelf {
                 source.PartStart=from;source.PartEnd=to;return viewer;
             }
             return null;
+        }
+        // G: the marked part as a GIF cover, made in the background just as the video shows now; watching goes on.
+        void QuickGif() {
+            if(!PartIsHere || !partStart.HasValue || !partEnd.HasValue) {
+                ShowCornerNote(L.P("Mark the part with [ and ] first, then press G.","먼저 [ 와 ]로 구간을 정한 뒤 G를 눌러요."));return;
+            }
+            if(home==null || forCrop)return;
+            home.MakeQuickGif(CurrentPhoto,partStart.Value,partEnd.Value,CoverArea==null?CurrentFraming:null,CoverArea,PlaybackAdjust);
+            ShowCornerNote(L.P("Making the GIF cover in the background. Keep watching.","GIF 표지를 뒤에서 만들고 있어요. 계속 보셔도 돼요."));
         }
         // The GIF cover was made from the part, so the next cover starts fresh.
         internal void DropPart() {partStart=partEnd=null;partFile=null;partInside=false;partJump.Reset();ShowPart();}
@@ -1581,7 +1593,11 @@ namespace LoveMyShelf {
                 var partOff=key("\\  "+L.T("Clear"),()=>{if(!holdRepeating)ClearPart();},true);
                 partFrom.ToolTip=L.T("The GIF cover starts at the scene you see now");partTo.ToolTip=L.T("The GIF cover ends at the scene you see now");
                 live.Add(()=>partOff.IsEnabled=PartIsHere && (partStart.HasValue || partEnd.HasValue));
-                row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff});
+                var quick=key("G  "+L.P("Make now","바로 만들기"),()=>{if(!holdRepeating)QuickGif();},true);
+                quick.ToolTip=L.P("Makes a GIF cover from the part in the background, as the video looks now. Keep watching meanwhile.",
+                    "구간을 지금 보이는 그대로 GIF 표지로 뒤에서 만들어요. 그동안 계속 보면 돼요.");
+                live.Add(()=>quick.IsEnabled=PartIsHere && partStart.HasValue && partEnd.HasValue);
+                row(L.T("GIF cover part"),new[]{partFrom,partTo,partOff,quick});
                 var drawBox=key("",()=>{if(coverArea.Editing)coverArea.StopEditing();else coverArea.StartEditing();},false);
                 live.Add(()=>{
                     drawBox.IsEnabled=enlargedArea==null;

@@ -43,6 +43,7 @@ namespace LoveMyShelf {
             A("partStart","Start of the GIF cover part","GIF 표지 구간 시작",Key.OemOpenBrackets),
             A("partEnd","End of the GIF cover part","GIF 표지 구간 끝",Key.OemCloseBrackets),
             A("partClear","Clear the GIF cover part","GIF 표지 구간 지우기",Key.Oem5,Key.OemBackslash),
+            A("quickGif","Make a GIF cover from the part in the background","구간을 GIF 표지로 뒤에서 바로 만들기",Key.G),
             A("info","File information","파일 정보",Key.Tab),
             A("recycle","Move the original to the Recycle Bin","원본을 휴지통으로 보내기",Key.Delete),
         };
