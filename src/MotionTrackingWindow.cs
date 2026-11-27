@@ -261,13 +261,15 @@ namespace LoveMyShelf {
                 return OrderTimes(request,copied);
             }
             int forward=result.Forward;
+            // A smooth loop starts k pictures later (the first k are faded into the end).
+            int faded=request.BlendCount(forward,1000.0/Math.Max(1,result.Fps));
             // GIF encoders may merge duplicate images or hold the last image with a longer delay.
             var times=new double[frames.Images.Length];
             for(int i=0;i<times.Length;i++) {
                 int j=request.Format=="mp4"?i:(int)Math.Round(frames.Timestamps[i]*result.Fps/1000.0);
                 if(request.Loop=="reverse")j=Math.Max(0,forward-1-j);
                 else if(request.Loop=="bounce" && forward>=3 && j>=forward)j=Math.Max(1,2*forward-2-j);
-                else j=Math.Min(j,forward-1);
+                else j=Math.Min(j+faded,forward-1);
                 times[i]=from+j*each;
             }
             return times;

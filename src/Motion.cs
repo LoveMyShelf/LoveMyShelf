@@ -33,6 +33,16 @@ namespace LoveMyShelf {
         public bool FlipX,FlipY;
         public int Plays;
         public double Hold;
+        // Smooth loop (2026-11-27 user: "the jump where the end meets the start"): the last Blend seconds fade into the
+        // first ones, so the loop has no seam; the file gets Blend seconds shorter. Only for Loop, without a pause at the
+        // end and without sound (the sound would be longer than the picture). Debate: DeepSeek, Gemini.
+        public double Blend;
+        internal bool UsesBlend {get {return Blend>0.01 && Loop=="forward" && Hold<=0.01 && !WithSound;}}
+        // How many start pictures fade in, for pictures frameMs apart: at most a third of them, none for fewer than 6.
+        internal int BlendCount(int pictures,double frameMs) {
+            if(!UsesBlend || pictures<6 || frameMs<=0)return 0;
+            return Math.Max(0,Math.Min(pictures/3,(int)Math.Round(Blend*1000/frameMs)));
+        }
         public int Q;
         public double TargetMb;
         public string Text="";
@@ -63,7 +73,7 @@ namespace LoveMyShelf {
         internal int ForwardFrames {get {return Math.Max(1,(int)Math.Round(Seconds/Math.Max(0.1,Speed)*Fps,MidpointRounding.AwayFromZero));}}
         internal bool Bounces {get {return Loop=="bounce" && ForwardFrames>=3;}}
         // Frames in the finished file and how long one round of it plays.
-        internal int Frames {get {return Bounces?ForwardFrames*2-2:ForwardFrames;}}
+        internal int Frames {get {return Bounces?ForwardFrames*2-2:ForwardFrames-BlendCount(ForwardFrames,1000.0/Math.Max(1,Fps));}}
         internal double PlaySeconds {get {return Frames/(double)Math.Max(1,Fps)+Math.Max(0,Hold);}}
         // Saved with the cover (photo.xml "motionSettings"), so Edit GIF cover opens with the same part and choices.
         internal string ToText() {
@@ -78,6 +88,7 @@ namespace LoveMyShelf {
             if(FlipX)s.Append(";flipx=1");if(FlipY)s.Append(";flipy=1");
             if(Plays>0)s.Append(";plays=").Append(Plays.ToString(c));
             if(Hold>0.01)s.Append(";hold=").Append(Math.Round(Hold,2).ToString(c));
+            if(Blend>0.01)s.Append(";blend=").Append(Math.Round(Blend,2).ToString(c));
             if(Q>0)s.Append(";q=").Append(Q.ToString(c));
             if(TargetMb>0)s.Append(";mb=").Append(Math.Round(TargetMb,2).ToString(c));
             if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c))
@@ -120,6 +131,7 @@ namespace LoveMyShelf {
                 r.FlipX=values.TryGetValue("flipx",out v) && v=="1";r.FlipY=values.TryGetValue("flipy",out v) && v=="1";
                 if(values.TryGetValue("plays",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Plays=Math.Max(0,Math.Min(100,i));
                 if(values.TryGetValue("hold",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=30)r.Hold=d;
+                if(values.TryGetValue("blend",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=2)r.Blend=d;
                 if(values.TryGetValue("q",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Q=Math.Max(0,Math.Min(100,i));
                 if(values.TryGetValue("mb",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>0 && d<100000)r.TargetMb=d;
                 if(values.TryGetValue("text",out v))r.Text=MotionLook.FromBase64(v);
@@ -315,8 +327,8 @@ namespace LoveMyShelf {
         Expander more;
         FrameworkElement speedField,loopField,fpsField,heightField,qualityField,formatField,flipField,textField,playsField,targetField,styleField;
         // 1.0.9 extras: what was picked, kept for the next window until LoveMyShelf closes.
-        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=3;static double lastHold,lastTargetMb=20,lastTextSize=8,lastTextX=50,lastTextY=88;
-        bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double hold,targetMb=20,textSize=8,textX=50,textY=50;
+        static bool lastFlipX,lastFlipY,lastTargetOn;static int lastPlays,lastTextPlace=3;static double lastBlend;static double lastHold,lastTargetMb=20,lastTextSize=8,lastTextX=50,lastTextY=88;
+        bool flipX,flipY,targetOn,qualityTyped;int plays,textPlace=2;double blend,hold,targetMb=20,textSize=8,textX=50,textY=50;
         Action<double> showTextX,showTextY;
         readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
         readonly TextMark textMark=new TextMark();
@@ -379,9 +391,9 @@ namespace LoveMyShelf {
             fps.Value=lastFps;height.Value=lastHeight;fps.Original=lastFpsOriginal;height.Original=lastSizeOriginal;
             // A saved MP4 opens as it was made. A saved GIF or WebP never had the choice, so it starts from the usual one.
             bool soundPick=saved!=null && saved.Format=="mp4"?saved.Sound:lastSound;
-            flipX=lastFlipX;flipY=lastFlipY;plays=lastPlays;hold=lastHold;targetOn=lastTargetOn;targetMb=lastTargetMb;textPlace=lastTextPlace;textSize=lastTextSize;textX=lastTextX;textY=lastTextY;
+            flipX=lastFlipX;flipY=lastFlipY;plays=lastPlays;hold=lastHold;blend=lastBlend;targetOn=lastTargetOn;targetMb=lastTargetMb;textPlace=lastTextPlace;textSize=lastTextSize;textX=lastTextX;textY=lastTextY;
             if(saved!=null) {
-                flipX=saved.FlipX;flipY=saved.FlipY;plays=saved.Plays;hold=saved.Hold;targetOn=saved.TargetMb>0;if(saved.TargetMb>0)targetMb=saved.TargetMb;
+                flipX=saved.FlipX;flipY=saved.FlipY;plays=saved.Plays;hold=saved.Hold;blend=saved.Blend;targetOn=saved.TargetMb>0;if(saved.TargetMb>0)targetMb=saved.TargetMb;
                 textBox.Text=saved.Text??"";textPlace=saved.TextPlace;textSize=saved.TextSize;textX=saved.TextX;textY=saved.TextY;qualityTyped=saved.Q>0;
                 // Older covers saved top / middle / bottom: they still show there; the numbers start near it.
                 if(textPlace<3){textX=50;textY=textPlace==0?8:textPlace==1?50:92;}
@@ -777,6 +789,23 @@ namespace LoveMyShelf {
                 v=>{plays=(int)v;Changed();},out readPlays,out writePlays)));
             playsPanel.Children.Add(Field(L.P("Pause at the end","끝에서 멈춤"),MotionLook.Number(hold,0,10,0.5,L.P("s","초"),L.P("Seconds the last picture stays","끝에서 멈추는 시간 (초)"),
                 v=>{hold=v;Changed();},out readHold,out writeHold)));
+            // Smooth loop: on/off and how many seconds the end fades into the start.
+            var blendRow=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
+            var blendBox=new CheckBox {Content=L.P("Fade the end into the start","끝과 처음을 부드럽게 이어요"),IsChecked=blend>0.01,
+                Margin=new Thickness(0,2,10,2),FontSize=13,VerticalAlignment=VerticalAlignment.Center};
+            blendBox.SetResourceReference(Control.ForegroundProperty,"Text");
+            double blendSeconds=blend>0.01?blend:0.5;
+            Func<double> readBlend;Action<double> writeBlend;
+            var blendNumber=MotionLook.Number(blendSeconds,0.1,2,0.1,L.P("s","초"),L.P("Seconds the end fades into the start","끝이 처음으로 섞이는 시간 (초)"),
+                v=>{blendSeconds=v;if(blendBox.IsChecked==true){blend=v;Changed();}},out readBlend,out writeBlend);
+            RoutedEventHandler blendSwitch=delegate {blend=blendBox.IsChecked==true?blendSeconds:0;Changed();};
+            blendBox.Checked+=blendSwitch;blendBox.Unchecked+=blendSwitch;
+            blendRow.Children.Add(blendBox);blendRow.Children.Add(blendNumber);
+            var blendNote=UI.Text(L.P("For Loop only, without a pause at the end or sound. The file gets this much shorter.",
+                "반복 재생에서만 돼요. 끝에서 멈춤·소리 넣기와는 같이 못 써요. 파일이 그만큼 짧아져요."),12,true);
+            blendNote.TextWrapping=TextWrapping.Wrap;blendNote.Margin=new Thickness(0,0,0,4);
+            var blendPanel=new StackPanel();blendPanel.Children.Add(blendRow);blendPanel.Children.Add(blendNote);
+            playsPanel.Children.Add(Field(L.P("Smooth loop","부드러운 반복"),blendPanel));
             playsField=playsPanel;
             // Quality as a number (1..100) under the three buttons: the buttons fill it in, typing makes it your own.
             int[] presets={90,75,55};
@@ -1654,7 +1683,7 @@ namespace LoveMyShelf {
                 Height=height.Value,FpsOriginal=fps.Original,SizeOriginal=height.Original,Format=Formats[format.SelectedIndex],Quality=quality.SelectedIndex,
                 Speed=speed,Loop=Loops[Picked(loopChoices)],
                 Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path),
-                FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,
+                FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,Blend=Math.Round(blend,2),
                 Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
                 Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY,Shapes=drawLayer.Value,
                 HasOwnAdjust=hasOwnAdj,Adjust=curAdj,TransientAiPatch=drawLayer.AiPatch,
@@ -1679,7 +1708,7 @@ namespace LoveMyShelf {
             lastFps=fps.Value;lastHeight=height.Value;lastFpsOriginal=fps.Original;lastSizeOriginal=height.Original;
             lastQuality=quality.SelectedIndex;lastFormat=format.SelectedIndex;
             if(sound!=null && sound.Visibility==Visibility.Visible)lastSound=sound.IsChecked==true;
-            lastFlipX=flipX;lastFlipY=flipY;lastPlays=plays;lastHold=hold;lastTargetOn=targetOn;lastTargetMb=targetMb;lastTextPlace=textPlace;lastTextSize=textSize;lastTextX=textX;lastTextY=textY;lastStyle=StyleNow();
+            lastFlipX=flipX;lastFlipY=flipY;lastPlays=plays;lastHold=hold;lastBlend=blend;lastTargetOn=targetOn;lastTargetMb=targetMb;lastTextPlace=textPlace;lastTextSize=textSize;lastTextX=textX;lastTextY=textY;lastStyle=StyleNow();
             if(fromPart && partGiver!=null)partGiver.DropPart();
             Value=request;DialogResult=true;
         }
@@ -1870,7 +1899,10 @@ namespace LoveMyShelf {
                             if(sourceTimes!=null)sourceTimes=sourceTimes.Where((time,i)=>i%k==0).ToArray();
                             each*=k;
                         }
+                        if(drawPanel.IsEditing)request.Blend=0; // painting picks scenes from the preview: keep them all
                         var frames=ArrangeWith(list,(int)Math.Max(20,Math.Round(each)),request);
+                        int blended=list.Count-frames.Images.Length;
+                        if(blended>0 && sourceTimes!=null && sourceTimes.Length==list.Count)sourceTimes=sourceTimes.Skip(blended).ToArray();
                         drawingFrames=frames;drawingTimeline=OrderTimes(request,sourceTimes);
                         StartDraft(frames,drawingTimeline,held && (drawLayer.HasTracks || drawLayer.HasEraseShapes || drawLayer.IsErase)?playAt:Double.NaN);
                         SetStatus();
@@ -1957,10 +1989,36 @@ namespace LoveMyShelf {
             var order=new List<BitmapSource>(forward);
             if(r.Loop=="reverse")order.Reverse();
             else if(r.Loop=="bounce" && forward.Count>=3)for(int i=forward.Count-2;i>=1;i--)order.Add(forward[i]);
+            int blendCount=r.BlendCount(order.Count,delay);
+            if(blendCount>0)order=BlendLoop(order,blendCount);
             var frames=new MotionFrames {Images=order.ToArray(),Delays=new int[order.Count]};
             for(int i=0;i<order.Count;i++)frames.Delays[i]=delay;
             if(r.Hold>0.01)frames.Delays[order.Count-1]+=(int)Math.Round(Math.Min(30,r.Hold)*1000);
             return frames;
+        }
+        // The same as the FFmpeg graph: the first k pictures go to the end; the last k+1 pictures mix the end with
+        // start picture j-1 by j/(k+1) (j = 0..k, the first of them is the end alone).
+        static List<BitmapSource> BlendLoop(List<BitmapSource> order,int k) {
+            int n=order.Count;
+            var result=new List<BitmapSource>(n-k);
+            for(int i=k;i<n-k-1;i++)result.Add(order[i]);
+            for(int j=0;j<=k;j++) {
+                BitmapSource tail=order[n-k-1+j],head=j>0?order[j-1]:null,mixed=tail;
+                if(head!=null && tail.PixelWidth==head.PixelWidth && tail.PixelHeight==head.PixelHeight) {
+                    double share=j/(double)(k+1);
+                    MotionDraw.RunSta(()=>{
+                        var visual=new DrawingVisual();
+                        using(var dc=visual.RenderOpen()) {
+                            var area=new Rect(0,0,tail.PixelWidth,tail.PixelHeight);
+                            dc.DrawImage(tail,area);dc.PushOpacity(share);dc.DrawImage(head,area);dc.Pop();
+                        }
+                        var target=new RenderTargetBitmap(tail.PixelWidth,tail.PixelHeight,96,96,PixelFormats.Pbgra32);
+                        target.Render(visual);target.Freeze();mixed=target;
+                    });
+                }
+                result.Add(mixed);
+            }
+            return result;
         }
         // Which moment of the original each preview frame shows.
         double[] Timeline(MotionRequest r,int count) {
@@ -2822,6 +2880,7 @@ namespace LoveMyShelf {
                     palette=part+".palette.png";
                     var firstGraph=new StringBuilder(picture).Append(chain).Append("[made]");
                     string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,eraseInput,shapesInput,areaParts,areaInput,request,outW,outH,tracked,variable,token);
+                    firstPicture=AppendBlend(firstGraph,firstPicture,request,forward); // the palette sees the faded colors too
                     firstGraph.Append(';').Append(firstPicture).Append(PaletteGen(request)).Append("[p]");
                     string first="-v error -nostdin -y "+input+"-an -sn -dn "+GraphOption(firstGraph,tracked,work,"palette")+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
@@ -2844,6 +2903,7 @@ namespace LoveMyShelf {
                     current="[main]";
                 }
                 current=AppendDress(g,current,flips,dress,eraseInput,shapesInput,areaParts,areaInput,request,outW,outH,tracked,variable,token);
+                current=AppendBlend(g,current,request,forward);
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -2881,6 +2941,22 @@ namespace LoveMyShelf {
                 if(palette!=null)File.Delete(palette);
                 try {if(Directory.Exists(work))Directory.Delete(work,true);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
+        }
+        // Smooth loop (MotionRequest.Blend). On a 1/fps clock with exactly `forward` pictures (a short read is padded with
+        // its last picture, a long one cut), the end fades into the first k pictures: start picture j-1 shows by j/(k+1)
+        // (j = 1..k), so what is left of the jump is split between both ends of the fade. The head gets one extra copy
+        // of its first picture in front, which the fade shows at 0. The file is k pictures shorter.
+        static string AppendBlend(StringBuilder g,string current,MotionRequest request,int forward) {
+            int k=request.BlendCount(forward,1000.0/Math.Max(1,request.Fps));
+            if(k<=0)return current;
+            string fps=request.Fps.ToString(CultureInfo.InvariantCulture);
+            g.Append(';').Append(current).Append("settb=1/").Append(fps).Append(",setpts=N,tpad=stop_mode=clone:stop=3,trim=end_frame=").Append(forward)
+                .Append(",setpts=PTS-STARTPTS,split[blendall][blendpre];")
+                .Append("[blendpre]trim=end_frame=").Append(k).Append(",setpts=PTS-STARTPTS,tpad=start=1:start_mode=clone[blendhead];")
+                .Append("[blendall]trim=start_frame=").Append(k).Append(",setpts=PTS-STARTPTS[blendmain];")
+                .Append("[blendmain][blendhead]xfade=transition=fade:duration=").Append(N((k+1)/(double)request.Fps))
+                .Append(":offset=").Append(N((forward-2*k-1)/(double)request.Fps)).Append("[blended]");
+            return "[blended]";
         }
         static string GraphOption(StringBuilder graph,MotionTrackExport tracked,string work,string name) {
             if(tracked==null)return "-filter_complex "+VideoFrames.Quote(graph.ToString());
