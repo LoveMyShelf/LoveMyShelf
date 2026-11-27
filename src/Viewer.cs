@@ -17,7 +17,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace LoveMyShelf {
-    public class Viewer : Window {
+    public partial class Viewer : Window {
         readonly IList<Photo> items;
         readonly Grid root=new Grid {Background=Brushes.Black};
         // Everything drawn above the media. It moves into a floating overlay window while mpv plays.
@@ -104,7 +104,7 @@ namespace LoveMyShelf {
         // Contrast, saturation, color temperature and sharpness while watching (brightness is playbackBrightness).
         // Like brightness: for this video only, and the cover editor and the GIF cover start from them.
         AdjustValues playbackAdjust;
-        bool adjustShown,adjustChosen;
+        bool adjustChosen;
         // True once contrast, saturation, color temperature or sharpness was changed for this video.
         internal bool AdjustChosen {get {return adjustChosen;}}
         internal AdjustValues PlaybackAdjust {get {var a=playbackAdjust;a.Brightness=PlaybackValue;return a;}}
@@ -1548,10 +1548,28 @@ namespace LoveMyShelf {
         void ShowControls() {
             CloseAreaPopup();
             if(keyPanel!=null)keyPanel.IsOpen=false;
-            var rows=new Grid();
-            rows.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});rows.ColumnDefinitions.Add(new ColumnDefinition());
             var popup=new System.Windows.Controls.Primitives.Popup {AllowsTransparency=true,StaysOpen=false,
                 Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint,PlacementTarget=ui};
+            popup.Child=ControlsCard(popup,ControlsMaxHeight());
+            popup.Closed+=delegate {holdTimer.Stop();if(keyPanel==popup)keyPanel=null;};
+            keyPanel=popup;popup.IsOpen=true;
+        }
+        // The controls window never runs past the screen (2026-11-27 user: the bottom was cut off with no scroll bar):
+        // as tall as the screen's work area where the mouse is, and the rows scroll inside it. The popup then moves
+        // up by itself so all of it shows.
+        double ControlsMaxHeight() {
+            try {
+                var at=System.Windows.Forms.Cursor.Position;
+                var area=System.Windows.Forms.Screen.FromPoint(at).WorkingArea;
+                var source=PresentationSource.FromVisual(this);
+                double toDips=source!=null && source.CompositionTarget!=null?source.CompositionTarget.TransformFromDevice.M22:1;
+                return Math.Max(240,area.Height*toDips-12);
+            } catch(Exception quiet) {ErrorLog.Quiet(quiet);return Math.Max(240,SystemParameters.WorkArea.Height-12);}
+        }
+        // The card of the controls window, built for a popup (also measured by the checks without opening it).
+        internal Border ControlsCard(System.Windows.Controls.Primitives.Popup popup,double maxHeight) {
+            var rows=new Grid();
+            rows.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});rows.ColumnDefinitions.Add(new ColumnDefinition());
             var live=new List<Action>(); // labels that follow what they show (on or off, the chosen strength)
             Action refresh=()=>{foreach(var update in live)update();};
             // A button that keeps going while it is held (stays): one press is one step, like one press of the key.
@@ -1629,31 +1647,12 @@ namespace LoveMyShelf {
                 row(L.T("Brightness"),new[]{key("Q  "+reset,()=>ChangeBrightness(0),true),key("W  "+L.T("Darker"),()=>ChangeBrightness(-1),true),
                     key("E  "+L.T("Brighter"),()=>ChangeBrightness(1),true),style});
                 if(mpv!=null) {
-                    // [Adjust ▾]: contrast, saturation, color temperature, sharpness (and brightness) as lines: click one,
-                    // hold ← / →, roll the wheel over it, or type the number. Only while watching; the file stays as it is.
-                    var adjustRows=new AdjustRows((field,v)=>SetPlaybackAdjust(field,v));
-                    var adjustReset=UI.Btn(reset,()=>{
-                        playbackBrightness=0;playbackStyle=Light.Soft;playbackAdjust=AdjustValues.None;brightnessChosen=adjustChosen=true;
-                        ApplyPlaybackBrightness();seekPreview.Brightness=PlaybackValue;refresh();
-                    });
-                    adjustReset.Focusable=false;adjustReset.HorizontalAlignment=HorizontalAlignment.Left;adjustReset.Margin=new Thickness(0,2,0,4);
-                    var adjustBox=new StackPanel {Width=330,Margin=new Thickness(0,2,0,4)};
-                    adjustBox.Children.Add(adjustReset);adjustBox.Children.Add(adjustRows);
-                    adjustBox.Visibility=adjustShown?Visibility.Visible:Visibility.Collapsed;
-                    var adjustToggle=key("",()=>{
-                        if(holdRepeating)return;
-                        adjustShown=!adjustShown;adjustBox.Visibility=adjustShown?Visibility.Visible:Visibility.Collapsed;
-                    },true);
-                    live.Add(()=>{
-                        adjustToggle.Content=L.P("Contrast · saturation · color","대비·채도·색")+(adjustShown?"  ▴":"  ▾");
-                        var now=playbackAdjust;now.Brightness=PlaybackValue;adjustRows.Show(now);
-                    });
-                    adjustToggle.ToolTip=L.P("Contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them.",
-                        "보는 동안 대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요.");
-                    row(L.P("Adjust","보정"),new[]{adjustToggle});
-                    int at=rows.RowDefinitions.Count;
-                    rows.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-                    Grid.SetRow(adjustBox,at);Grid.SetColumn(adjustBox,1);rows.Children.Add(adjustBox);
+                    // [Adjust ▸] opens its own small panel at the top right of the video (ViewerAdjust.cs), so the
+                    // picture shows while the lines change; this window closes.
+                    var adjustOpen=key(L.P("Contrast · saturation · color  ▸","대비·채도·색  ▸"),OpenAdjustPanel,false);
+                    adjustOpen.ToolTip=L.P("Opens a small panel at the top right of the video: brightness, contrast, saturation, color temperature and sharpness while watching. The file stays as it is; a cover made from here starts with them.",
+                        "영상 오른쪽 위에 작은 패널을 열어요. 보는 동안 밝기·대비·채도·색 온도·선명하게를 바꿔요. 파일은 그대로이고, 여기서 만드는 표지는 이 값으로 시작해요.");
+                    row(L.P("Adjust","보정"),new[]{adjustOpen});
                 }
             }
             row(L.T("Rotation"),new[]{key("I  "+reset,ResetTurn,true),key("O  ↺",()=>Turn(-1,holdRepeating),true),key("P  ↻",()=>Turn(1,holdRepeating),true)});
@@ -1687,30 +1686,36 @@ namespace LoveMyShelf {
             if(!forCrop) {
                 var back=key("K  ◀ "+L.T("Previous"),()=>Navigate(-1),false);back.IsEnabled=index>0;
                 var forward=key("L  "+L.T("Next")+" ▶",()=>Navigate(1),false);forward.IsEnabled=index<items.Count-1;
-                row(L.T("File"),new[]{back,forward,key("Tab  "+L.T("File info"),ToggleInfo,false)});
-                var more=new List<Button>();
-                if(home!=null && index<items.Count && items[index].Linked)more.Add(key(L.T("Open file location"),()=>home.ShowInExplorer(CurrentPhoto,false),false));
+                // One row for the file: previous, next, and the small things (info, its folder, the folder window down).
+                var files=new List<Button>{back,forward,key("Tab  "+L.P("Info","정보"),ToggleInfo,false)};
+                files[2].ToolTip=L.T("File info");
+                if(home!=null && index<items.Count && items[index].Linked) {
+                    var place=key(L.P("Location","위치"),()=>home.ShowInExplorer(CurrentPhoto,false),false);place.ToolTip=L.T("Open file location");files.Add(place);
+                }
                 // Watching only the video: the folder window can go down from here, and it gives its memory back while it is down.
-                if(home!=null && home.IsVisible && home.WindowState!=WindowState.Minimized)more.Add(key(L.T("Minimize the folder window"),GalleryWindow.MinimizeAll,false));
-                if(more.Count>0)row("",more.ToArray());
+                if(home!=null && home.IsVisible && home.WindowState!=WindowState.Minimized) {
+                    var down=key(L.P("Folder window ▁","폴더 창 ▁"),GalleryWindow.MinimizeAll,false);down.ToolTip=L.T("Minimize the folder window");files.Add(down);
+                }
+                row(L.T("File"),files.ToArray());
                 if(CanRecycle) {
                     rule();
                     row("",new[]{key("Delete  "+L.T("Move the original file to the Recycle Bin"),RecycleCurrent,false)});
                 }
             }
             refresh();
-            var card=new Border {Child=rows,CornerRadius=new CornerRadius(8),Padding=new Thickness(12,9,10,9),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,8,8),
+            // Scrolls only when the rows don't fit; the bar sits in the card's right padding.
+            var scroller=new ScrollViewer {Content=rows,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false,PanningMode=PanningMode.VerticalOnly};
+            var card=new Border {Child=scroller,MaxHeight=Math.Max(120,maxHeight-8),CornerRadius=new CornerRadius(8),Padding=new Thickness(12,9,10,9),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,8,8),
                 Effect=new System.Windows.Media.Effects.DropShadowEffect {Color=Colors.Black,BlurRadius=8,ShadowDepth=2,Direction=270,Opacity=0.35}};
             card.SetResourceReference(Border.BackgroundProperty,"Paper");card.SetResourceReference(Border.BorderBrushProperty,"Line");
             card.SetResourceReference(TextElement.FontFamilyProperty,"AppFont");
-            popup.Child=card;
             card.PreviewKeyDown+=(s,e)=>{
                 // Esc while typing a number puts the number back instead of closing.
                 if(e.Key==Key.Escape && Keyboard.FocusedElement is TextBox && AdjustRow.OwnsKey(e))return;
                 if(e.Key==Key.Escape){if(!e.IsRepeat){popup.IsOpen=false;ReturnAreaKeys();}e.Handled=true;}
             };
-            popup.Closed+=delegate {holdTimer.Stop();if(keyPanel==popup)keyPanel=null;};
-            keyPanel=popup;popup.IsOpen=true;
+            return card;
         }
 
         void ShowCornerNote(string text) {
