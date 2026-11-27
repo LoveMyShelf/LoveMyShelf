@@ -1352,6 +1352,8 @@ namespace LoveMyShelf {
                       "[[글자]]: 흰 글자에 검은 테두리로 한 줄을 넣어요. 위·가운데·아래 중에 고르고, [[글자 크기]]는 그림 높이의 몇 %인지예요(8이 무난해요)."),
                     T("To put the text exactly where you want, drag it on the preview with the mouse, or type the place across and down (%) in [[Exact place]]; the place becomes [[Your own]]. The text never goes outside the picture.",
                       "글자를 원하는 자리에 정확히 놓으려면 미리보기 위의 글자를 마우스로 끌거나, [[정확한 자리]]에 가로·세로 위치(%)를 넣어요. 그러면 자리가 [[직접]]으로 바뀌어요. 글자는 그림 밖으로 나가지 않아요."),
+                    T("[[Draw]]: open it and drag on the preview to draw boxes, circles, lines, arrows, pen lines or a mosaic box (keys 1 to 8 pick the tool). Click a drawing to move it or resize it from its corners. Drawings stay in place for the whole GIF. JPG covers have the same [[Draw]].",
+                      "[[그림 그리기]]: 펼친 뒤 미리보기 위를 끌면 네모·동그라미·직선·화살표·펜·모자이크를 그려요(숫자 키 1~8로 도구를 골라요). 그린 것을 누르면 옮기거나 모서리로 크기를 바꿀 수 있어요. 그림은 GIF 내내 같은 자리에 있어요. JPG 표지 창에도 같은 [[그림 그리기]]가 있어요."),
                     T("[[Picture quality]]: besides High, Normal and Low you can type any number from 1 to 100. Higher is sharper and bigger.",
                       "[[화질]]: 높게·보통·낮게 말고도 1~100 사이 숫자를 직접 넣을 수 있어요. 높을수록 선명하고 용량이 커요."),
                     T("[[Size limit]]: tick [[Fit under]] and type a size in MB. If the file comes out bigger, it is made again smaller (the picture first, then fewer pictures a second) until it fits.",

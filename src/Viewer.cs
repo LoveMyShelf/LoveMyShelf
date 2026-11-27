@@ -2247,7 +2247,8 @@ namespace LoveMyShelf {
                 if(photo.HasCrop){
                     bool driveAway=DriveLinks.DriveAway(photo.Original);
                     try{
-                        SetPicture(CoverImages.TrimBlackBands(CoverImages.TryLoad(photo)??Pictures.SavedPreview(photo)));status.VerticalAlignment=VerticalAlignment.Top;
+                        var cover=CoverImages.TryLoad(photo)??Pictures.SavedPreview(photo);
+                        SetPicture(String.IsNullOrEmpty(photo.Drawings)?CoverImages.TrimBlackBands(cover):cover);status.VerticalAlignment=VerticalAlignment.Top;
                         if(driveAway)status.Warn(L.T("The drive with this file isn't connected"),L.T("Connect the drive again and it comes back by itself. It's fine even if the drive letter changes. The cover and the original are still there."));
                         else status.Warn(L.T("The original was moved or renamed"),L.T("Right now you are seeing the small preview saved when the cover was made. Click [Find the original again] below and choose the moved file to see it in its original quality."));
                     }catch(Exception){}
@@ -2326,7 +2327,7 @@ namespace LoveMyShelf {
                         sourceHeight=Math.Max(frame.PixelHeight,frame.PixelWidth);
                     }
             } catch(IOException){} catch(NotSupportedException){} catch(FormatException){}
-            return Tuple.Create(cover==null?null:CoverImages.TrimBlackBands(cover),sourceHeight);
+            return Tuple.Create(cover!=null && String.IsNullOrEmpty(photo.Drawings)?CoverImages.TrimBlackBands(cover):cover,sourceHeight);
         }
         async Task LoadSavedCover(Photo photo,CancellationToken token) {
             var read=await Prepared(photo,true,()=>ReadCover(photo),token);

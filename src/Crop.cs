@@ -175,7 +175,7 @@ namespace LoveMyShelf {
         }
         // Room around the frame for its handles, and how near an edge the pointer grabs it.
         const double Room=40,Grab=9;
-        Rect Frame {get {return StillPicture?StillFrame:FittedFrame;}}
+        internal Rect Frame {get {return StillPicture?StillFrame:FittedFrame;}}
         // Zooming with the frame (the old way): the frame always fills the middle of the view, so the picture zooms
         // in and out whenever the frame changes size or shape.
         Rect FittedFrame {
@@ -186,7 +186,7 @@ namespace LoveMyShelf {
         // The picture stays where it is on screen and the frame moves and changes size over it, like a phone's photo app.
         // The view (how big the picture is, which part is in the middle) changes only when the window or the turn
         // changes, a new picture comes, or [Fit to the window] is pressed.
-        internal bool StillPicture;
+        internal bool StillPicture,Drawing;
         double viewScale;Vector viewMid;bool viewSet;
         internal void SetStill(bool on) {StillPicture=on;viewSet=false;InvalidateVisual();if(Moved!=null)Moved();}
         // The whole picture in view; with frame, the frame too (when it reaches past the picture or the view).
@@ -332,6 +332,7 @@ namespace LoveMyShelf {
             var accent=UI.B("Accent");
             dc.DrawRectangle(null,new Pen(accent,2),r);
             // Handles at the corners and the middle of each edge show that the frame can be pulled into any shape.
+            if(Drawing)return;
             var rim=new Pen(Brushes.White,1);
             foreach(var x in new[]{r.Left,r.Left+r.Width/2,r.Right})
                 foreach(var y in new[]{r.Top,r.Top+r.Height/2,r.Bottom}) {
@@ -342,6 +343,7 @@ namespace LoveMyShelf {
                 }
         }
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
+            if(Drawing){e.Handled=true;return;}
             base.OnMouseLeftButtonDown(e); Focus(); last=e.GetPosition(this);
             EdgesAt(last,out edgeX,out edgeY);
             resizing=edgeX!=0 || edgeY!=0;
@@ -367,6 +369,7 @@ namespace LoveMyShelf {
         }
         protected override void OnLostMouseCapture(MouseEventArgs e) {base.OnLostMouseCapture(e);resizing=false;}
         protected override void OnMouseWheel(MouseWheelEventArgs e) {
+            if(Drawing){e.Handled=true;return;}
             double target=Limit(zoom*Math.Pow(wheelZoomFactor,e.Delta/120.0),MinZoom,MaxZoom);
             if(!PinTopOnWheel || target==zoom){SetZoom(target);e.Handled=true;return;}
             // The top line of the frame stays on the same spot of the picture, so a head that touches it keeps touching it.
@@ -386,6 +389,7 @@ namespace LoveMyShelf {
             }
         }
         protected override void OnKeyDown(KeyEventArgs e) {
+            if(Drawing)return;
             switch(e.Key) {
                 case Key.Add: case Key.OemPlus: SetZoom(zoom*1.14);break;
                 case Key.Subtract: case Key.OemMinus: SetZoom(zoom/1.14);break;
@@ -394,8 +398,45 @@ namespace LoveMyShelf {
             e.Handled=true;
         }
     }
+
+    // Keep the drawing layer aligned with the frame, including when the frame extends outside the view.
+    internal sealed class CropDrawingPicture : Panel {
+        readonly CropSurface surface;
+        readonly MotionDrawLayer drawing;
+        BitmapSource mosaicPicture;
+        internal CropDrawingPicture(CropSurface surface,MotionDrawLayer drawing) {
+            this.surface=surface;this.drawing=drawing;
+            ClipToBounds=true;Children.Add(surface);Children.Add(drawing);
+            surface.Moved+=FrameMoved;
+            surface.BrightnessChanged+=FrameMoved;
+            drawing.MosaicPicture=GetMosaicPicture;
+        }
+        BitmapSource GetMosaicPicture() {
+            if(mosaicPicture==null) {
+                Size size=surface.PixelSize;
+                double scale=Math.Min(1,1920/Math.Max(size.Width,size.Height));
+                mosaicPicture=Pictures.RenderRotatedCover(surface.Source,surface.Fraction,surface.Rotation,
+                    Math.Max(1,(int)Math.Round(size.Width*scale)),Math.Max(1,(int)Math.Round(size.Height*scale)),surface.Brightness);
+            }
+            return mosaicPicture;
+        }
+        void FrameMoved() {mosaicPicture=null;drawing.InvalidateVisual();InvalidateArrange();}
+        protected override Size MeasureOverride(Size size) {
+            surface.Measure(size);drawing.Measure(size);return surface.DesiredSize;
+        }
+        protected override Size ArrangeOverride(Size size) {
+            surface.Arrange(new Rect(size));
+            drawing.Arrange(surface.Frame);
+            drawing.SetLook(false,Math.Max(1,Math.Round(surface.PixelSize.Height)));
+            return size;
+        }
+    }
+
     public class CropWindow : Window {
         public readonly CropSurface Surface;
+        readonly MotionDrawLayer drawing=new MotionDrawLayer();
+        readonly CropDrawingPicture cropPicture;
+        internal string Drawings {get {return drawing.Value;}}
         internal bool BackToFrames { get; private set; }
         internal int FrameIndex { get; private set; }
         internal double? FrameTime {get{return nearby==null?(double?)null:nearby.Start(FrameIndex);}}
@@ -418,7 +459,7 @@ namespace LoveMyShelf {
         // True once nothing more can be read before / after the scene list (the video's start or end).
         bool nearbyAtStart,nearbyAtEnd,readingMore;
         public CropWindow(Window owner,BitmapSource image,string name,Rect? saved,double rotation=0,bool snapEdges=true,int wheelZoomPercent=7,
-            int previewSide=0,int brightness=0) {
+            int previewSide=0,int brightness=0,string drawings=null) {
             this.previewSide=previewSide>0?previewSide:Preferences.EditorPreviewSide;
             UI.WindowSetup(this,saved.HasValue?L.T("Make one more cover"):L.T("Make cover")); Owner=owner; ShowInTaskbar=false;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;
@@ -457,11 +498,45 @@ namespace LoveMyShelf {
             SizeChanged+=delegate {peekPanel.Visibility=ActualWidth>=640?Visibility.Visible:Visibility.Collapsed;};
             Action showShape=()=>{var size=Surface.PixelSize;seq.Text=Covers.Name(Surface.Aspect)+"  ·  "+Math.Round(size.Width)+" × "+Math.Round(size.Height);};
             Surface.ShapeChanged+=showShape;showShape();
-            root.Children.Add(Surface);Content=root;
+            drawing.Load(drawings);
+            cropPicture=new CropDrawingPicture(Surface,drawing);
+            var drawPanel=new MotionDrawPanel(drawing);
+            var drawDock=new StackPanel {Margin=new Thickness(6,2,6,2)};
+            var pauseNote=UI.Text(L.P("Fold [Draw] to change the crop again.",
+                "그리는 중에는 자르기를 바꿀 수 없어요. 자르기를 바꾸려면 [그림 그리기]를 접어요."),12,true);
+            var positionNote=UI.Text(L.P("Drawings keep their place in the cover when you change the crop.",
+                "자르는 곳을 바꿔도 그림은 표지 안에서 같은 자리에 있어요."),12,true);
+            pauseNote.TextWrapping=positionNote.TextWrapping=TextWrapping.Wrap;
+            positionNote.Visibility=Visibility.Collapsed;
+            drawDock.Children.Add(pauseNote);drawDock.Children.Add(positionNote);drawDock.Children.Add(drawPanel);
+            DockPanel.SetDock(drawDock,Dock.Bottom);
+            root.Children.Insert(root.Children.IndexOf(peekPanel),drawDock);
+            root.Children.Add(cropPicture);Content=root;
+
+            Action showDrawing=()=>{
+                Surface.Drawing=drawPanel.IsOpen;
+                if(Surface.Drawing && Surface.IsMouseCaptured)Surface.ReleaseMouseCapture();
+                Surface.InvalidateVisual();
+                pauseNote.Visibility=Surface.Drawing?Visibility.Visible:Visibility.Collapsed;
+                foreach(var barToPause in new FrameworkElement[]{shapeBar,rotationBar,reset})
+                    barToPause.IsEnabled=!Surface.Drawing;
+            };
+            drawPanel.OpenChanged+=showDrawing;showDrawing();
+            SizeChanged+=delegate {drawPanel.ControlsHeight=Math.Max(64,ActualHeight*0.25);};
+            Rect previousCrop=Surface.Fraction;
+            double previousRotation=Surface.Rotation;
+            Surface.Moved+=delegate {
+                if((Surface.Fraction!=previousCrop || Surface.Rotation!=previousRotation) && drawing.HasShapes)
+                    positionNote.Visibility=Visibility.Visible;
+                previousCrop=Surface.Fraction;previousRotation=Surface.Rotation;
+            };
+            drawing.Changed+=delegate {if(!drawing.HasShapes)positionNote.Visibility=Visibility.Collapsed;};
+            PreviewMouseWheel+=(s,e)=>{if(Surface.Drawing && cropPicture.IsMouseOver)e.Handled=true;};
             ContentRendered+=delegate { Surface.Focus(); };
             Closing+=(s,e)=>{if(saving)e.Cancel=true;};
             PreviewKeyDown+=(s,e)=>{
                 if(saving){e.Handled=true;return;}
+                if(drawPanel.HandleKey(e,true)){e.Handled=true;return;}
                 var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 // Typing a width or height: the arrows, letters and numbers stay in the box.
                 if(Keyboard.FocusedElement is TextBox && key!=Key.Escape && key!=Key.F1)return;
@@ -781,7 +856,7 @@ namespace LoveMyShelf {
             bar.Children.Add(frameNumber);
             nextFrame=UI.Btn(L.T("Next scene (F)"),()=>MoveFrame(1));bar.Children.Add(nextFrame);
             DockPanel.SetDock(bar,Dock.Bottom);
-            var root=(DockPanel)Content;root.Children.Insert(root.Children.IndexOf(Surface),bar);
+            var root=(DockPanel)Content;root.Children.Insert(root.Children.IndexOf(cropPicture),bar);
             UpdateFrameControls(true);
         }
         void UpdateFrameControls(bool ready) {

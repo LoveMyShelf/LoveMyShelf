@@ -35,6 +35,7 @@ namespace LoveMyShelf {
         public int Q;
         public double TargetMb;
         public string Text="";
+        public string Shapes="";
         public int TextPlace=2; // 0 top, 1 middle, 2 bottom, 3 a place of your own (TextX, TextY)
         public double TextX=50,TextY=50; // the middle of the text, in percents of the width and the height
         public double TextSize=8; // percent of the picture's height
@@ -76,6 +77,7 @@ namespace LoveMyShelf {
             if(!String.IsNullOrEmpty(Text))s.Append(";text=").Append(MotionLook.Base64(Text)).Append(";place=").Append(TextPlace.ToString(c)).Append(";tsize=").Append(Math.Round(TextSize,1).ToString(c))
                 .Append(TextPlace==3?";tx="+Math.Round(TextX,1).ToString(c)+";ty="+Math.Round(TextY,1).ToString(c):"")
                 .Append(TextStyle());
+            if(!String.IsNullOrEmpty(Shapes))s.Append(";draw=").Append(MotionLook.Base64(Shapes));
             return s.ToString();
         }
         // Only what differs from white letters with the automatic black edge, so an unchanged text keeps its old key.
@@ -114,6 +116,7 @@ namespace LoveMyShelf {
                 if(values.TryGetValue("q",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.Q=Math.Max(0,Math.Min(100,i));
                 if(values.TryGetValue("mb",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>0 && d<100000)r.TargetMb=d;
                 if(values.TryGetValue("text",out v))r.Text=MotionLook.FromBase64(v);
+                if(values.TryGetValue("draw",out v))r.Shapes=MotionShape.Normalize(MotionLook.FromBase64(v));
                 if(values.TryGetValue("place",out v) && Int32.TryParse(v,NumberStyles.Integer,c,out i))r.TextPlace=Math.Max(0,Math.Min(3,i));
                 if(values.TryGetValue("tx",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=100)r.TextX=d;
                 if(values.TryGetValue("ty",out v) && Double.TryParse(v,NumberStyles.Float,c,out d) && d>=0 && d<=100)r.TextY=d;
@@ -212,11 +215,12 @@ namespace LoveMyShelf {
         const int Thumbs=14; // pictures on the strip before its width is known
         // The pictures stay fully visible for exact work: only a three-pixel line just outside the start and end crosses them.
         // The handles, the chosen part and the cover and play marks live in a thin rail above and below the pictures.
-        const double PictureHeight=156,TopRail=PartLook.TopRail,StripHeight=PictureHeight+TopRail+PartLook.BottomRail,ThumbGap=2;
+        const double FullPictureHeight=156,TopRail=PartLook.TopRail,StripHeight=FullPictureHeight+TopRail+PartLook.BottomRail,ThumbGap=2;
+        double PictureHeight=FullPictureHeight;
         // Strip pictures show the cover's own part of each scene, in the cover's shape, so a wider window shows
         // more of them (like a video editor's timeline) instead of stretching each one.
         double CellWidth {get {return PictureHeight*source.Aspect;}}
-        const int CellPixels=(int)(PictureHeight*2);
+        const int CellPixels=(int)(FullPictureHeight*2);
         // Room at each end of the strip for a handle and a little empty gap,
         // so a handle at the clip's very start or end stays whole and the empty strip beyond shows the clip ends there.
         // In the middle of a clip this room shows the neighbouring pictures, so the strip still looks full.
@@ -290,6 +294,10 @@ namespace LoveMyShelf {
         Action<double> showTextX,showTextY;
         readonly TextBox textBox=new TextBox {MaxLength=60,MinWidth=150,MinHeight=26,VerticalContentAlignment=VerticalAlignment.Center};
         readonly TextMark textMark=new TextMark();
+        readonly MotionDrawLayer drawLayer=new MotionDrawLayer();
+        MotionDrawPanel drawPanel;
+        Size sourcePixels;
+        int drawSizeSetting,drawPixelHeight=1000;
         // 1.0.11: the text's style, folded away under [Text style]; remembered for the next window like the rest.
         TextStylePanel textStyle;
         static MotionRequest lastStyle;
@@ -479,8 +487,7 @@ namespace LoveMyShelf {
             middle=new Grid();
             middle.ColumnDefinitions.Add(new ColumnDefinition());middle.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});middle.ColumnDefinitions.Add(new ColumnDefinition());
             var previewBox=new Grid();
-            // The preview shows the flips and the text the file will have (the file gets them from FFmpeg).
-            var previewLayers=new Grid();previewLayers.Children.Add(preview);previewLayers.Children.Add(textMark);
+            var previewLayers=new MotionPicture(preview,drawLayer,textMark);
             preview.RenderTransformOrigin=new Point(0.5,0.5);
             previewFrame=new Border {Background=Brushes.Black,CornerRadius=new CornerRadius(8),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,
                 Child=previewLayers,Cursor=Cursors.Hand,ClipToBounds=true,Width=0,Height=0};
@@ -526,6 +533,8 @@ namespace LoveMyShelf {
             page.Children.Add(middle);
             page.SizeChanged+=delegate {Fit();};middle.SizeChanged+=delegate {Fit();};
             Arrange(false);
+            if(drawPanel.IsOpen)more.IsExpanded=true;
+
             // Coming back from Guide & Options: the way the preview works may have been changed there.
             Activated+=delegate {
                 if(!IsLoaded)return;
@@ -560,17 +569,19 @@ namespace LoveMyShelf {
                 if(!AutoMake){SetStatus();return;}
                 // The real file waits while a handle is held or the strip's scenes are still being read, so it
                 // never slows down what the person is doing right now. It looks again shortly.
-                if(dragging!=0 || draftFilling){prepareSoon.Interval=TimeSpan.FromMilliseconds(200);prepareSoon.Start();return;}
+                if(dragging!=0 || drawLayer.IsDragging || draftFilling){prepareSoon.Interval=TimeSpan.FromMilliseconds(200);prepareSoon.Start();return;}
                 Prepare();
             };
             PreviewKeyDown+=(s,e)=>{
                 if(e.Key==Key.F1){GuideWindow.Open(this,"gif");e.Handled=true;return;}
+                if(drawPanel.HandleKey(e,false)){e.Handled=true;return;}
                 // Typing text or a number: Space and the letters stay in the box.
                 if(Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)return;
+                var letter=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 if(e.OriginalSource is ComboBox || e.OriginalSource is ComboBoxItem)return;
+                if(e.Key==Key.Space && drawPanel.IsKeyboardFocusWithin)return;
                 if(e.Key==Key.Space){if(!e.IsRepeat)TogglePause();e.Handled=true;return;}
                 // Z / X / C / V: the same keys as playback speed in the large view, in Korean input mode too.
-                var letter=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
                 if(Keyboard.Modifiers==ModifierKeys.None && (letter==Key.Z || letter==Key.X || letter==Key.C)) {
                     if(letter==Key.Z)SetSpeed(1);else StepSpeed(letter==Key.X?-1:1);
                     e.Handled=true;return;
@@ -601,6 +612,7 @@ namespace LoveMyShelf {
                 UpdateChips();UpdateSummary();SetStatus();
                 try {
                     var size=await Task.Run(()=>MotionMaker.PixelSize(source.Path,lifetime.Token));
+                    sourcePixels=size;drawSizeSetting=0;
                     coverPixels=MotionMaker.CropPixels(source,size);
                     sourceFps=await Task.Run(()=>MotionMaker.SourceFps(source.Path,lifetime.Token),lifetime.Token);
                 } catch(Exception) {}
@@ -756,7 +768,14 @@ namespace LoveMyShelf {
             if(from!=null)textStyle.Load(from.Font,from.TextColor,from.EdgeColor,from.EdgeSize,from.Band,from.BandColor,from.BandStrength);
             textStyle.Changed+=delegate {UpdatePreviewLook();Changed();};
             textStyle.Margin=new Thickness(0,0,0,6);
-            styleField=textStyle;
+            drawLayer.Load(saved!=null?saved.Shapes:null);
+            drawLayer.Changed+=Changed;
+            drawLayer.Editing+=delegate {if(showingOwn)ShowDraft();};
+            drawPanel=new MotionDrawPanel(drawLayer);
+            drawPanel.VisibilityChanged+=delegate {textMark.IsHitTestVisible=!drawPanel.IsEditing;};
+            drawPanel.OpenChanged+=delegate {PlaceDrawOptions();Fit();};
+            var styles=new StackPanel();
+            styles.Children.Add(textStyle);styles.Children.Add(drawPanel);styleField=styles;
             UpdatePreviewLook();
         }
         // The style choices as a request (only the text-style part is used).
@@ -767,7 +786,7 @@ namespace LoveMyShelf {
             r.Band=textStyle.Band;r.BandColor=textStyle.BandColor;r.BandStrength=textStyle.BandStrength;
             return r;
         }
-        // The made file's own frames already carry the flips and the text; anything else gets them drawn on top.
+        // The made file's own frames already carry the flips, shapes and text.
         bool showingOwn,preparedOwn;
         bool movingText;
         // Typing an exact place makes the place "Your own".
@@ -778,6 +797,7 @@ namespace LoveMyShelf {
         void UpdatePreviewLook() {
             preview.RenderTransform=!showingOwn && (flipX || flipY)?new ScaleTransform(flipX?-1:1,flipY?-1:1):null;
             textMark.Set(textBox.Text,textPlace,textSize,textX,textY,showingOwn,StyleNow());
+            drawLayer.SetLook(showingOwn,drawPixelHeight);
         }
         FrameworkElement Field(string label,FrameworkElement control) {
             var row=new WrapPanel();
@@ -883,7 +903,26 @@ namespace LoveMyShelf {
             }
             leftScroll.Visibility=rightScroll.Visibility=wide?Visibility.Visible:Visibility.Collapsed;
             compactGuide.Visibility=wide?Visibility.Collapsed:Visibility.Visible;
-            hintsPlaced=false;
+            hintsPlaced=false;PlaceDrawOptions();
+        }
+        void PlaceDrawOptions() {
+            var styles=(StackPanel)styleField;
+            int panelIndex=drawPanel.IsOpen?0:1;
+            if(styles.Children.IndexOf(drawPanel)!=panelIndex) {
+                styles.Children.Remove(drawPanel);styles.Children.Insert(panelIndex,drawPanel);
+            }
+            if(wide)return;
+            bool drawing=drawPanel.IsOpen && more.IsExpanded;
+            int target=drawing?0:1;
+            bool moved=moreChoices.Children.IndexOf(styleField)!=target;
+            if(moved) {
+                moreChoices.Children.Remove(styleField);moreChoices.Children.Insert(target,styleField);
+            }
+            Panel speedHost=drawing?moreChoices:narrowHost;
+            if(narrowRow.Parent!=speedHost) {
+                Detach(narrowRow);speedHost.Children.Insert(drawing?1:0,narrowRow);
+            }
+            if(drawing && moved)moreScroll.ScrollToTop();
         }
         // The hints go in the free middle of the last row (between the times and the buttons) when two lines of them
         // fit there; with less room, or with a note to show first, they get a row of their own over the strip.
@@ -912,11 +951,22 @@ namespace LoveMyShelf {
             if(pageWidth<=0 || pageHeight<=0)return;
             // Decided from the window's size alone (not from the room left after arranging), so it can't flip back and forth.
             double roomIfWide=pageHeight-WideBottom;
-            moreScroll.MaxHeight=Math.Max(100,Math.Floor(pageHeight*0.23));
             Arrange(roomIfWide>=330 && (pageWidth-Math.Min(pageWidth,roomIfWide*source.Aspect))/2-SideGap>=SideMin);
-            PlaceHints();
-            // Leave room for the preview on the smallest windows while the settings are open.
-            hintBar.Visibility=!wide && pageWidth<700 && more.IsExpanded?Visibility.Collapsed:Visibility.Visible;
+            PlaceHints();PlaceDrawOptions();
+            bool drawing=drawPanel.IsOpen && (wide || more.IsExpanded);
+            hintBar.Visibility=drawing || (!wide && pageWidth<700 && more.IsExpanded)?Visibility.Collapsed:Visibility.Visible;
+            double pictureHeight=drawing?56:FullPictureHeight;
+            if(PictureHeight!=pictureHeight) {
+                PictureHeight=pictureHeight;strip.Height=PictureHeight+TopRail+PartLook.BottomRail;
+                cellsKey=null;Layout();
+            }
+            if(drawing && !wide) {
+                // Keep the preview above the strip and let the settings use the remaining height.
+                double fixedRows=strip.Height+stripFrame.Margin.Top+compactGuide.ActualHeight+compactGuide.Margin.Top+
+                    lastRow.ActualHeight+lastRow.Margin.Top+
+                    actions.ActualHeight+actions.Margin.Top+more.Margin.Top+26;
+                moreScroll.MaxHeight=Math.Max(64,Math.Floor(pageHeight*0.48-fixedRows));
+            } else moreScroll.MaxHeight=Math.Max(100,Math.Floor(pageHeight*0.23));
             double room=middle.ActualHeight,across=middle.ActualWidth;
             if(room<=0 || across<=0)return;
             double width=Math.Floor(Math.Min(room*source.Aspect,across));
@@ -1335,7 +1385,7 @@ namespace LoveMyShelf {
                 Sound=sound!=null && sound.IsChecked==true && format.SelectedIndex==2 && VideoFrames.Supports(source.Path),
                 FlipX=flipX,FlipY=flipY,Plays=format.SelectedIndex==2?0:plays,Hold=hold,
                 Q=qualityTyped && qualityNumber!=null?(int)qualityNumber():0,TargetMb=targetOn?targetMb:0,
-                Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY,
+                Text=(textBox.Text??"").Trim(),TextPlace=textPlace,TextSize=textSize,TextX=textX,TextY=textY,Shapes=drawLayer.Value,
                 Font=textStyle!=null?textStyle.FontId:"",TextColor=textStyle!=null?textStyle.TextColor:0xFFFFFF,EdgeColor=textStyle!=null?textStyle.EdgeColor:0,
                 EdgeSize=textStyle!=null?textStyle.EdgeSize:-1,Band=textStyle!=null && textStyle.Band,BandColor=textStyle!=null?textStyle.BandColor:0,
                 BandStrength=textStyle!=null?textStyle.BandStrength:60};
@@ -1385,6 +1435,15 @@ namespace LoveMyShelf {
         }
         void UpdateSummary() {
             var request=Read();
+            if(drawSizeSetting!=request.Height) {
+                drawSizeSetting=request.Height;
+                if(sourcePixels.Width>0 && sourcePixels.Height>0) {
+                    int width;
+                    MotionMaker.Filters(source.Crop,source.Rotation,source.Brightness,(int)sourcePixels.Width,(int)sourcePixels.Height,
+                        request,false,out width,out drawPixelHeight);
+                } else drawPixelHeight=Math.Max(2,(int)Math.Round(request.Height/Math.Max(1,source.Aspect)));
+                drawLayer.SetLook(showingOwn,drawPixelHeight);
+            }
             UpdateNumberNotes(request);
             double mb;string size;
             double seconds=request.PlaySeconds;int frames=request.Frames;
@@ -2293,11 +2352,24 @@ namespace LoveMyShelf {
             long held=(long)outW*outH*3*forward*(bounce?2:1);
             string palette=null,work=MotionLook.WorkFolder(part);
             try {
-                // Flips and text go on the file only; the window's preview shows them its own way (see MotionWindow).
+                string flips=MotionLook.Flips(request);
                 string dress=MotionLook.Dress(request,outH,work);
+                token.ThrowIfCancellationRequested();
+                string shapes=MotionDraw.WritePng(request.Shapes,outW,outH,work);
+                token.ThrowIfCancellationRequested();
+                // The primary input stays at 0. The optional PNG is next, and the palette is appended only for pass two.
+                int nextInput=1,shapesInput=-1;
+                if(shapes!=null) {
+                    shapesInput=nextInput++;
+                    input+="-i "+VideoFrames.Quote(shapes)+" ";
+                }
+                int paletteInput=nextInput;
                 if(gif && held>700L*1024*1024) {
                     palette=part+".palette.png";
-                    string first="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote("[0:v:0]"+chain+(dress!=null?","+dress:"")+","+PaletteGen(request)+"[p]")+
+                    var firstGraph=new StringBuilder("[0:v:0]").Append(chain).Append("[made]");
+                    string firstPicture=AppendDress(firstGraph,"[made]",flips,dress,shapesInput,request,outW,outH);
+                    firstGraph.Append(';').Append(firstPicture).Append(PaletteGen(request)).Append("[p]");
+                    string first="-v error -nostdin -y "+input+"-an -sn -dn -filter_complex "+VideoFrames.Quote(firstGraph.ToString())+
                         " -map [p] -frames:v 1 -update 1 "+VideoFrames.Quote(palette);
                     Execute(first,null,0,0,0,forward,request.Fps,token,null,0,0);
                     if(progress!=null)progress(progressFrom+progressSpan*0.4);
@@ -2317,7 +2389,7 @@ namespace LoveMyShelf {
                     g.Append("scale=").Append(copyW).Append(':').Append(copyH).Append(":flags=bicubic,format=bgra[copy]");
                     current="[main]";
                 }
-                if(dress!=null){g.Append(';').Append(current).Append(dress).Append("[dressed]");current="[dressed]";}
+                current=AppendDress(g,current,flips,dress,shapesInput,request,outW,outH);
                 if(reverse){g.Append(';').Append(current).Append("reverse[turned]");current="[turned]";}
                 else if(bounce) {
                     // Forward, then back without repeating the two turning frames, so the loop never stalls.
@@ -2330,7 +2402,7 @@ namespace LoveMyShelf {
                 string codec;
                 if(gif) {
                     string use="paletteuse=dither="+MotionLook.GifDither(request)+":diff_mode=rectangle"+(request.KeepAlpha?":alpha_threshold=128":"");
-                    if(palette!=null)g.Append(';').Append(current).Append("[1:v]").Append(use).Append("[out]");
+                    if(palette!=null)g.Append(';').Append(current).Append('[').Append(paletteInput).Append(":v]").Append(use).Append("[out]");
                     else g.Append(';').Append(current).Append("split[a][b];[a]").Append(PaletteGen(request)).Append("[p];[b][p]").Append(use).Append("[out]");
                     codec="-loop "+MotionLook.GifLoop(request)+" -f gif";
                 } else if(request.Format=="webp") {
@@ -2354,6 +2426,26 @@ namespace LoveMyShelf {
                 if(palette!=null)File.Delete(palette);
                 try {if(Directory.Exists(work))Directory.Delete(work,true);} catch(IOException quiet) {ErrorLog.Quiet(quiet);} catch(UnauthorizedAccessException quiet) {ErrorLog.Quiet(quiet);}
             }
+        }
+        static string AppendDress(StringBuilder graph,string current,string flips,string dress,int shapesInput,MotionRequest request,int width,int height) {
+            if(flips!=null) {
+                graph.Append(';').Append(current).Append(flips).Append("[flipped]");
+                current="[flipped]";
+            }
+            current=MotionDraw.AppendMosaics(graph,current,request.Shapes,width,height,request.KeepAlpha);
+            if(shapesInput>=0) {
+                graph.Append(';').Append(current).Append('[').Append(shapesInput).Append(":v]overlay=0:0:eof_action=repeat:format=rgb[drawn]");
+                current="[drawn]";
+            }
+            if(dress!=null) {
+                graph.Append(';').Append(current).Append(dress).Append("[dressed]");
+                current="[dressed]";
+            }
+            if(shapesInput>=0 && request.KeepAlpha) {
+                graph.Append(';').Append(current).Append("format=rgba[alpha]");
+                current="[alpha]";
+            }
+            return current;
         }
         // The sound keeps its pitch at another speed. One step of FFmpeg's atempo goes from half to double speed, so slower or faster takes several.
         static string Tempo(double speed) {

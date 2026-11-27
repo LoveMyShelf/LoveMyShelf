@@ -2551,7 +2551,7 @@ namespace LoveMyShelf {
         // fresh: start with no framing, rotation or brightness of the photo's cover (it was cut from a different picture).
         CropWindow CreateCropEditor(Window owner,Photo photo,BitmapSource preview,bool fresh=false) {
             return new CropWindow(owner,preview,photo.Name,photo.HasCrop && !fresh?(Rect?)photo.Crop:null,fresh?0:photo.Rotation,
-                settings.SnapEdges,settings.WheelZoomPercent,brightness:fresh?0:photo.Brightness) {BrightnessStep=settings.BrightnessStep};
+                settings.SnapEdges,settings.WheelZoomPercent,brightness:fresh?0:photo.Brightness,drawings:fresh?null:photo.Drawings) {BrightnessStep=settings.BrightnessStep};
         }
         // A cover cut from a picture made somewhere else (a poster, a picture edited in another program).
         // It belongs to the original like any other cover; a copy of the picture is kept so the cover can be edited later.
@@ -2711,10 +2711,11 @@ namespace LoveMyShelf {
             string directory=settings.CoverDirectory;
             int brightness=dialog.Surface.Brightness;
             var place=settings.CoverPlace;
+            string drawings=dialog.Drawings;
             Photo updated=await Task.Run(()=>store.Reframe(photo,preview,crop,frame,rotation,frameTime,offset,
-                CoverOutputMode.Native,0,lifetime.Token,directory,brightness,place,picture));
+                CoverOutputMode.Native,0,lifetime.Token,directory,brightness,place,picture,drawings));
             bool added=!photo.HasCrop && GalleryStore.RecordBase(photo)!=Path.GetFileName(photo.Folder);
-            bool motion=offerMotion && picture==null && MotionMaker.Supports(updated.Original);
+            bool motion=offerMotion && !updated.HasMotion && picture==null && MotionMaker.Supports(updated.Original);
             Action makeGif=motion?(Action)(()=>ShowMakeGif(ActiveAppWindow(),updated)):null;
             string gifLine=motion?" "+L.P("[Make GIF cover] makes a moving cover from this JPG cover.","[GIF 표지 만들기]를 누르면 이 JPG 표지로 움직이는 표지를 만들어요."):"";
             if(picture!=null && !photo.HasCrop)
@@ -2744,7 +2745,7 @@ namespace LoveMyShelf {
                 if(photo.Linked && !File.Exists(original))original=OriginalLocator.Resolve(store,photo,lifetime.Token);
                 var source=new MotionSource {Path=original,Moment=MotionSource.MomentOf(original,photo.FrameTime,photo.FrameIndex),
                     Crop=photo.Crop,Rotation=photo.Rotation,Brightness=photo.Brightness,Aspect=photo.Aspect};
-                try {if(photo.CoverFile!=null && File.Exists(photo.CoverFile))source.Still=Pictures.Load(photo.CoverFile,960);} catch(Exception) {}
+                try {if(String.IsNullOrEmpty(photo.Drawings) && photo.CoverFile!=null && File.Exists(photo.CoverFile))source.Still=Pictures.Load(photo.CoverFile,960);} catch(Exception) {}
                 // A cover that already has a GIF: Edit GIF cover, starting from the part and choices it was made with.
                 var dialog=new MotionWindow(owner!=null && owner.IsVisible?owner:this,source,false,photo.HasMotion,photo.HasMotion?photo.MotionSettings:null);
                 if(CoverWork.Show(dialog,photo,this,original)==true)MakeMotion(photo,dialog.Value);

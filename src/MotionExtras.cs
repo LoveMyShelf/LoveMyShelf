@@ -62,7 +62,7 @@ namespace LoveMyShelf {
         // The pause on the last picture, added after the play style (so a back-and-forth pauses at its end too).
         internal static string Hold(MotionRequest r) {return r.Hold>0.01?"tpad=stop_mode=clone:stop_duration="+N(Math.Min(30,r.Hold)):null;}
 
-        // Flips and the line of text, drawn on the finished picture (after the cover's own look).
+        // Text is drawn on the finished picture, above any drawings or flips.
         // The text and the font are copied into a folder of their own, so no path or letter in them can upset FFmpeg.
         // Where the text and the font copy go: beside the file being made, or (when that path has an apostrophe,
         // which FFmpeg's filter text can't hold) a folder of its own under ProgramData.
@@ -70,10 +70,11 @@ namespace LoveMyShelf {
             string work=part+".dress";
             return work.IndexOf((char)39)<0?work:Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"LoveMyShelf","text",Guid.NewGuid().ToString("N"));
         }
+        internal static string Flips(MotionRequest r) {
+            return r.FlipX?(r.FlipY?"hflip,vflip":"hflip"):(r.FlipY?"vflip":null);
+        }
         internal static string Dress(MotionRequest r,int outH,string work) {
             var steps=new StringBuilder();
-            if(r.FlipX)steps.Append("hflip,");
-            if(r.FlipY)steps.Append("vflip,");
             string text=(r.Text??"").Replace("\r"," ").Replace("\n"," ").Trim();
             if(text.Length>0) {
                 Directory.CreateDirectory(work);

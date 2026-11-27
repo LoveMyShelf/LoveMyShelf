@@ -262,7 +262,7 @@ namespace LoveMyShelf {
             return b;
         }
         // A row of color chips plus [Other color…] (the Windows color window, where numbers can be typed too).
-        FrameworkElement Colors(string name,Func<int> read,Action<int> pick,out Action<int> show) {
+        internal static FrameworkElement Colors(string name,Func<int> read,Action<int> pick,out Action<int> show) {
             var row=new WrapPanel {VerticalAlignment=VerticalAlignment.Center};
             var chips=new List<Border>();
             Action<int> mark=null;
@@ -280,7 +280,7 @@ namespace LoveMyShelf {
             row.Children.Add(own);
             var other=UI.Btn(L.P("Other color…","다른 색…"),()=>{
                 using(var dialog=new System.Windows.Forms.ColorDialog {FullOpen=true,AnyColor=true}) {
-                    int now=read();
+                    int now=Math.Max(0,read());
                     dialog.Color=System.Drawing.Color.FromArgb(now>>16&255,now>>8&255,now&255);
                     if(dialog.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;
                     int rgb=dialog.Color.R<<16|dialog.Color.G<<8|dialog.Color.B;
@@ -297,7 +297,7 @@ namespace LoveMyShelf {
                     if(on)chip.SetResourceReference(Border.BorderBrushProperty,"Accent");
                     else chip.BorderBrush=new SolidColorBrush(TextLook.ColorOf(0xC5CAD1));
                 }
-                own.Visibility=listed?Visibility.Collapsed:Visibility.Visible;
+                own.Visibility=listed || value<0?Visibility.Collapsed:Visibility.Visible;
                 own.Background=new SolidColorBrush(TextLook.ColorOf(value));own.SetResourceReference(Border.BorderBrushProperty,"Accent");
                 own.ToolTip="#"+TextLook.Hex(value).Substring(2);
             };

@@ -46,11 +46,13 @@ namespace LoveMyShelf {
         }
 
         internal static string Write(string directory,string name,string folder,string revision,BitmapSource source,
-            Rect crop,double rotation,CancellationToken token,int brightness,bool trimVerticalPadding=true,bool beside=false) {
+            Rect crop,double rotation,CancellationToken token,int brightness,bool trimVerticalPadding=true,bool beside=false,string drawings=null) {
             Directory.CreateDirectory(directory);
             string part=Path.Combine(directory,".lovemyshelf-"+Guid.NewGuid().ToString("N")+".tmp");
             try {
-                var image=CoverImages.NativeCover(source,crop,rotation,token,brightness,trimVerticalPadding);
+                // A drawing is positioned in the full editor frame, including any padding the user saw.
+                var image=CoverImages.NativeCover(source,crop,rotation,token,brightness,trimVerticalPadding && String.IsNullOrEmpty(drawings));
+                image=MotionDraw.Apply(image,drawings);
                 using(var stream=File.Create(part)) {
                     var encoder=new JpegBitmapEncoder {QualityLevel=100};
                     encoder.Frames.Add(BitmapFrame.Create(image));
@@ -78,7 +80,7 @@ namespace LoveMyShelf {
             string output=null;
             try {
                 output=Write(directory,old.Name,old.Folder,Path.GetFileName(old.Thumb),source,old.Crop,old.Rotation,token,old.Brightness,
-                    trimVerticalPadding:false);
+                    trimVerticalPadding:false,drawings:old.Drawings);
                 lock(MetadataLock) {
                     token.ThrowIfCancellationRequested();
                     var xml=XElement.Load(metadata);

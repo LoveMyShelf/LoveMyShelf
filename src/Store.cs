@@ -99,6 +99,9 @@ namespace LoveMyShelf {
             target.Render(visual);target.Freeze();return target;
         }
         internal static BitmapSource ViewCover(BitmapSource source,Photo photo) {
+            if(!String.IsNullOrEmpty(photo.Drawings))
+                return MotionDraw.Apply(CoverImages.NativeCover(source,photo.Crop,photo.Rotation,
+                    System.Threading.CancellationToken.None,photo.Brightness),photo.Drawings);
             if(photo.Rotation==0) {
                 var cut=Cut(source,photo.Crop);
                 return photo.Brightness==0?cut:RenderRotatedCover(cut,new Rect(0,0,1,1),0,cut.PixelWidth,cut.PixelHeight,photo.Brightness);
@@ -112,7 +115,7 @@ namespace LoveMyShelf {
         internal static BitmapSource SavedPreview(Photo photo) {
             if(File.Exists(photo.ActiveCoverFile))return Load(photo.ActiveCoverFile,448);
             var thumb=Load(photo.Thumb);
-            return photo.Rotation==0?TrimPreview(thumb,photo.Crop):thumb;
+            return photo.Rotation==0 && String.IsNullOrEmpty(photo.Drawings)?TrimPreview(thumb,photo.Crop):thumb;
         }
         static BitmapSource RenderCrop(BitmapSource source, Rect fraction, int width, int height) {
             double w=source.PixelWidth, h=source.PixelHeight;
@@ -134,13 +137,13 @@ namespace LoveMyShelf {
         public static void Thumbnail(BitmapSource source, Rect fraction, string path,double rotation=0,int brightness=0) {
             using (var output = File.Create(path)) Thumbnail(source,fraction,output,rotation,brightness);
         }
-        internal static void Thumbnail(BitmapSource source, Rect fraction, Stream output,double rotation=0,int brightness=0) {
+        internal static void Thumbnail(BitmapSource source, Rect fraction, Stream output,double rotation=0,int brightness=0,string drawings=null) {
             var encoder = new JpegBitmapEncoder { QualityLevel = 88 };
             // At most 448 on the long side, in the cover's own shape (252 x 448 for a 9:16 cover).
             double aspect=Covers.AspectOf(fraction,source.PixelWidth,source.PixelHeight);
             int w=Math.Max(1,(int)Math.Round(aspect>=1?448:448*aspect)),h=Math.Max(1,(int)Math.Round(aspect>=1?448/aspect:448));
-            encoder.Frames.Add(BitmapFrame.Create(rotation==0 && brightness==0?RenderCrop(source,fraction,w,h):
-                RenderRotatedCover(source,fraction,rotation,w,h,brightness)));
+            var picture=rotation==0 && brightness==0?RenderCrop(source,fraction,w,h):RenderRotatedCover(source,fraction,rotation,w,h,brightness);
+            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(picture,drawings)));
             encoder.Save(output);
         }
     }
@@ -167,6 +170,7 @@ namespace LoveMyShelf {
         internal string MotionFile;
         // The part and choices the GIF was made with (null for one made before these were saved).
         internal MotionRequest MotionSettings;
+        internal string Drawings;
         internal bool HasMotion {get {return MotionFile!=null && File.Exists(MotionFile);}}
         // An upscaled copy of the cover file. Choice: "pending" (not chosen yet), "upscaled", or "original".
         internal string UpscaleFile,UpscaleChoice;
@@ -362,7 +366,7 @@ namespace LoveMyShelf {
         static string Num(double n) { return n.ToString("R",Inv); }
         static void WriteMeta(string path, string name, string original, string thumb, Rect crop, long order,long coverCreated,
             int frameIndex,double rotation,double? frameTime,int frameTimeOffset,string coverFile,int brightness,double? sceneMs,
-            string picture=null,double? rank=null,double aspect=Covers.Tall) {
+            string picture=null,double? rank=null,double aspect=Covers.Tall,string drawings=null) {
             new XElement("photo",new XAttribute("name",name),new XAttribute("original",original),
                 new XAttribute("thumb",thumb), new XAttribute("order",order),new XAttribute("coverCreated",coverCreated),new XAttribute("frame",frameIndex),
                 new XAttribute("x",Num(crop.X)),new XAttribute("y",Num(crop.Y)),
@@ -376,6 +380,7 @@ namespace LoveMyShelf {
                 frameTimeOffset>0?new XAttribute("frameTimeOffset",frameTimeOffset):null,
                 sceneMs.HasValue?new XAttribute("sceneMs",Num(sceneMs.Value)):null,
                 picture==null?null:new XAttribute("picture",picture),
+                String.IsNullOrEmpty(drawings)?null:new XAttribute("drawings",drawings),
                 rank.HasValue?new XAttribute("rank",Num(rank.Value)):null,
                 coverFile==null?null:new XAttribute("coverFile",coverFile),
                 coverFile==null?null:new XAttribute("coverFileTicks",File.GetLastWriteTimeUtc(coverFile).Ticks)).Save(path);
@@ -415,7 +420,7 @@ namespace LoveMyShelf {
                 if(String.IsNullOrEmpty(picture))picture=null;
             }
             return new Photo { Folder=folder,Name=(string)n.Attribute("name"), Crop=r,Order=(long)n.Attribute("order"),
-                SavedSceneMs=sceneMs,Picture=picture,Rank=rank,
+                SavedSceneMs=sceneMs,Picture=picture,Rank=rank,Drawings=(string)n.Attribute("drawings"),
                 CoverCreated=coverCreated,
                 Rotation=CropSurface.NormalizeRotation(rotation),
                 Brightness=n.Attribute("soft")!=null?Light.Encode((int)n.Attribute("soft"),Light.Soft):
@@ -928,7 +933,8 @@ namespace LoveMyShelf {
         }
         internal Photo Reframe(Photo old,BitmapSource preview,Rect crop,int? frameIndex,double rotation,
             double? frameTime,int frameTimeOffset,CoverOutputMode mode,int maxHeight,System.Threading.CancellationToken token,
-            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null) {
+            string coverDirectory=null,int brightness=0,CoverPlace place=CoverPlace.CoverFolder,string picture=null,string drawings=null) {
+            drawings=MotionShape.Normalize(drawings??old.Drawings);
             // picture: a picture made outside LoveMyShelf that the cover is cut from, instead of the original.
             // The original stays the file the cover belongs to, so where the cover is saved and how it is found again don't change.
             if(coverDirectory!=null){mode=CoverOutputMode.Native;maxHeight=0;}
@@ -979,8 +985,8 @@ namespace LoveMyShelf {
                     }
                 }
                 if(coverDirectory==null) {
-                    Pictures.Thumbnail(preview,crop,newThumb,rotation,brightness);
-                    using(var output=File.Create(display))CoverImages.Save(source,crop,rotation,output,maxHeight,native,token,brightness);
+                    using(var output=File.Create(newThumb))Pictures.Thumbnail(preview,crop,output,rotation,brightness,drawings);
+                    using(var output=File.Create(display))CoverImages.Save(source,crop,rotation,output,maxHeight,native,token,brightness,drawings);
                 } else {
                     if(old.Linked && !originalAway)OriginalLocator.Remember(old,original,required:true);
                     string folderTarget=SharedCoverFiles.TargetFolder(place,coverDirectory,original,old.Linked);
@@ -996,12 +1002,12 @@ namespace LoveMyShelf {
                     }
                     bool beside=originalAway?besideEarlier:folderTarget!=coverDirectory && place==CoverPlace.BesideOriginal;
                     try {
-                        coverFile=SharedCoverFiles.Write(folderTarget,old.Name,old.Folder,id,source,crop,rotation,token,brightness,beside:beside);
+                        coverFile=SharedCoverFiles.Write(folderTarget,old.Name,old.Folder,id,source,crop,rotation,token,brightness,beside:beside,drawings:drawings);
                     } catch(Exception ex) {
                         // A phone, a read-only or an offline cloud folder: keep the cover in the cover folder instead.
                         if(folderTarget==coverDirectory || token.IsCancellationRequested ||
                             !(ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException))throw;
-                        coverFile=SharedCoverFiles.Write(coverDirectory,old.Name,old.Folder,id,source,crop,rotation,token,brightness);
+                        coverFile=SharedCoverFiles.Write(coverDirectory,old.Name,old.Folder,id,source,crop,rotation,token,brightness,drawings:drawings);
                         fellBack=true;
                     }
                 }
@@ -1009,11 +1015,23 @@ namespace LoveMyShelf {
                 long coverCreated=old.CoverCreated>0?old.CoverCreated:DateTime.UtcNow.Ticks;
                 WriteMeta(part,old.Name,Path.GetFileName(old.Original),thumb,crop,old.Order,coverCreated,selectedFrame,
                     rotation,selectedTime,selectedOffset,coverFile,brightness,sceneMs,pictureName,CurrentRank(old.Folder,old.Rank),
-                    Covers.AspectOf(crop,(preview??source).PixelWidth,(preview??source).PixelHeight));
+                    Covers.AspectOf(crop,(preview??source).PixelWidth,(preview??source).PixelHeight),drawings);
                 string target=Path.Combine(old.Folder,"photo.xml");
                 lock(SharedCoverFiles.MetadataLock) {
                     if(File.Exists(target)) {
-                        if(old.HasCrop)previous=Read(old.Folder,old.Linked?original:null);
+                        if(old.HasCrop) {
+                            previous=Read(old.Folder,old.Linked?original:null);
+                            // Editing the JPG drawing alone leaves the separately made moving cover in place.
+                            if(previous.MotionFile!=null && (previous.Drawings??"")!=drawings && previous.Crop==crop &&
+                                previous.Rotation==rotation && previous.Brightness==brightness && previous.FrameIndex==selectedFrame &&
+                                previous.FrameTime==selectedTime && previous.FrameTimeOffset==selectedOffset && previous.Picture==pictureName) {
+                                var current=XElement.Load(target);
+                                var next=XElement.Load(part);
+                                next.SetAttributeValue("motionFile",(string)current.Attribute("motionFile"));
+                                next.SetAttributeValue("motionSettings",(string)current.Attribute("motionSettings"));
+                                next.Save(part);
+                            }
+                        }
                         File.Replace(part,target,null);
                     } else File.Move(part,target);
                 }

@@ -19,6 +19,11 @@
       titleEn="Gather this folder only"
       textKo="왼쪽 폴더 목록에서 폴더를 오른쪽 클릭하고 [이 폴더만 모아 보기]를 누르면, 그 폴더와 하위 폴더의 사진·영상이 한 화면에 모여요. 아래 [전체]·[표지 X]·[표지 O]로 바로 나눠 볼 수 있고, 칸에 마우스를 올리면 어느 하위 폴더에 있는지 보여요. 다른 폴더는 그대로예요."
       textEn="Right-click a folder in the folder list on the left and click [Gather this folder only]: the photos and videos in that folder and its subfolders come together on one screen. [All], [Unfinished] and [Finished] at the bottom split them right away, and pointing at a tile shows which subfolder it is in. Other folders stay as they are."/>
+    <item group="new" icon="image"
+      titleKo="표지와 GIF 위에 그림 그리기"
+      titleEn="Draw on covers and GIFs"
+      textKo="JPG 표지 창과 GIF 표지 만들기 창에 [그림 그리기]가 생겼어요. 네모·둥근 네모·동그라미·직선·화살표·펜·형광펜·모자이크를 그릴 수 있고, 선 색·채우기 색·굵기·투명도를 숫자로 정해요. 그린 것은 눌러서 옮기거나 크기를 바꾸고, Ctrl+Z로 되돌려요. 원본 파일은 그대로이고, [표지 수정]에서 다시 고칠 수 있어요."
+      textEn="The JPG cover window and the Make GIF cover window now have [Draw]. You can draw boxes, rounded boxes, circles, lines, arrows, pen and highlighter lines and mosaic boxes, and set the line color, fill color, thickness and opacity as numbers. Click a drawing to move or resize it, and press Ctrl+Z to undo. The original file stays as it is, and you can change the drawing later in [Edit cover]."/>
     <item group="fixed" icon="check"
       titleKo="최대화해도 아래가 잘려 보이지 않아요"
       titleEn="Nothing is cut off at the bottom when you maximize"

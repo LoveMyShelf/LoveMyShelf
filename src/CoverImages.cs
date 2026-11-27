@@ -88,7 +88,7 @@ namespace LoveMyShelf {
             Save(source,crop,rotation,output,1920,false,CancellationToken.None);
         }
 
-        internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output,int maxHeight,bool native,CancellationToken token,int brightness=0) {
+        internal static void Save(BitmapSource source,Rect crop,double rotation,Stream output,int maxHeight,bool native,CancellationToken token,int brightness=0,string drawings=null) {
             double width=source.PixelWidth*crop.Width,height=source.PixelHeight*crop.Height;
             // maxHeight is the long side: 1080 x 1920 for a 9:16 cover, as before; a wide cover gets 1920 across.
             double scale=maxHeight==0?1:Math.Min(1,maxHeight/Math.Max(width,height));
@@ -97,7 +97,7 @@ namespace LoveMyShelf {
                 Pictures.RenderRotatedCover(source,crop,rotation,
                 Math.Max(1,(int)Math.Round(width*scale)),Math.Max(1,(int)Math.Round(height*scale)),brightness);
             var encoder=new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(output);
+            encoder.Frames.Add(BitmapFrame.Create(MotionDraw.Apply(image,drawings)));encoder.Save(output);
         }
 
         internal static BitmapSource Load(Stream input) {
