@@ -61,6 +61,7 @@ namespace LoveMyShelf {
             var handle=new WindowInteropHelper(window).Handle;
             if(full) {
                 var screen=Forms.Screen.FromHandle(handle);
+                titleBar.Recaption(); // a window maximized over another full-screen window gets its caption back first, so that is what is kept
                 oldState=window.WindowState;oldStyle=window.WindowStyle;oldResize=window.ResizeMode;
                 oldBounds=oldState==WindowState.Normal?new Rect(window.Left,window.Top,window.ActualWidth,window.ActualHeight):window.RestoreBounds;
                 titleBar.UseWindowChrome(false);

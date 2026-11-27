@@ -47,15 +47,61 @@ namespace LoveMyShelf {
             title.SetBinding(TextBlock.TextProperty,new Binding("Title"){Source=window});
             Children.Add(title);
             WindowChrome.SetWindowChrome(window,chrome);
-            window.StateChanged+=delegate {Update();FitMaximized();};
+            window.StateChanged+=delegate {Update();FitMaximized();tries=0;SettleLater();};
             window.SizeChanged+=delegate {FitMaximized();};
-            window.LocationChanged+=delegate {FitMaximized();}; // a maximized window moved to another screen (Win+Shift+arrow)
+            window.LocationChanged+=delegate {FitMaximized();if(window.WindowState==WindowState.Maximized)SettleLater();}; // a maximized window moved to another screen (Win+Shift+arrow)
             window.SourceInitialized+=delegate {
                 var source=HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
                 if(source!=null)source.AddHook(MaximizeToWorkArea);
+                // A window that opens maximized: its caption goes before Windows first shows it (afterwards the
+                // first maximized place can't be changed any more), and it is checked again once it is on screen.
+                Settle();
+                SettleLater();
                 FitMaximized();
             };
             Update();
+        }
+
+        // Windows keeps a maximized window that has a caption (WS_CAPTION) inside the work area of its screen, whatever
+        // WM_WINDOWPOSCHANGING says: measured 2026-11-27 (fourth try at "설명서 겸 옵션 하단 짤려서 나와") on an ordinary
+        // window over the full-screen folder window, 1920x1080 at 150%: the hook asked for 0,0-1920,1080 and Windows put
+        // it back at -11,-11-1931,1019, by the maximize button, by SetWindowPos and when it opened maximized. The
+        // automatic check didn't see it because its hidden windows are tool windows, which Windows lets through.
+        // Without a caption Windows lets a maximized window cover the whole screen. The title bar here is our own
+        // (WindowChrome), so nothing on screen changes: while a window is maximized on a screen where one of our windows
+        // is in full screen, it goes without the caption (WindowStyle None, still resizable, so it is never taken for
+        // full screen itself) and covers that whole screen; otherwise it gets its own style back.
+        bool uncaptioned,inSizeMove;
+        WindowStyle styleBefore;
+        int tries;
+        void SettleLater() {
+            window.Dispatcher.BeginInvoke(new Action(Settle),System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        internal void Settle() {
+            IntPtr handle=new WindowInteropHelper(window).Handle;
+            if(handle==IntPtr.Zero || inSizeMove || window.WindowState==WindowState.Minimized)return;
+            bool maximized=window.WindowState==WindowState.Maximized && !FullScreen.IsFull(window);
+            bool whole=maximized && window.ResizeMode!=ResizeMode.NoResize && FullScreenOn(MonitorFromWindow(handle,2));
+            bool switched=whole!=uncaptioned;
+            if(whole && !uncaptioned){styleBefore=window.WindowStyle;uncaptioned=true;window.WindowStyle=WindowStyle.None;}
+            else if(!whole)Recaption();
+            if(!maximized || !IsWindowVisible(handle))return;
+            Edges now;
+            var info=new ScreenInfo {Size=Marshal.SizeOf(typeof(ScreenInfo))};
+            if(!GetWindowRect(handle,out now) || !GetMonitorInfo(MonitorFromWindow(handle,2),ref info))return;
+            var area=whole?info.Monitor:info.Work;
+            bool placed=now.Left==area.Left && now.Top==area.Top && now.Right==area.Right && now.Bottom==area.Bottom;
+            // Placed again when the caption came or went, or when a caption-less window isn't on the whole screen yet
+            // (a few tries at most, so a place Windows won't give can't keep this going).
+            if(switched || (whole && !placed && tries++<3))
+                SetWindowPos(handle,IntPtr.Zero,area.Left,area.Top,area.Right-area.Left,area.Bottom-area.Top,0x0014); // SWP_NOZORDER|SWP_NOACTIVATE
+        }
+        // Gives the window its own caption back (before FullScreen keeps its style, and whenever it no longer covers a
+        // full-screen window).
+        internal void Recaption() {
+            if(!uncaptioned)return;
+            uncaptioned=false;
+            if(window.WindowStyle==WindowStyle.None)window.WindowStyle=styleBefore;
         }
 
         // A window with its own title bar (WindowChrome) has no caption to Windows, and Windows maximizes such a window
@@ -70,6 +116,9 @@ namespace LoveMyShelf {
             // WM_WINDOWPOSCHANGING while maximized: the place Windows is about to give the window becomes the work area of
             // the screen it lands on. (WM_GETMINMAXINFO can't do this: its sizes are for the primary screen, and a window
             // maximized on a second screen with another size or scale came out the wrong size.)
+            // Dragging a maximized window off by its title bar: its caption comes back once the drag ends, not halfway.
+            if(message==0x0231)inSizeMove=true; // WM_ENTERSIZEMOVE
+            if(message==0x0232){inSizeMove=false;SettleLater();} // WM_EXITSIZEMOVE
             if(message!=0x0046 || !IsZoomed(handle) || FullScreen.IsFull(window))return IntPtr.Zero;
             var place=(WindowPlace)Marshal.PtrToStructure(lParam,typeof(WindowPlace));
             if((place.Flags&0x0003)==0x0003)return IntPtr.Zero; // SWP_NOSIZE|SWP_NOMOVE: not a move or resize
@@ -99,7 +148,7 @@ namespace LoveMyShelf {
             return false;
         }
         // Called when a window goes into or out of full screen: maximized windows take the whole screen or the work
-        // area again (the hook above picks which as they are placed).
+        // area again (Settle drops or gives back the caption; the hook above picks the place as they are placed).
         internal static void RefitMaximized() {
             List<WindowTitleBar> live;
             lock(bars){bars.RemoveAll(r=>!r.IsAlive);live=bars.Select(r=>r.Target as WindowTitleBar).Where(t=>t!=null).ToList();}
@@ -109,10 +158,15 @@ namespace LoveMyShelf {
                 IntPtr handle=new WindowInteropHelper(w).Handle;
                 Edges now;
                 if(handle==IntPtr.Zero || !GetWindowRect(handle,out now))continue;
-                SetWindowPos(handle,IntPtr.Zero,now.Left,now.Top,now.Right-now.Left,now.Bottom-now.Top,0x0014); // SWP_NOZORDER|SWP_NOACTIVATE
+                bar.tries=0;
+                bool was=bar.uncaptioned;
+                bar.Settle();
+                // A window whose caption didn't change is placed again as before (Settle only places on a change).
+                if(was==bar.uncaptioned)SetWindowPos(handle,IntPtr.Zero,now.Left,now.Top,now.Right-now.Left,now.Bottom-now.Top,0x0014); // SWP_NOZORDER|SWP_NOACTIVATE
             }
         }
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
         [StructLayout(LayoutKind.Sequential)] struct WindowPlace {public IntPtr Handle,After;public int X,Y,Width,Height;public int Flags;}
         [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr window);
         [DllImport("user32.dll")] static extern IntPtr MonitorFromRect(ref Edges rect,int flags);
